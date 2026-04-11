@@ -6,9 +6,9 @@
 
 ## 현재 중요한 사실
 
-- 실제 구현은 아직 원본 workspace에 있습니다
-- 이 repo는 현재 문서와 구조를 먼저 세우는 단계입니다
-- 이후 구현 자산을 점진적으로 가져오는 방향으로 운영합니다
+- 실제 제품 앱 코드는 아직 원본 workspace에 있습니다
+- proposal repo 안에는 이미 `dashboard`, `orchestrator`, `chrome-extension`, `design-system` 1차 이관본이 들어와 있습니다
+- 이후에는 source workspace 의존성을 줄이는 방향으로 운영합니다
 
 ## 이미 검증된 핵심 흐름
 
@@ -42,7 +42,7 @@
 
 ## 다음 작업 추천
 
-1. proposal README 다듬기
-2. dashboard부터 1차 이관 시작
-3. orchestrator analytics contract 문서 분리
-4. extension 기능 범위를 MVP로 다시 묶기
+1. `design-system` 로컬 실행 검증
+2. orchestrator가 local `design-system`을 더 직접 쓰도록 정리
+3. extension/orchestrator/dashboard의 remaining source workspace path 문서화
+4. product integration extraction plan 구체화

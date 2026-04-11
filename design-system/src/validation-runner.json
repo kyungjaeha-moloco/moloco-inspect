@@ -1,0 +1,388 @@
+{
+  "meta": {
+    "description": "Validation rules and checks for verifying generated UI code against the MSM Portal Design System. Used in Phase 4 of the generation protocol.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-10"
+  },
+
+  "checks": {
+    "architecture": [
+      {
+        "id": "arch-page-thin",
+        "name": "Page is thin wrapper",
+        "severity": "error",
+        "convention_ref": "conventions.json#page-thin-wrapper",
+        "check": "Page file contains only: import + default export rendering Container. No useState, useEffect, useQuery, useNavigate, useTranslation, useEntityParam.",
+        "regex_indicators": ["useState|useEffect|useQuery|useNavigate|useTranslation|useEntityParam|useMemo|useCallback"],
+        "expected": "No matches in Page file ({EntityAction}.tsx)",
+        "fix": "Move all hooks to Container (MC{Entity}{Action}Container.tsx)"
+      },
+      {
+        "id": "arch-container-data",
+        "name": "Container handles all data",
+        "severity": "error",
+        "convention_ref": "conventions.json#no-data-fetch-in-component",
+        "check": "All tRPC calls, msmAPI queries, useNavigate, useTranslation, useInAppAlert, useEntityParam are in Container, not Component.",
+        "regex_indicators": ["trpc\\.", "msmAPI\\.", "useNavigate", "useTranslation", "useInAppAlert", "useEntityParam"],
+        "expected": "Matches in Container file only (MC{Entity}{Action}Container.tsx)",
+        "fix": "Move data fetching and hooks from Component to Container, pass computed values as props"
+      },
+      {
+        "id": "arch-component-pure",
+        "name": "Component is pure UI",
+        "severity": "error",
+        "convention_ref": "conventions.json#no-data-fetch-in-component",
+        "check": "Component receives all data via typed props (MT* interface). No tRPC, no msmAPI, no useNavigate, no fetch calls.",
+        "regex_indicators": ["trpc\\.", "msmAPI\\.", "useNavigate\\(\\)", "fetch\\(", "useEntityParam"],
+        "expected": "No matches in Component file (MC{Entity}{View}.tsx)",
+        "fix": "Component should only receive data via props from Container. Define props as MT* interface."
+      },
+      {
+        "id": "arch-3-layer-exists",
+        "name": "All 3 layers exist",
+        "severity": "error",
+        "convention_ref": "conventions.json#architecture",
+        "check": "For each feature, Page + Container + Component files all exist at correct locations per conventions.json → architecture → layers.",
+        "expected": "Page at src/apps/{client}/page/{entity}/, Container at src/apps/{client}/container/{entity}/{action}/, Component at src/apps/{client}/component/{entity}/ or src/common/component/"
+      },
+      {
+        "id": "arch-naming-conventions",
+        "name": "File and type naming follows conventions",
+        "severity": "error",
+        "convention_ref": "conventions.json#namingPrefixes",
+        "check": "Components use MC prefix, types use MT prefix, styled components use SC prefix, enums use ME prefix, hooks use 'use' prefix.",
+        "expected": "All exported names follow prefix conventions from conventions.json → namingPrefixes"
+      }
+    ],
+
+    "styling": [
+      {
+        "id": "style-no-hex",
+        "name": "No hardcoded colors",
+        "severity": "error",
+        "convention_ref": "conventions.json#no-hardcoded-colors",
+        "regex": "#([0-9A-Fa-f]{3,8})\\b",
+        "scope": "*.tsx, *.ts (styled-components and JSX)",
+        "exclude": ["tokens.json", "*.test.*", "*.spec.*"],
+        "fix": "Replace with props.theme.mcui.palette.* token (e.g., props.theme.mcui.palette.background.primary, props.theme.mcui.palette.content.primary, props.theme.mcui.palette.border.primary)"
+      },
+      {
+        "id": "style-no-px-spacing",
+        "name": "No hardcoded spacing",
+        "severity": "error",
+        "convention_ref": "conventions.json#no-hardcoded-spacing",
+        "regex": "(padding|margin|gap):\\s*\\d+px",
+        "scope": "*.tsx, *.ts (styled-components)",
+        "exclude": ["tokens.json", "*.test.*", "*.spec.*"],
+        "fix": "Replace with props.theme.mcui.spacing(n) where n is multiplier of 8px base unit (e.g., spacing(1)=8px, spacing(2)=16px, spacing(3)=24px)"
+      },
+      {
+        "id": "style-no-px-fonts",
+        "name": "No hardcoded font sizes",
+        "severity": "error",
+        "convention_ref": "conventions.json#no-hardcoded-fonts",
+        "regex": "font-size:\\s*\\d+(px|rem|em)",
+        "scope": "*.tsx, *.ts (styled-components)",
+        "exclude": ["tokens.json", "*.test.*", "*.spec.*"],
+        "fix": "Replace with props.theme.mcui.typography.* token (e.g., props.theme.mcui.typography.BODY_1_BODY.size, props.theme.mcui.typography.H_3.size)"
+      },
+      {
+        "id": "style-no-inline",
+        "name": "No inline styles",
+        "severity": "error",
+        "convention_ref": "conventions.json#no-inline-styles",
+        "regex": "style=\\{\\{",
+        "scope": "*.tsx (JSX sections)",
+        "fix": "Use styled-components with SC* prefix (e.g., const SCWrapper = styled.div`...`)"
+      },
+      {
+        "id": "style-sc-prefix",
+        "name": "Styled components use SC prefix",
+        "severity": "error",
+        "convention_ref": "conventions.json#sc-prefix-required",
+        "regex": "^const [A-Z][a-zA-Z]+ = styled\\.",
+        "scope": "*.tsx, *.ts",
+        "fix": "Rename to SC* prefix (e.g., const SCWrapper = styled.div`...`)"
+      },
+      {
+        "id": "style-transient-props",
+        "name": "Non-HTML props use $ prefix",
+        "severity": "error",
+        "convention_ref": "conventions.json#transient-props",
+        "check": "Props passed to styled-components that are not valid HTML attributes must use $ prefix to prevent DOM forwarding.",
+        "fix": "Rename prop to $propName in both styled component definition and JSX usage (e.g., $isActive, $direction, $width)"
+      }
+    ],
+
+    "components": [
+      {
+        "id": "comp-formik-context",
+        "name": "Form inputs inside Formik",
+        "severity": "error",
+        "convention_ref": "conventions.json#formik-required",
+        "check": "All MCForm* components are rendered inside a <Formik> or <Form> ancestor. Components with formikRequired=true in components.json must have Formik context.",
+        "affected": [
+          "MCFormTextInput",
+          "MCFormTextArea",
+          "MCFormNumberInput",
+          "MCFormCheckBox",
+          "MCFormSwitchInput",
+          "MCFormRadioGroup",
+          "MCFormSingleRichSelect",
+          "MCFormMultiRichSelect",
+          "MCFormCardSelect",
+          "MCFormInlineChipRichSelect",
+          "MCFormDateRangePicker",
+          "MCFormDateTimeRangePicker",
+          "MCFormColorInput",
+          "MCFormChipInput",
+          "MCFormWeeklyTimeTablePicker",
+          "MCFormOptionalFrequencyInput",
+          "MCFormSkippableVideoInput",
+          "MCFormAccordion"
+        ],
+        "fix": "Wrap in <Formik initialValues={...} validationSchema={...} onSubmit={...}> context. Keep the affected component list aligned with component-dependencies.json."
+      },
+      {
+        "id": "comp-no-direct-mcsingleinput",
+        "name": "No MCSingleTextInput in forms",
+        "severity": "error",
+        "convention_ref": "conventions.json#no-direct-mcsingleinput",
+        "check": "MCSingleTextInput is not used inside forms. MCFormTextInput must be used instead for Formik integration.",
+        "regex": "MCSingleTextInput",
+        "scope": "Form component files",
+        "fix": "Replace MCSingleTextInput with MCFormTextInput which provides Formik integration, label, error display, and accessibility"
+      },
+      {
+        "id": "comp-import-path",
+        "name": "Correct import paths",
+        "severity": "error",
+        "check": "Each component is imported using the exact importStatement from components.json. Common paths: form inputs from @msm-portal/common/component/form/v1/input/, form shared from @msm-portal/common/component/form/shared/, buttons from @moloco/moloco-cloud-react-ui.",
+        "fix": "Use the exact importStatement from components.json for each component"
+      },
+      {
+        "id": "comp-required-props",
+        "name": "Required props provided",
+        "severity": "error",
+        "check": "All props marked required=true in components.json are provided in JSX. For MCForm* components, the 'name' prop is always required.",
+        "fix": "Add missing required props. Check components.json → props array for each component."
+      },
+      {
+        "id": "comp-compositions",
+        "name": "Component composition valid",
+        "severity": "error",
+        "check": "Components with must_be_inside constraints in components.json → compositions are rendered within the specified parent. Example: MCFormTextInput must be inside Formik context.",
+        "fix": "Wrap component in required parent per components.json → compositions.must_be_inside"
+      },
+      {
+        "id": "comp-form-structure",
+        "name": "Form structure follows pattern",
+        "severity": "warning",
+        "check": "Forms use the correct hierarchy: MCFormPanel → MCFormPanelTitle + MCFormPanelBody → MCFormFieldGroup → MCForm* inputs. MCFormActions at bottom with Cancel + Submit.",
+        "fix": "Follow patterns.json → form-basic for correct form component hierarchy"
+      }
+    ],
+
+    "contract": [
+      {
+        "id": "contract-no-raw-public-ui",
+        "name": "No raw public UI imports",
+        "severity": "error",
+        "check": "Product-facing msm-portal-web code should not import raw shadcn or low-level UI primitives as public replacements for stable MC* contracts.",
+        "scope": [
+          "msm-portal/js/msm-portal-web/src/apps/**",
+          "msm-portal/js/msm-portal-web/src/common/**"
+        ],
+        "exclude": [
+          "msm-ui/**"
+        ],
+        "regex_indicators": [
+          "@radix-ui/",
+          "components/ui/",
+          "class-variance-authority"
+        ],
+        "fix": "Use stable MC* contracts in product code. Keep raw implementation imports inside adapter or implementation layers."
+      },
+      {
+        "id": "contract-prefer-semantic-token-meaning",
+        "name": "Prefer semantic token meaning",
+        "severity": "warning",
+        "check": "When tokens.json already declares a known codebase deviation, product code should use the canonical semantic token path instead of the legacy or undocumented token path.",
+        "scope": [
+          "msm-portal/js/msm-portal-web/src/apps/**",
+          "msm-portal/js/msm-portal-web/src/common/**"
+        ],
+        "exclude": [
+          "msm-ui/**"
+        ],
+        "input_refs": [
+          "tokens.json#codebase_deviations"
+        ],
+        "regex_indicators": [
+          "palette.text.primary",
+          "palette.text.secondary",
+          "palette.text.disabled",
+          "palette.foundation.primaryA",
+          "palette.background.paper",
+          "palette.border.selected",
+          "palette.action.primary"
+        ],
+        "fix": "Replace the legacy token path with the canonical semantic token path documented in tokens.json#codebase_deviations."
+      }
+    ],
+
+    "i18n": [
+      {
+        "id": "i18n-no-hardcoded",
+        "name": "No hardcoded user-facing strings",
+        "severity": "error",
+        "convention_ref": "conventions.json#i18n-required",
+        "regex": ">\\s*[A-Z][a-zA-Z\\s]{2,}\\s*<",
+        "scope": "*.tsx (JSX sections)",
+        "exclude": ["*.test.*", "*.spec.*", "*.stories.*"],
+        "fix": "Replace with {t('key.path')} using useTranslation. See patterns.json → i18n-usage."
+      },
+      {
+        "id": "i18n-namespace",
+        "name": "Correct i18n namespace",
+        "severity": "warning",
+        "check": "useTranslation namespace follows convention from patterns.json → i18n-usage: 'container.{entity}.{action}' for containers, 'form.{entity}' for forms.",
+        "fix": "Use correct namespace: useTranslation('container.{entity}.list'), useTranslation('form.{entity}')"
+      },
+      {
+        "id": "i18n-file-exists",
+        "name": "i18n resource file exists",
+        "severity": "error",
+        "check": "The i18n resource file exists with all keys used in the code. Resource files located at src/i18n/assets/{lang}/sot-resource.json or src/i18n/locales/en/{namespace}.json.",
+        "fix": "Create the i18n JSON file with all required keys matching t() calls in the code"
+      },
+      {
+        "id": "i18n-breadcrumb",
+        "name": "Breadcrumb labels use i18n",
+        "severity": "warning",
+        "check": "Breadcrumb crumb values in route registration use i18n keys following pattern: route.breadcrumb.{crumb}.",
+        "fix": "Use i18n key for breadcrumb handle.crumb in routeTemplate.tsx"
+      }
+    ],
+
+    "states": [
+      {
+        "id": "state-loading",
+        "name": "Loading state handled",
+        "severity": "error",
+        "pattern_ref": "patterns.json#loading-state",
+        "check": "Container checks isFetching/isLoading and renders MCCircularLoader (fillParent for full-page) or MCLoader (inline). Pattern: if (isLoading) return <MCCircularLoader fillParent />; or conditional render: isFetching || !data ? <MCCircularLoader fillParent /> : <Component />.",
+        "regex_indicators": ["isFetching|isLoading", "MCCircularLoader|MCLoader"],
+        "fix": "Add loading state in Container: if (isLoading) return <MCCircularLoader fillParent />;"
+      },
+      {
+        "id": "state-error",
+        "name": "Error state handled",
+        "severity": "error",
+        "pattern_ref": "patterns.json#error-handling",
+        "check": "Container handles query errors via useEffect watching error + fireCollapsibleError from useInAppAlert. For query errors: navigate away. For mutation errors: stay on page.",
+        "regex_indicators": ["fireCollapsibleError", "useInAppAlert"],
+        "fix": "Add error handling: useEffect(() => { if (error) { fireCollapsibleError({ summary: t('message.read.error'), error }); handleClose(); } }, [error]);"
+      },
+      {
+        "id": "state-empty",
+        "name": "Empty state handled",
+        "severity": "warning",
+        "check": "Component handles empty data (empty list, null entity) with meaningful message. Empty table shows explanatory message. Empty detail shows appropriate fallback.",
+        "fix": "Add empty state rendering when data is empty/null with descriptive message and call-to-action"
+      },
+      {
+        "id": "state-submit-disabled",
+        "name": "Submit button disabled during submission",
+        "severity": "error",
+        "check": "Submit button in forms has disabled={isSubmitting} to prevent double submission. Pattern from patterns.json → form-basic.",
+        "regex_indicators": ["disabled=\\{isSubmitting\\}", "disabled=\\{.*isSubmitting"],
+        "fix": "Add disabled={isSubmitting} to the submit MCButton2: <MCButton2 variant=\"contained\" type=\"submit\" disabled={isSubmitting}>"
+      },
+      {
+        "id": "state-success-feedback",
+        "name": "Success feedback provided",
+        "severity": "error",
+        "pattern_ref": "patterns.json#error-handling",
+        "check": "After successful mutation, fireSuccess toast is shown and user is navigated to appropriate page. Create → list page. Edit → detail page.",
+        "regex_indicators": ["fireSuccess"],
+        "fix": "Add: fireSuccess(t('message.create.success')); then navigate to list/detail page"
+      }
+    ],
+
+    "routing": [
+      {
+        "id": "route-enum",
+        "name": "Route key registered in MERouteKey",
+        "severity": "error",
+        "pattern_ref": "patterns.json#route-registration",
+        "check": "New page has corresponding MERouteKey enum value in src/route/types.ts. Convention: {ENTITY}_MAIN, {ENTITY}_CREATE, {ENTITY}_DETAIL, {ENTITY}_EDIT.",
+        "fix": "Add enum value to MERouteKey in src/route/types.ts"
+      },
+      {
+        "id": "route-template",
+        "name": "Route template registered",
+        "severity": "error",
+        "pattern_ref": "patterns.json#route-registration",
+        "check": "Route entry exists in src/app-builder/route/template/routeTemplate.tsx with path and breadcrumb handle.",
+        "fix": "Add route entry with path, key, and handle.crumb in routeTemplate.tsx"
+      },
+      {
+        "id": "route-client-mapping",
+        "name": "Client route mapping exists",
+        "severity": "error",
+        "pattern_ref": "patterns.json#route-registration",
+        "check": "Route is mapped to component in src/apps/{client}/config/route.tsx with allowedRoles.",
+        "fix": "Add { key: MERouteKey.{ENTITY}_MAIN, element: <{Entity}List />, allowedRoles: [...] } to client route config"
+      }
+    ]
+  },
+
+  "scoring": {
+    "pass": "All error-severity checks pass, no more than 2 warnings",
+    "conditional_pass": "All error-severity checks pass, 3+ warnings",
+    "fail": "Any error-severity check fails",
+    "report_format": {
+      "total_checks": "number",
+      "errors_passed": "number",
+      "errors_failed": "number",
+      "warnings_passed": "number",
+      "warnings_flagged": "number",
+      "overall_result": "pass | conditional_pass | fail",
+      "failed_checks": [
+        {
+          "id": "string (check ID)",
+          "severity": "error | warning",
+          "file": "string (file where violation found)",
+          "detail": "string (specific violation)",
+          "fix": "string (how to fix)"
+      }
+    ],
+
+    "ux_writing": [
+      {
+        "id": "uxw-discouraged-phrases",
+        "name": "Discouraged UX writing phrases",
+        "severity": "warning",
+        "check": "Locale strings should avoid dismissive, blameful, or needlessly forceful phrases defined in ux-writing.json → machine_checks.discouraged_phrases.",
+        "input_refs": [
+          "ux-writing.json#machine_checks.discouraged_phrases"
+        ],
+        "scope": "msm-portal/js/msm-portal-web/src/i18n/assets/{en,ko}/*.json",
+        "fix": "Replace the phrase with calmer and more direct guidance. Prefer next-step instructions over tone markers."
+      },
+      {
+        "id": "uxw-generic-cta",
+        "name": "Generic CTA wording",
+        "severity": "warning",
+        "check": "Submit-style action keys should describe the concrete result instead of using generic verbs such as 'Submit' or '보내기' when ux-writing.json marks them as ambiguous.",
+        "input_refs": [
+          "ux-writing.json#machine_checks.generic_cta_rules"
+        ],
+        "scope": "msm-portal/js/msm-portal-web/src/i18n/assets/{en,ko}/*.json",
+        "fix": "Replace the label with an action-specific phrase, such as 'Save changes', 'Send test link', or '비밀번호 재설정 이메일 보내기'."
+      }
+    ]
+  }
+}
+}

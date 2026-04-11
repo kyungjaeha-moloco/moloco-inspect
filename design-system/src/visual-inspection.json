@@ -1,0 +1,432 @@
+{
+  "meta": {
+    "description": "Visual inspection protocol for validating rendered UI against design system tokens. Used by agents with screenshot/multimodal capabilities.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-03"
+  },
+
+  "protocol": {
+    "capture": {
+      "description": "How to capture screenshots for inspection",
+      "steps": [
+        "Navigate to the target page in the browser",
+        "Capture full-page screenshot (viewport + scrolled content)",
+        "Capture component-level screenshots for detailed inspection",
+        "Capture in both light and dark mode if applicable"
+      ],
+      "tools": [
+        "Figma MCP figma_take_screenshot (if designing in Figma)",
+        "Browser DevTools screenshot (Cmd+Shift+P > 'Capture screenshot')",
+        "Puppeteer/Playwright page.screenshot() for automation"
+      ]
+    },
+
+    "color_validation": {
+      "description": "Verify colors match design tokens from tokens.json",
+      "checks": [
+        {
+          "id": "vis-color-brand",
+          "name": "Brand color consistency",
+          "what_to_check": "Primary action buttons, links, active states, focus rings, selected indicators",
+          "expected_token": "bg.brand.default / foundation.assent",
+          "expected_hex": "#346bea",
+          "hover_hex": "#0260C9",
+          "pressed_hex": "#014599",
+          "common_violations": [
+            "Different blue shade (e.g., #0070f3 or #2196F3 instead of #346bea)",
+            "Hardcoded hex not matching token",
+            "Brand color used for non-interactive elements",
+            "Missing hover (#0260C9) or pressed (#014599) state colors"
+          ]
+        },
+        {
+          "id": "vis-color-danger",
+          "name": "Danger/error color consistency",
+          "what_to_check": "Error messages, destructive buttons, invalid field borders, error banners",
+          "expected_token": "foundation.negative",
+          "expected_hex": "#dd1f11",
+          "background_hex": "#ffeae9 (bg.danger.default)",
+          "common_violations": [
+            "Using warning color (#ffca28) for errors",
+            "Different red shade (e.g., #f44336 instead of #dd1f11)",
+            "Error banner using bold red (#dd1f11) background instead of light tint (#ffeae9)"
+          ]
+        },
+        {
+          "id": "vis-color-success",
+          "name": "Success color consistency",
+          "what_to_check": "Success messages, active status indicators, positive badges",
+          "expected_token": "foundation.positive",
+          "expected_hex": "#429746",
+          "background_hex": "#E8F5E9 (bg.success.default)",
+          "common_violations": [
+            "Using brand blue for success instead of green",
+            "Different green shade (e.g., #4CAF50 instead of #429746)"
+          ]
+        },
+        {
+          "id": "vis-color-warning",
+          "name": "Warning color consistency",
+          "what_to_check": "Warning banners, caution indicators, approaching-limit states",
+          "expected_token": "foundation.warning",
+          "expected_hex": "#ffca28",
+          "background_hex": "#ffebad (bg.warning.default)",
+          "common_violations": [
+            "Using orange for warnings instead of yellow (#ffca28)",
+            "Warning banner using bold yellow background instead of light tint (#ffebad)"
+          ]
+        },
+        {
+          "id": "vis-color-text-hierarchy",
+          "name": "Text color hierarchy",
+          "what_to_check": "Primary text vs secondary text vs disabled text vs hint text. Each level should be visually distinct.",
+          "expected": {
+            "primary": "#212121 (text.neutral.default / content.primary)",
+            "secondary": "#5D5D5D (text.neutral.subtle / content.secondary)",
+            "disabled": "#9E9E9E (text.disabled / content.disabled)",
+            "hint_grey": "#bababa (text.neutral.grey / content.grey)",
+            "blue_grey": "#6c7581 (text.neutral.blueGrey / content.blueGrey)"
+          },
+          "common_violations": [
+            "All text rendered in the same shade (#212121)",
+            "Secondary text too dark (same as primary) or too light (same as disabled)",
+            "Placeholder text using primary color instead of #9E9E9E or #bababa"
+          ]
+        },
+        {
+          "id": "vis-color-backgrounds",
+          "name": "Background hierarchy",
+          "what_to_check": "Page background vs card/panel surface vs hover states vs selected states",
+          "expected": {
+            "page_surface": "#FFFFFF (bg.neutral.default / background.primary)",
+            "secondary_surface": "#F8F8F8 (bg.neutral.subtle / background.secondary)",
+            "tertiary_surface": "#f8f9fd (bg.neutral.subtler / background.tertiary)",
+            "hover": "#EEEEEE (bg.neutral.hovered / background.primaryHover)",
+            "pressed": "#E0E0E0 (bg.neutral.pressed / background.primaryPressed)",
+            "selected": "#E3F2FD (bg.selected.default / background.selected)",
+            "disabled": "#F5F5F5 (bg.disabled / background.disabled)",
+            "input_default": "#FFFFFF (bg.input.default / background.input)",
+            "input_disabled": "#F5F5F5 (bg.input.disabled / background.inputDisabled)"
+          },
+          "common_violations": [
+            "Panels and page using the same white with no layered depth",
+            "Hover state too subtle or too dark",
+            "Selected rows not using #E3F2FD",
+            "Disabled inputs not using #F5F5F5 background"
+          ]
+        },
+        {
+          "id": "vis-color-borders",
+          "name": "Border consistency",
+          "what_to_check": "Panel borders, input borders, dividers, focus rings, error borders",
+          "expected": {
+            "default": "#ececec (border.neutral.default / border.primary)",
+            "subtle": "#ebf0fd (border.neutral.subtle / border.secondary)",
+            "input_default": "#ececec (border.input.default / border.input)",
+            "focus": "#346bea (border.input.focused / foundation.assent)",
+            "error": "#dd1f11 (border.input.error / foundation.negative)",
+            "disabled": "#E0E0E0 (border.disabled)"
+          },
+          "common_violations": [
+            "Input borders darker than panel borders",
+            "Missing focus ring (#346bea) on focused inputs",
+            "Error border using a different red than #dd1f11",
+            "Dividers using a heavier color than #ececec"
+          ]
+        },
+        {
+          "id": "vis-color-icons",
+          "name": "Icon color consistency",
+          "what_to_check": "Default icons, brand icons, status icons, disabled icons",
+          "expected": {
+            "default": "#8891a7 (icon.neutral.default / icon.primary)",
+            "secondary": "#5d5d5d (icon.neutral.subtle / icon.secondary)",
+            "brand": "#346bea (icon.brand.default / icon.accent)",
+            "danger": "#dd1f11 (icon.danger.default / icon.critical)",
+            "success": "#429746 (icon.success.default / icon.positive)",
+            "warning": "#ffca28 (icon.warning.default / icon.warning)",
+            "disabled": "#d0d8ea (icon.disabled)",
+            "navigation": "#6c7581 (icon.primaryNav)"
+          },
+          "common_violations": [
+            "Icons using text color (#212121) instead of icon color (#8891a7)",
+            "Navigation icons not using blue-grey (#6c7581)",
+            "Disabled icons too dark or too visible"
+          ]
+        }
+      ]
+    },
+
+    "spacing_validation": {
+      "description": "Verify spacing follows the 8px grid from tokens.json",
+      "base_unit": 8,
+      "allowed_values_px": [4, 8, 12, 16, 24, 32, 40, 48, 64],
+      "checks": [
+        {
+          "id": "vis-spacing-grid",
+          "name": "8px grid alignment",
+          "what_to_check": "All padding and margins should be multiples of the 8px base unit (4, 8, 12, 16, 24, 32, 40, 48, 64)",
+          "reference": {
+            "spacing(0.5)": "4px — tight icon-text gaps",
+            "spacing(1)": "8px — small inner padding, icon gaps",
+            "spacing(1.5)": "12px — form field internal padding",
+            "spacing(2)": "16px — standard padding, row gaps",
+            "spacing(3)": "24px — section margin-bottom",
+            "spacing(4)": "32px — large section gaps, form action padding",
+            "spacing(5)": "40px — form title margin",
+            "spacing(6)": "48px — panel padding (MCFormPanel)",
+            "spacing(8)": "64px — extra-large layout spacing"
+          },
+          "common_violations": [
+            "5px or 10px gaps (not on the 8px grid)",
+            "15px padding (should be 12px or 16px)",
+            "Inconsistent padding between similar elements",
+            "Odd pixel values like 7px or 13px"
+          ]
+        },
+        {
+          "id": "vis-spacing-consistency",
+          "name": "Consistent spacing between similar elements",
+          "what_to_check": "Same spacing between form fields, between cards, between sections. Measure gaps visually.",
+          "expected_patterns": {
+            "form_field_vertical_gap": "16px (spacing(2))",
+            "panel_internal_padding": "48px (spacing(6))",
+            "section_gap": "24px (spacing(3))",
+            "action_bar_gap": "32px (spacing(4))"
+          },
+          "common_violations": [
+            "Different gaps between identical form field rows",
+            "First panel has different padding than subsequent panels",
+            "Inconsistent margins between repeated card elements"
+          ]
+        },
+        {
+          "id": "vis-spacing-density",
+          "name": "Appropriate information density",
+          "what_to_check": "Not too cramped, not too sparse. Panels should have comfortable padding. Content should breathe.",
+          "expected": {
+            "panel_padding": "spacing(6) = 48px for MCFormPanel",
+            "field_row_gap": "spacing(2) = 16px between form field rows",
+            "section_separation": "spacing(3) = 24px between major sections",
+            "page_title_margin": "spacing(5) = 40px below page/form title"
+          },
+          "common_violations": [
+            "Cramped forms with less than 16px between fields",
+            "Overly sparse layouts with 64px gaps between related fields",
+            "Panel padding inconsistent across panels on the same page"
+          ]
+        }
+      ]
+    },
+
+    "typography_validation": {
+      "description": "Verify typography matches tokens from tokens.json",
+      "checks": [
+        {
+          "id": "vis-typo-hierarchy",
+          "name": "Heading hierarchy is clear and correct",
+          "what_to_check": "Page title > section title > subsection > body text. Each level visually distinct and progressively smaller.",
+          "expected": {
+            "dashboard_display": "H_1: 34px / weight 400",
+            "page_title": "H_2: 28px / weight 400",
+            "section_panel_title": "H_3: 18px / weight 500",
+            "subsection_title": "H_4: 16px / weight 500",
+            "bold_label": "H_5: 14px / weight 700",
+            "body_text": "BODY_1_BODY: 14px / weight 400 / lineHeight 16px",
+            "secondary_text": "BODY_2: 12px / weight 400 / lineHeight 20px",
+            "error_message": "BODY_2_SPECIAL: 12px / weight 400 / lineHeight 14px",
+            "caption": "BODY_3: 12px / weight 500 / letterSpacing 0.5px"
+          },
+          "common_violations": [
+            "Page title and section title the same size",
+            "Heading levels skipped (H_2 directly to H_5)",
+            "Panel titles not using H_3 (18px/500)",
+            "Body text larger than section heading"
+          ]
+        },
+        {
+          "id": "vis-typo-weight",
+          "name": "Font weight used correctly",
+          "what_to_check": "Bold only for headings and emphasis labels, not for all body text. Weight 400 for body, 500 for headings/buttons, 700 only for H_5 bold labels.",
+          "expected_weights": {
+            "400": "H_1, H_2, BODY_1_BODY, BODY_1_PARAGRAPH, BODY_2, BODY_2_SPECIAL — regular weight for body and large display",
+            "500": "H_3, H_4, BUTTON_DEFAULT, BUTTON_LARGE, BUTTON_SMALL, BODY_3, BODY_4, BODY_5 — medium weight for section titles and buttons",
+            "700": "H_5 only — bold weight reserved for inline bold labels and table headers"
+          },
+          "common_violations": [
+            "Everything bold (weight 700 on body text)",
+            "Headings not visually distinct from body (both weight 400 at similar sizes)",
+            "Button text using weight 700 instead of 500",
+            "Form field labels bold when they should be regular (400)"
+          ]
+        },
+        {
+          "id": "vis-typo-size-minimum",
+          "name": "Minimum text size respected",
+          "what_to_check": "No user-facing readable content below 12px (BODY_2). BODY_4 (10px) and BODY_5 (9px) are for micro labels only.",
+          "common_violations": [
+            "Error messages or hints rendered below 12px",
+            "Table cell text smaller than 12px",
+            "Navigation labels below minimum readable size"
+          ]
+        }
+      ]
+    },
+
+    "layout_validation": {
+      "description": "Verify layout patterns and visual structure",
+      "checks": [
+        {
+          "id": "vis-layout-alignment",
+          "name": "Element alignment",
+          "what_to_check": "Labels aligned, inputs aligned, buttons aligned. Vertical and horizontal edges should line up within the same panel or section.",
+          "common_violations": [
+            "Misaligned form labels (some left-aligned, some differently indented)",
+            "Buttons not aligned to the content grid",
+            "Table columns with inconsistent alignment"
+          ]
+        },
+        {
+          "id": "vis-layout-responsive",
+          "name": "Content width appropriate",
+          "what_to_check": "Form fields not stretching full width on wide screens. Tables responsive. Content has reasonable max-width.",
+          "common_violations": [
+            "Single text input stretching 1200px wide on a large monitor",
+            "Content too narrow on wide screens, wasting horizontal space",
+            "Form panels not using MCFormFieldWidth tokens (HALF, FULL, THIRD)"
+          ]
+        },
+        {
+          "id": "vis-layout-visual-balance",
+          "name": "Visual balance and whitespace",
+          "what_to_check": "Balanced use of whitespace, no cramped areas next to empty areas. Content evenly distributed.",
+          "common_violations": [
+            "Dense form next to empty sidebar region",
+            "Uneven column widths in a two-column form layout",
+            "Action bar visually disconnected from form content"
+          ]
+        },
+        {
+          "id": "vis-layout-three-layer",
+          "name": "Three-layer architecture reflected in layout",
+          "what_to_check": "Page shell (MCContentLayout/MCFormLayout) wrapping container logic wrapping pure component UI. No orphaned components outside layout wrappers.",
+          "common_violations": [
+            "Content rendered without MCContentLayout or MCFormLayout wrapper",
+            "Missing breadcrumbs or page title from layout shell",
+            "Form actions floating outside the layout footer"
+          ]
+        }
+      ]
+    },
+
+    "component_validation": {
+      "description": "Verify component usage matches design system patterns",
+      "checks": [
+        {
+          "id": "vis-comp-button-hierarchy",
+          "name": "Button visual hierarchy",
+          "what_to_check": "Only ONE primary (contained, bg #346bea) button per view. Others should be default/outlined or text variant.",
+          "expected": {
+            "primary_action": "MCButton2 variant='contained' — single per view, bg #346bea, text #FFFFFF",
+            "secondary_action": "MCButton2 variant='default' or variant='outlined' — neutral styling",
+            "tertiary_action": "MCButton2 variant='text' — text-only, no background",
+            "destructive_action": "MCButton2 variant='destructive' — bg #dd1f11, text #FFFFFF"
+          },
+          "common_violations": [
+            "Multiple contained (#346bea) buttons competing for attention",
+            "Primary action not visually prominent (using default variant for Submit)",
+            "Destructive button styled as primary instead of destructive variant"
+          ]
+        },
+        {
+          "id": "vis-comp-form-labels",
+          "name": "All inputs have visible labels",
+          "what_to_check": "Every form input has a visible fieldLabel above it. Optional fields show '(Optional)' suffix.",
+          "common_violations": [
+            "Placeholder-only inputs with no fieldLabel",
+            "Labels missing on some fields but present on others",
+            "Required fields not visually distinct from optional fields"
+          ]
+        },
+        {
+          "id": "vis-comp-status-colors",
+          "name": "Status indicators use correct semantic colors",
+          "what_to_check": "Success=green (#429746), error=red (#dd1f11), warning=yellow (#ffca28), info=blue (#0288D1). Each status visually distinct.",
+          "expected_mapping": {
+            "success": { "text": "#429746", "bg": "#E8F5E9", "icon": "#429746" },
+            "error": { "text": "#dd1f11", "bg": "#ffeae9", "icon": "#dd1f11" },
+            "warning": { "text": "#ffca28", "bg": "#ffebad", "icon": "#ffca28" },
+            "info": { "text": "#0288D1", "bg": "#E1F5FE", "icon": "#0288D1" }
+          },
+          "common_violations": [
+            "Wrong color for status (e.g., red for warning)",
+            "No color differentiation between states",
+            "Status badges all using the same grey"
+          ]
+        },
+        {
+          "id": "vis-comp-loading",
+          "name": "Loading states visible",
+          "what_to_check": "MCCircularLoader or skeleton shown during data fetch. No blank screens while loading.",
+          "common_violations": [
+            "Blank white screen during initial data load",
+            "No loading indicator on button during form submission",
+            "Entire page spinner when only one section is loading"
+          ]
+        },
+        {
+          "id": "vis-comp-empty-state",
+          "name": "Empty states handled",
+          "what_to_check": "Empty tables/lists show a descriptive message, not blank space. Call-to-action (Create button) visible from empty state.",
+          "common_violations": [
+            "Empty table shows blank white space",
+            "No guidance text or CTA in empty state",
+            "Empty state message not using i18n"
+          ]
+        }
+      ]
+    }
+  },
+
+  "scoring": {
+    "method": "Each check: pass (1), partial (0.5), fail (0). Total = sum / count * 100.",
+    "total_checks": 21,
+    "thresholds": {
+      "excellent": "90%+ (19+ checks passing)",
+      "good": "75-89% (16-18 checks passing)",
+      "needs_improvement": "60-74% (13-15 checks passing)",
+      "poor": "Below 60% (fewer than 13 checks passing)"
+    }
+  },
+
+  "dom_extraction": {
+    "description": "For automated validation, extract computed styles from DOM to cross-check against tokens",
+    "scripts": {
+      "single_element": "const el = document.querySelector('.target');\nconst s = getComputedStyle(el);\nconsole.log({ color: s.color, bg: s.backgroundColor, padding: s.padding, fontSize: s.fontSize, fontWeight: s.fontWeight, borderColor: s.borderColor });",
+      "all_buttons": "document.querySelectorAll('button').forEach(b => { const s = getComputedStyle(b); console.log(b.textContent.trim(), { bg: s.backgroundColor, color: s.color, fontWeight: s.fontWeight }); });",
+      "all_inputs": "document.querySelectorAll('input, select, textarea').forEach(i => { const s = getComputedStyle(i); console.log(i.name || i.id, { borderColor: s.borderColor, bg: s.backgroundColor, fontSize: s.fontSize }); });"
+    }
+  },
+
+  "evaluation_template": {
+    "description": "Template for reporting visual inspection results",
+    "format": {
+      "screen_name": "string (e.g., 'AuctionOrder Create')",
+      "screenshot_source": "string (e.g., 'browser screenshot', 'Figma MCP', 'Playwright')",
+      "viewport": "string (e.g., '1440x900')",
+      "theme_mode": "light | dark",
+      "checks": [
+        {
+          "check_id": "string (e.g., 'vis-color-brand')",
+          "result": "pass | partial | fail",
+          "observation": "string (what was seen in the screenshot)",
+          "expected_vs_actual": "string (e.g., 'Expected #346bea, observed ~#2196F3')",
+          "recommendation": "string (specific fix if not pass)"
+        }
+      ],
+      "total_score": "number (percentage)",
+      "grade": "excellent | good | needs_improvement | poor",
+      "top_3_issues": ["string (most impactful visual issue with specific token reference)"]
+    }
+  }
+}

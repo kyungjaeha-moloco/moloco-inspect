@@ -1,0 +1,48 @@
+{
+  "$schema": "../schemas/governance.schema.json",
+  "meta": {
+    "description": "Design system governance — audit cycles, promotion/deprecation queues, and quality gates.",
+    "lastUpdated": "2026-04-08"
+  },
+  "audit": {
+    "frequency": "quarterly",
+    "last_audit": "2026-04-08",
+    "next_audit": "2026-07-08",
+    "coverage": {
+      "tokens": { "defined": 52, "codebase_used": 25, "coverage_pct": 48 },
+      "components": { "defined": 79, "codebase_total": 120, "coverage_pct": 66 }
+    }
+  },
+  "promotion_queue": [
+    { "name": "MCSwitch", "usage": 48, "reason": "High-usage toggle, needs DS wrapper", "target_version": "3.1.0" },
+    { "name": "MCTooltip", "usage": 18, "reason": "Widely used, no DS wrapper exists", "target_version": "3.1.0" },
+    { "name": "MCI18nTable", "usage": 137, "reason": "Primary table component across all clients", "target_version": "3.1.0" },
+    { "name": "MCTableActionBar", "usage": 114, "reason": "Used in virtually every list page", "target_version": "3.1.0" },
+    { "name": "MCEmptyState", "usage": 2, "reason": "Replaces deprecated EmptyState", "target_version": "3.1.0" }
+  ],
+  "deprecation_queue": [
+    { "name": "MCLoader", "replacement": "MCCircularLoader", "since": "3.0.0", "removal_target": "4.0.0" },
+    { "name": "MCSelect", "replacement": "MCFormSingleRichSelect", "since": "3.0.0", "removal_target": "4.0.0" },
+    { "name": "MCDatePicker", "replacement": "MCFormDateRangePicker", "since": "3.0.0", "removal_target": "4.0.0" },
+    { "name": "MCModal", "replacement": "MCCommonDialog", "since": "3.0.0", "removal_target": "4.0.0" },
+    { "name": "EmptyState", "replacement": "MCEmptyState", "since": "3.0.0", "removal_target": "4.0.0" }
+  ],
+  "removal_queue": [
+    { "name": "MCTag", "reason": "Zero usage", "target_version": "4.0.0" },
+    { "name": "MCBoxTab", "reason": "Zero usage", "target_version": "4.0.0" },
+    { "name": "MCMarkdown", "reason": "Zero usage", "target_version": "4.0.0" },
+    { "name": "MCTimePicker", "reason": "Zero usage", "target_version": "4.0.0" },
+    { "name": "MCDynamicDropdown", "reason": "Zero usage", "target_version": "4.0.0" },
+    { "name": "MCStateIcon", "reason": "Zero usage", "target_version": "4.0.0" },
+    { "name": "MCDebounceInput", "reason": "Zero usage", "target_version": "4.0.0" },
+    { "name": "MCBarTab", "reason": "Internal sub-component", "target_version": "4.0.0" },
+    { "name": "MCBarTabIndicator", "reason": "Internal sub-component", "target_version": "4.0.0" }
+  ],
+  "watch_list": [
+    { "name": "MCCustomRichSelect", "usage": 15, "reason": "Custom variant, monitoring" },
+    { "name": "MCColorPicker", "usage": 13, "reason": "Moderate usage, evaluate for inclusion" },
+    { "name": "MCFormAccordion", "usage": 12, "reason": "Form-specific accordion variant" },
+    { "name": "MCCollapsibleFormFieldGroup", "usage": 8, "reason": "Collapsible variant" },
+    { "name": "MCFullScreenLoader", "usage": 2, "reason": "Low usage loading variant" }
+  ]
+}

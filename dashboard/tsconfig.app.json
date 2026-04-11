@@ -22,7 +22,7 @@
       "@msm-portal/tving/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/apps/tving/*"],
       "@msm-portal/shortmax/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/apps/shortmax/*"],
       "@msm-portal/onboard-demo/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/apps/onboard-demo/*"],
-      "@source-design-system/*": ["../../Agent-Design-System/design-system/src/*"]
+      "@source-design-system/*": ["../design-system/src/*"]
     },
     "types": ["vite/client"]
   },

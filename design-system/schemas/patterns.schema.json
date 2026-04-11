@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "patterns.schema.json",
+  "title": "MSM Portal Composition Patterns",
+  "description": "Schema for design-system/src/patterns.json",
+  "type": "object",
+  "required": ["meta", "patterns"],
+  "additionalProperties": true,
+  "properties": {
+    "$schema": { "type": "string" },
+    "meta": {
+      "type": "object",
+      "required": ["description"],
+      "properties": {
+        "description": { "type": "string" }
+      }
+    },
+    "patterns": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/pattern" }
+    }
+  },
+  "$defs": {
+    "pattern": {
+      "type": "object",
+      "required": ["id", "name", "description"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique kebab-case identifier for this pattern",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "when": { "type": "string" },
+        "code": { "type": "string" },
+        "rules": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "order": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

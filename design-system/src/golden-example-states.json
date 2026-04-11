@@ -1,0 +1,112 @@
+{
+  "meta": {
+    "description": "Golden example states for key design-system components. Used by documentation, preview viewers, and agent verification to understand what good looks like.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-11"
+  },
+  "components": {
+    "MCButton2": {
+      "golden_states": [
+        { "name": "default", "description": "Primary action button in resting state." },
+        { "name": "hover", "description": "Pointer hover state for desktop interactions." },
+        { "name": "focus", "description": "Keyboard focus ring is visible and accessible." },
+        { "name": "disabled", "description": "Action is unavailable and visually muted." },
+        { "name": "loading", "description": "Async action is in progress and duplicate submission is blocked." }
+      ]
+    },
+    "MCFormTextInput": {
+      "golden_states": [
+        { "name": "default", "description": "Field label, placeholder, and input chrome render normally." },
+        { "name": "focus", "description": "Focused border or ring is visible with no layout shift." },
+        { "name": "error", "description": "Validation error text and error styling appear together." },
+        { "name": "disabled", "description": "Input is non-interactive and visually de-emphasized." },
+        { "name": "readonly", "description": "Field is readable but not editable." }
+      ]
+    },
+    "MCFormCheckBox": {
+      "golden_states": [
+        { "name": "unchecked", "description": "Label and checkbox are aligned and readable." },
+        { "name": "checked", "description": "Selection is clearly visible without shifting nearby layout." },
+        { "name": "disabled", "description": "Checkbox is non-interactive and visually muted." }
+      ]
+    },
+    "MCFormSwitchInput": {
+      "golden_states": [
+        { "name": "off", "description": "Switch is off and the label remains readable." },
+        { "name": "on", "description": "Switch is on with a clear semantic accent color." },
+        { "name": "disabled", "description": "Switch cannot be toggled and remains visually de-emphasized." }
+      ]
+    },
+    "MCFormRadioGroup": {
+      "golden_states": [
+        { "name": "default", "description": "All options are readable and equally aligned." },
+        { "name": "selected", "description": "The active option is clearly selected." },
+        { "name": "disabled", "description": "The full option group is visibly non-interactive." }
+      ]
+    },
+    "MCBarTabs": {
+      "golden_states": [
+        { "name": "default", "description": "All tabs are visible and inactive tabs are readable." },
+        { "name": "active", "description": "Selected tab is clearly differentiated." }
+      ]
+    },
+    "MCContentLayout": {
+      "golden_states": [
+        { "name": "default", "description": "Page title, content region, and accessory area are aligned." },
+        { "name": "with_breadcrumb", "description": "Breadcrumb is visible and does not compete with the page title." },
+        { "name": "with_right_accessory", "description": "Header action aligns with the title without crowding it." }
+      ]
+    },
+    "MCSignInForm": {
+      "golden_states": [
+        { "name": "idle", "description": "Title, inputs, forgot-password action, and submit button are visible." },
+        { "name": "submitting", "description": "Submit action is disabled while async sign-in is running." },
+        { "name": "error", "description": "Auth error message appears below the fields without collapsing layout." }
+      ]
+    },
+    "MCCommonDialog": {
+      "golden_states": [
+        { "name": "default", "description": "Title, body copy, and primary/secondary actions are visible." },
+        { "name": "destructive", "description": "Dangerous action is visually distinct and clearly labeled." }
+      ]
+    },
+    "MCColorPicker": {
+      "golden_states": [
+        { "name": "collapsed", "description": "Current color token or hex value is visible in the trigger." },
+        { "name": "expanded", "description": "Color panel, sliders, and confirmation affordances are visible." }
+      ]
+    },
+    "MCTableActionBar": {
+      "golden_states": [
+        { "name": "idle", "description": "Bulk action bar remains hidden or visually calm when nothing is selected." },
+        { "name": "selection_active", "description": "Selected count and primary bulk action are clearly visible." }
+      ]
+    },
+    "MCI18nTable": {
+      "golden_states": [
+        { "name": "default", "description": "Header, row data, and alignment remain readable at a glance." },
+        { "name": "empty", "description": "No-data messaging is visible without collapsing the table frame." }
+      ]
+    },
+    "MCStatusBadge": {
+      "golden_states": [
+        { "name": "active", "description": "Positive state uses active semantics and remains readable." },
+        { "name": "inactive", "description": "Muted state remains visible but not overly prominent." }
+      ]
+    },
+    "MCTimer": {
+      "golden_states": [
+        { "name": "running", "description": "Live countdown or elapsed time updates without layout jitter." },
+        { "name": "expired", "description": "Expired timer remains readable and semantically clear." }
+      ]
+    },
+    "MCStatus": {
+      "golden_states": [
+        { "name": "positive", "description": "Success state uses success semantics and remains readable." },
+        { "name": "warning", "description": "Warning state uses warning semantics and remains readable." },
+        { "name": "negative", "description": "Error state uses danger semantics and remains readable." },
+        { "name": "neutral", "description": "Informational or inactive state is visually calm." }
+      ]
+    }
+  }
+}

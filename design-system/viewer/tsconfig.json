@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@msm-portal/common/*": ["../../msm-portal/js/msm-portal-web/src/common/*"],
+      "@msm-portal/builder/*": ["../../msm-portal/js/msm-portal-web/src/app-builder/*"],
+      "@msm-portal/i18n/*": ["../../msm-portal/js/msm-portal-web/src/i18n/*"],
+      "@msm-portal/msm-default/*": ["../../msm-portal/js/msm-portal-web/src/apps/msm-default/*"]
+    }
+  },
+  "include": ["src"]
+}

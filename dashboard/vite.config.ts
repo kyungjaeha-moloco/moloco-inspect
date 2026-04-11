@@ -9,7 +9,7 @@ const SOURCE_WORKSPACE_ROOT =
 const MSM_WEB = path.resolve(SOURCE_WORKSPACE_ROOT, 'msm-portal/js/msm-portal-web');
 const MSM_SRC = path.resolve(MSM_WEB, 'src');
 const MSM_NODE_MODULES = path.resolve(MSM_WEB, 'node_modules');
-const DESIGN_SYSTEM_SRC = path.resolve(SOURCE_WORKSPACE_ROOT, 'design-system/src');
+const LOCAL_DESIGN_SYSTEM_SRC = path.resolve(__dirname, '../design-system/src');
 
 export default defineConfig({
   base: './',
@@ -27,7 +27,7 @@ export default defineConfig({
       '@msm-portal/tving': path.resolve(MSM_SRC, 'apps/tving'),
       '@msm-portal/shortmax': path.resolve(MSM_SRC, 'apps/shortmax'),
       '@msm-portal/onboard-demo': path.resolve(MSM_SRC, 'apps/onboard-demo'),
-      '@source-design-system': DESIGN_SYSTEM_SRC,
+      '@source-design-system': LOCAL_DESIGN_SYSTEM_SRC,
       react: path.resolve(MSM_NODE_MODULES, 'react'),
       'react-dom': path.resolve(MSM_NODE_MODULES, 'react-dom'),
       'react-router-dom': path.resolve(MSM_NODE_MODULES, 'react-router-dom'),
@@ -59,7 +59,7 @@ export default defineConfig({
   server: {
     fs: {
       strict: false,
-      allow: [__dirname, MSM_SRC, MSM_NODE_MODULES, DESIGN_SYSTEM_SRC, SOURCE_WORKSPACE_ROOT],
+      allow: [__dirname, MSM_SRC, MSM_NODE_MODULES, LOCAL_DESIGN_SYSTEM_SRC, SOURCE_WORKSPACE_ROOT],
     },
   },
   build: {

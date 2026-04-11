@@ -1,0 +1,21 @@
+{
+  "name": "msm-portal-design-system",
+  "version": "1.0.0",
+  "description": "MSM Portal design system — JSON source of truth with markdown doc generator",
+  "type": "module",
+  "scripts": {
+    "generate": "node generate.mjs",
+    "watch": "node --watch generate.mjs",
+    "sync-check": "node scripts/sync-check.mjs",
+    "validate": "node scripts/validate-schemas.mjs",
+    "validate:ds": "tsx scripts/validate.ts",
+    "generate:css": "node scripts/generate-css-variables.mjs",
+    "prop-check": "node scripts/prop-check.mjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  },
+  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319"
+}

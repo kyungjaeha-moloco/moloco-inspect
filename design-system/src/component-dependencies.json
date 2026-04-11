@@ -1,0 +1,485 @@
+{
+  "$schema": "component-dependencies",
+  "meta": {
+    "description": "Provider and context requirements for each component. Essential for the viewer, testing harness, and standalone component rendering. Derived from components.json compositions.must_be_inside and actual source code analysis.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-10"
+  },
+
+  "providers": {
+    "ThemeProvider": {
+      "import": "import { ThemeProvider } from 'styled-components';",
+      "setup_import": "import { createTheme } from '@moloco/moloco-cloud-react-ui';",
+      "setup": "const theme = createTheme(undefined);\n\n<ThemeProvider theme={theme}>\n  {children}\n</ThemeProvider>",
+      "required_by": "All styled-components and all MC* components",
+      "notes": "Must be the outermost provider for any component that accesses theme.mcui.*. Without it, any ${(props) => props.theme.mcui.*} interpolation will throw."
+    },
+    "Formik": {
+      "import": "import { Formik, Form } from 'formik';",
+      "setup": "<Formik initialValues={{ fieldName: '' }} validationSchema={schema} onSubmit={handleSubmit}>\n  {({ isSubmitting }) => (\n    <Form>\n      {children}\n    </Form>\n  )}\n</Formik>",
+      "required_by": "All MCForm* input components (17 components)",
+      "notes": "All MCForm* components call useField(name) internally, which requires Formik context. Without it: 'Cannot read properties of undefined (reading getFieldProps)'. initialValues must include keys matching each form input's name prop."
+    },
+    "I18nextProvider": {
+      "import": "import { I18nextProvider } from 'react-i18next';",
+      "setup_import": "import i18n from '@msm-portal/i18n';",
+      "setup": "<I18nextProvider i18n={i18n}>\n  {children}\n</I18nextProvider>",
+      "required_by": "Any component or container that uses useTranslation()",
+      "notes": "In MSM Portal, i18n is initialized at the app root via MCI18nProvider. For isolated rendering, provide a minimal i18n instance with the necessary namespace loaded."
+    },
+    "BrowserRouter": {
+      "import": "import { BrowserRouter } from 'react-router-dom';",
+      "setup": "<BrowserRouter>\n  {children}\n</BrowserRouter>",
+      "required_by": "Components that use useNavigate, useSearchParams, useParams, Link, or NavLink",
+      "notes": "MCContentLayout with showBreadcrumb=true requires router context for breadcrumb links. Set showBreadcrumb=false to avoid this dependency in previews."
+    },
+    "MCInAppAlertProvider": {
+      "import": "import MCInAppAlertProvider from '@msm-portal/common/alert/MCInAppAlertProvider';",
+      "setup": "<MCInAppAlertProvider>\n  {children}\n</MCInAppAlertProvider>",
+      "required_by": "Containers that use useInAppAlert() for fireCollapsibleError, fireSuccess",
+      "notes": "Required for error/success toast rendering. Without it, useInAppAlert() will return undefined handlers."
+    },
+    "ReactQueryProvider": {
+      "import": "import { QueryClientProvider, QueryClient } from '@tanstack/react-query';",
+      "setup": "const queryClient = new QueryClient();\n\n<QueryClientProvider client={queryClient}>\n  {children}\n</QueryClientProvider>",
+      "required_by": "Containers that use tRPC queries or mutations",
+      "notes": "Required for any data-fetching container. For isolated previews of pure UI components, this is not needed."
+    },
+    "MCGlobalStyle": {
+      "import": "import MCGlobalStyle from '@moloco/moloco-cloud-react-ui/MCGlobalStyle';",
+      "setup": "<MCGlobalStyle />",
+      "required_by": "All components (sets base font family, box-sizing, reset styles)",
+      "notes": "Renders global CSS including font-family, box-sizing: border-box, and CSS reset. Place inside ThemeProvider."
+    }
+  },
+
+  "provider_stack_order": {
+    "description": "Correct nesting order for a full provider stack. Outermost first.",
+    "order": [
+      "ReactQueryProvider",
+      "BrowserRouter",
+      "I18nextProvider",
+      "ThemeProvider",
+      "MCGlobalStyle",
+      "MCInAppAlertProvider"
+    ],
+    "minimal_for_ui_preview": [
+      "ThemeProvider",
+      "MCGlobalStyle"
+    ],
+    "minimal_for_form_preview": [
+      "ThemeProvider",
+      "MCGlobalStyle",
+      "Formik"
+    ],
+    "full_container_preview": [
+      "ReactQueryProvider",
+      "BrowserRouter",
+      "I18nextProvider",
+      "ThemeProvider",
+      "MCGlobalStyle",
+      "MCInAppAlertProvider"
+    ]
+  },
+
+  "components": {
+    "MCFormTextInput": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider", "MCFormPanel"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Must be inside Formik context. fieldLabel can be a string or ReactNode. If using t() for label, also needs I18nextProvider."
+    },
+    "MCFormTextArea": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Multi-line text input. Same context requirements as MCFormTextInput."
+    },
+    "MCFormNumberInput": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Numeric input with parseFloat conversion."
+    },
+    "MCFormCheckBox": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Boolean checkbox toggle."
+    },
+    "MCFormSwitchInput": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Toggle switch for boolean values."
+    },
+    "MCFormRadioGroup": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Exclusive single selection from radio options."
+    },
+    "MCFormSingleRichSelect": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Searchable single-select dropdown."
+    },
+    "MCFormMultiRichSelect": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Searchable multi-select dropdown."
+    },
+    "MCFormCardSelect": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Visual card-based selection for 2-6 options."
+    },
+    "MCFormInlineChipRichSelect": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Inline chip-style multi-select for fewer options."
+    },
+    "MCFormDateRangePicker": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Date range selection with calendar popover."
+    },
+    "MCFormDateTimeRangePicker": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Date + time range selection."
+    },
+    "MCFormColorInput": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Color picker with hex input."
+    },
+    "MCFormChipInput": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Multi-value chip/tag input."
+    },
+    "MCFormWeeklyTimeTablePicker": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Weekly time grid for scheduling."
+    },
+    "MCFormOptionalFrequencyInput": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Optional frequency cap with toggle + number input."
+    },
+    "MCFormSkippableVideoInput": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Video URL input with skip timer configuration."
+    },
+    "MCFormPanel": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Container panel for form sections. Works standalone with ThemeProvider. Does not require Formik."
+    },
+    "MCFormPanelTitle": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Title component for MCFormPanel. Uses H_3 typography."
+    },
+    "MCFormPanelBody": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Body container for MCFormPanel content."
+    },
+    "MCFormFieldGroup": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Groups form fields vertically or horizontally ($direction='row')."
+    },
+    "MCFormActions": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Action bar for Cancel/Submit buttons at form bottom."
+    },
+    "MCFormFieldLabel": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Standalone label component. MCForm* v1 inputs render labels internally, so this is for custom layouts only."
+    },
+    "MCFormLayout": {
+      "requires": ["ThemeProvider", "BrowserRouter"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": [],
+      "notes": "Full-page form layout with breadcrumbs and footer. Requires router for breadcrumb navigation."
+    },
+    "MCI18nWeeklyTimeTablePicker": {
+      "requires": ["ThemeProvider", "I18nextProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Localized wrapper around MCWeeklyTimeTablePicker. Requires i18n so weekday and legend labels resolve correctly."
+    },
+    "MCFormAccordion": {
+      "requires": ["ThemeProvider", "Formik"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["Formik context"],
+      "notes": "Uses useField(name) internally to reflect Formik error state in the accordion summary. Outside Formik it will break."
+    },
+    "MCButton2": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Works standalone with ThemeProvider. Supports variants: contained, outlined, text. Supports leftIcon prop."
+    },
+    "MCContentLayout": {
+      "requires": ["ThemeProvider"],
+      "optional": ["BrowserRouter", "I18nextProvider"],
+      "must_be_inside": [],
+      "notes": "Page layout with title and optional breadcrumb. Set showBreadcrumb=false to avoid router dependency for previews. When showBreadcrumb=true, requires BrowserRouter."
+    },
+    "MCBarTabs": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Tab bar component. Works standalone. Tab click handlers are passed via props, no router required."
+    },
+    "MCCommonDialog": {
+      "requires": ["ThemeProvider"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": [],
+      "notes": "Modal dialog. Uses portal rendering. Works standalone with ThemeProvider."
+    },
+    "MCPopover": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Popover component. Uses portal rendering."
+    },
+    "MCCircularLoader": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Loading spinner. fillParent prop makes it fill the parent container."
+    },
+    "MCMoreActionsButton": {
+      "requires": ["ThemeProvider"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": [],
+      "notes": "Dropdown action menu. Action items passed via moreActionItems prop."
+    },
+    "MCMoreActionGroupsButton": {
+      "requires": ["ThemeProvider"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": [],
+      "notes": "Grouped dropdown action menu for complex action sets."
+    },
+    "MCCollapsibleNavbar": {
+      "requires": ["ThemeProvider", "BrowserRouter"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": [],
+      "notes": "Side navigation bar. Requires router for navigation links."
+    },
+    "MCNavbarItems": {
+      "requires": ["ThemeProvider", "BrowserRouter"],
+      "optional": ["I18nextProvider"],
+      "must_be_inside": ["MCCollapsibleNavbar"],
+      "notes": "Navigation items. Must be inside MCCollapsibleNavbar."
+    },
+    "MCProfileButton": {
+      "requires": ["ThemeProvider", "I18nextProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Header account menu button. Needs i18n for menu labels and ThemeProvider for styled-components and Moloco button styling."
+    },
+    "MCWorkplaceSelectorPopper": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Header workplace switcher built on MCCustomRichSelect. Works standalone with ThemeProvider and explicit workplace props."
+    },
+    "MCWorkplaceSelector": {
+      "requires": ["ThemeProvider", "I18nextProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Searchable auth-time workplace selector. Requires i18n for placeholder and empty-state copy."
+    },
+    "MCAccordion": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Expandable/collapsible section."
+    },
+    "MCSection": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Generic section container with optional heading."
+    },
+    "MCDivider": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Horizontal divider line."
+    },
+    "MCIcon": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Icon component from @moloco/moloco-cloud-react-ui. Works standalone."
+    },
+    "MCBadge": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Status badge component."
+    },
+    "MCTextEllipsis": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Truncated text with ellipsis and optional tooltip."
+    },
+    "MCTooltip": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Tooltip component."
+    },
+    "MCGuideMessage": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Informational guide message panel."
+    },
+    "MCStatus": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Status indicator with dot and label."
+    },
+    "MCStatusBadge": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Compact semantic status pill. Requires ThemeProvider for variant colors and sizing."
+    },
+    "MCTimer": {
+      "requires": [],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Pure countdown helper. Does not require ThemeProvider or i18n unless the caller's decorator output does."
+    },
+    "MCStack": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Flex layout utility component."
+    },
+    "MCSingleTextInput": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Standalone text input WITHOUT Formik integration. Do NOT use inside Formik forms (use MCFormTextInput instead)."
+    },
+    "MCSingleTextArea": {
+      "requires": ["ThemeProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Standalone textarea WITHOUT Formik integration."
+    },
+    "MCSignInForm": {
+      "requires": ["ThemeProvider", "I18nextProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Owns its internal Formik setup. Callers provide submit and forgot-password handlers; external Formik context is not required."
+    },
+    "MCTFAForm": {
+      "requires": ["ThemeProvider", "I18nextProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Owns its internal Formik setup for 2FA code entry. Requires i18n for auth copy."
+    },
+    "MCForgotPasswordForm": {
+      "requires": ["ThemeProvider", "I18nextProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Owns its internal Formik setup for password reset request. Requires i18n for field, button, and error copy."
+    },
+    "MCPostForgotPassword": {
+      "requires": ["ThemeProvider", "I18nextProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Post-submit recovery state. Not a true form despite its folder name; needs i18n for instructional copy."
+    },
+    "MCAdPacingDashboardConfigurator": {
+      "requires": ["ThemeProvider", "I18nextProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Ad pacing toolbar that composes date picker, timer text, and settings button. Requires i18n for pacing labels."
+    },
+    "MCAdPacingDashboardColumnConfigurator": {
+      "requires": ["ThemeProvider", "I18nextProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Ad pacing column settings panel. Requires i18n for heading and action labels."
+    },
+    "MCAdPacingDashboardTable": {
+      "requires": ["ThemeProvider", "I18nextProvider"],
+      "optional": [],
+      "must_be_inside": [],
+      "notes": "Ad pacing domain table with filters and CSV export. Requires i18n for filter and action labels."
+    }
+  },
+
+  "rendering_recipes": {
+    "standalone_button": {
+      "description": "Minimal setup to render an MCButton2",
+      "providers": ["ThemeProvider"],
+      "code": "import { ThemeProvider } from 'styled-components';\nimport { createTheme, MCButton2 } from '@moloco/moloco-cloud-react-ui';\n\nconst theme = createTheme(undefined);\n\n<ThemeProvider theme={theme}>\n  <MCButton2 variant=\"contained\" color=\"primary\">Click Me</MCButton2>\n</ThemeProvider>"
+    },
+    "form_input_preview": {
+      "description": "Minimal setup to render a form input with Formik",
+      "providers": ["ThemeProvider", "Formik"],
+      "code": "import { ThemeProvider } from 'styled-components';\nimport { createTheme } from '@moloco/moloco-cloud-react-ui';\nimport { Formik, Form } from 'formik';\nimport MCFormTextInput from '@msm-portal/common/component/form/v1/input/MCFormTextInput';\n\nconst theme = createTheme(undefined);\n\n<ThemeProvider theme={theme}>\n  <Formik initialValues={{ name: '' }} onSubmit={() => {}}>\n    <Form>\n      <MCFormTextInput name=\"name\" fieldLabel=\"Name\" required />\n    </Form>\n  </Formik>\n</ThemeProvider>"
+    },
+    "content_layout_preview": {
+      "description": "Minimal setup to render MCContentLayout without router",
+      "providers": ["ThemeProvider"],
+      "code": "import { ThemeProvider } from 'styled-components';\nimport { createTheme } from '@moloco/moloco-cloud-react-ui';\nimport MCContentLayout from '@msm-portal/common/component/layout/content/MCContentLayout';\n\nconst theme = createTheme(undefined);\n\n<ThemeProvider theme={theme}>\n  <MCContentLayout title=\"My Page\" showBreadcrumb={false}>\n    <div>Page content here</div>\n  </MCContentLayout>\n</ThemeProvider>"
+    },
+    "full_form_page_preview": {
+      "description": "Full setup for previewing a form page with all necessary providers",
+      "providers": ["BrowserRouter", "I18nextProvider", "ThemeProvider", "MCGlobalStyle", "Formik"],
+      "code": "import { BrowserRouter } from 'react-router-dom';\nimport { I18nextProvider } from 'react-i18next';\nimport { ThemeProvider } from 'styled-components';\nimport { createTheme } from '@moloco/moloco-cloud-react-ui';\nimport MCGlobalStyle from '@moloco/moloco-cloud-react-ui/MCGlobalStyle';\nimport { Formik, Form } from 'formik';\nimport i18n from './i18n-test-instance';\n\nconst theme = createTheme(undefined);\n\n<BrowserRouter>\n  <I18nextProvider i18n={i18n}>\n    <ThemeProvider theme={theme}>\n      <MCGlobalStyle />\n      <Formik initialValues={{}} onSubmit={() => {}}>\n        <Form>{children}</Form>\n      </Formik>\n    </ThemeProvider>\n  </I18nextProvider>\n</BrowserRouter>"
+    },
+    "auth_sign_in_preview": {
+      "description": "Preview recipe for MCSignInForm and related auth screens that own their own Formik state",
+      "providers": ["I18nextProvider", "ThemeProvider", "MCGlobalStyle"],
+      "code": "import { I18nextProvider } from 'react-i18next';\nimport { ThemeProvider } from 'styled-components';\nimport { createTheme } from '@moloco/moloco-cloud-react-ui';\nimport MCGlobalStyle from '@moloco/moloco-cloud-react-ui/MCGlobalStyle';\nimport i18n from './i18n-test-instance';\nimport MCSignInForm from '@msm-portal/common/component/auth/form/sign-in/MCSignInForm';\n\nconst theme = createTheme(undefined);\n\n<I18nextProvider i18n={i18n}>\n  <ThemeProvider theme={theme}>\n    <MCGlobalStyle />\n    <MCSignInForm onSubmit={async () => {}} onClickForgotPassword={() => {}} />\n  </ThemeProvider>\n</I18nextProvider>"
+    },
+    "workplace_selector_preview": {
+      "description": "Preview recipe for standalone workplace selection before entering the product shell",
+      "providers": ["I18nextProvider", "ThemeProvider", "MCGlobalStyle"],
+      "code": "import { I18nextProvider } from 'react-i18next';\nimport { ThemeProvider } from 'styled-components';\nimport { createTheme } from '@moloco/moloco-cloud-react-ui';\nimport MCGlobalStyle from '@moloco/moloco-cloud-react-ui/MCGlobalStyle';\nimport i18n from './i18n-test-instance';\nimport MCWorkplaceSelector from '@msm-portal/common/component/auth/workplace-selector/MCWorkplaceSelector';\n\nconst theme = createTheme(undefined);\nconst workplaces = [\n  { id: 'wp-1', title: 'Main Workspace', logoUrl: '' },\n  { id: 'wp-2', title: 'APAC Workspace', logoUrl: '' },\n];\n\n<I18nextProvider i18n={i18n}>\n  <ThemeProvider theme={theme}>\n    <MCGlobalStyle />\n    <MCWorkplaceSelector\n      isLoading={false}\n      workplaces={workplaces}\n      onSelectWorkplace={(workplaceId) => console.log(workplaceId)}\n    />\n  </ThemeProvider>\n</I18nextProvider>"
+    },
+    "ad_pacing_dashboard_preview": {
+      "description": "Preview recipe for the ad pacing dashboard table/configurator family",
+      "providers": ["I18nextProvider", "ThemeProvider", "MCGlobalStyle"],
+      "code": "import { I18nextProvider } from 'react-i18next';\nimport { ThemeProvider } from 'styled-components';\nimport { createTheme } from '@moloco/moloco-cloud-react-ui';\nimport MCGlobalStyle from '@moloco/moloco-cloud-react-ui/MCGlobalStyle';\nimport i18n from './i18n-test-instance';\nimport MCAdPacingDashboardConfigurator from '@msm-portal/common/component/ad-pacing-dashboard/MCAdPacingDashboardConfigurator';\nimport MCAdPacingDashboardTable from '@msm-portal/common/component/ad-pacing-dashboard/MCAdPacingDashboardTable';\n\nconst theme = createTheme(undefined);\n\n<I18nextProvider i18n={i18n}>\n  <ThemeProvider theme={theme}>\n    <MCGlobalStyle />\n    {children}\n  </ThemeProvider>\n</I18nextProvider>"
+    }
+  }
+}

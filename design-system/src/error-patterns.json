@@ -1,0 +1,318 @@
+{
+  "$schema": "error-patterns",
+  "meta": {
+    "description": "Database of common errors that occur during agent-generated code and their fixes. Organized by category: runtime, build, styling, architecture, and MSM Portal-specific.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-06"
+  },
+
+  "errors": [
+    {
+      "id": "err-formik-context",
+      "error": "Cannot read properties of undefined (reading 'getFieldProps')",
+      "cause": "Form input component used outside Formik context",
+      "detection": "Any MCForm* component rendered without an ancestor <Formik> wrapper",
+      "affected_components": [
+        "MCFormTextInput", "MCFormTextArea", "MCFormNumberInput", "MCFormCheckBox",
+        "MCFormSwitchInput", "MCFormRadioGroup", "MCFormSingleRichSelect",
+        "MCFormMultiRichSelect", "MCFormCardSelect", "MCFormInlineChipRichSelect",
+        "MCFormDateRangePicker", "MCFormDateTimeRangePicker", "MCFormColorInput",
+        "MCFormChipInput", "MCFormWeeklyTimeTablePicker", "MCFormOptionalFrequencyInput",
+        "MCFormSkippableVideoInput"
+      ],
+      "fix": "Wrap form inputs in <Formik initialValues={...} validationSchema={...} onSubmit={...}><Form>...</Form></Formik>. See patterns.json -> form-basic.",
+      "fix_code": "<Formik initialValues={{ name: '' }} validationSchema={schema} onSubmit={handleSubmit}>\n  {({ isSubmitting }) => (\n    <Form>\n      <MCFormTextInput name=\"name\" fieldLabel=\"Name\" />\n    </Form>\n  )}\n</Formik>",
+      "severity": "critical",
+      "category": "runtime",
+      "validation_ref": "comp-formik-context"
+    },
+    {
+      "id": "err-max-update-depth",
+      "error": "Maximum update depth exceeded. This can happen when a component repeatedly calls setState inside componentWillUpdate or componentDidUpdate.",
+      "cause": "State update triggers re-render which triggers another state update in an infinite loop",
+      "common_scenarios": [
+        "Mock API returning new object reference on every call, causing useEffect dependency to constantly change",
+        "useEffect without proper dependency array or with unstable dependencies",
+        "Formik setFieldValue called during render instead of inside a handler or useEffect",
+        "Passing inline object/array literals as props to memoized components",
+        "useState initializer function called conditionally or re-created each render"
+      ],
+      "fix": "Stabilize object references with useMemo/useCallback, add correct dependency arrays to useEffect, ensure setFieldValue is called in event handlers not during render.",
+      "fix_strategies": [
+        "Wrap object creation in useMemo to prevent new references",
+        "Use useCallback for handler functions passed as dependencies",
+        "For mock APIs: use useMemo to stabilize return values or useRef to cache",
+        "Check useEffect dependency arrays — remove unstable references or memoize them"
+      ],
+      "severity": "critical",
+      "category": "runtime"
+    },
+    {
+      "id": "err-hooks-rules",
+      "error": "React Hook \"useXxx\" is called conditionally. React Hooks must be called in the exact same order in every component render.",
+      "cause": "Hook called inside a condition, loop, or after an early return",
+      "detection": "Regex: if\\s*\\(.*\\)\\s*\\{[^}]*use[A-Z]",
+      "fix": "Move all hooks to the top level of the component function, before any conditional returns. If you need conditional logic, call the hook unconditionally and use the result conditionally.",
+      "fix_code": "// Wrong:\nif (isAdmin) {\n  const data = useAdminData();\n}\n\n// Correct:\nconst data = useAdminData();\nif (isAdmin) {\n  // use data\n}",
+      "severity": "critical",
+      "category": "build"
+    },
+    {
+      "id": "err-missing-key-prop",
+      "error": "Warning: Each child in a list should have a unique \"key\" prop.",
+      "cause": "Array.map() rendered without key prop on each element",
+      "detection": "Regex: \\.map\\([^)]*=>\\s*(<[A-Z][^>]*(?!key=))",
+      "fix": "Add a unique key prop to each element in the mapped array. Use a stable identifier (id, not array index) when possible.",
+      "severity": "warning",
+      "category": "runtime"
+    },
+    {
+      "id": "err-transient-props",
+      "error": "Warning: React does not recognize the `isActive` prop on a DOM element.",
+      "cause": "Custom prop forwarded to DOM element through styled-components without $ prefix",
+      "detection": "Styled component receives a prop that is not a valid HTML attribute and does not use $ prefix",
+      "fix": "Prefix non-HTML props with $ in both the styled component definition and JSX usage.",
+      "fix_code": "// Wrong:\nconst SCBox = styled.div<{ isActive: boolean }>`...`;\n<SCBox isActive={true} />\n\n// Correct:\nconst SCBox = styled.div<{ $isActive: boolean }>`...`;\n<SCBox $isActive={true} />",
+      "severity": "error",
+      "category": "runtime",
+      "validation_ref": "style-transient-props"
+    },
+    {
+      "id": "err-hardcoded-color",
+      "error": "Hardcoded hex color found in styled-component or JSX",
+      "cause": "Using hex values like #346bea or #ffffff directly instead of theme tokens",
+      "detection": "Regex: #([0-9A-Fa-f]{3,8})\\b in *.tsx/*.ts files (excluding tokens.json, tests)",
+      "common_mistakes": [
+        "#346bea -> should be props.theme.mcui.palette.foundation.assent",
+        "#ffffff or #fff -> should be props.theme.mcui.palette.background.primary",
+        "#212121 -> should be props.theme.mcui.palette.content.primary",
+        "#dd1f11 -> should be props.theme.mcui.palette.foundation.negative",
+        "#E0E0E0 -> should be props.theme.mcui.palette.border.disabled or background.primaryPressed",
+        "#F5F5F5 -> should be props.theme.mcui.palette.background.disabled"
+      ],
+      "fix": "Replace hex value with the corresponding theme.mcui.palette.* token. See semantic-palette.json -> quickLookup for hex-to-token mapping.",
+      "severity": "error",
+      "category": "styling",
+      "validation_ref": "style-no-hex"
+    },
+    {
+      "id": "err-hardcoded-spacing",
+      "error": "Hardcoded pixel spacing found in styled-component",
+      "cause": "Using direct px values like padding: 16px instead of theme.mcui.spacing(2)",
+      "detection": "Regex: (padding|margin|gap):\\s*\\d+px",
+      "common_mistakes": [
+        "padding: 8px -> should be props.theme.mcui.spacing(1)",
+        "margin: 16px -> should be props.theme.mcui.spacing(2)",
+        "gap: 24px -> should be props.theme.mcui.spacing(3)",
+        "padding: 32px -> should be props.theme.mcui.spacing(4)",
+        "margin-bottom: 48px -> should be props.theme.mcui.spacing(6)"
+      ],
+      "fix": "Replace px values with theme.mcui.spacing(n) where n = px / 8. Allowed values: 0.5=4px, 1=8px, 1.5=12px, 2=16px, 3=24px, 4=32px, 5=40px, 6=48px, 8=64px.",
+      "severity": "error",
+      "category": "styling",
+      "validation_ref": "style-no-px-spacing"
+    },
+    {
+      "id": "err-hardcoded-font",
+      "error": "Hardcoded font-size found in styled-component",
+      "cause": "Using direct font-size like font-size: 14px instead of theme.mcui.typography.BODY_1_BODY.size",
+      "detection": "Regex: font-size:\\s*\\d+(px|rem|em)",
+      "common_mistakes": [
+        "font-size: 34px -> should be props.theme.mcui.typography.H_1.size",
+        "font-size: 28px -> should be props.theme.mcui.typography.H_2.size",
+        "font-size: 18px -> should be props.theme.mcui.typography.H_3.size",
+        "font-size: 16px -> should be props.theme.mcui.typography.H_4.size",
+        "font-size: 14px -> should be props.theme.mcui.typography.BODY_1_BODY.size (or H_5.size if bold)",
+        "font-size: 12px -> should be props.theme.mcui.typography.BODY_2.size"
+      ],
+      "fix": "Replace px values with the corresponding theme.mcui.typography.*.size token.",
+      "severity": "error",
+      "category": "styling",
+      "validation_ref": "style-no-px-fonts"
+    },
+    {
+      "id": "err-inline-styles",
+      "error": "Inline style found in JSX (style={{...}})",
+      "cause": "Using React inline styles instead of styled-components",
+      "detection": "Regex: style=\\{\\{",
+      "fix": "Replace with a styled-component using SC prefix. All styles must go through styled-components for theme access and consistency.",
+      "fix_code": "// Wrong:\n<div style={{ padding: 16, color: '#212121' }}>\n\n// Correct:\nconst SCContainer = styled.div`\n  padding: ${(props) => props.theme.mcui.spacing(2)};\n  color: ${(props) => props.theme.mcui.palette.content.primary};\n`;",
+      "severity": "error",
+      "category": "styling",
+      "validation_ref": "style-no-inline"
+    },
+    {
+      "id": "err-sc-prefix",
+      "error": "Styled component missing SC prefix",
+      "cause": "Styled component declared without the required SC prefix in its name",
+      "detection": "Regex: ^const [A-Z][a-zA-Z]+ = styled\\. (where name does not start with SC)",
+      "fix": "Rename to SC* prefix. Example: const Wrapper = styled.div -> const SCWrapper = styled.div",
+      "severity": "error",
+      "category": "styling",
+      "validation_ref": "style-sc-prefix"
+    },
+    {
+      "id": "err-hardcoded-string",
+      "error": "Hardcoded user-facing string found in JSX",
+      "cause": "Using literal English strings instead of i18n translation keys",
+      "detection": "Regex: >\\s*[A-Z][a-zA-Z\\s]{2,}\\s*< in JSX sections",
+      "fix": "Replace with {t('key.path')} using useTranslation. Namespace follows convention: 'container.{entity}.{action}' for containers, 'form.{entity}' for forms.",
+      "fix_code": "// Wrong:\n<MCFormPanelTitle>Order Details</MCFormPanelTitle>\n\n// Correct:\nconst { t } = useTranslation('container.order.detail');\n<MCFormPanelTitle>{t('panel.orderDetails')}</MCFormPanelTitle>",
+      "severity": "error",
+      "category": "i18n",
+      "validation_ref": "i18n-no-hardcoded"
+    },
+    {
+      "id": "err-page-not-thin",
+      "error": "Page component contains hooks or business logic",
+      "cause": "Page file contains useState, useEffect, useQuery, useNavigate, useTranslation, or other hooks instead of being a thin wrapper",
+      "detection": "Regex: useState|useEffect|useQuery|useNavigate|useTranslation|useEntityParam|useMemo|useCallback in Page file",
+      "fix": "Page files must only import and render a Container. Move all hooks, logic, and data fetching to the Container file.",
+      "fix_code": "// Wrong (page with logic):\nconst OrderList = () => {\n  const { t } = useTranslation();\n  const data = useOrders();\n  return <OrderTable data={data} />;\n};\n\n// Correct (thin wrapper):\nconst OrderList = () => {\n  return <MCOrderListContainer />;\n};",
+      "severity": "error",
+      "category": "architecture",
+      "validation_ref": "arch-page-thin"
+    },
+    {
+      "id": "err-data-in-component",
+      "error": "Component contains data fetching or navigation hooks",
+      "cause": "Component file (pure UI layer) contains tRPC calls, msmAPI queries, useNavigate, useTranslation, or useEntityParam",
+      "detection": "Regex: trpc\\.|msmAPI\\.|useNavigate|useTranslation|useInAppAlert|useEntityParam in Component file",
+      "fix": "Move data fetching and hooks from Component to Container. Component should only receive data via typed props (MT* interface).",
+      "severity": "error",
+      "category": "architecture",
+      "validation_ref": "arch-component-pure"
+    },
+    {
+      "id": "err-missing-loading-state",
+      "error": "Container does not handle loading state",
+      "cause": "Data-fetching container renders component immediately without checking isFetching/isLoading",
+      "detection": "Container has useQuery/tRPC call but no MCCircularLoader or MCLoader usage",
+      "fix": "Add loading check: if (isFetching || !data) return <MCCircularLoader fillParent />;",
+      "severity": "error",
+      "category": "runtime",
+      "validation_ref": "state-loading"
+    },
+    {
+      "id": "err-missing-error-handling",
+      "error": "Container does not handle query errors",
+      "cause": "Data-fetching container does not use useEffect to watch error state and display error alert",
+      "detection": "Container has useQuery/tRPC call but no fireCollapsibleError usage",
+      "fix": "Add error handling with useEffect watching error + fireCollapsibleError from useInAppAlert.",
+      "fix_code": "const { fireCollapsibleError } = useInAppAlert();\n\nuseEffect(() => {\n  if (error) {\n    fireCollapsibleError({ summary: t('message.read.error'), error });\n    handleClose();\n  }\n}, [error, fireCollapsibleError, handleClose, t]);",
+      "severity": "error",
+      "category": "runtime",
+      "validation_ref": "state-error"
+    },
+    {
+      "id": "err-submit-not-disabled",
+      "error": "Submit button not disabled during form submission",
+      "cause": "Form submit button does not have disabled={isSubmitting}, allowing double submission",
+      "detection": "MCButton2 with type=\"submit\" but no disabled={isSubmitting}",
+      "fix": "Add disabled={isSubmitting} to the submit button: <MCButton2 variant=\"contained\" type=\"submit\" disabled={isSubmitting}>",
+      "severity": "error",
+      "category": "runtime",
+      "validation_ref": "state-submit-disabled"
+    },
+    {
+      "id": "err-mcsingleinput-in-form",
+      "error": "MCSingleTextInput used inside a Formik form",
+      "cause": "Using the base input component instead of the Formik-integrated wrapper inside a form",
+      "detection": "Regex: MCSingleTextInput within a file that also contains <Formik or <Form",
+      "fix": "Replace MCSingleTextInput with MCFormTextInput which provides Formik integration, label, error display, and accessibility.",
+      "severity": "error",
+      "category": "runtime",
+      "validation_ref": "comp-no-direct-mcsingleinput"
+    },
+    {
+      "id": "err-wrong-import-path",
+      "error": "Component imported from wrong path",
+      "cause": "Using incorrect import path instead of the canonical importStatement from components.json",
+      "common_mistakes": [
+        "Importing MCFormTextInput from '@moloco/moloco-cloud-react-ui' instead of '@msm-portal/common/component/form/v1/input/MCFormTextInput'",
+        "Importing form shared components from individual files instead of '@msm-portal/common/component/form/shared'",
+        "Using relative paths across layer boundaries instead of alias paths"
+      ],
+      "fix": "Use the exact importStatement from components.json for each component.",
+      "severity": "error",
+      "category": "build",
+      "validation_ref": "comp-import-path"
+    },
+    {
+      "id": "err-mock-api-infinite-loop",
+      "error": "Maximum update depth exceeded (during mock API development)",
+      "cause": "Mock API handler returns a new object reference on every call, causing React Query to think data changed, triggering re-render and re-fetch loop",
+      "detection": "Mock handler uses object literal in return statement without memoization",
+      "fix": "Define mock data as a constant outside the handler function, or use a ref to cache the response. Ensure the mock returns the same reference for the same input.",
+      "fix_code": "// Wrong:\nconst handler = () => {\n  return { data: [{ id: 1, name: 'test' }] }; // new ref every call\n};\n\n// Correct:\nconst MOCK_DATA = { data: [{ id: 1, name: 'test' }] };\nconst handler = () => MOCK_DATA;",
+      "severity": "critical",
+      "category": "runtime",
+      "source": "project-memory: Mock API Technical Decisions"
+    },
+    {
+      "id": "err-route-not-registered",
+      "error": "Route not found / page shows blank",
+      "cause": "New page created but route not registered in all required locations",
+      "required_registrations": [
+        "MERouteKey enum in src/route/types.ts",
+        "Route template in src/app-builder/route/template/routeTemplate.tsx",
+        "Client route mapping in src/apps/{client}/config/route.tsx"
+      ],
+      "fix": "Register route in all three locations. See patterns.json -> route-registration and validation-runner.json -> routing checks.",
+      "severity": "critical",
+      "category": "runtime",
+      "validation_ref": "route-enum"
+    },
+    {
+      "id": "err-theme-access-wrong",
+      "error": "Cannot read properties of undefined (reading 'palette')",
+      "cause": "Component rendered outside ThemeProvider context, or accessing theme directly instead of through props in styled-components",
+      "detection": "Direct theme access without styled-components interpolation or useTheme hook",
+      "fix": "Access theme only through styled-component interpolation: ${(props) => props.theme.mcui.palette.*} or via useTheme() hook from styled-components.",
+      "severity": "critical",
+      "category": "runtime"
+    },
+    {
+      "id": "err-missing-i18n-namespace",
+      "error": "Translation key returns the key string itself instead of translated text",
+      "cause": "i18n namespace not loaded or wrong namespace in useTranslation call",
+      "detection": "UI shows 'container.order.list:title' or similar key-like strings instead of actual text",
+      "fix": "Ensure correct namespace: useTranslation('container.{entity}.{action}'). Verify the JSON resource file exists at src/i18n/locales/en/{namespace}.json with all required keys.",
+      "severity": "error",
+      "category": "runtime",
+      "validation_ref": "i18n-namespace"
+    },
+    {
+      "id": "err-wrong-blue-shade",
+      "error": "Visual: brand color appears as wrong shade of blue",
+      "cause": "Using a different blue (#0070f3, #2196F3, #1976D2) instead of the MSM Portal brand blue #346bea",
+      "detection": "Visual inspection shows blue that does not match brand specification",
+      "fix": "Use theme.mcui.palette.foundation.assent which maps to #346bea. See semantic-palette.json -> quickLookup.",
+      "severity": "error",
+      "category": "styling"
+    },
+    {
+      "id": "err-wrong-red-shade",
+      "error": "Visual: error color appears as wrong shade of red",
+      "cause": "Using Material Design red (#f44336) or other reds instead of MSM Portal danger red #dd1f11",
+      "detection": "Visual inspection shows red that does not match brand specification",
+      "fix": "Use theme.mcui.palette.foundation.negative which maps to #dd1f11.",
+      "severity": "error",
+      "category": "styling"
+    }
+  ],
+
+  "categories": {
+    "runtime": "Errors that occur when the app runs in the browser",
+    "build": "TypeScript/ESLint/compilation errors that prevent build",
+    "styling": "Visual violations of the design system token rules",
+    "architecture": "Violations of the 3-layer Page/Container/Component architecture",
+    "i18n": "Internationalization and translation issues"
+  },
+
+  "severity_levels": {
+    "critical": "App crashes or enters infinite loop. Must fix before any testing.",
+    "error": "Feature does not work correctly or violates design system rules. Must fix before completion.",
+    "warning": "Non-blocking issue that should be addressed but does not prevent functionality."
+  }
+}

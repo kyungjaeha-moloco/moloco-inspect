@@ -1,0 +1,23 @@
+{
+  "name": "@msm-portal/design-system-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for MSM Portal design system — exposes design tokens, components, patterns, and conventions to AI coding assistants.",
+  "type": "module",
+  "bin": {
+    "msm-ds-mcp": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "ts-node --esm src/index.ts",
+    "build": "tsc",
+    "start:compiled": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
+  }
+}

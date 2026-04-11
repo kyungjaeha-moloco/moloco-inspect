@@ -1,0 +1,288 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "lastUpdated": "2026-04-03",
+  "description": "Component state machines defining valid state transitions. Agents use these to generate correct state handling code and understand component lifecycle.",
+
+  "formInputs": {
+    "_shared": {
+      "description": "All MCForm* components share this base state machine. Individual components may extend it.",
+      "states": {
+        "idle": {
+          "description": "Default state, no user interaction",
+          "visual": "Default border, placeholder text visible",
+          "transitions": {
+            "focus": { "target": "focused", "trigger": "user clicks or tabs into field" },
+            "disable": { "target": "disabled", "trigger": "disabled prop becomes true" },
+            "set_error_externally": { "target": "error", "trigger": "form submit with validation errors" }
+          }
+        },
+        "focused": {
+          "description": "Field has focus, user can type/interact",
+          "visual": "Brand border color, focus ring visible",
+          "transitions": {
+            "blur_valid": { "target": "idle", "trigger": "user leaves field, value passes validation" },
+            "blur_invalid": { "target": "error", "trigger": "user leaves field, value fails validation (meta.touched && meta.error)" },
+            "type": { "target": "focused", "trigger": "user types, stays focused (self-transition)", "action": "formik.setFieldValue" },
+            "disable": { "target": "disabled", "trigger": "disabled prop becomes true" }
+          }
+        },
+        "error": {
+          "description": "Validation error displayed",
+          "visual": "Danger border color, error message below field",
+          "transitions": {
+            "focus": { "target": "focused", "trigger": "user clicks back into field" },
+            "fix_value": { "target": "idle", "trigger": "value programmatically corrected (e.g., resetForm)" },
+            "disable": { "target": "disabled", "trigger": "disabled prop becomes true" }
+          }
+        },
+        "disabled": {
+          "description": "Field is non-interactive",
+          "visual": "Muted colors, cursor not-allowed",
+          "transitions": {
+            "enable": { "target": "idle", "trigger": "disabled prop becomes false" }
+          }
+        },
+        "readonly": {
+          "description": "Field shows value but cannot be edited",
+          "visual": "No border, text only display",
+          "transitions": {
+            "make_editable": { "target": "idle", "trigger": "readonly prop becomes false" }
+          }
+        }
+      },
+      "formik_integration": {
+        "value_source": "formik.values[name] via useField(name)",
+        "error_source": "meta.error (shown only when meta.touched is true)",
+        "change_handler": "formik.setFieldValue(name, newValue)",
+        "blur_handler": "formik.setFieldTouched(name, true)"
+      }
+    },
+    "MCFormTextInput": { "extends": "_shared", "additional_states": {} },
+    "MCFormTextArea": { "extends": "_shared", "additional_states": {} },
+    "MCFormNumberInput": {
+      "extends": "_shared",
+      "additional_transitions": {
+        "focused": {
+          "increment": { "target": "focused", "trigger": "user clicks up arrow or presses ArrowUp", "action": "value += step" },
+          "decrement": { "target": "focused", "trigger": "user clicks down arrow or presses ArrowDown", "action": "value -= step" }
+        }
+      }
+    },
+    "MCFormCheckBox": {
+      "extends": "_shared",
+      "override_transitions": {
+        "focused": {
+          "toggle": { "target": "focused", "trigger": "user clicks or presses Space", "action": "formik.setFieldValue(name, !currentValue)" }
+        }
+      }
+    },
+    "MCFormSwitchInput": {
+      "extends": "_shared",
+      "override_transitions": {
+        "focused": {
+          "toggle": { "target": "focused", "trigger": "user clicks or presses Space", "action": "formik.setFieldValue(name, !currentValue)" }
+        }
+      }
+    },
+    "MCFormRadioGroup": {
+      "extends": "_shared",
+      "override_transitions": {
+        "focused": {
+          "select_option": { "target": "focused", "trigger": "user clicks radio or presses Arrow keys", "action": "formik.setFieldValue(name, selectedValue)" }
+        }
+      }
+    },
+    "MCFormSingleRichSelect": {
+      "extends": "_shared",
+      "additional_states": {
+        "dropdown_open": {
+          "description": "Dropdown menu is visible",
+          "visual": "Dropdown panel below field, options listed",
+          "transitions": {
+            "select_option": { "target": "focused", "trigger": "user clicks option", "action": "formik.setFieldValue(name, option.value)" },
+            "close": { "target": "focused", "trigger": "user clicks outside or presses Escape" },
+            "search": { "target": "dropdown_open", "trigger": "user types in search (self-transition)", "action": "filter options" }
+          }
+        }
+      },
+      "additional_transitions": {
+        "focused": {
+          "open_dropdown": { "target": "dropdown_open", "trigger": "user clicks field or presses Enter/ArrowDown" },
+          "clear": { "target": "focused", "trigger": "user clicks clear button", "action": "formik.setFieldValue(name, null)" }
+        }
+      }
+    },
+    "MCFormMultiRichSelect": {
+      "extends": "MCFormSingleRichSelect",
+      "override_transitions": {
+        "dropdown_open": {
+          "select_option": { "target": "dropdown_open", "trigger": "user clicks option (stays open for multi-select)", "action": "formik.setFieldValue(name, [...current, option.value])" },
+          "deselect_option": { "target": "dropdown_open", "trigger": "user clicks selected option", "action": "formik.setFieldValue(name, current.filter(v => v !== option.value))" }
+        }
+      }
+    },
+    "MCFormDatePicker": {
+      "extends": "_shared",
+      "additional_states": {
+        "calendar_open": {
+          "description": "Calendar popup is visible",
+          "transitions": {
+            "select_date": { "target": "focused", "trigger": "user clicks a date", "action": "formik.setFieldValue(name, selectedDate)" },
+            "navigate_month": { "target": "calendar_open", "trigger": "user clicks prev/next month" },
+            "close": { "target": "focused", "trigger": "user clicks outside or presses Escape" }
+          }
+        }
+      }
+    },
+    "MCFormTimePicker": { "extends": "MCFormSingleRichSelect", "note": "Time picker uses same dropdown pattern as select" },
+    "MCFormMonthPicker": { "extends": "MCFormDatePicker", "note": "Same calendar pattern, month granularity" },
+    "MCFormDateRangePicker": {
+      "extends": "MCFormDatePicker",
+      "additional_states": {
+        "selecting_end": {
+          "description": "Start date selected, waiting for end date",
+          "transitions": {
+            "select_end_date": { "target": "focused", "trigger": "user clicks end date", "action": "formik.setFieldValue(name, { start, end })" },
+            "cancel": { "target": "calendar_open", "trigger": "user clicks start date again to reset" }
+          }
+        }
+      }
+    },
+    "MCFormTagInput": {
+      "extends": "_shared",
+      "additional_transitions": {
+        "focused": {
+          "add_tag": { "target": "focused", "trigger": "user presses Enter or comma", "action": "formik.setFieldValue(name, [...current, newTag])" },
+          "remove_tag": { "target": "focused", "trigger": "user clicks X on tag or Backspace on empty input", "action": "formik.setFieldValue(name, current.filter(...))" }
+        }
+      }
+    },
+    "MCFormAutoComplete": { "extends": "MCFormSingleRichSelect", "note": "Same as select with free-text typing" },
+    "MCFormPercent": { "extends": "MCFormNumberInput", "note": "Number input constrained to 0-100 with % suffix" },
+    "MCFormDynamicFieldsArray": {
+      "extends": "_shared",
+      "additional_transitions": {
+        "idle": {
+          "add_field": { "target": "idle", "trigger": "user clicks add button", "action": "arrayHelpers.push(emptyField)" },
+          "remove_field": { "target": "idle", "trigger": "user clicks remove on a field", "action": "arrayHelpers.remove(index)" },
+          "reorder_fields": { "target": "idle", "trigger": "user drags field to new position", "action": "arrayHelpers.move(from, to)" }
+        }
+      }
+    },
+    "MCFormFieldGroup": {
+      "description": "Layout-only wrapper, no state machine",
+      "states": "none — pure layout component"
+    }
+  },
+
+  "interactive": {
+    "MCCommonDialog": {
+      "states": {
+        "closed": {
+          "transitions": {
+            "open": { "target": "open", "trigger": "parent sets open prop to true" }
+          }
+        },
+        "open": {
+          "visual": "Modal overlay with content panel",
+          "transitions": {
+            "confirm": { "target": "closed", "trigger": "user clicks confirm button", "action": "onConfirm callback" },
+            "cancel": { "target": "closed", "trigger": "user clicks cancel button or presses Escape", "action": "onClose callback" },
+            "dismiss": { "target": "closed", "trigger": "user clicks backdrop overlay", "action": "onClose callback" }
+          }
+        }
+      }
+    },
+    "MCPopover": {
+      "states": {
+        "closed": {
+          "transitions": {
+            "open": { "target": "open", "trigger": "user clicks trigger element or hovers (depending on triggerType)" }
+          }
+        },
+        "open": {
+          "visual": "Floating panel positioned relative to trigger",
+          "transitions": {
+            "close": { "target": "closed", "trigger": "user clicks outside, presses Escape, or trigger loses focus" }
+          }
+        }
+      }
+    },
+    "MCSnackbar": {
+      "states": {
+        "hidden": {
+          "transitions": {
+            "show": { "target": "visible", "trigger": "enqueueSnackbar() called" }
+          }
+        },
+        "visible": {
+          "visual": "Toast notification at bottom of screen",
+          "transitions": {
+            "dismiss": { "target": "hidden", "trigger": "user clicks close or auto-timeout (5s default)" },
+            "action": { "target": "hidden", "trigger": "user clicks action button", "action": "onAction callback" }
+          }
+        }
+      }
+    },
+    "MCTable": {
+      "states": {
+        "idle": {
+          "description": "Table showing data with default sort/filter",
+          "transitions": {
+            "sort": { "target": "idle", "trigger": "user clicks column header", "action": "toggleSortBy(columnId)" },
+            "filter": { "target": "filtering", "trigger": "user opens filter panel" },
+            "search": { "target": "idle", "trigger": "user types in search bar", "action": "setGlobalFilter(searchText)" },
+            "click_row": { "target": "idle", "trigger": "user clicks a table row", "action": "onRowClick(row) → navigate to detail" },
+            "paginate": { "target": "idle", "trigger": "user clicks next/prev page", "action": "gotoPage(pageIndex)" }
+          }
+        },
+        "filtering": {
+          "description": "Filter panel is open",
+          "transitions": {
+            "apply_filter": { "target": "idle", "trigger": "user selects filter values", "action": "setFilter(columnId, value)" },
+            "clear_filter": { "target": "idle", "trigger": "user clicks clear all filters", "action": "setAllFilters([])" },
+            "close_filter": { "target": "idle", "trigger": "user closes filter panel" }
+          }
+        },
+        "loading": {
+          "description": "Data is being fetched",
+          "visual": "Skeleton rows or spinner overlay",
+          "transitions": {
+            "data_loaded": { "target": "idle", "trigger": "query resolves successfully" },
+            "error": { "target": "error", "trigger": "query rejects" }
+          }
+        },
+        "empty": {
+          "description": "No data matches current filters/search",
+          "visual": "MCEmpty component with message",
+          "transitions": {
+            "clear_filter": { "target": "idle", "trigger": "user clears filters" },
+            "data_loaded": { "target": "idle", "trigger": "new data arrives" }
+          }
+        },
+        "error": {
+          "description": "Data fetch failed",
+          "transitions": {
+            "retry": { "target": "loading", "trigger": "user clicks retry or query refetches" }
+          }
+        }
+      }
+    },
+    "MCBarTabs": {
+      "states": {
+        "active": {
+          "description": "One tab is selected, its content rendered",
+          "transitions": {
+            "switch_tab": { "target": "active", "trigger": "user clicks different tab", "action": "onChange(newTabValue) → re-render content" }
+          }
+        }
+      }
+    }
+  },
+
+  "passive": {
+    "_note": "These components have no user-driven state transitions. They render based on props only.",
+    "components": ["MCTextEllipsis", "MCLoader", "MCCircularLoader", "MCEmpty", "MCBadge", "SCBoldLabel", "SCClickableText", "MCContentLayout", "MCRootLayout", "MCSidebar", "MCFormPanel", "MCFormPanelTitle", "MCEmptyState", "MCBreadcrumb"]
+  }
+}

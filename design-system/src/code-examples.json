@@ -1,0 +1,203 @@
+{
+  "$schema": "code-examples",
+  "meta": {
+    "description": "Real code examples from the MSM Portal codebase for each page pattern. Agents should use these as templates when generating new pages. All paths are relative to msm-portal/js/msm-portal-web/.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-06"
+  },
+
+  "examples": [
+    {
+      "pattern": "entity_list",
+      "entity": "order",
+      "description": "Reference implementation for list pages. Uses MCContentLayout with tabs and sub-containers per tab.",
+      "files": {
+        "page": "src/apps/msm-default/page/order/OrderList.tsx",
+        "container": "src/apps/msm-default/container/order/list/MCOrderListContainer.tsx",
+        "sub_containers": [
+          "src/apps/msm-default/container/order/list/MCAvailableOrderListContainer.tsx",
+          "src/apps/msm-default/container/order/list/MCDraftOrderListContainer.tsx",
+          "src/apps/msm-default/container/order/list/MCArchivedOrderListContainer.tsx",
+          "src/apps/msm-default/container/order/list/MCOrderListTableContainer.tsx"
+        ],
+        "component": "src/apps/msm-default/component/order/table/cellRenderers.tsx"
+      },
+      "key_snippets": {
+        "page_thin_wrapper": "import MCOrderListContainer from '@msm-portal/msm-default/container/order/list/MCOrderListContainer';\n\nconst OrderList = () => {\n  return <MCOrderListContainer />;\n};\n\nexport default OrderList;",
+        "container_layout": "return (\n  <MCContentLayout title={t('title')} rightAccessory={rightAccessory} showBreadcrumb>\n    <MCBarTabs tabs={tabs} />\n    {activeOrderListType === 'available' && <MCAvailableOrderListContainer />}\n    {activeOrderListType === 'draft' && <MCDraftOrderListContainer />}\n    {activeOrderListType === 'archived' && <MCArchivedOrderListContainer />}\n  </MCContentLayout>\n);",
+        "sub_container_data_fetching": "const {\n  data,\n  query: { isFetching, error },\n} = useOrders({\n  advertiserId: params.advertiserId,\n  inquiryEntityStatusOption: MEInquiryEntityStatusOption.INQUIRY_ENTITY_STATUS_UNARCHIVED,\n  inquiryRelatedEntityOption: MEInquiryRelatedEntityOption.INQUIRY_ENTITY_ALL,\n});\n\nuseEffect(() => {\n  if (error) {\n    fireCollapsibleError({ summary: t('errors.list'), error });\n  }\n}, [error, fireCollapsibleError, t]);\n\nreturn (\n  <MCOrderListTableContainer orders={availableOrders} type=\"available\" isFetching={isFetching} />\n);"
+      },
+      "key_imports": [
+        "import { useCallback, useEffect, useMemo } from 'react';",
+        "import { useTranslation } from 'react-i18next';",
+        "import { useNavigate, useSearchParams } from 'react-router-dom';",
+        "import { MCButton2 } from '@moloco/moloco-cloud-react-ui';",
+        "import MCContentLayout from '@msm-portal/common/component/layout/content/MCContentLayout';",
+        "import MCBarTabs, { MTBarTab } from '@msm-portal/common/component/tab/bar-tab/MCBarTabs';",
+        "import { MERouteKey } from '@msm-portal/route/types';",
+        "import useEntityParam from '@msm-portal/route/useEntityParam';",
+        "import { generatePathForRoute } from '@msm-portal/route/utils';",
+        "import useInAppAlert from '@msm-portal/common/alert/useInAppAlert';"
+      ],
+      "key_hooks": [
+        "useEntityParam() — extracts route params (advertiserId, etc.)",
+        "useNavigate() — programmatic navigation",
+        "useSearchParams() — manages tab state via URL query params",
+        "useTranslation('container.order.list') — i18n namespace",
+        "useOrders({...}) — custom hook for data fetching (in sub-container)",
+        "useInAppAlert() — fireCollapsibleError for error handling (in sub-container)",
+        "useCurrentUser() — checks user role (isMediaRep) for conditional UI"
+      ],
+      "data_fetching_pattern": "Custom hook (useOrders) wrapping msmAPI/tRPC query. Sub-containers fetch data per tab, main container only manages layout and tabs.",
+      "tab_state_pattern": "useSearchParams with a constant key (ORDER_TYPE_SEARCH_PARAM). Default tab set via useEffect with replace: true.",
+      "notes": [
+        "Page is only 7 lines — purely imports and renders container",
+        "Main container owns layout (MCContentLayout, MCBarTabs) and navigation",
+        "Sub-containers own data fetching and error handling per tab",
+        "Table container (MCOrderListTableContainer) is shared across Available/Draft/Archived tabs with different data",
+        "Create button conditionally shown based on user role (isMediaRep)"
+      ]
+    },
+    {
+      "pattern": "entity_list",
+      "entity": "auction-order",
+      "description": "Auction order list follows the same pattern as order list.",
+      "files": {
+        "page": "src/apps/msm-default/page/auction-order/AuctionOrderList.tsx",
+        "container": "src/apps/msm-default/container/auction-order/list/MCAuctionOrderListContainer.tsx",
+        "sub_containers": [
+          "src/apps/msm-default/container/auction-order/list/MCAvailableAuctionOrderListContainer.tsx",
+          "src/apps/msm-default/container/auction-order/list/MCDraftAuctionOrderListContainer.tsx",
+          "src/apps/msm-default/container/auction-order/list/MCArchivedAuctionOrderListContainer.tsx",
+          "src/apps/msm-default/container/auction-order/list/MCAuctionOrderListTableContainer.tsx"
+        ]
+      },
+      "key_snippets": {
+        "page_thin_wrapper": "import MCAuctionOrderListContainer from '@msm-portal/msm-default/container/auction-order/list/MCAuctionOrderListContainer';\n\nconst AuctionOrderList = () => {\n  return <MCAuctionOrderListContainer />;\n};\n\nexport default AuctionOrderList;"
+      },
+      "notes": [
+        "Identical thin-wrapper pattern for page",
+        "Also has MediaRep variant pages (MediaRepAuctionOrderList.tsx)",
+        "Has additional campaign-level sub-pages (AuctionOrderCampaignDetail)"
+      ]
+    },
+    {
+      "pattern": "entity_list",
+      "entity": "creative",
+      "description": "Creative list with type-based sub-containers (Image, Video, NativeVideo, etc.).",
+      "files": {
+        "page": "src/apps/msm-default/page/creative/CreativeList.tsx",
+        "container": "src/apps/msm-default/container/creative/list/MCCreativeListContainer.tsx",
+        "sub_containers": [
+          "src/apps/msm-default/container/creative/list/MCImageCreativeListContainer.tsx",
+          "src/apps/msm-default/container/creative/list/MCVideoCreativeListContainer.tsx",
+          "src/apps/msm-default/container/creative/list/MCNativeVideoCreativeListContainer.tsx",
+          "src/apps/msm-default/container/creative/list/MCOutstreamAdsCreativeListContainer.tsx",
+          "src/apps/msm-default/container/creative/list/MCPauseAdsCreativeListContainer.tsx",
+          "src/apps/msm-default/container/creative/list/MCSplashAdsCreativeList.tsx"
+        ]
+      },
+      "key_snippets": {
+        "page_thin_wrapper": "import MCCreativeListContainer from '@msm-portal/msm-default/container/creative/list/MCCreativeListContainer';\n\nconst CreativeList = () => {\n  return <MCCreativeListContainer />;\n};\n\nexport default CreativeList;"
+      },
+      "notes": [
+        "Creative types each have their own sub-container",
+        "Also has 'All' variants (MCAllImageCreativeListContainer) for cross-advertiser views",
+        "MediaRep variants exist (MediaRepCreativeList.tsx, MediaRepCreativeCreate.tsx)"
+      ]
+    },
+    {
+      "pattern": "entity_create",
+      "entity": "order",
+      "description": "Order creation with stepper form.",
+      "files": {
+        "page": "src/apps/msm-default/page/order/OrderEdit.tsx",
+        "container": "src/apps/msm-default/container/order/create/MCOrderCreateContainer.tsx",
+        "component_form": "src/apps/msm-default/component/order/form/MCOrderStepperForm.tsx",
+        "component_single_form": "src/apps/msm-default/component/order/form/MCOrderSingleForm.tsx",
+        "component_info_form": "src/apps/msm-default/component/order/form/MCOrderInfoForm.tsx",
+        "form_config": "src/apps/msm-default/component/order/form/useOrderFormConfig.ts",
+        "form_types": "src/apps/msm-default/component/order/form/types.ts",
+        "form_converter": "src/apps/msm-default/component/order/form/converter.ts"
+      },
+      "notes": [
+        "Order uses a stepper form (MCOrderStepperForm) for multi-step creation",
+        "Form config is extracted into a custom hook (useOrderFormConfig)",
+        "Form types and converter handle Formik values to/from proto"
+      ]
+    },
+    {
+      "pattern": "entity_detail",
+      "entity": "order",
+      "description": "Order detail page with dependent sub-containers.",
+      "files": {
+        "page": "src/apps/msm-default/page/order/OrderDetail.tsx",
+        "container": "src/apps/msm-default/container/order/detail/MCOrderDetailContainer.tsx",
+        "component_dir": "src/apps/msm-default/component/order/detail/"
+      },
+      "notes": [
+        "Detail container fetches entity by ID from route params",
+        "Uses MCCircularLoader fillParent while loading",
+        "Navigates back to list on error with fireCollapsibleError"
+      ]
+    }
+  ],
+
+  "common_patterns_across_entities": {
+    "page_file": {
+      "pattern": "Every page file follows this exact structure: import container, render it, export default.",
+      "template": "import MC{Entity}{Action}Container from '@msm-portal/{client}/container/{entity}/{action}/MC{Entity}{Action}Container';\n\nconst {Entity}{Action} = () => {\n  return <MC{Entity}{Action}Container />;\n};\n\nexport default {Entity}{Action};",
+      "verified_examples": [
+        "OrderList.tsx",
+        "AuctionOrderList.tsx",
+        "CreativeList.tsx"
+      ]
+    },
+    "container_error_handling": {
+      "pattern": "All containers that fetch data use useInAppAlert + useEffect to handle errors.",
+      "template": "const { fireCollapsibleError } = useInAppAlert();\n\nuseEffect(() => {\n  if (error) {\n    fireCollapsibleError({ summary: t('errors.{action}'), error });\n  }\n}, [error, fireCollapsibleError, t]);",
+      "verified_in": [
+        "MCAvailableOrderListContainer.tsx"
+      ]
+    },
+    "container_tab_state": {
+      "pattern": "List containers manage tab state via URL search params, not React state.",
+      "template": "const [searchParams, setSearchParams] = useSearchParams();\nconst activeTab = searchParams.get('{PARAM_KEY}');\n\nuseEffect(() => {\n  if (!isValidTab(activeTab)) {\n    setSearchParams({ [PARAM_KEY]: 'available' }, { replace: true });\n  }\n}, [activeTab, setSearchParams]);",
+      "verified_in": [
+        "MCOrderListContainer.tsx"
+      ]
+    },
+    "container_create_button": {
+      "pattern": "Create button uses generatePathForRoute with MERouteKey and entity params.",
+      "template": "const handleCreate = useCallback(() => {\n  const path = generatePathForRoute(MERouteKey.{ENTITY}_CREATE, params);\n  navigate(path);\n}, [navigate, params]);\n\nconst rightAccessory = useMemo(() => (\n  <MCButton2 color=\"primary\" onClick={handleCreate} leftIcon=\"create\">\n    {t('create')}\n  </MCButton2>\n), [handleCreate, t]);",
+      "verified_in": [
+        "MCOrderListContainer.tsx"
+      ]
+    },
+    "media_rep_variants": {
+      "pattern": "MediaRep users get separate page files that import MediaRep-specific containers.",
+      "convention": "MediaRep{Entity}{Action}.tsx imports MCMediaRep{Entity}{Action}Container",
+      "examples": [
+        "MediaRepOrderList.tsx",
+        "MediaRepOrderCreate.tsx",
+        "MediaRepAuctionOrderList.tsx",
+        "MediaRepCreativeList.tsx"
+      ]
+    }
+  },
+
+  "file_naming_verification": {
+    "page_files": {
+      "convention": "{Entity}{Action}.tsx (PascalCase, no MC prefix)",
+      "examples": ["OrderList.tsx", "OrderDetail.tsx", "OrderEdit.tsx", "AuctionOrderList.tsx", "CreativeList.tsx"]
+    },
+    "container_files": {
+      "convention": "MC{Entity}{Action}Container.tsx (MC prefix + Container suffix)",
+      "examples": ["MCOrderListContainer.tsx", "MCAvailableOrderListContainer.tsx", "MCOrderDetailContainer.tsx", "MCOrderCreateContainer.tsx"]
+    },
+    "component_files": {
+      "convention": "MC{Entity}{View}.tsx or organized in subdirectories (table/, form/, detail/, dialog/)",
+      "examples": ["cellRenderers.tsx (in table/)", "MCOrderInfoForm.tsx (in form/)", "MCOrderStepperForm.tsx (in form/)"]
+    }
+  }
+}

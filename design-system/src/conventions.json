@@ -1,0 +1,231 @@
+{
+  "$schema": "../schemas/conventions.schema.json",
+  "meta": {
+    "description": "Naming conventions, file structure rules, and code style for the MSM Portal."
+  },
+  "namingPrefixes": [
+    { "prefix": "MC", "type": "Component",        "description": "Public/exported React component",       "examples": ["MCFormTextInput", "MCButton2", "MCFormPanel"] },
+    { "prefix": "MT", "type": "Type/Interface",    "description": "TypeScript type or interface",           "examples": ["MTFormFieldRef", "MTMoreActionItem", "MTFormLayout"] },
+    { "prefix": "SC", "type": "Styled Component",  "description": "Internal styled-component (not exported)","examples": ["SCFormBody", "SCNavBarWrapper", "SCMoreActionsButton"] },
+    { "prefix": "ME", "type": "Enum",              "description": "TypeScript enum",                        "examples": ["MEFormFieldWidth"] },
+    { "prefix": "use","type": "Hook",              "description": "Custom React hook",                      "examples": ["useAuthState", "useFeatureGuard"] }
+  ],
+  "fileNaming": [
+    { "pattern": "PascalCase.tsx", "useCase": "React components",              "examples": ["MCFormTextInput.tsx"] },
+    { "pattern": "PascalCase.ts",  "useCase": "TypeScript utilities, types",   "examples": ["MCFormFieldLabel.ts"] },
+    { "pattern": "camelCase.ts",   "useCase": "Config, constants, utilities",  "examples": ["const.ts", "utils.ts"] },
+    { "pattern": "styledComponents.tsx", "useCase": "Styled component files",  "examples": ["styledComponents.tsx"] },
+    { "pattern": "index.ts",       "useCase": "Barrel exports",                "examples": ["index.ts"] },
+    { "pattern": "types.ts",       "useCase": "Type definitions",              "examples": ["types.ts"] }
+  ],
+  "importAliases": [
+    { "alias": "@msm-portal/builder/",      "resolves": "src/app-builder/" },
+    { "alias": "@msm-portal/common/",       "resolves": "src/common/" },
+    { "alias": "@msm-portal/route/",        "resolves": "src/route/" },
+    { "alias": "@msm-portal/i18n/",         "resolves": "src/i18n/" },
+    { "alias": "@msm-portal/msm-default/",  "resolves": "src/apps/msm-default/" },
+    { "alias": "@msm-portal/tving/",        "resolves": "src/apps/tving/" },
+    { "alias": "@msm-portal/shortmax/",     "resolves": "src/apps/shortmax/" },
+    { "alias": "@msm-portal/onboard-demo/", "resolves": "src/apps/onboard-demo/" }
+  ],
+  "importOrder": [
+    "1. React and React-related (react, react-router-dom)",
+    "2. Third-party libraries (styled-components, formik, etc.)",
+    "3. Moloco UI library (@moloco/moloco-cloud-react-ui)",
+    "4. Internal portal imports (@msm-portal/...)",
+    "5. Relative imports (./, ../)"
+  ],
+  "styledComponentRules": [
+    "Always use SC prefix for styled components defined within a file",
+    "Use $ prefix on props that should NOT be forwarded to the DOM (transient props)",
+    "Never hardcode color, spacing, or typography values — always use theme tokens",
+    "Co-locate styled components in a styledComponents.tsx file if there are more than 3",
+    "Do not export styled components unless shared across multiple components",
+    "Shared styled components go in src/common/component/styled/"
+  ],
+  "formComponentRules": [
+    "Must be inside <Formik> context",
+    "Use useField(name) for Formik integration",
+    "Always require the name prop — it's the Formik field name",
+    "Show errors only after meta.touched is true",
+    "required={false} shows (Optional) suffix — required={true} shows no suffix",
+    "Use readonly prop for view-only states instead of disabling"
+  ],
+  "directoryStructure": {
+    "componentPattern": "Each component lives in: src/common/component/{component-name}/{ComponentName}.tsx + styledComponents.tsx + types.ts + const.ts + index.ts",
+    "formPattern": "src/common/component/form/shared/ (shared), form/layout/ (full-page layout), form/v1/ (versioned inputs)",
+    "appPattern": "src/apps/{client}/index.html + main.tsx + .env.{test,staging,prod} + components/ + pages/"
+  },
+  "architecture": {
+    "description": "Mandatory 3-layer architecture for all features",
+    "layers": [
+      {
+        "name": "Page",
+        "location": "src/apps/{client}/page/{entity}/",
+        "naming": "{EntityAction}.tsx (e.g., AuctionOrderList.tsx)",
+        "responsibility": "Thin wrapper. Only imports and renders the Container. No hooks, no logic."
+      },
+      {
+        "name": "Container",
+        "location": "src/apps/{client}/container/{entity}/{action}/",
+        "naming": "MC{Entity}{Action}Container.tsx (e.g., MCAuctionOrderListContainer.tsx)",
+        "responsibility": "All hooks (data fetching, navigation, i18n, alerts). Computes props for Component."
+      },
+      {
+        "name": "Component",
+        "location": "src/apps/{client}/component/{entity}/ or src/common/component/",
+        "naming": "MC{Entity}{View}.tsx (e.g., MCAuctionOrderDetail.tsx)",
+        "responsibility": "Pure UI. Receives all data via props. No data fetching. No navigation."
+      }
+    ]
+  },
+  "containerNaming": {
+    "pattern": "MC{Entity}{Action}Container.tsx",
+    "actions": ["List", "Create", "Edit", "Detail"],
+    "examples": [
+      "MCAuctionOrderListContainer.tsx",
+      "MCAuctionOrderCreateContainer.tsx",
+      "MCAuctionOrderEditContainer.tsx",
+      "MCAuctionOrderDetailContainer.tsx"
+    ]
+  },
+  "buildCommands": {
+    "dev": "pnpm start:{client}:{env}  (e.g. pnpm start:tving:test)",
+    "build": "pnpm build:{client}:{env}  (e.g. pnpm build:msm-default:prod)",
+    "lint": "pnpm lint",
+    "format": "pnpm format",
+    "typecheck": "pnpm typecheck"
+  },
+  "envVars": {
+    "prefix": "VITE_",
+    "access": "import.meta.env.VITE_*",
+    "files": [".env.test", ".env.staging", ".env.prod"],
+    "note": "Each client has separate env files per environment"
+  },
+  "clients": ["tving", "msm-default", "shortmax", "onboard-demo"],
+  "constraints": [
+    {
+      "id": "no-hardcoded-colors",
+      "rule": "Never use hex color values directly in styled-components or JSX. Always use theme palette tokens.",
+      "severity": "error",
+      "pattern_to_reject": "#([0-9A-Fa-f]{3,8})\\b",
+      "file_patterns": ["*.tsx", "*.ts"],
+      "exclude_files": ["tokens.json", "*.test.*", "*.spec.*"],
+      "correct_pattern": "props.theme.mcui.palette.*",
+      "example_violation": "background: #1A1A1A;",
+      "example_correct": "background: ${p => p.theme.mcui.palette.background.primary};"
+    },
+    {
+      "id": "no-hardcoded-spacing",
+      "rule": "Never use raw px values for spacing properties (padding, margin, gap, width, height when used as spacing). Always use theme.mcui.spacing(n) where n is a multiplier of the 8px base unit.",
+      "severity": "error",
+      "pattern_to_reject": "(padding|margin|gap):\\s*\\d+px",
+      "file_patterns": ["*.tsx", "*.ts"],
+      "exclude_files": ["tokens.json", "*.test.*", "*.spec.*"],
+      "correct_pattern": "props.theme.mcui.spacing(n)",
+      "example_violation": "padding: 16px;",
+      "example_correct": "padding: ${p => p.theme.mcui.spacing(2)};"
+    },
+    {
+      "id": "no-hardcoded-fonts",
+      "rule": "Never use raw font-size, font-weight, or line-height values. Always use theme typography tokens.",
+      "severity": "error",
+      "pattern_to_reject": "font-size:\\s*\\d+(px|rem|em)",
+      "file_patterns": ["*.tsx", "*.ts"],
+      "exclude_files": ["tokens.json", "*.test.*", "*.spec.*"],
+      "correct_pattern": "props.theme.mcui.typography.*",
+      "example_violation": "font-size: 14px;",
+      "example_correct": "font-size: ${p => p.theme.mcui.typography.BODY_1_BODY.size};"
+    },
+    {
+      "id": "no-inline-styles",
+      "rule": "Never use the style={{}} prop on JSX elements. Use styled-components instead.",
+      "severity": "error",
+      "pattern_to_reject": "style=\\{\\{",
+      "file_patterns": ["*.tsx"],
+      "exclude_files": ["*.test.*", "*.spec.*"],
+      "correct_pattern": "SC* styled-component",
+      "example_violation": "<div style={{ color: 'red', padding: '8px' }}>",
+      "example_correct": "<SCWrapper> (defined as a styled.div with theme tokens)"
+    },
+    {
+      "id": "formik-required",
+      "rule": "MCForm* components must always be rendered inside a <Formik> context. Never render form input components outside a Formik tree.",
+      "severity": "error",
+      "file_patterns": ["*.tsx"],
+      "exclude_files": ["*.test.*", "*.spec.*", "*.stories.*"],
+      "example_violation": "<MCFormTextInput name=\"email\" label=\"Email\" /> (rendered without a parent <Formik>)",
+      "example_correct": "<Formik initialValues={...} onSubmit={...}><MCFormTextInput name=\"email\" label=\"Email\" /></Formik>"
+    },
+    {
+      "id": "transient-props",
+      "rule": "Non-HTML props passed to styled-components must use the $ prefix (transient props) to prevent them from being forwarded to the DOM.",
+      "severity": "error",
+      "file_patterns": ["*.tsx", "*.ts"],
+      "exclude_files": ["*.test.*", "*.spec.*"],
+      "correct_pattern": "$propName in both styled component definition and JSX usage",
+      "example_violation": "const SCBox = styled.div<{ isActive: boolean }>`color: ${p => p.isActive ? 'red' : 'blue'}`; <SCBox isActive={true}>",
+      "example_correct": "const SCBox = styled.div<{ $isActive: boolean }>`color: ${p => p.$isActive ? ... }`; <SCBox $isActive={true}>"
+    },
+    {
+      "id": "i18n-required",
+      "rule": "All user-facing strings must be translated using the useTranslation() hook. Never hardcode display text as string literals in JSX.",
+      "severity": "error",
+      "pattern_to_reject": ">\\s*[A-Z][a-zA-Z\\s]{2,}\\s*<",
+      "file_patterns": ["*.tsx"],
+      "exclude_files": ["*.test.*", "*.spec.*", "*.stories.*"],
+      "correct_pattern": "const { t } = useTranslation(); ... {t('namespace:key')}",
+      "example_violation": "<Button>Save Changes</Button>",
+      "example_correct": "const { t } = useTranslation(); ... <Button>{t('common:save_changes')}</Button>"
+    },
+    {
+      "id": "sc-prefix-required",
+      "rule": "All styled-components defined within a file must be prefixed with SC. They must not be exported unless shared across multiple components.",
+      "severity": "error",
+      "pattern_to_reject": "^const [A-Z][a-zA-Z]+ = styled\\.",
+      "file_patterns": ["*.tsx", "*.ts"],
+      "exclude_files": ["*.test.*", "*.spec.*"],
+      "correct_pattern": "const SC{Name} = styled.*",
+      "example_violation": "const Wrapper = styled.div`...`",
+      "example_correct": "const SCWrapper = styled.div`...`"
+    },
+    {
+      "id": "no-direct-mcsingleinput",
+      "rule": "Never use MCSingleTextInput directly inside forms. Use MCFormTextInput instead, which provides Formik integration, label, error display, and accessibility.",
+      "severity": "error",
+      "file_patterns": ["*.tsx"],
+      "exclude_files": ["*.test.*", "*.spec.*"],
+      "example_violation": "<MCSingleTextInput value={val} onChange={...} /> (used directly in a form)",
+      "example_correct": "<MCFormTextInput name=\"fieldName\" label={t('ns:field_label')} />"
+    },
+    {
+      "id": "import-order",
+      "rule": "Imports must follow the prescribed order: (1) React and react-related, (2) third-party libraries, (3) Moloco UI library, (4) internal portal imports (@msm-portal/*), (5) relative imports.",
+      "severity": "warning",
+      "file_patterns": ["*.tsx", "*.ts"],
+      "exclude_files": ["*.test.*", "*.spec.*"],
+      "example_violation": "import { useTranslation } from 'react-i18next';\nimport React from 'react';\nimport { MCButton2 } from '@moloco/...';\nimport './styles';",
+      "example_correct": "import React from 'react';\nimport { useTranslation } from 'react-i18next';\nimport { MCButton2 } from '@moloco/moloco-cloud-react-ui';\nimport { useEntityParam } from '@msm-portal/common/hook';\nimport { SCWrapper } from './styledComponents';"
+    },
+    {
+      "id": "no-data-fetch-in-component",
+      "rule": "Component-layer files (pure UI) must not perform data fetching, call tRPC/API hooks, or contain navigation logic. All data must arrive via props from the Container layer.",
+      "severity": "error",
+      "file_patterns": ["*.tsx"],
+      "exclude_files": ["*.test.*", "*.spec.*"],
+      "correct_pattern": "Component receives all data as typed props from its Container",
+      "example_violation": "// Inside MC{Entity}{View}.tsx\nconst { data } = trpc.entity.list.useQuery();",
+      "example_correct": "// Container fetches, Component only renders\ninterface MTProps { items: MTItem[]; onSave: () => void; }\nexport const MCEntityView = ({ items, onSave }: MTProps) => { ... }"
+    },
+    {
+      "id": "page-thin-wrapper",
+      "rule": "Page-layer files must be thin wrappers that only import and render a Container component. They must contain no hooks, state, business logic, or data fetching.",
+      "severity": "error",
+      "file_patterns": ["*.tsx"],
+      "exclude_files": ["*.test.*", "*.spec.*"],
+      "correct_pattern": "Page file renders exactly one Container with no additional logic",
+      "example_violation": "// Inside AuctionOrderList.tsx (page)\nconst [data, setData] = useState([]);\nuseEffect(() => { fetchData().then(setData); }, []);\nreturn <MCAuctionOrderList items={data} />;",
+      "example_correct": "// Inside AuctionOrderList.tsx (page)\nimport { MCAuctionOrderListContainer } from '@msm-portal/msm-default/container/auction-order/list';\nexport default function AuctionOrderList() { return <MCAuctionOrderListContainer />; }"
+    }
+  ]
+}

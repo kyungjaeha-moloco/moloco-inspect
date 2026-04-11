@@ -1,0 +1,200 @@
+{
+  "meta": {
+    "description": "Step-by-step protocol for AI agents generating MSM Portal UI code. Agents must follow this sequence to produce correct, consistent, and user-friendly screens.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-11"
+  },
+
+  "protocol": {
+    "phases": [
+      {
+        "phase": 1,
+        "name": "Understand",
+        "description": "Gather requirements and map to design system concepts",
+        "steps": [
+          {
+            "step": "1.1",
+            "action": "Identify the task type",
+            "how": "Match the user request to a task type in index.json → task_loading_guide. Valid types: building_a_new_page, implementing_a_form, styling_a_component, adding_a_table_view, handling_user_interactions, connecting_api_to_ui, adding_i18n_strings, registering_a_route, handling_errors_and_loading, code_review.",
+            "output": "task_type (e.g., 'building_a_new_page', 'implementing_a_form')"
+          },
+          {
+            "step": "1.2",
+            "action": "Identify the entity and action",
+            "how": "Extract the entity name (e.g., Campaign, AdGroup, AuctionOrder) and action (List, Create, Edit, Detail, Delete). Entity maps to directory names in kebab-case and type names in PascalCase.",
+            "output": "entity_name, action_type"
+          },
+          {
+            "step": "1.3",
+            "action": "Load the required design system files",
+            "how": "Read the load_order from index.json → task_loading_guide for this task_type. Load files in that exact order. Each entry specifies which sections to read.",
+            "output": "Loaded context from design system files"
+          },
+          {
+            "step": "1.4",
+            "action": "Check API contracts",
+            "how": "Look up the entity in api-ui-contracts.json. Identify proto type, model type, converter file, field mappings, table columns, and endpoints.",
+            "output": "entity_contract with field mappings and endpoints"
+          }
+        ]
+      },
+      {
+        "phase": 2,
+        "name": "Plan",
+        "description": "Select pattern, components, and file structure",
+        "steps": [
+          {
+            "step": "2.1",
+            "action": "Select the composition pattern",
+            "how": "Match action_type to a pattern in patterns.json. Mapping: List → list-page, Detail → detail-page, Create → create-page, Edit → edit-page, Delete → delete-confirm-dialog. For forms embedded in pages, also load form-basic or form-full-page.",
+            "output": "selected_pattern with layer_structure and file_checklist"
+          },
+          {
+            "step": "2.2",
+            "action": "Plan the file structure",
+            "how": "Use the pattern's file_checklist, replacing {entity} with kebab-case entity name, {Entity} with PascalCase entity name, {client} with the target client (e.g., msm-default, tving, shortmax, onboard-demo). Follow conventions.json → architecture for layer locations.",
+            "output": "concrete_file_list (actual file paths to create)"
+          },
+          {
+            "step": "2.3",
+            "action": "Select components",
+            "how": "For each UI need, consult index.json → decision_trees. For user input: match to user_input tree. For actions: match to user_action tree. For page structure: match to page_type tree. For feedback: match to feedback_display tree. For each component selected, verify when_to_use and do_not_use in components.json.",
+            "output": "component_selection_list with rationale"
+          },
+          {
+            "step": "2.4",
+            "action": "Plan user states",
+            "how": "For every screen, identify all possible states: loading, empty, error, success, partial data. Reference state-machines.json → formInputs for interactive component states. Reference component-behaviors.json for semantic actions and data flow.",
+            "output": "state_matrix (screen x state combinations)"
+          },
+          {
+            "step": "2.5",
+            "action": "Plan i18n keys",
+            "how": "List all user-facing strings. Create i18n key structure following namespace pattern from patterns.json → i18n-usage: 'container.{entity}.{action}' for containers, 'form.{entity}' for forms, 'component.{entity}' for shared components.",
+            "output": "i18n_key_plan"
+          },
+          {
+            "step": "2.6",
+            "action": "Plan UX writing",
+            "how": "Review ux-writing.json before finalizing labels, placeholders, empty states, dialogs, and toasts. Choose action-specific labels, recovery-oriented errors, and consistent terminology for both Korean and English.",
+            "output": "ux_writing_plan"
+          }
+        ]
+      },
+      {
+        "phase": 3,
+        "name": "Generate",
+        "description": "Write the actual code following the plan",
+        "steps": [
+          {
+            "step": "3.1",
+            "action": "Create the Page file",
+            "how": "Thin wrapper only. Import Container, render it. No useState, useEffect, useQuery, useNavigate, useTranslation. Follow conventions.json → architecture → Page layer. File naming: {EntityAction}.tsx (e.g., AuctionOrderList.tsx).",
+            "output": "Page file at src/apps/{client}/page/{entity}/"
+          },
+          {
+            "step": "3.2",
+            "action": "Create the Container file",
+            "how": "All hooks here: tRPC/msmAPI queries, useNavigate, useTranslation, useInAppAlert, useEntityParam. Compute props for Component. Handle loading state with MCCircularLoader. Handle error state with fireCollapsibleError. File naming: MC{Entity}{Action}Container.tsx.",
+            "output": "Container file at src/apps/{client}/container/{entity}/{action}/"
+          },
+          {
+            "step": "3.3",
+            "action": "Create the Component file",
+            "how": "Pure UI. All data via typed props (MT* interfaces). Use design system components from the selection list. Apply tokens via theme.mcui.* for all styling. No tRPC, no useNavigate, no fetch calls.",
+            "output": "Component file at src/apps/{client}/component/{entity}/"
+          },
+          {
+            "step": "3.4",
+            "action": "Create supporting files",
+            "how": "Types: MT* interfaces in types.ts or MC{Entity}Form.type.ts. Styled components: SC* definitions in styledComponents.tsx (if more than 3 styled components). Schema: {entity}FormSchema.ts for Yup validation. i18n: JSON at src/i18n/locales/en/{namespace}.json. Route: register in MERouteKey enum, routeTemplate.tsx, and client route.tsx per patterns.json → route-registration.",
+            "output": "Supporting files"
+          },
+          {
+            "step": "3.5",
+            "action": "Handle all user states",
+            "how": "For each state in the state_matrix: loading → MCCircularLoader (fillParent for full-page, MCLoader for inline), error → useEffect with fireCollapsibleError and navigate away, empty → meaningful message with call-to-action, success → data display. Follow patterns.json → loading-state and error-handling.",
+            "output": "State handling code in Container and Component"
+          },
+          {
+            "step": "3.6",
+            "action": "Apply import order",
+            "how": "Follow conventions.json → importOrder: (1) React and react-related, (2) third-party libraries (styled-components, formik, yup), (3) @moloco/moloco-cloud-react-ui, (4) @msm-portal/* internal imports, (5) relative imports.",
+            "output": "Correctly ordered imports in all files"
+          }
+        ]
+      },
+      {
+        "phase": 4,
+        "name": "Validate",
+        "description": "Run validation checks against the generated code using validation-runner.json",
+        "steps": [
+          {
+            "step": "4.1",
+            "action": "Run constraint checks",
+            "how": "Apply each constraint from conventions.json → constraints against the generated code. Constraint IDs to check: no-hardcoded-colors, no-hardcoded-spacing, no-hardcoded-fonts, no-inline-styles, formik-required, transient-props, i18n-required, sc-prefix-required, no-direct-mcsingleinput, import-order, no-data-fetch-in-component, page-thin-wrapper.",
+            "output": "constraint_results (pass/fail per constraint ID)"
+          },
+          {
+            "step": "4.2",
+            "action": "Verify pattern compliance",
+            "how": "Check generated files against the selected pattern's validation_checklist from patterns.json. Each checklist item must pass.",
+            "output": "pattern_compliance_results"
+          },
+          {
+            "step": "4.3",
+            "action": "Verify component usage",
+            "how": "For each component used, verify: (1) correct importStatement from components.json, (2) all required props provided, (3) component is inside required parent per compositions.must_be_inside, (4) usage does not violate do_not_use rules.",
+            "output": "component_usage_results"
+          },
+          {
+            "step": "4.4",
+            "action": "Run validation-runner.json checks",
+            "how": "Execute all check categories from validation-runner.json: architecture, styling, components, contract, i18n, ux_writing, states. Report results using the scoring system (pass/conditional_pass/fail).",
+            "output": "validation_runner_results with overall score"
+          }
+        ]
+      },
+      {
+        "phase": 5,
+        "name": "Evaluate UX",
+        "description": "Assess the user experience quality using ux-criteria.json",
+        "steps": [
+          {
+            "step": "5.1",
+            "action": "Run UX evaluation criteria",
+            "how": "Apply each criterion from ux-criteria.json across all categories: information_hierarchy, user_flow, interaction_quality, ux_writing, accessibility, completeness. Score each as pass (2), partial (1), or fail (0) with weighted importance (high=3, medium=2, low=1).",
+            "output": "ux_evaluation_results with scores and evidence"
+          },
+          {
+            "step": "5.2",
+            "action": "Generate improvement suggestions",
+            "how": "For any criterion scoring below 'pass', suggest specific code changes referencing the correct design system components and patterns.",
+            "output": "improvement_suggestions with concrete fixes"
+          },
+          {
+            "step": "5.3",
+            "action": "Report final grade",
+            "how": "Calculate weighted score percentage per ux-criteria.json → scoring → thresholds. Report grade: excellent (90%+), good (75-89%), needs_improvement (60-74%), poor (<60%).",
+            "output": "final_grade with top 3 improvements"
+          }
+        ]
+      }
+    ]
+  },
+
+  "abort_conditions": [
+    "No matching pattern found in patterns.json for the requested page type (valid patterns: list-page, detail-page, create-page, edit-page, form-basic, form-full-page, delete-confirm-dialog)",
+    "Entity not found in api-ui-contracts.json and no API specification provided by the user",
+    "Required component does not exist in components.json (check categories: Form Inputs (v1), Form Shared, Form Layout, Buttons, Navigation, Feedback & Overlay, Table, Layout)",
+    "Target client is not one of the supported clients: tving, msm-default, shortmax, onboard-demo"
+  ],
+
+  "cross_references": {
+    "validation": "validation-runner.json — Phase 4 automated checks",
+    "ux_evaluation": "ux-criteria.json — Phase 5 UX scoring",
+    "design_system_index": "index.json — file loading guide and decision trees",
+    "constraints": "conventions.json → constraints — machine-checkable rules",
+    "patterns": "patterns.json — composition patterns with file_checklist and validation_checklist"
+  }
+}

@@ -6,7 +6,8 @@
 
 - React 문서 사이트와 운영 대시보드가 이 repo 안으로 복사되었습니다.
 - `pnpm build`가 통과합니다.
-- 다만 아직 완전히 독립적인 상태는 아니고, 아래 원본 workspace를 참조합니다.
+- design-system 데이터는 이제 이 repo 안의 `../design-system/src`를 우선 읽습니다.
+- 다만 아직 완전히 독립적인 상태는 아니고, runtime preview와 실제 제품 코드는 아래 원본 workspace를 참조합니다.
 
 기본 source workspace root:
 
@@ -23,10 +24,9 @@
 
 ## 무엇을 아직 원본 workspace에서 읽는가
 
-- `design-system/src/*.json`
 - `msm-portal/js/msm-portal-web/src/*`
 
-즉 현재는 “proposal repo 안의 dashboard shell + source workspace reference” 구조입니다.
+즉 현재는 “proposal repo 안의 dashboard + local design-system + source workspace runtime reference” 구조입니다.
 
 ## 왜 이렇게 했는가
 
@@ -54,7 +54,7 @@ pnpm build
 
 ## 다음 단계
 
-1. dashboard를 `design-system` JSON에 덜 의존하도록 정리
-2. runtime preview 의존성을 분리
-3. analytics API contract 문서화
+1. runtime preview 의존성을 분리
+2. analytics API contract 문서화
+3. source workspace runtime path를 환경변수 기반으로 더 명확히 제어
 4. 완전 독립 실행 가능 상태로 이동

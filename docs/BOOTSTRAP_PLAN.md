@@ -36,6 +36,7 @@
 
 - design-system JSON 중 proposal에 필요한 subset
 - preview verification / request schema / UX writing
+- dashboard가 로컬 design-system을 우선 참조하도록 전환
 
 ### Phase 5
 
@@ -50,6 +51,6 @@
 
 ## 바로 다음 액션
 
-1. 이 repo 안의 문서 세트 정리
-2. 현재 원본 workspace에서 가져올 1차 자산 범위 확정
-3. 초기 커밋 생성
+1. design-system 1차 이관
+2. dashboard가 로컬 design-system을 읽도록 전환
+3. 이후 orchestrator / extension / dashboard의 source workspace 의존성 축소

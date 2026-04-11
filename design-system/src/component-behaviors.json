@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "lastUpdated": "2026-04-03",
+  "description": "Semantic actions and data flow for each component. Companion to components.json — lookup by component name.",
+
+  "formInputs": {
+    "_shared": {
+      "semantic_actions": [
+        { "action": "user_inputs_value", "triggers": "onChange → formik.setFieldValue(name, value)" },
+        { "action": "validation_error", "triggers": "onBlur → meta.touched && meta.error shown" },
+        { "action": "clear_input", "triggers": "resetForm() or setFieldValue(name, '')" }
+      ],
+      "data_flow": {
+        "input": "formik.values[name] via useField(name)",
+        "output": "formik.handleChange → parent container callback",
+        "side_effects": ["form dirty state", "validation trigger", "touched state"]
+      }
+    },
+    "MCFormTextInput": { "extends": "_shared" },
+    "MCFormTextArea": { "extends": "_shared" },
+    "MCFormNumberInput": {
+      "extends": "_shared",
+      "additional_actions": [
+        { "action": "user_increments", "triggers": "ArrowUp or click up → value += step" },
+        { "action": "user_decrements", "triggers": "ArrowDown or click down → value -= step" }
+      ]
+    },
+    "MCFormCheckBox": {
+      "extends": "_shared",
+      "override_actions": [
+        { "action": "user_toggles", "triggers": "click or Space → formik.setFieldValue(name, !current)" }
+      ]
+    },
+    "MCFormSwitchInput": {
+      "extends": "_shared",
+      "override_actions": [
+        { "action": "user_toggles", "triggers": "click or Space → formik.setFieldValue(name, !current)" }
+      ]
+    },
+    "MCFormRadioGroup": {
+      "extends": "_shared",
+      "override_actions": [
+        { "action": "user_selects_option", "triggers": "click or Arrow keys → formik.setFieldValue(name, selectedValue)" }
+      ]
+    },
+    "MCFormSingleRichSelect": {
+      "extends": "_shared",
+      "additional_actions": [
+        { "action": "user_opens_dropdown", "triggers": "click or Enter → dropdown visible" },
+        { "action": "user_selects_option", "triggers": "click option → formik.setFieldValue(name, option.value)" },
+        { "action": "user_searches_options", "triggers": "type in search → filter options" },
+        { "action": "user_clears_selection", "triggers": "click clear → formik.setFieldValue(name, null)" }
+      ]
+    },
+    "MCFormMultiRichSelect": {
+      "extends": "MCFormSingleRichSelect",
+      "override_actions": [
+        { "action": "user_selects_option", "triggers": "click option → append to array, dropdown stays open" },
+        { "action": "user_deselects_option", "triggers": "click selected option → remove from array" }
+      ]
+    },
+    "MCFormDatePicker": {
+      "extends": "_shared",
+      "additional_actions": [
+        { "action": "user_opens_calendar", "triggers": "click field → calendar popup" },
+        { "action": "user_selects_date", "triggers": "click date → formik.setFieldValue(name, date)" },
+        { "action": "user_navigates_month", "triggers": "click prev/next → change displayed month" }
+      ]
+    },
+    "MCFormTimePicker": {
+      "extends": "MCFormSingleRichSelect",
+      "note": "Time picker uses dropdown pattern like select"
+    },
+    "MCFormMonthPicker": {
+      "extends": "MCFormDatePicker",
+      "note": "Same calendar pattern, month granularity"
+    },
+    "MCFormDateRangePicker": {
+      "extends": "MCFormDatePicker",
+      "additional_actions": [
+        { "action": "user_selects_start_date", "triggers": "click first date → start selected, awaiting end" },
+        { "action": "user_selects_end_date", "triggers": "click second date → setFieldValue(name, { start, end })" }
+      ]
+    },
+    "MCFormTagInput": {
+      "extends": "_shared",
+      "additional_actions": [
+        { "action": "user_adds_tag", "triggers": "Enter or comma → append to array" },
+        { "action": "user_removes_tag", "triggers": "click X or Backspace on empty → remove from array" }
+      ]
+    },
+    "MCFormAutoComplete": {
+      "extends": "MCFormSingleRichSelect",
+      "note": "Same as select with free-text typing allowed"
+    },
+    "MCFormPercent": {
+      "extends": "MCFormNumberInput",
+      "note": "Number input constrained to 0-100 with % suffix"
+    },
+    "MCFormDynamicFieldsArray": {
+      "extends": "_shared",
+      "additional_actions": [
+        { "action": "user_adds_field", "triggers": "click add → arrayHelpers.push(emptyField)" },
+        { "action": "user_removes_field", "triggers": "click remove → arrayHelpers.remove(index)" },
+        { "action": "user_reorders_fields", "triggers": "drag → arrayHelpers.move(from, to)" }
+      ]
+    },
+    "MCFormFieldGroup": {
+      "semantic_actions": [],
+      "data_flow": { "input": "children props", "output": "none (layout only)", "side_effects": [] },
+      "note": "Layout-only wrapper for grouping form fields in a row"
+    },
+    "MCFormCardSelect": {
+      "extends": "_shared",
+      "override_actions": [
+        { "action": "user_selects_card", "triggers": "click card or Enter/Space → formik.setFieldValue(name, card.value)" }
+      ]
+    },
+    "MCFormInlineChipRichSelect": {
+      "extends": "MCFormMultiRichSelect",
+      "note": "Multi-select with inline chip display"
+    }
+  },
+
+  "buttons": {
+    "MCButton2": {
+      "semantic_actions": [
+        { "action": "user_clicks", "triggers": "onClick callback" }
+      ],
+      "data_flow": {
+        "input": "label, icon, variant, size props",
+        "output": "onClick → parent handler (navigate, mutate, open dialog)",
+        "side_effects": ["navigation", "API mutation", "dialog open/close"]
+      }
+    },
+    "MCMoreActionsButton": {
+      "semantic_actions": [
+        { "action": "user_opens_menu", "triggers": "click → dropdown menu visible" },
+        { "action": "user_selects_action", "triggers": "click menu item → item.onClick()" }
+      ],
+      "data_flow": {
+        "input": "items: Array<{ label, icon, onClick }>",
+        "output": "selected item's onClick callback",
+        "side_effects": ["varies per action (delete, archive, etc.)"]
+      }
+    },
+    "MCIconButton": {
+      "semantic_actions": [
+        { "action": "user_clicks", "triggers": "onClick callback" }
+      ],
+      "data_flow": {
+        "input": "icon, tooltip props",
+        "output": "onClick → parent handler",
+        "side_effects": ["same as MCButton2"]
+      }
+    }
+  },
+
+  "navigation": {
+    "MCBarTabs": {
+      "semantic_actions": [
+        { "action": "user_switches_tab", "triggers": "click tab → onChange(newValue) → activeTab state update" }
+      ],
+      "data_flow": {
+        "input": "tabs array, activeValue",
+        "output": "onChange(selectedValue) → parent re-renders content",
+        "side_effects": ["content area re-render", "possible URL update"]
+      }
+    },
+    "MCBreadcrumb": {
+      "semantic_actions": [
+        { "action": "user_navigates_back", "triggers": "click breadcrumb item → navigate(path)" }
+      ],
+      "data_flow": {
+        "input": "items: Array<{ label, path }>",
+        "output": "navigate() call",
+        "side_effects": ["page navigation"]
+      }
+    }
+  },
+
+  "feedback": {
+    "MCCommonDialog": {
+      "semantic_actions": [
+        { "action": "user_confirms", "triggers": "click confirm button → onConfirm()" },
+        { "action": "user_cancels", "triggers": "click cancel button or Escape → onClose()" },
+        { "action": "user_dismisses", "triggers": "click backdrop overlay → onClose()" }
+      ],
+      "data_flow": {
+        "input": "open, title, content, confirmLabel props",
+        "output": "onConfirm or onClose callbacks",
+        "side_effects": ["dialog close", "possible API mutation on confirm"]
+      }
+    },
+    "MCPopover": {
+      "semantic_actions": [
+        { "action": "user_opens_popover", "triggers": "click/hover trigger element" },
+        { "action": "user_closes_popover", "triggers": "click outside, Escape, or blur" }
+      ],
+      "data_flow": {
+        "input": "trigger element, content, placement props",
+        "output": "open/close state",
+        "side_effects": []
+      }
+    },
+    "MCSnackbar": {
+      "semantic_actions": [
+        { "action": "user_dismisses_notification", "triggers": "click close or auto-timeout (5s)" },
+        { "action": "user_clicks_action", "triggers": "click action button → onAction()" }
+      ],
+      "data_flow": {
+        "input": "enqueueSnackbar(message, options)",
+        "output": "auto-dismiss or action callback",
+        "side_effects": []
+      }
+    }
+  },
+
+  "display": {
+    "_note": "Display components are passive — they render based on props only, no user-driven actions.",
+    "MCTextEllipsis": { "semantic_actions": [], "data_flow": { "input": "text, maxLines props", "output": "none", "side_effects": [] } },
+    "MCLoader": { "semantic_actions": [], "data_flow": { "input": "loading boolean", "output": "none", "side_effects": [] } },
+    "MCCircularLoader": { "semantic_actions": [], "data_flow": { "input": "none", "output": "none", "side_effects": [] } },
+    "MCEmpty": { "semantic_actions": [], "data_flow": { "input": "message prop", "output": "none", "side_effects": [] } },
+    "MCBadge": { "semantic_actions": [], "data_flow": { "input": "label, color props", "output": "none", "side_effects": [] } },
+    "MCEmptyState": { "semantic_actions": [], "data_flow": { "input": "title, description, action props", "output": "none", "side_effects": [] } }
+  },
+
+  "table": {
+    "MCTable": {
+      "semantic_actions": [
+        { "action": "user_sorts_column", "triggers": "click column header → toggleSortBy(columnId)" },
+        { "action": "user_filters_data", "triggers": "open filter panel → setFilter(columnId, value)" },
+        { "action": "user_clicks_row", "triggers": "click row → onRowClick(row) → navigate to detail" },
+        { "action": "user_paginates", "triggers": "click next/prev → gotoPage(pageIndex)" },
+        { "action": "user_searches", "triggers": "type in search bar → setGlobalFilter(text)" },
+        { "action": "user_clears_filters", "triggers": "click clear all → setAllFilters([])" }
+      ],
+      "data_flow": {
+        "input": "data array, columns config, filters, hiddenColumns",
+        "output": "onRowClick callback, filter/sort/search state",
+        "side_effects": ["URL query params update", "table internal state"]
+      }
+    }
+  },
+
+  "layout": {
+    "_note": "Layout components are structural wrappers with no user-driven actions.",
+    "MCContentLayout": { "semantic_actions": [], "data_flow": { "input": "children, title, breadcrumb props", "output": "none", "side_effects": [] } },
+    "MCRootLayout": { "semantic_actions": [], "data_flow": { "input": "children", "output": "none", "side_effects": [] } },
+    "MCSidebar": { "semantic_actions": [], "data_flow": { "input": "navItems, collapsed state", "output": "none", "side_effects": [] } },
+    "MCFormPanel": { "semantic_actions": [], "data_flow": { "input": "title, children", "output": "none", "side_effects": [] } },
+    "MCFormPanelTitle": { "semantic_actions": [], "data_flow": { "input": "title text", "output": "none", "side_effects": [] } },
+    "MCFormLayout": { "semantic_actions": [], "data_flow": { "input": "breadcrumb, footer, children", "output": "none", "side_effects": [] } }
+  },
+
+  "styled": {
+    "SCBoldLabel": { "semantic_actions": [], "data_flow": { "input": "children text", "output": "none", "side_effects": [] } },
+    "SCClickableText": {
+      "semantic_actions": [
+        { "action": "user_clicks", "triggers": "onClick callback" }
+      ],
+      "data_flow": { "input": "children text, onClick", "output": "onClick callback", "side_effects": ["navigation or action"] }
+    }
+  }
+}

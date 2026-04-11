@@ -1,0 +1,139 @@
+{
+  "meta": {
+    "description": "Machine-readable preview verification rules for background UI agents. These rules define when a generated preview is safe to show to PM/SA reviewers.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-11"
+  },
+  "global_rules": [
+    {
+      "id": "preview-client-match",
+      "name": "Preview client must match request client",
+      "applies_to": ["all"],
+      "expected_input": "payload.client",
+      "verification": "preview runtime booted with matching CLIENT env",
+      "failure_message": "Preview client does not match the page where the request originated."
+    },
+    {
+      "id": "preview-route-match",
+      "name": "Preview route must match request route",
+      "applies_to": ["all"],
+      "expected_input": "payload.pagePath",
+      "verification": "preview URL path equals requested page path",
+      "failure_message": "Preview route does not match the selected page."
+    },
+    {
+      "id": "preview-language-match",
+      "name": "Preview language must match request language",
+      "applies_to": ["all"],
+      "expected_input": "payload.language",
+      "verification": "preview URL lng query, localStorage i18nextLng, or documentElement.lang matches request language",
+      "failure_message": "Preview language does not match the current page language."
+    },
+    {
+      "id": "preview-screenshot-ready",
+      "name": "Screenshot must be captured after meaningful UI is visible",
+      "applies_to": ["all"],
+      "expected_input": "preview runtime",
+      "verification": "screenshot capture waits for text or interactive UI to appear",
+      "failure_message": "Preview screenshot was captured before the app finished rendering."
+    }
+  ],
+  "intent_rules": {
+    "copy_update": [
+      {
+        "id": "copy-namespace-match",
+        "verification": "Changed i18n keys must belong to the namespace used by the selected component file.",
+        "failure_message": "A copy change targeted the wrong translation namespace."
+      },
+      {
+        "id": "copy-visible-on-route",
+        "verification": "At least one changed visible string must appear in the preview page text before review.",
+        "failure_message": "The requested copy change is not visible on the current route."
+      }
+    ],
+    "spacing_adjustment": [
+      {
+        "id": "spacing-preview-captured",
+        "verification": "A preview screenshot must exist after the layout change.",
+        "failure_message": "A spacing change cannot be reviewed without a captured preview."
+      }
+    ],
+    "token_alignment": [
+      {
+        "id": "token-validate-pass",
+        "verification": "design-system validate must pass after the token-related change.",
+        "failure_message": "The requested token alignment failed design-system validation."
+      }
+    ]
+  },
+  "route_profiles": [
+    {
+      "id": "auth-sign-in",
+      "client": "all",
+      "route_pattern": "^/sign-in(?:\\?|$)",
+      "required_texts": {
+        "ko": ["로그인"],
+        "en": ["Sign In"]
+      },
+      "required_selectors": [
+        "input[name=\"email\"]",
+        "input[name=\"password\"]",
+        "[data-testid=\"submitButton\"], button[type=\"submit\"]"
+      ],
+      "forbidden_path_substrings": ["/workplace"]
+    },
+    {
+      "id": "tving-order-list-available",
+      "client": "tving",
+      "route_pattern": "^/v1/p/[^/]+/oms/order\\?type=available(?:&|$)",
+      "required_texts": {
+        "ko": ["예약형 주문 리스트", "이용 가능", "초안", "보관"],
+        "en": ["Reserved Orders", "Available", "Draft", "Archived"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1",
+        "table",
+        "input[placeholder*=\"검색\"], input[placeholder*=\"search\" i]"
+      ],
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    },
+    {
+      "id": "tving-order-review-list",
+      "client": "tving",
+      "route_pattern": "^/v1/p/[^/]+/oms/order-review(?:\\?|$)",
+      "required_texts": {
+        "ko": ["예약형 주문 리뷰"],
+        "en": ["Reserved Order Review"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1",
+        "table, [role=\"table\"]"
+      ],
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    },
+    {
+      "id": "tving-ad-pacing-dashboard",
+      "client": "tving",
+      "route_pattern": "^/v1/p/[^/]+/oms/ad-pacing-dashboard(?:\\?|$)",
+      "required_texts": {
+        "ko": ["AD Pacing"],
+        "en": ["AD Pacing"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1, h2",
+        "table, [role=\"table\"], canvas, svg"
+      ],
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    }
+  ],
+  "verification_order": [
+    "design_system_validate",
+    "typecheck",
+    "preview-client-match",
+    "preview-route-match",
+    "preview-language-match",
+    "route-profile-match",
+    "intent-specific-rules",
+    "preview-screenshot-ready"
+  ]
+}

@@ -1,0 +1,259 @@
+{
+  "meta": {
+    "description": "Automated evaluate→fix loop protocol. Agents run validation checks, automatically fix violations, and re-validate until all checks pass or max iterations reached.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-03"
+  },
+
+  "loop_config": {
+    "max_iterations": 3,
+    "stop_conditions": [
+      "All error-severity checks pass",
+      "Max iterations reached",
+      "No fixable violations found (manual review needed)"
+    ],
+    "escalation": "If loop exhausts max_iterations with remaining failures, report to user with specific unfixed violations and why auto-fix couldn't resolve them"
+  },
+
+  "iteration_protocol": {
+    "step_1_validate": {
+      "description": "Run all checks from validation-runner.json against the generated code",
+      "input": "File paths of generated code (Page, Container, Component, styled, types, i18n)",
+      "output": "List of violations with check_id, severity, file, line, evidence",
+      "check_categories": ["architecture", "styling", "components", "i18n", "states", "routing"]
+    },
+    "step_2_classify": {
+      "description": "Classify each violation by fix strategy",
+      "categories": {
+        "auto_fixable": {
+          "description": "Agent can fix without user input",
+          "examples": [
+            "Hardcoded hex color → replace with theme token",
+            "Hardcoded px spacing → replace with theme.mcui.spacing(n)",
+            "Hardcoded font size → replace with theme.mcui.typography.* token",
+            "Inline style → extract to styled-component",
+            "Missing i18n → wrap with t() and create key",
+            "Missing loading state → add isFetching check with MCCircularLoader",
+            "Missing error handling → add useEffect with fireCollapsibleError",
+            "Wrong import path → fix to correct path from components.json",
+            "Missing required prop → add with default value",
+            "SC prefix missing → rename styled component",
+            "Transient prop missing $ prefix → add $ prefix",
+            "MCSingleTextInput in form → replace with MCFormTextInput",
+            "Import order wrong → reorder imports per conventions.json"
+          ]
+        },
+        "semi_auto": {
+          "description": "Agent can fix but should confirm with user",
+          "examples": [
+            "Component used outside required parent (Formik) → restructure may affect logic",
+            "Data fetching in Component layer → move to Container requires refactoring",
+            "Missing form validation schema → needs business rules from user",
+            "Missing success feedback → needs correct navigation target"
+          ]
+        },
+        "manual_only": {
+          "description": "Cannot auto-fix — requires user decision",
+          "examples": [
+            "Architecture layer violation in complex multi-panel forms (pragmatic trade-off)",
+            "Missing empty state message (needs UX decision on what to show)",
+            "Accessibility: custom component keyboard navigation (needs interaction design)",
+            "Missing route registration (needs route path and allowedRoles decision)"
+          ]
+        }
+      }
+    },
+    "step_3_fix": {
+      "description": "Apply fixes for auto_fixable violations",
+      "fix_strategies": {
+        "no-hardcoded-colors": {
+          "check_id": "style-no-hex",
+          "detection": "regex: #([0-9A-Fa-f]{3,8})\\b in styled-components",
+          "fix": "Look up the hex value in tokens.json color sections. Find the matching semantic token. Replace with theme.mcui.palette.{path}. If no exact match, use the closest semantic token.",
+          "example": {
+            "before": "color: #346bea;",
+            "after": "color: ${p => p.theme.mcui.palette.foundation.assent};"
+          }
+        },
+        "no-hardcoded-spacing": {
+          "check_id": "style-no-px-spacing",
+          "detection": "regex: (padding|margin|gap):\\s*\\d+px in styled-components",
+          "fix": "Convert px value to spacing multiplier (px / 8). Replace with theme.mcui.spacing(n). For non-multiples-of-8, use nearest value.",
+          "lookup": {
+            "4px": "spacing(0.5)",
+            "8px": "spacing(1)",
+            "12px": "spacing(1.5)",
+            "16px": "spacing(2)",
+            "24px": "spacing(3)",
+            "32px": "spacing(4)",
+            "40px": "spacing(5)",
+            "48px": "spacing(6)",
+            "64px": "spacing(8)"
+          },
+          "example": {
+            "before": "padding: 16px;",
+            "after": "padding: ${p => p.theme.mcui.spacing(2)};"
+          }
+        },
+        "no-hardcoded-fonts": {
+          "check_id": "style-no-px-fonts",
+          "detection": "regex: font-size:\\s*\\d+(px|rem|em) in styled-components",
+          "fix": "Match px value to typography token in tokens.json. Replace with theme.mcui.typography.{TOKEN}.size.",
+          "lookup": {
+            "9px": "typography.BODY_5.size",
+            "10px": "typography.BODY_4.size",
+            "12px": "typography.BODY_2.size",
+            "14px": "typography.BODY_1_BODY.size",
+            "16px": "typography.H_4.size",
+            "18px": "typography.H_3.size",
+            "28px": "typography.H_2.size",
+            "34px": "typography.H_1.size"
+          },
+          "example": {
+            "before": "font-size: 14px;",
+            "after": "font-size: ${p => p.theme.mcui.typography.BODY_1_BODY.size};"
+          }
+        },
+        "no-inline-styles": {
+          "check_id": "style-no-inline",
+          "detection": "regex: style=\\{\\{ in JSX",
+          "fix": "Extract inline styles to a new SC* styled-component. Place in styledComponents.tsx if file exists, or create one. Convert any hardcoded values to theme tokens during extraction.",
+          "example": {
+            "before": "<div style={{ padding: 16, background: '#fff' }}>",
+            "after": "const SCWrapper = styled.div`\n  padding: ${p => p.theme.mcui.spacing(2)};\n  background: ${p => p.theme.mcui.palette.background.primary};\n`;\n<SCWrapper>"
+          }
+        },
+        "i18n-required": {
+          "check_id": "i18n-no-hardcoded",
+          "detection": "regex: >\\s*[A-Z][a-zA-Z\\s]{2,}\\s*< in JSX",
+          "fix": "1. Add useTranslation hook if not present (Container layer only per architecture rules). 2. Replace string with t('key.path'). 3. Add key to i18n JSON file. 4. Follow namespace convention: 'container.{entity}.{action}' for containers, 'form.{entity}' for forms.",
+          "example": {
+            "before": "<h1>Campaign List</h1>",
+            "after": "<h1>{t('title')}</h1>\n// In i18n JSON: { \"title\": \"Campaign List\" }"
+          }
+        },
+        "missing-loading-state": {
+          "check_id": "state-loading",
+          "detection": "Container has useQuery/tRPC call but no isLoading/isFetching check",
+          "fix": "Add loading check before render. Use MCCircularLoader with fillParent for full-page loading, MCLoader for inline loading.",
+          "example": {
+            "before": "return <MyComponent data={data} />;",
+            "after": "if (isFetching || !data) return <MCCircularLoader fillParent />;\nreturn <MyComponent data={data} />;"
+          }
+        },
+        "missing-error-handling": {
+          "check_id": "state-error",
+          "detection": "Container has useQuery/tRPC call but no error handling with fireCollapsibleError",
+          "fix": "Add useEffect with error check and fireCollapsibleError from useInAppAlert. For query errors: navigate away. For mutation errors: stay on page.",
+          "example": {
+            "before": "const { data } = trpc.entity.get.useQuery(id);",
+            "after": "const { data, error } = trpc.entity.get.useQuery(id);\nconst { fireCollapsibleError } = useInAppAlert();\n\nuseEffect(() => {\n  if (error) {\n    fireCollapsibleError({ summary: t('message.read.error'), error });\n    handleClose();\n  }\n}, [error]);"
+          }
+        },
+        "sc-prefix-missing": {
+          "check_id": "style-sc-prefix",
+          "detection": "regex: ^const [A-Z][a-zA-Z]+ = styled\\. (without SC prefix)",
+          "fix": "Rename the styled component to have SC prefix. Update all references in the same file.",
+          "example": {
+            "before": "const Wrapper = styled.div`...`;",
+            "after": "const SCWrapper = styled.div`...`;"
+          }
+        },
+        "wrong-import-path": {
+          "check_id": "comp-import-path",
+          "detection": "Import path doesn't match components.json importStatement",
+          "fix": "Replace with the exact importStatement from components.json. Check components.json → component.importStatement for the canonical path.",
+          "lookup": "components.json → component.importStatement"
+        },
+        "transient-props": {
+          "check_id": "style-transient-props",
+          "detection": "Non-HTML props on styled-components without $ prefix",
+          "fix": "Add $ prefix to the prop name in both the type definition and all usage sites within the file.",
+          "example": {
+            "before": "styled.div<{ isActive: boolean }>`\n  color: ${p => p.isActive ? 'red' : 'blue'};\n`;\n<SCBox isActive={true}>",
+            "after": "styled.div<{ $isActive: boolean }>`\n  color: ${p => p.$isActive ? 'red' : 'blue'};\n`;\n<SCBox $isActive={true}>"
+          }
+        },
+        "no-direct-mcsingleinput": {
+          "check_id": "comp-no-direct-mcsingleinput",
+          "detection": "regex: MCSingleTextInput in form component files",
+          "fix": "Replace MCSingleTextInput with MCFormTextInput. Add name prop for Formik integration. Update import path to @msm-portal/common/component/form/v1/input/MCFormTextInput.",
+          "example": {
+            "before": "<MCSingleTextInput value={val} onChange={handleChange} />",
+            "after": "<MCFormTextInput name=\"fieldName\" label={t('field_label')} />"
+          }
+        },
+        "import-order": {
+          "check_id": "import-order",
+          "detection": "Imports not following prescribed order from conventions.json",
+          "fix": "Reorder imports: (1) React and react-related, (2) third-party libraries (styled-components, formik, yup), (3) @moloco/moloco-cloud-react-ui, (4) @msm-portal/* internal imports, (5) relative imports (./, ../).",
+          "example": {
+            "before": "import { useTranslation } from 'react-i18next';\nimport React from 'react';\nimport { MCButton2 } from '@moloco/moloco-cloud-react-ui';",
+            "after": "import React from 'react';\nimport { useTranslation } from 'react-i18next';\nimport { MCButton2 } from '@moloco/moloco-cloud-react-ui';"
+          }
+        },
+        "missing-submit-disabled": {
+          "check_id": "state-submit-disabled",
+          "detection": "Submit MCButton2 without disabled={isSubmitting}",
+          "fix": "Add disabled={isSubmitting} to the submit button to prevent double submission.",
+          "example": {
+            "before": "<MCButton2 variant=\"contained\" type=\"submit\">",
+            "after": "<MCButton2 variant=\"contained\" type=\"submit\" disabled={isSubmitting}>"
+          }
+        },
+        "missing-success-feedback": {
+          "check_id": "state-success-feedback",
+          "detection": "Mutation onSuccess handler without fireSuccess call",
+          "fix": "Add fireSuccess toast and navigation after successful mutation. Create → navigate to list. Edit → navigate to detail.",
+          "example": {
+            "before": "onSuccess: () => { navigate(listPath); }",
+            "after": "onSuccess: () => { fireSuccess(t('message.create.success')); navigate(listPath); }"
+          }
+        }
+      }
+    },
+    "step_4_revalidate": {
+      "description": "Re-run validation checks on the fixed code",
+      "output": "Updated violation list. If all error-severity checks pass → EXIT LOOP. Otherwise → back to step_2.",
+      "early_exit": "If no violations were fixed in this iteration (all remaining are semi_auto or manual_only), exit loop early to avoid wasted iterations."
+    }
+  },
+
+  "reporting": {
+    "iteration_report": {
+      "description": "Generated after each iteration of the loop",
+      "format": {
+        "iteration": "number",
+        "violations_found": "number",
+        "auto_fixed": "number",
+        "semi_auto_flagged": "number",
+        "manual_only": "number",
+        "remaining": "number"
+      }
+    },
+    "final_report": {
+      "description": "Generated when the loop exits (pass, max iterations, or no fixable violations)",
+      "format": {
+        "total_iterations": "number",
+        "initial_violations": "number",
+        "auto_fixed_total": "number",
+        "remaining_violations": "array of { check_id, severity, file, reason_not_fixed }",
+        "result": "pass | conditional_pass | needs_manual_review"
+      },
+      "result_definitions": {
+        "pass": "All error-severity checks pass, no more than 2 warnings (matches validation-runner.json scoring)",
+        "conditional_pass": "All error-severity checks pass, 3+ warnings remain",
+        "needs_manual_review": "Error-severity violations remain that could not be auto-fixed"
+      }
+    }
+  },
+
+  "cross_references": {
+    "validation_checks": "validation-runner.json — source of all check definitions and scoring",
+    "constraints": "conventions.json → constraints — regex patterns for detection",
+    "tokens": "tokens.json — color/spacing/typography token lookup for replacements",
+    "components": "components.json → importStatement — canonical import paths",
+    "patterns": "patterns.json — composition patterns for structural fixes",
+    "generation_protocol": "generation-protocol.json — Phase 4 (Validate) triggers this loop"
+  }
+}

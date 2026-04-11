@@ -10,10 +10,12 @@ node_modules/
 dist/
 build/
 .vite/
+*.tsbuildinfo
 
 # Local env
 .env
 .env.local
+.omc/
 
 # Screenshots and generated artifacts
 screenshots/

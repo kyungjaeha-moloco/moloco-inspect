@@ -72,7 +72,20 @@
 ## 이관 우선순위
 
 1. dashboard
-2. chrome-extension
-3. orchestrator
+2. orchestrator
+3. chrome-extension
 4. design-system subset
 5. product integration docs
+
+## 현재 이관 상태
+
+- `dashboard/`: 1차 이관 완료, local `design-system` 우선 참조
+- `orchestrator/`: 1차 이관 완료, source workspace product/design-system 참조
+- `chrome-extension/`: 1차 이관 완료
+- `design-system/`: 1차 이관 완료
+
+## 아직 source workspace에 의존하는 핵심
+
+- `msm-portal/js/msm-portal-web/src/*`
+- runtime preview를 위한 실제 앱 코드와 mock auth/workplace flow
+- 일부 orchestrator/product integration 경로

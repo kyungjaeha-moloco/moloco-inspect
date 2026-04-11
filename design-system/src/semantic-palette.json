@@ -1,0 +1,206 @@
+{
+  "$schema": "semantic-palette",
+  "meta": {
+    "description": "Direct mapping from theme.mcui.palette.* paths to hex values for both light and dark modes. Allows agents to verify color token selections without running the app.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-06",
+    "source": "Extracted from tokens.json color section and darkMode section"
+  },
+
+  "light": {
+    "text": {
+      "content.primary": { "hex": "#212121", "semantic": "text.neutral.default", "source": "Grey.900", "usage": "Default body text, headings, labels, data values" },
+      "content.secondary": { "hex": "#5D5D5D", "semantic": "text.neutral.subtle", "source": "Grey.700", "usage": "Labels, hints, subdued text, form field labels" },
+      "content.contentAccent": { "hex": "#346bea", "semantic": "text.brand.default", "source": "Blue.500", "usage": "Links, clickable text, brand actions" },
+      "content.negative": { "hex": "#dd1f11", "semantic": "text.danger.default", "source": "Red.700", "usage": "Error messages, destructive action text" },
+      "content.positive": { "hex": "#429746", "semantic": "text.success.default", "source": "Green.500", "usage": "Success messages, positive status text" },
+      "content.warning": { "hex": "#ffca28", "semantic": "text.warning.default", "source": "Yellow.300", "usage": "Warning messages, caution text" },
+      "content.informative": { "hex": "#0288D1", "semantic": "text.information.default", "source": "System Blue", "usage": "Informational messages, help text" },
+      "content.disabled": { "hex": "#9E9E9E", "semantic": "text.disabled", "source": "Grey.500 approx", "usage": "Disabled text, placeholder text" },
+      "content.inversePrimary": { "hex": "#FFFFFF", "semantic": "text.inverse", "source": "White", "usage": "Text on dark/colored backgrounds" },
+      "content.grey": { "hex": "#bababa", "semantic": "text.neutral.grey", "source": "Grey.400", "usage": "Very subdued grey text" },
+      "content.blueGrey": { "hex": "#6c7581", "semantic": "text.neutral.blueGrey", "source": "BlueGrey.500", "usage": "Blue-grey text for navigation and secondary UI" },
+      "content.contentAccentHover": { "hex": "#0260C9", "semantic": ["text.brand.hovered", "text.link.hovered"], "source": "System Blue (dark)", "usage": "Brand/link text hover state" },
+      "content.contentAccentPressed": { "hex": "#014599", "semantic": ["text.brand.pressed", "text.link.pressed"], "source": "System Blue (darker)", "usage": "Brand/link text pressed state" }
+    },
+
+    "background": {
+      "background.primary": { "hex": "#FFFFFF", "semantic": "bg.neutral.default", "source": "White", "usage": "Main surface, panels, headers, popovers" },
+      "background.secondary": { "hex": "#F8F8F8", "semantic": "bg.neutral.subtle", "source": "Grey.50", "usage": "Page backgrounds, sidebar backgrounds" },
+      "background.tertiary": { "hex": "#f8f9fd", "semantic": "bg.neutral.subtler", "source": "Blue.50", "usage": "Guide messages, subtle fills" },
+      "background.primaryHover": { "hex": "#EEEEEE", "semantic": "bg.neutral.hovered", "source": "Grey.200 approx", "usage": "Surface hover state" },
+      "background.primaryPressed": { "hex": "#E0E0E0", "semantic": "bg.neutral.pressed", "source": "Grey.300", "usage": "Surface pressed/active state" },
+      "background.borderless": { "hex": "transparent", "semantic": "bg.transparent", "source": "transparent", "usage": "Transparent backgrounds" },
+      "foundation.assent": { "hex": "#346bea", "semantic": "bg.brand.default", "source": "Blue.500", "usage": "Brand/primary action backgrounds (contained buttons)" },
+      "foundation.assentHover": { "hex": "#0260C9", "semantic": "bg.brand.hovered", "source": "System Blue (dark)", "usage": "Brand background hover" },
+      "foundation.assentPressed": { "hex": "#014599", "semantic": "bg.brand.pressed", "source": "System Blue (darker)", "usage": "Brand background pressed" },
+      "background.negative": { "hex": "#ffeae9", "semantic": "bg.danger.default", "source": "Red.50", "usage": "Error/danger background, error banners" },
+      "foundation.negative": { "hex": "#dd1f11", "semantic": "bg.danger.bold", "source": "Red.700", "usage": "Bold danger background (destructive buttons)" },
+      "foundation.negativeHover": { "hex": "#c31818", "semantic": "bg.danger.bold.hovered", "source": "Red.800", "usage": "Destructive button hover" },
+      "foundation.negativePressed": { "hex": "#a11010", "semantic": "bg.danger.bold.pressed", "source": "Red.900", "usage": "Destructive button pressed" },
+      "background.positive": { "hex": "#E8F5E9", "semantic": "bg.success.default", "source": "System Green light", "usage": "Success background, success banners" },
+      "foundation.positive": { "hex": "#429746", "semantic": "bg.success.bold", "source": "Green.500", "usage": "Bold success background" },
+      "background.warning": { "hex": "#ffebad", "semantic": "bg.warning.default", "source": "Yellow.50", "usage": "Warning background, warning banners" },
+      "foundation.warning": { "hex": "#ffca28", "semantic": "bg.warning.bold", "source": "Yellow.300", "usage": "Bold warning background" },
+      "background.informative": { "hex": "#E1F5FE", "semantic": "bg.information.default", "source": "System Blue light", "usage": "Info background, info banners" },
+      "foundation.informative": { "hex": "#0288D1", "semantic": "bg.information.bold", "source": "System Blue", "usage": "Bold info background" },
+      "background.disabled": { "hex": "#F5F5F5", "semantic": "bg.disabled", "source": "Grey.100 approx", "usage": "Disabled element backgrounds" },
+      "background.selected": { "hex": "#E3F2FD", "semantic": "bg.selected.default", "source": "System Blue very light", "usage": "Selected item background" },
+      "background.selectedHover": { "hex": "#BBDEFB", "semantic": "bg.selected.hovered", "source": "Blue.200", "usage": "Selected item hover state" },
+      "background.input": { "hex": "#FFFFFF", "semantic": "bg.input.default", "source": "White", "usage": "Form input backgrounds" },
+      "background.inputHover": { "hex": "#FAFAFA", "semantic": "bg.input.hovered", "source": "Grey.50 approx", "usage": "Form input hover" },
+      "background.inputDisabled": { "hex": "#F5F5F5", "semantic": "bg.input.disabled", "source": "Grey.100 approx", "usage": "Disabled form input" },
+      "background.info": { "hex": "#ebf0fd", "semantic": "bg.information.subtle", "source": "Blue.100", "usage": "Subtle info background, tooltips" }
+    },
+
+    "border": {
+      "border.primary": { "hex": "#ececec", "semantic": "border.neutral.default", "source": "Grey.100", "usage": "Standard borders, dividers, panel borders" },
+      "border.secondary": { "hex": "#ebf0fd", "semantic": "border.neutral.subtle", "source": "Blue.100", "usage": "Subtle borders, section separators" },
+      "border.beta": { "hex": "#346bea", "semantic": "border.beta", "source": "Blue.500", "usage": "Beta feature borders" },
+      "border.black": { "hex": "#000000", "semantic": "border.black", "source": "Black", "usage": "Pure black borders" },
+      "border.warning": { "hex": "#ffdd74", "semantic": "border.warning.subtle", "source": "Yellow.100", "usage": "Warning container borders" },
+      "border.disabled": { "hex": "#E0E0E0", "semantic": "border.disabled", "source": "Grey.300", "usage": "Disabled element borders" },
+      "border.input": { "hex": "#ececec", "semantic": "border.input.default", "source": "Grey.100", "usage": "Form input borders" }
+    },
+
+    "border_semantic": {
+      "_note": "These borders map to foundation tokens, not border.* paths",
+      "foundation.assent (border)": { "hex": "#346bea", "semantic": "border.brand.default / border.input.focused", "source": "Blue.500", "usage": "Focus rings, active state borders, input focus" },
+      "foundation.negative (border)": { "hex": "#dd1f11", "semantic": "border.danger.default / border.input.error", "source": "Red.700", "usage": "Error state borders on inputs" },
+      "foundation.positive (border)": { "hex": "#429746", "semantic": "border.success.default", "source": "Green.500", "usage": "Success state borders" },
+      "foundation.warning (border)": { "hex": "#ffca28", "semantic": "border.warning.default", "source": "Yellow.300", "usage": "Warning state borders" }
+    },
+
+    "icon": {
+      "icon.primary": { "hex": "#8891a7", "semantic": "icon.neutral.default", "source": "BlueGrey.400", "usage": "Default icon color" },
+      "icon.primaryHover": { "hex": "#52575e", "semantic": "icon.neutral.defaultHover", "source": "BlueGrey.600", "usage": "Default icon hover state" },
+      "icon.secondary": { "hex": "#5d5d5d", "semantic": "icon.neutral.subtle", "source": "Grey.700", "usage": "Subdued icons, secondary actions" },
+      "icon.accent": { "hex": "#346bea", "semantic": "icon.brand.default", "source": "Blue.500", "usage": "Brand/accent icons, active/selected state icons" },
+      "icon.accentHover": { "hex": "#0260C9", "semantic": "icon.brand.hovered", "source": "System Blue (dark)", "usage": "Brand icon hover state" },
+      "icon.critical": { "hex": "#dd1f11", "semantic": "icon.danger.default", "source": "Red.700", "usage": "Critical/error icons" },
+      "icon.criticalHover": { "hex": "#a91b1b", "semantic": "icon.danger.hovered", "source": "Red.900", "usage": "Critical icon hover state" },
+      "icon.actionIcon": { "hex": "#bababa", "semantic": "icon.action", "source": "Grey.400", "usage": "Action icons, toolbar icons" },
+      "icon.draft": { "hex": "#c7c7c7", "semantic": "icon.draft", "source": "Grey.300", "usage": "Draft status icons" },
+      "icon.active": { "hex": "#346bea", "semantic": "icon.active", "source": "Blue.500", "usage": "DEPRECATED — merged into icon.brand.default" },
+      "icon.primaryNav": { "hex": "#6c7581", "semantic": "icon.primaryNav", "source": "BlueGrey.500", "usage": "Primary navigation icons" },
+      "icon.black": { "hex": "#000000", "semantic": "icon.black", "source": "Black", "usage": "Pure black icons" },
+      "icon.positive": { "hex": "#429746", "semantic": "icon.success.default", "source": "Green.500", "usage": "Success/positive icons" },
+      "icon.warning": { "hex": "#ffca28", "semantic": "icon.warning.default", "source": "Yellow.300", "usage": "Warning icons" },
+      "icon.informative": { "hex": "#0288D1", "semantic": "icon.information.default", "source": "System Blue", "usage": "Info icons" },
+      "icon.disabled": { "hex": "#d0d8ea", "semantic": "icon.disabled", "source": "BlueGrey.200", "usage": "Disabled icons" },
+      "icon.inversePrimary": { "hex": "#FFFFFF", "semantic": "icon.inverse", "source": "White", "usage": "Icons on dark/colored backgrounds" }
+    }
+  },
+
+  "dark": {
+    "text": {
+      "content.primary": { "hex": "#E0E0E0", "semantic": "text.neutral.default", "lightEquivalent": "#212121" },
+      "content.secondary": { "hex": "#9E9E9E", "semantic": "text.neutral.subtle", "lightEquivalent": "#5D5D5D" },
+      "content.contentAccent": { "hex": "#608cf0", "semantic": "text.brand.default", "lightEquivalent": "#346bea" },
+      "content.negative": { "hex": "#fa786e", "semantic": "text.danger.default", "lightEquivalent": "#dd1f11" },
+      "content.positive": { "hex": "#6ed871", "semantic": "text.success.default", "lightEquivalent": "#429746" },
+      "content.warning": { "hex": "#ffd452", "semantic": "text.warning.default", "lightEquivalent": "#ffca28" },
+      "content.informative": { "hex": "#29B6F6", "semantic": "text.information.default", "lightEquivalent": "#0288D1" },
+      "content.disabled": { "hex": "#616161", "semantic": "text.disabled", "lightEquivalent": "#9E9E9E" },
+      "content.inversePrimary": { "hex": "#212121", "semantic": "text.inverse", "lightEquivalent": "#FFFFFF" },
+      "content.contentAccentHover": { "hex": "#64B5F6", "semantic": ["text.brand.hovered", "text.link.hovered"], "lightEquivalent": "#0260C9" },
+      "content.contentAccentPressed": { "hex": "#90CAF9", "semantic": ["text.brand.pressed", "text.link.pressed"], "lightEquivalent": "#014599" }
+    },
+
+    "background": {
+      "background.primary": { "hex": "#121212", "semantic": "bg.neutral.default", "lightEquivalent": "#FFFFFF" },
+      "background.secondary": { "hex": "#1E1E1E", "semantic": "bg.neutral.subtle", "lightEquivalent": "#F8F8F8" },
+      "background.tertiary": { "hex": "#2C2C2C", "semantic": "bg.neutral.subtler", "lightEquivalent": "#f8f9fd" },
+      "background.primaryHover": { "hex": "#333333", "semantic": "bg.neutral.hovered", "lightEquivalent": "#EEEEEE" },
+      "background.primaryPressed": { "hex": "#3D3D3D", "semantic": "bg.neutral.pressed", "lightEquivalent": "#E0E0E0" },
+      "background.borderless": { "hex": "transparent", "semantic": "bg.transparent", "lightEquivalent": "transparent" },
+      "foundation.assent": { "hex": "#1e49aa", "semantic": "bg.brand.default", "lightEquivalent": "#346bea" },
+      "foundation.assentHover": { "hex": "#1976D2", "semantic": "bg.brand.hovered", "lightEquivalent": "#0260C9" },
+      "foundation.assentPressed": { "hex": "#1E88E5", "semantic": "bg.brand.pressed", "lightEquivalent": "#014599" },
+      "background.negative": { "hex": "#3E1A1A", "semantic": "bg.danger.default", "lightEquivalent": "#ffeae9" },
+      "foundation.negative": { "hex": "#c31818", "semantic": "bg.danger.bold", "lightEquivalent": "#dd1f11" },
+      "foundation.negativeHover": { "hex": "#a11010", "semantic": "bg.danger.bold.hovered", "lightEquivalent": "#c31818" },
+      "foundation.negativePressed": { "hex": "#8a0c0c", "semantic": "bg.danger.bold.pressed", "lightEquivalent": "#a11010" },
+      "background.positive": { "hex": "#1B3D1E", "semantic": "bg.success.default", "lightEquivalent": "#E8F5E9" },
+      "foundation.positive": { "hex": "#368139", "semantic": "bg.success.bold", "lightEquivalent": "#429746" },
+      "background.warning": { "hex": "#3E2C14", "semantic": "bg.warning.default", "lightEquivalent": "#ffebad" },
+      "foundation.warning": { "hex": "#d8a509", "semantic": "bg.warning.bold", "lightEquivalent": "#ffca28" },
+      "background.informative": { "hex": "#0D2940", "semantic": "bg.information.default", "lightEquivalent": "#E1F5FE" },
+      "foundation.informative": { "hex": "#0277BD", "semantic": "bg.information.bold", "lightEquivalent": "#0288D1" },
+      "background.disabled": { "hex": "#2C2C2C", "semantic": "bg.disabled", "lightEquivalent": "#F5F5F5" },
+      "background.selected": { "hex": "#0D2940", "semantic": "bg.selected.default", "lightEquivalent": "#E3F2FD" },
+      "background.selectedHover": { "hex": "#1A3D5C", "semantic": "bg.selected.hovered", "lightEquivalent": "#BBDEFB" },
+      "background.input": { "hex": "#1E1E1E", "semantic": "bg.input.default", "lightEquivalent": "#FFFFFF" },
+      "background.inputHover": { "hex": "#252525", "semantic": "bg.input.hovered", "lightEquivalent": "#FAFAFA" },
+      "background.inputDisabled": { "hex": "#2C2C2C", "semantic": "bg.input.disabled", "lightEquivalent": "#F5F5F5" }
+    },
+
+    "border": {
+      "border.primary": { "hex": "#3D3D3D", "semantic": "border.neutral.default", "lightEquivalent": "#ececec" },
+      "border.secondary": { "hex": "#2C2C2C", "semantic": "border.neutral.subtle", "lightEquivalent": "#ebf0fd" },
+      "border.disabled": { "hex": "#3D3D3D", "semantic": "border.disabled", "lightEquivalent": "#E0E0E0" },
+      "border.input": { "hex": "#4D4D4D", "semantic": "border.input.default", "lightEquivalent": "#ececec" }
+    },
+
+    "border_semantic": {
+      "foundation.assent (border)": { "hex": "#608cf0", "semantic": "border.brand.default / border.input.focused", "lightEquivalent": "#346bea" },
+      "foundation.negative (border)": { "hex": "#fa786e", "semantic": "border.danger.default / border.input.error", "lightEquivalent": "#dd1f11" },
+      "foundation.positive (border)": { "hex": "#6ed871", "semantic": "border.success.default", "lightEquivalent": "#429746" },
+      "foundation.warning (border)": { "hex": "#ffd452", "semantic": "border.warning.default", "lightEquivalent": "#ffca28" }
+    },
+
+    "icon": {
+      "icon.primary": { "hex": "#a6b1cc", "semantic": "icon.neutral.default", "lightEquivalent": "#8891a7" },
+      "icon.secondary": { "hex": "#9E9E9E", "semantic": "icon.neutral.subtle", "lightEquivalent": "#5d5d5d" },
+      "icon.accent": { "hex": "#608cf0", "semantic": "icon.brand.default", "lightEquivalent": "#346bea" },
+      "icon.accentHover": { "hex": "#42A5F5", "semantic": "icon.brand.hovered", "lightEquivalent": "#0260C9" },
+      "icon.critical": { "hex": "#fa786e", "semantic": "icon.danger.default", "lightEquivalent": "#dd1f11" },
+      "icon.positive": { "hex": "#6ed871", "semantic": "icon.success.default", "lightEquivalent": "#429746" },
+      "icon.warning": { "hex": "#ffd452", "semantic": "icon.warning.default", "lightEquivalent": "#ffca28" },
+      "icon.informative": { "hex": "#29B6F6", "semantic": "icon.information.default", "lightEquivalent": "#0288D1" },
+      "icon.disabled": { "hex": "#383d43", "semantic": "icon.disabled", "lightEquivalent": "#d0d8ea" },
+      "icon.inversePrimary": { "hex": "#212121", "semantic": "icon.inverse", "lightEquivalent": "#FFFFFF" }
+    },
+
+    "elevation": {
+      "sunken": { "surface": "#0A0A0A", "shadow": "none" },
+      "default": { "surface": "#121212", "shadow": "none" },
+      "raised": { "surface": "#1E1E1E", "shadow": "0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.24)" },
+      "overlay": { "surface": "#2C2C2C", "shadow": "0 4px 16px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3)" }
+    }
+  },
+
+  "quickLookup": {
+    "_note": "Flat lookup: given a hex value in light mode, find the correct token path",
+    "#212121": "theme.mcui.palette.content.primary",
+    "#5D5D5D": "theme.mcui.palette.content.secondary",
+    "#346bea": "theme.mcui.palette.foundation.assent (also content.contentAccent, icon.accent, icon.active, border.beta)",
+    "#dd1f11": "theme.mcui.palette.foundation.negative (also content.negative, icon.critical)",
+    "#429746": "theme.mcui.palette.foundation.positive (also content.positive, icon.positive)",
+    "#ffca28": "theme.mcui.palette.foundation.warning (also content.warning, icon.warning)",
+    "#0288D1": "theme.mcui.palette.foundation.informative (also content.informative, icon.informative)",
+    "#9E9E9E": "theme.mcui.palette.content.disabled",
+    "#FFFFFF": "theme.mcui.palette.background.primary (also content.inversePrimary, icon.inversePrimary, background.input)",
+    "#F8F8F8": "theme.mcui.palette.background.secondary",
+    "#f8f9fd": "theme.mcui.palette.background.tertiary",
+    "#EEEEEE": "theme.mcui.palette.background.primaryHover",
+    "#E0E0E0": "theme.mcui.palette.background.primaryPressed (also border.disabled)",
+    "#ffeae9": "theme.mcui.palette.background.negative",
+    "#E8F5E9": "theme.mcui.palette.background.positive",
+    "#ffebad": "theme.mcui.palette.background.warning",
+    "#E1F5FE": "theme.mcui.palette.background.informative",
+    "#E3F2FD": "theme.mcui.palette.background.selected",
+    "#F5F5F5": "theme.mcui.palette.background.disabled (also background.inputDisabled)",
+    "#ececec": "theme.mcui.palette.border.primary (also border.input, background.borderless)",
+    "#ebf0fd": "theme.mcui.palette.border.secondary (also background.info)",
+    "#8891a7": "theme.mcui.palette.icon.primary",
+    "#5d5d5d": "theme.mcui.palette.icon.secondary",
+    "#bababa": "theme.mcui.palette.content.grey (also icon.actionIcon)",
+    "#6c7581": "theme.mcui.palette.content.blueGrey (also icon.primaryNav)",
+    "#d0d8ea": "theme.mcui.palette.icon.disabled",
+    "#0260C9": "theme.mcui.palette.foundation.assentHover (also content.contentAccentHover)",
+    "#014599": "theme.mcui.palette.foundation.assentPressed (also content.contentAccentPressed)",
+    "#c7c7c7": "theme.mcui.palette.icon.draft",
+    "#ffdd74": "theme.mcui.palette.border.warning"
+  }
+}

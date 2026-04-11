@@ -1,0 +1,372 @@
+{
+  "meta": {
+    "description": "UX evaluation criteria for assessing the user experience quality of generated MSM Portal screens. Used in Phase 5 of the generation protocol.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-11"
+  },
+
+  "criteria": {
+    "information_hierarchy": [
+      {
+        "id": "ux-ih-1",
+        "name": "Clear page title and context",
+        "question": "Does the page have a clear title that tells the user where they are and what they can do?",
+        "check_for": [
+          "MCContentLayout with title prop (list-page pattern)",
+          "MCFormLayout with breadCrumbs prop (create-page, edit-page patterns)",
+          "Breadcrumb navigation reflecting current path"
+        ],
+        "pass": "Page has a descriptive title via MCContentLayout.title or MCFormLayout.breadCrumbs, and breadcrumbs show navigation context",
+        "fail_example": "Page renders content without any title, header, or navigation context",
+        "weight": "high"
+      },
+      {
+        "id": "ux-ih-2",
+        "name": "Visual hierarchy matches importance",
+        "question": "Are primary actions visually prominent? Are secondary elements subdued?",
+        "check_for": [
+          "Primary action uses MCButton2 variant='contained'",
+          "Only ONE primary (contained) action per view",
+          "Secondary actions use default or text variant",
+          "MCContentLayout.rightAccessory for page-level primary action (e.g., Create button)"
+        ],
+        "pass": "One contained button for primary action, other buttons are default/text variant. Create button in MCContentLayout.rightAccessory on list pages.",
+        "fail_example": "Multiple contained buttons competing for attention, or primary action buried in secondary styling",
+        "weight": "high"
+      },
+      {
+        "id": "ux-ih-3",
+        "name": "Logical content grouping",
+        "question": "Is related content grouped together with clear visual boundaries?",
+        "check_for": [
+          "MCFormPanel with MCFormPanelTitle for form sections",
+          "MCFormFieldGroup for related fields within a panel",
+          "MCBarTabs for content categories (tab-navigation pattern)",
+          "MCFormPanelBody wrapping field groups"
+        ],
+        "pass": "Related fields are grouped in MCFormPanel with descriptive MCFormPanelTitle. MCFormFieldGroup groups related inputs.",
+        "fail_example": "All form fields in one flat list with no MCFormPanel grouping",
+        "weight": "medium"
+      },
+      {
+        "id": "ux-ih-4",
+        "name": "Progressive disclosure",
+        "question": "Is complex information revealed progressively rather than overwhelming the user?",
+        "check_for": [
+          "MCBarTabs for content categories on detail/list pages",
+          "MCFormPanel sections for logical form grouping",
+          "Expandable sections for advanced options",
+          "Sub-containers per tab for lazy data loading (list-page pattern)"
+        ],
+        "pass": "Secondary/advanced options are in separate MCFormPanel sections or tabs. List page uses tab-based sub-containers for different entity states.",
+        "fail_example": "Every field and option visible at once on a create form with no panel grouping",
+        "weight": "medium"
+      }
+    ],
+
+    "user_flow": [
+      {
+        "id": "ux-uf-1",
+        "name": "Clear entry and exit points",
+        "question": "Can the user clearly see how to start the task and how to leave/cancel?",
+        "check_for": [
+          "MCFormActions with Cancel + Submit buttons (form-basic pattern)",
+          "MCFormLayout.onClose for form page exit (form-full-page pattern)",
+          "MCFormLayout.footerContent with Cancel and Submit",
+          "Breadcrumb navigation for back-tracking"
+        ],
+        "pass": "Form has Cancel + Submit in MCFormActions. Full-page forms have MCFormLayout.onClose. Detail/edit pages have breadcrumb navigation.",
+        "fail_example": "Create form with only a Submit button and no Cancel or onClose handler",
+        "weight": "high"
+      },
+      {
+        "id": "ux-uf-2",
+        "name": "Success feedback",
+        "question": "Does the user receive clear feedback after completing an action?",
+        "check_for": [
+          "fireSuccess() toast from useInAppAlert after successful mutation",
+          "Navigation to appropriate page: create → list page, edit → detail page",
+          "Query invalidation or refetch after mutation success"
+        ],
+        "pass": "After submit: fireSuccess(t('message.create.success')) → navigate to list/detail page. Create navigates to list (MERouteKey.{ENTITY}_MAIN), edit navigates to detail (MERouteKey.{ENTITY}_DETAIL).",
+        "fail_example": "Form submits but user sees no toast confirmation and stays on the same page",
+        "weight": "high"
+      },
+      {
+        "id": "ux-uf-3",
+        "name": "Error recovery",
+        "question": "Can the user understand and recover from errors?",
+        "check_for": [
+          "Field-level errors via Formik/Yup validation (errors shown after meta.touched)",
+          "API error displayed via fireCollapsibleError({ summary, error })",
+          "Query errors trigger fireCollapsibleError + navigate away (error-handling pattern)",
+          "Mutation errors show collapsible error but stay on page"
+        ],
+        "pass": "Yup validation errors appear next to the field after blur. API errors show in collapsible alert via fireCollapsibleError with summary string.",
+        "fail_example": "Generic error message with no field-level indication, or error silently logged to console",
+        "weight": "high"
+      },
+      {
+        "id": "ux-uf-4",
+        "name": "Destructive action confirmation",
+        "question": "Are destructive actions (delete, remove, disable) protected by a confirmation step?",
+        "check_for": [
+          "MCCommonDialog for delete confirmation (delete-confirm-dialog pattern)",
+          "Dialog title and message explain the consequence using i18n",
+          "Dialog has Cancel button and destructive action button",
+          "Entity name included in confirmation message via t() interpolation"
+        ],
+        "pass": "Delete triggers MCCommonDialog explaining what will be lost. Dialog includes entity name: t('message.deleteConfirm', { name: entity.name }). Cancel is available.",
+        "fail_example": "Delete button immediately removes the entity without MCCommonDialog confirmation",
+        "weight": "high"
+      },
+      {
+        "id": "ux-uf-5",
+        "name": "Consistent navigation patterns",
+        "question": "Does the user flow follow the standard MSM Portal navigation patterns?",
+        "check_for": [
+          "List page → click row → Detail page (via generatePathForRoute with MERouteKey.{ENTITY}_DETAIL)",
+          "Detail page → Edit button → Edit form (MERouteKey.{ENTITY}_EDIT)",
+          "Create button → Full-page form with MCFormLayout (MERouteKey.{ENTITY}_CREATE)",
+          "Breadcrumb reflects current path via MCFormLayout.breadCrumbs or MCContentLayout.showBreadcrumb",
+          "Navigation uses generatePathForRoute + useEntityParam for type-safe route generation"
+        ],
+        "pass": "Navigation follows List → Detail → Edit flow using generatePathForRoute with correct MERouteKey values",
+        "fail_example": "Edit opens in a dialog instead of full-page MCFormLayout, or navigates using hardcoded paths instead of generatePathForRoute",
+        "weight": "medium"
+      }
+    ],
+
+    "interaction_quality": [
+      {
+        "id": "ux-iq-1",
+        "name": "Responsive to user input",
+        "question": "Does the UI respond immediately to user actions?",
+        "check_for": [
+          "Submit button disabled={isSubmitting} during mutation (form-basic pattern)",
+          "MCCircularLoader fillParent during data fetch (loading-state pattern)",
+          "MCLoader for inline loading states"
+        ],
+        "pass": "Submit button shows disabled state during mutation via disabled={isSubmitting}. Data fetching shows MCCircularLoader. No unresponsive gaps.",
+        "fail_example": "User clicks Submit, button remains enabled and nothing happens visually until API responds",
+        "weight": "high"
+      },
+      {
+        "id": "ux-iq-2",
+        "name": "Form validation timing",
+        "question": "Is validation triggered at the right moment?",
+        "check_for": [
+          "Errors shown after field blur (meta.touched via Formik)",
+          "MCForm* components show errors only when showError is true (default) and field is touched",
+          "Submit triggers validation of all fields via Formik validateOnSubmit",
+          "state-machines.json → formInputs base machine: idle → touched → error only after touch"
+        ],
+        "pass": "Errors appear after user leaves a field (onBlur per Formik). Untouched fields show no error. Submit validates all.",
+        "fail_example": "Error messages appear immediately when form loads, before user interacts with any field",
+        "weight": "medium"
+      },
+      {
+        "id": "ux-iq-3",
+        "name": "Consistent action placement",
+        "question": "Are action buttons consistently positioned?",
+        "check_for": [
+          "MCFormActions at bottom of form with Cancel left and Submit right",
+          "MCFormLayout.footerContent for full-page form actions",
+          "MCContentLayout.rightAccessory for page-level actions (Create button on list pages)",
+          "MCMoreActionsButton for table row-level actions (action-button pattern)"
+        ],
+        "pass": "Cancel left, Submit right in MCFormActions. Page-level primary action in MCContentLayout.rightAccessory. Row actions via MCMoreActionsButton in last column.",
+        "fail_example": "Submit button at the top of the form, or primary action on the left side of MCFormActions",
+        "weight": "medium"
+      }
+    ],
+
+    "ux_writing": [
+      {
+        "id": "ux-uw-1",
+        "name": "Action labels are specific",
+        "question": "Do buttons and calls to action describe the actual outcome instead of generic UI verbs?",
+        "check_for": [
+          "Primary actions use outcome-based labels such as 'Save changes', 'Submit order', or '비밀번호 재설정 이메일 보내기'",
+          "Generic labels like 'Submit', 'Confirm', or '보내기' are avoided unless the exact domain meaning is obvious"
+        ],
+        "pass": "Action labels tell the user what will happen after clicking.",
+        "fail_example": "A context-specific action is labeled only as 'Submit' or '보내기'.",
+        "weight": "high"
+      },
+      {
+        "id": "ux-uw-2",
+        "name": "Error and validation copy supports recovery",
+        "question": "When something goes wrong, does the copy explain the next step?",
+        "check_for": [
+          "Field errors explain what to fix",
+          "Toast and alert copy tells the user what to retry, review, or update",
+          "Messages avoid blameful phrasing"
+        ],
+        "pass": "The message names the problem and includes the next helpful action when possible.",
+        "fail_example": "The UI only says 'Error occurred.' or '잘못 입력했습니다.'",
+        "weight": "high"
+      },
+      {
+        "id": "ux-uw-3",
+        "name": "Terminology is consistent across the screen",
+        "question": "Is the same concept named the same way in labels, dialogs, empty states, and toasts?",
+        "check_for": [
+          "Domain nouns such as draft, review, workplace, and order use one stable term",
+          "Labels, tabs, and status chips use the same terminology family"
+        ],
+        "pass": "The screen uses one consistent term for each domain concept.",
+        "fail_example": "The same concept is called 'draft', 'temporary save', and 'saved version' on one flow.",
+        "weight": "medium"
+      },
+      {
+        "id": "ux-uw-4",
+        "name": "Empty states and confirmations are informative",
+        "question": "Do empty states and dialogs explain the situation and the next decision clearly?",
+        "check_for": [
+          "Empty states explain what is missing and how to proceed",
+          "Confirmation dialogs explain consequences and name the action clearly"
+        ],
+        "pass": "The user understands both the current state and the next safe action.",
+        "fail_example": "An empty state says only 'No data.' or a confirmation dialog uses only '확인'.",
+        "weight": "medium"
+      }
+    ],
+
+    "accessibility": [
+      {
+        "id": "ux-a11y-1",
+        "name": "Form labels present",
+        "question": "Does every form input have a visible label?",
+        "check_for": [
+          "fieldLabel prop on all MCForm* components",
+          "Labels describe the field clearly using i18n: fieldLabel={t('field.name')}",
+          "required prop set correctly (required={false} shows '(Optional)' suffix per conventions.json → formComponentRules)"
+        ],
+        "pass": "Every MCForm* input has fieldLabel prop set with a translated string. required prop accurately reflects field requirement.",
+        "fail_example": "MCFormTextInput with no fieldLabel, relying only on placeholder text",
+        "weight": "high"
+      },
+      {
+        "id": "ux-a11y-2",
+        "name": "Keyboard navigable",
+        "question": "Can the user complete the task using only a keyboard?",
+        "check_for": [
+          "All interactive elements are focusable (Tab order follows visual order)",
+          "MCCommonDialog traps focus per patterns.json → accessibility",
+          "No click-only interactions without keyboard equivalent",
+          "MCFormTextInput, MCButton2, MCBarTabs all support keyboard interaction per components.json → accessibility"
+        ],
+        "pass": "All interactive elements are focusable and operable via keyboard. Dialogs trap focus. Tab order is logical.",
+        "fail_example": "Custom dropdown that only opens on mouse click with no keyboard handler",
+        "weight": "medium"
+      },
+      {
+        "id": "ux-a11y-3",
+        "name": "Error messages linked to fields",
+        "question": "Are error messages programmatically associated with their form fields?",
+        "check_for": [
+          "MCFormFieldError linked via aria-describedby (automatic in MCForm* components per components.json → accessibility)",
+          "Screen reader announces error inline when field is focused",
+          "Error messages use role='alert' for immediate announcement"
+        ],
+        "pass": "MCForm* components automatically link errors via aria-describedby. Screen readers announce errors when field is focused.",
+        "fail_example": "Error message rendered as plain text with no programmatic association to the input",
+        "weight": "medium"
+      }
+    ],
+
+    "completeness": [
+      {
+        "id": "ux-comp-1",
+        "name": "All required views exist",
+        "question": "For the requested scope: are all expected views present?",
+        "check_for": [
+          "List page with MCContentLayout, MCBarTabs, and Create button (list-page pattern)",
+          "Detail page with read-only MCFormPanel display (detail-page pattern)",
+          "Create form with MCFormLayout and Formik (create-page pattern)",
+          "Edit form reusing Create form with mode='edit' (edit-page pattern)",
+          "Delete confirmation dialog (delete-confirm-dialog pattern)"
+        ],
+        "pass": "All views requested by the user are present with correct patterns applied. Edit reuses Create form component.",
+        "fail_example": "List and Create pages exist but no Detail or Edit pages when full CRUD was requested",
+        "weight": "low"
+      },
+      {
+        "id": "ux-comp-2",
+        "name": "Empty state messaging",
+        "question": "Does the UI handle empty data gracefully?",
+        "check_for": [
+          "Empty table shows descriptive message (not blank space)",
+          "Empty detail shows appropriate fallback",
+          "Create button/action visible from empty state"
+        ],
+        "pass": "Empty list shows message with call-to-action to create first entity. Empty states use i18n strings.",
+        "fail_example": "Empty table shows blank white space with no explanation or guidance",
+        "weight": "medium"
+      },
+      {
+        "id": "ux-comp-3",
+        "name": "Loading skeleton appropriate",
+        "question": "Is the loading state proportional to expected wait?",
+        "check_for": [
+          "MCCircularLoader fillParent for full-page initial data load (Container level)",
+          "MCLoader for partial/inline refreshes",
+          "Conditional render pattern: isFetching || !data ? <MCCircularLoader fillParent /> : <Component />"
+        ],
+        "pass": "Full-page MCCircularLoader for initial page data. Inline MCLoader for partial refreshes. Loading state matches scope per patterns.json → loading-state.",
+        "fail_example": "Entire page shows spinner when only one panel's data is refreshing",
+        "weight": "low"
+      },
+      {
+        "id": "ux-comp-4",
+        "name": "Route registration complete",
+        "question": "Are all new pages properly registered in the routing system?",
+        "check_for": [
+          "MERouteKey enum value added (route-registration pattern step 1)",
+          "Route template entry with path and breadcrumb handle (step 2)",
+          "Client route mapping with allowedRoles (step 3)"
+        ],
+        "pass": "All 3 steps of route-registration pattern completed for every new page",
+        "fail_example": "Page component exists but is not reachable because route was not registered",
+        "weight": "medium"
+      }
+    ]
+  },
+
+  "scoring": {
+    "method": "Each criterion is scored as: pass (2), partial (1), fail (0). Score is weighted by importance.",
+    "weights": { "high": 3, "medium": 2, "low": 1 },
+    "max_possible": "Sum of (2 * weight) for all applicable criteria",
+    "calculation": "weighted_score = sum(score * weight) / sum(2 * weight) * 100",
+    "thresholds": {
+      "excellent": "90%+ weighted score, no high-weight fails",
+      "good": "75-89% weighted score, no more than 1 high-weight fail",
+      "needs_improvement": "60-74% weighted score",
+      "poor": "Below 60% weighted score"
+    }
+  },
+
+  "evaluation_template": {
+    "description": "Template for reporting UX evaluation results. Agents should fill this structure after evaluating generated code.",
+    "format": {
+      "screen_name": "string (e.g., 'AuctionOrder Create')",
+      "pattern_used": "string (pattern id from patterns.json, e.g., 'create-page')",
+      "entity": "string (e.g., 'AuctionOrder')",
+      "client": "string (e.g., 'msm-default')",
+      "criteria_results": [
+        {
+          "criterion_id": "string (e.g., 'ux-ih-1')",
+          "score": "pass | partial | fail",
+          "evidence": "string (what was observed in the generated code)",
+          "recommendation": "string (specific fix if not pass, referencing design system component or pattern)"
+        }
+      ],
+      "total_score": "number (percentage from weighted calculation)",
+      "grade": "excellent | good | needs_improvement | poor",
+      "top_3_improvements": [
+        "string (most impactful improvement, referencing specific component/pattern)"
+      ]
+    }
+  }
+}

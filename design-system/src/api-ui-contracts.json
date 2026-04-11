@@ -1,0 +1,360 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "lastUpdated": "2026-04-03",
+  "description": "API-to-UI contract mappings. For each entity: proto fields → converter → model fields → UI components. Enables agents to understand how backend data becomes visible UI.",
+
+  "entities": {
+    "Order": {
+      "proto": {
+        "type": "MIOrderProto",
+        "file": "src/common/api/msm/proto/order.ts",
+        "apiEndpoints": {
+          "list": "GET /orders",
+          "read": "GET /orders/{order_id}",
+          "create": "POST /orders",
+          "updateDraft": "POST /orders/{order_id}/draft",
+          "updateMain": "PATCH /orders/{order_id}/main",
+          "review": "POST /orders/{order_id}/review",
+          "delete": "DELETE /orders/{order_id}"
+        }
+      },
+      "converter": {
+        "file": "src/apps/msm-default/model/order/converter.ts",
+        "functions": {
+          "backward": "convertToOrder (proto → model)",
+          "forward": "convertToOrderProto (model → proto)"
+        },
+        "utilities": [
+          "parseOrderStatusFromProto — determines active status (main vs draft) and mid-flight changes",
+          "translateRemoteInt64 — string Int64Proto to number",
+          "getMicroToNormalValue — divides micros by 1,000,000"
+        ]
+      },
+      "model": {
+        "type": "Order",
+        "file": "src/apps/msm-default/model/order/order.ts"
+      },
+      "fieldMappings": [
+        { "proto": "id", "model": "id", "ui": "Table: title column subtitle, Detail: breadcrumb", "renderer": "getTitleWithSubTitleRenderer" },
+        { "proto": "ad_account_id", "model": "advertiserId", "ui": "Table: adAccount column (AdOps only)", "renderer": "text with include filter" },
+        { "proto": "product_id", "model": "productId", "ui": "Table: brand column", "renderer": "text from parentInfo.product.title" },
+        { "proto": "main_order.status", "model": "orderStatus", "ui": "Table: status column (non-draft)", "renderer": "getOrderStatusRenderer → MCBadge" },
+        { "proto": "main_order.order_detail.title", "model": "orderDetail.title", "ui": "Table: title column (searchable)", "renderer": "getTitleWithSubTitleRenderer" },
+        { "proto": "main_order.order_detail.description", "model": "orderDetail.description", "ui": "Detail: Order Details panel", "renderer": "MCTextInfo" },
+        { "proto": "main_order.order_detail.payment_month", "model": "orderDetail.paymentMonth", "ui": "Detail: Order Details panel", "renderer": "MCTextInfo (YYYY-MM)" },
+        { "proto": "main_order.order_detail.cost_micro", "model": "orderDetail.costMicro", "ui": "Table: amount column, Detail: Cost section", "renderer": "getMoneyRenderer(currency, { showExactValue: true })" },
+        { "proto": "main_order.order_detail.line_item_setting", "model": "orderDetail.lineItemSettings", "ui": "Table: lineItems column (count+link), Detail: Line Items section", "renderer": "getOrderLineItemSettingsRenderer" },
+        { "proto": "main_order.time_range", "model": "timeRange", "ui": "Table: startDate column (non-draft)", "renderer": "getDateStringRenderer({ timezone })" },
+        { "proto": "draft_order.status", "model": "orderStatus or midFlightChangeStatus", "ui": "Table: status column, Detail: status badge", "renderer": "parseOrderStatusFromProto determines which" },
+        { "proto": "metadata.author", "model": "metadata.author", "ui": "Detail: stored, not displayed in list", "renderer": "—" },
+        { "proto": "metadata.reviewer", "model": "metadata.reviewer", "ui": "Table: reviewedBy column (non-draft)", "renderer": "getUserDisplayName()" },
+        { "proto": "metadata.reviewed_at", "model": "metadata.reviewedAt", "ui": "Table: reviewedOn column (non-draft)", "renderer": "getDateStringRenderer({ timezone })" },
+        { "proto": "metadata.last_commented_at", "model": "metadata.lastCommentedAt", "ui": "Computed: latestUpdated for sort", "renderer": "DateFunc.max(updatedAt, lastCommentedAt)" },
+        { "proto": "created_at", "model": "createdAt", "ui": "Internal tracking", "renderer": "—" },
+        { "proto": "updated_at", "model": "updatedAt", "ui": "Draft tab: deletedOn column", "renderer": "getDeletionDateStringRenderer (90-day countdown)" },
+        { "proto": "archived_at", "model": "archivedAt → isArchived (computed)", "ui": "Conditional: disables actions", "renderer": "Boolean flag" }
+      ],
+      "tableColumns": [
+        { "id": "title", "header": "table.title", "accessor": "orderDetail.title", "filter": "INEXCLUDE_TEXT", "sort": "caseInsensitive" },
+        { "id": "status", "header": "table.status", "accessor": "orderStatus", "filter": "INCLUDE_CHECKBOX", "sort": "getOrderStatusComparator", "condition": "non-draft only" },
+        { "id": "adAccount", "header": "table.adAccount", "accessor": "parentInfo?.advertiser.title", "filter": "INCLUDE_CHECKBOX", "condition": "AdOps only" },
+        { "id": "brand", "header": "table.brand", "accessor": "parentInfo?.product.title", "filter": "INCLUDE_CHECKBOX" },
+        { "id": "lineItems", "header": "table.lineItems", "accessor": "computed count", "sort": "none" },
+        { "id": "amount", "header": "table.amount", "accessor": "getMicroToNormalValue(orderDetail.costMicro)", "filter": "NUMBER", "sort": "number" },
+        { "id": "startDate", "header": "table.startDate", "accessor": "timeRange.start", "condition": "non-draft only" },
+        { "id": "reviewedBy", "header": "table.reviewedBy", "accessor": "getUserDisplayName(metadata.reviewer)", "filter": "INCLUDE_CHECKBOX", "condition": "non-draft only" },
+        { "id": "reviewedOn", "header": "table.reviewedOn", "accessor": "metadata.reviewedAt", "condition": "non-draft only" },
+        { "id": "deletedOn", "header": "table.deletedOn", "accessor": "updatedAt", "condition": "draft only" },
+        { "id": "action", "header": "table.action", "actions": ["COMMENT", "WITHDRAW", "PAUSE", "RESUME", "MORE(archive, manageCreative, deleteMidFlight)"] }
+      ],
+      "searchableFields": ["orderDetail.title", "id"],
+      "containers": {
+        "list": "src/apps/msm-default/container/order/list/MCOrderListContainer.tsx",
+        "listTable": "src/apps/msm-default/container/order/list/MCOrderListTableContainer.tsx",
+        "available": "src/apps/msm-default/container/order/list/MCAvailableOrderListContainer.tsx",
+        "draft": "src/apps/msm-default/container/order/list/MCDraftOrderListContainer.tsx",
+        "detail": "src/apps/msm-default/container/order/detail/"
+      },
+      "hooks": ["useOrders", "useOrderFunc", "usePublisherCurrency", "usePublisherTimezone", "useCurrentUser"]
+    },
+
+    "AuctionOrder": {
+      "proto": {
+        "type": "MIAuctionOrderProto",
+        "file": "src/common/api/msm/proto/auctionOrder.ts",
+        "apiEndpoints": {
+          "list": "GET /auction-orders",
+          "listAll": "GET /auction-orders-all",
+          "read": "GET /auction-orders/{auction_order_id}",
+          "create": "POST /auction-orders",
+          "update": "PUT /auction-orders/{auction_order_id}",
+          "delete": "DELETE /auction-orders/{auction_order_id}"
+        }
+      },
+      "converter": {
+        "file": "src/apps/msm-default/model/auction-order/converter.ts",
+        "functions": {
+          "backward": "convertToAuctionOrder",
+          "forward": "convertToAuctionOrderProto"
+        }
+      },
+      "model": {
+        "type": "AuctionOrder",
+        "file": "src/apps/msm-default/model/auction-order/auctionOrder.ts"
+      },
+      "fieldMappings": [
+        { "proto": "id", "model": "id", "ui": "Table: title subtitle", "renderer": "getTitleWithSubTitleRenderer" },
+        { "proto": "title", "model": "title", "ui": "Table: title column (searchable)", "renderer": "getTitleWithSubTitleRenderer" },
+        { "proto": "description", "model": "description", "ui": "Detail page", "renderer": "text" },
+        { "proto": "goal_type", "model": "goalType", "ui": "Table: title subtitle", "renderer": "goal type label" },
+        { "proto": "ad_account_id", "model": "adAccountId", "ui": "Table: adAccount column (AdOps only)", "renderer": "text from parentInfo" },
+        { "proto": "product_id", "model": "productId", "ui": "Table: brand column", "renderer": "text from parentInfo" },
+        { "proto": "campaign_settings", "model": "campaignSettings", "ui": "Table: includedCampaigns column", "renderer": "getNumberRenderer (count)" },
+        { "proto": "campaign_settings[].state", "model": "state (representative)", "ui": "Table: status column", "renderer": "getAuctionOrderStatusRenderer" },
+        { "proto": "campaign_settings[].paused", "model": "enabled (computed: !allPaused)", "ui": "Table: enabled column", "renderer": "getSwitchRenderer" },
+        { "proto": "campaign_settings[].time_range", "model": "timeRange (representative)", "ui": "Table: schedule column", "renderer": "getTimeIntervalRenderer" },
+        { "proto": "created_at", "model": "createdAt", "ui": "Internal", "renderer": "—" },
+        { "proto": "updated_at", "model": "updatedAt", "ui": "Sort ordering", "renderer": "—" },
+        { "proto": "archived_by_user_at", "model": "archivedByUserAt", "ui": "Archive status", "renderer": "conditional" }
+      ],
+      "tableColumns": [
+        { "id": "title", "header": "table.title", "accessor": "title", "filter": "INEXCLUDE_TEXT", "sort": "caseInsensitive" },
+        { "id": "adAccount", "header": "table.adAccount", "accessor": "parentInfo?.advertiser.title", "filter": "INCLUDE_CHECKBOX", "condition": "AdOps only" },
+        { "id": "brand", "header": "table.brand", "accessor": "parentInfo?.product.title", "filter": "INCLUDE_CHECKBOX" },
+        { "id": "status", "header": "table.status", "accessor": "state", "filter": "INCLUDE_CHECKBOX", "sort": "getAuctionOrderStatusComparator", "condition": "available only" },
+        { "id": "enabled", "header": "table.enabled", "accessor": "enabled", "condition": "available only" },
+        { "id": "includedCampaigns", "header": "table.includedCampaigns", "accessor": "campaignSettings count", "filter": "NUMBER", "sort": "number" },
+        { "id": "schedule", "header": "table.schedule", "accessor": "timeRange", "sort": "getTableTimeRangeSortHandler({ sortBy: start })" },
+        { "id": "action", "header": "table.action", "actions": ["EDIT", "ARCHIVE"] }
+      ],
+      "containers": {
+        "list": "src/apps/msm-default/container/auction-order/list/",
+        "create": "src/apps/msm-default/container/auction-order/create/",
+        "edit": "src/apps/msm-default/container/auction-order/edit/",
+        "detail": "src/apps/msm-default/container/auction-order/detail/"
+      },
+      "hooks": ["useAuctionOrders", "useAuctionOrderFunc"]
+    },
+
+    "Creative": {
+      "proto": {
+        "type": "MICreativeProto",
+        "file": "src/common/api/msm/proto/creative/index.ts",
+        "apiEndpoints": {
+          "list": "GET /creatives",
+          "listAll": "GET /creatives-all",
+          "read": "GET /creatives/{creative_id}",
+          "createBulk": "POST /creatives-bulk",
+          "update": "PUT /creatives/{creative_id}",
+          "deleteBulk": "DELETE /creatives"
+        }
+      },
+      "converter": {
+        "file": "src/apps/msm-default/model/creative/converter.ts",
+        "functions": {
+          "backward": "convertToCreative (creativeConverter.backward)",
+          "forward": "convertToCreativeProto (creativeConverter.forward)"
+        },
+        "utilities": [
+          "isImageCreative, isVideoCreative, isNativeImageCreative, isNativeVideoCreative — type guards",
+          "convertToCreativeParentInfo — parent info conversion"
+        ]
+      },
+      "model": {
+        "type": "Creative",
+        "file": "src/apps/msm-default/model/creative/creative.ts",
+        "subtypes": [
+          "ImageCreative — type: IMAGE, adType: AD_TYPE_UNSPECIFIED",
+          "VideoCreative — type: VIDEO, adType: VIDEO_IN_STREAM",
+          "NativeImageCreative — type: NATIVE_IMAGE, adType: NATIVE_IMAGE_DISPLAY_ADS",
+          "NativeVideoCreative — type: NATIVE_VIDEO, adType: NATIVE_VIDEO_SHORTS",
+          "PauseAdsCreative — type: NATIVE_IMAGE, adType: NATIVE_IMAGE_PAUSE_ADS",
+          "OutstreamAdsCreative — type: NATIVE_VIDEO, adType: NATIVE_VIDEO_OUTSTREAM_ADS",
+          "SplashAdsCreative — type: NATIVE_IMAGE, adType: NATIVE_IMAGE_SPLASH_ADS"
+        ]
+      },
+      "fieldMappings": [
+        { "proto": "id", "model": "id", "ui": "Table: title subtitle", "renderer": "getTitleWithSubTitleRenderer" },
+        { "proto": "title", "model": "title", "ui": "Table: title column (searchable)", "renderer": "getTitleWithSubTitleRenderer" },
+        { "proto": "type", "model": "type", "ui": "Tab selection (Image/Video/Native)", "renderer": "tab filter" },
+        { "proto": "enabling_state", "model": "enablingState", "ui": "Status display", "renderer": "badge" },
+        { "proto": "publisher_properties.ad_type", "model": "adType", "ui": "Creative type categorization", "renderer": "determines which list tab" },
+        { "proto": "publisher_properties.is_viewed", "model": "isViewed", "ui": "View indicator", "renderer": "badge/icon" },
+        { "proto": "ad_account_id", "model": "advertiserId", "ui": "Table: adAccount column (AdOps only)", "renderer": "text from parentInfo" },
+        { "proto": "product_id", "model": "productId", "ui": "Table: brand column", "renderer": "text from parentInfo" },
+        { "proto": "image.image_url", "model": "image.imageUrl", "ui": "Table: image column", "renderer": "getCreativeImageRenderer" },
+        { "proto": "image.width/height", "model": "image.width/height", "ui": "Table: dimension column", "renderer": "'{w} x {h}'" },
+        { "proto": "video.video_url", "model": "video.videoUrl", "ui": "Video preview", "renderer": "video player" },
+        { "proto": "video.length_seconds", "model": "video.lengthSeconds", "ui": "Video duration display", "renderer": "seconds format" },
+        { "proto": "native.main_image", "model": "native.mainImage", "ui": "Table: image column for native", "renderer": "getCreativeImageRenderer" },
+        { "proto": "native.title", "model": "native.title", "ui": "Native ad preview", "renderer": "text" },
+        { "proto": "native.cta_text", "model": "native.ctaText", "ui": "Native ad CTA button", "renderer": "button text" },
+        { "proto": "created_at", "model": "createdAt", "ui": "Table: createdAt column", "renderer": "getDateStringRenderer" },
+        { "proto": "— (from creative_review_overviews)", "model": "creativeReviewInfo", "ui": "Table: reviewStatus column", "renderer": "getCreativeReviewStatusRendererForCreativeList" }
+      ],
+      "containers": {
+        "list": "src/apps/msm-default/container/creative/",
+        "components": "src/apps/msm-default/component/creative/list/"
+      },
+      "hooks": ["useCreatives"]
+    },
+
+    "Advertiser": {
+      "proto": {
+        "type": "MIAdvertiserProto",
+        "file": "src/common/api/msm/proto/advertiser.ts",
+        "apiEndpoints": {
+          "list": "GET /ad-accounts",
+          "read": "GET /ad-accounts/{ad_account_id}",
+          "create": "POST /ad-accounts",
+          "update": "PUT /ad-accounts/{ad_account_id}"
+        }
+      },
+      "converter": {
+        "file": "src/apps/msm-default/model/advertiser/converter.ts",
+        "functions": { "backward": "advertiserConverter.backward", "forward": "advertiserConverter.forward" }
+      },
+      "model": {
+        "type": "Advertiser",
+        "file": "src/apps/msm-default/model/advertiser/advertiser.ts"
+      },
+      "fieldMappings": [
+        { "proto": "id", "model": "id", "ui": "List/selector", "renderer": "text" },
+        { "proto": "title", "model": "title", "ui": "List display, selector label", "renderer": "text" },
+        { "proto": "description", "model": "description", "ui": "Form: text input", "renderer": "MCFormTextInput" },
+        { "proto": "timezone", "model": "timezone", "ui": "Form: single select", "renderer": "MCFormSingleRichSelect" },
+        { "proto": "currency", "model": "currency", "ui": "Form: single select, used by getMoneyRenderer", "renderer": "MCFormSingleRichSelect" },
+        { "proto": "publisher_properties.preset_category_to_value_id", "model": "publisherProperties.advertiser/mediaRep", "ui": "Form: preset selectors", "renderer": "MCFormSingleRichSelect" },
+        { "proto": "publisher_properties.order_feature_visibility_properties", "model": "publisherProperties.orderFeatureVisibilityProperties", "ui": "Form: order kind radio", "renderer": "MCFormRadioGroup" }
+      ],
+      "formFields": [
+        { "name": "orderKindVisibility", "component": "MCFormRadioGroup", "condition": "AdOps only" },
+        { "name": "publisherProperties.advertiser", "component": "MCFormSingleRichSelect" },
+        { "name": "publisherProperties.mediaRep", "component": "MCFormSingleRichSelect" },
+        { "name": "title", "component": "MCFormTextInput", "note": "auto-generated from preset selections" },
+        { "name": "description", "component": "MCFormTextInput" },
+        { "name": "timezone", "component": "MCFormSingleRichSelect" },
+        { "name": "currency", "component": "MCFormSingleRichSelect" }
+      ],
+      "containers": {
+        "list": "src/apps/msm-default/container/ad-account-and-brand-management/ad-account/MCAdvertiserListContainer.tsx",
+        "create": "src/apps/msm-default/container/ad-account-and-brand-management/ad-account/MCAdvertiserCreateContainer.tsx",
+        "edit": "src/apps/msm-default/container/ad-account-and-brand-management/ad-account/MCAdvertiserEditContainer.tsx"
+      }
+    },
+
+    "Product": {
+      "proto": {
+        "type": "MIProductProto",
+        "file": "src/common/api/msm/proto/product.ts",
+        "apiEndpoints": {
+          "list": "GET /products",
+          "listAll": "GET /products-all",
+          "read": "GET /products/{product_id}",
+          "create": "POST /products",
+          "update": "PUT /products/{product_id}"
+        }
+      },
+      "converter": {
+        "file": "src/apps/msm-default/model/brand/converter.ts",
+        "functions": { "backward": "brandConverter.backward", "forward": "brandConverter.forward" },
+        "note": "Proto is 'Product' but model is 'Brand' — naming mismatch is intentional"
+      },
+      "model": {
+        "type": "Brand",
+        "file": "src/apps/msm-default/model/brand/brand.ts"
+      },
+      "fieldMappings": [
+        { "proto": "id", "model": "id", "ui": "List/selector", "renderer": "text" },
+        { "proto": "ad_account_id", "model": "advertiserId", "ui": "Form: advertiser selector (disabled on edit)", "renderer": "MCFormAdvertiserSelector" },
+        { "proto": "title", "model": "title", "ui": "Form: text input (max 255)", "renderer": "MCFormTextInput" },
+        { "proto": "description", "model": "description", "ui": "Form: text input (max 1000)", "renderer": "MCFormTextInput" },
+        { "proto": "advertiser_domain", "model": "advertiserDomain", "ui": "Form: text input", "renderer": "MCFormTextInput" },
+        { "proto": "brand.web.category", "model": "iabCategory", "ui": "Form: IAB category select", "renderer": "MCFormSingleRichSelect" },
+        { "proto": "brand.ios_app", "model": "brand.iosApp", "ui": "Brand App detail page (iOS)", "renderer": "MCBrandAppForm" },
+        { "proto": "brand.android_app", "model": "brand.androidApp", "ui": "Brand App detail page (Android)", "renderer": "MCBrandAppForm" },
+        { "proto": "publisher_properties.preset_category_to_value_id", "model": "publisherProperties.customCategory", "ui": "Form: custom category select", "renderer": "MCFormSingleRichSelect" }
+      ],
+      "containers": {
+        "list": "src/apps/msm-default/container/ad-account-and-brand-management/brand/MCBrandListContainer.tsx",
+        "create": "src/apps/msm-default/container/ad-account-and-brand-management/brand/MCBrandCreateContainer.tsx",
+        "edit": "src/apps/msm-default/container/ad-account-and-brand-management/brand/MCBrandEditContainer.tsx"
+      }
+    },
+
+    "PublisherTarget": {
+      "proto": {
+        "type": "MIPublisherTargetProto",
+        "file": "src/common/api/msm/proto/targeting/publisher-target/publisherTarget.ts",
+        "apiEndpoints": {
+          "list": "GET /publisher-targets",
+          "read": "GET /publisher-targets/{publisher_target_id}",
+          "create": "POST /publisher-targets",
+          "update": "PUT /publisher-targets/{publisher_target_id}",
+          "delete": "DELETE /publisher-targets/{publisher_target_id}"
+        }
+      },
+      "converter": {
+        "file": "src/apps/msm-default/model/targeting/publisher-target/converter.ts",
+        "functions": { "backward": "publisherTargetConverter.backward", "forward": "publisherTargetConverter.forward" }
+      },
+      "model": {
+        "type": "PublisherTarget",
+        "file": "src/apps/msm-default/model/targeting/publisher-target/publisherTarget.ts"
+      },
+      "fieldMappings": [
+        { "proto": "id", "model": "id", "ui": "List/detail", "renderer": "text" },
+        { "proto": "title", "model": "title", "ui": "Form: text input (max 80), List: title column", "renderer": "MCFormTextInput" },
+        { "proto": "targeting_condition.allowed_ad_units", "model": "condition.adUnits", "ui": "Form: ad unit selector, Detail: ad unit list", "renderer": "MCAdUnitsTargetConditionForm" },
+        { "proto": "targeting_condition.publisher_custom_targeting_key_values_pairs", "model": "condition.customTargetingKeyValuePairs", "ui": "Form: KV targeting field, Detail: KV display", "renderer": "MCKeyValueTargetingField" },
+        { "proto": "targeting_condition.custom_audience_set", "model": "condition.customAudienceSet", "ui": "Form: audience set selector", "renderer": "MCFormCustomAudienceSet" },
+        { "proto": "is_exclusive", "model": "isExclusive", "ui": "Form: radio/toggle", "renderer": "MCFormRadioGroup" },
+        { "proto": "allowed_order_feature_visibility_properties", "model": "allowedOrderFeatureVisibilityProperties", "ui": "Form: order kind visibility", "renderer": "MCFormRadioGroup" }
+      ],
+      "containers": {
+        "list": "src/apps/msm-default/container/targeting/publisher-target/list/",
+        "create": "src/apps/msm-default/container/targeting/publisher-target/create/",
+        "edit": "src/apps/msm-default/container/targeting/publisher-target/edit/",
+        "detail": "src/apps/msm-default/container/targeting/publisher-target/detail/"
+      }
+    }
+  },
+
+  "commonPatterns": {
+    "listResponse": "All list endpoints return { {entity_plural}?: Array<Proto>, parent_infos?: Array<ParentInfoProto> }",
+    "readResponse": "All read endpoints return { {entity_singular}?: Proto }",
+    "parentInfo": "Contains ad_account (id, title) and product (id, title) for display in list tables",
+    "microCurrency": "All monetary values are in micro units (×1,000,000). Use getMicroToNormalValue() for display.",
+    "timestampFormat": "ISO 8601 string. Use DateFunc.format(ts, { timezone }) for display.",
+    "enumMapping": "Use getEnumValueFromProto(EnumType, protoValue, defaultValue) for safe enum conversion.",
+    "converterNaming": "backward = proto → model, forward = model → proto",
+    "hookPattern": "use{Entity}s() returns { query, data: Model[], dataMap } for list hooks"
+  },
+
+  "cellRenderers": {
+    "shared": {
+      "getTitleWithSubTitleRenderer": "Title + clickable subtitle (usually entity ID)",
+      "getDateStringRenderer": "Formats timestamp with timezone. Args: { timezone }",
+      "getDeletionDateStringRenderer": "Shows countdown to deletion. Args: { timezone, maxValidDurationInDay }",
+      "getMoneyRenderer": "Formats micro currency. Args: (currency, { showExactValue, align })",
+      "getTableActionRenderer": "Action buttons (comment, pause, resume, etc.)",
+      "getNumberRenderer": "Numeric display with optional click handler",
+      "getSwitchRenderer": "Toggle switch for enabled/disabled state",
+      "getTimeIntervalRenderer": "Date range display. Args: { timezone, format }"
+    },
+    "orderSpecific": {
+      "getOrderStatusRenderer": "Order status badge with mid-flight change indicator",
+      "getOrderLineItemSettingsRenderer": "Line item count with clickable link"
+    },
+    "auctionOrderSpecific": {
+      "getAuctionOrderStatusRenderer": "Campaign state badge",
+      "getAuctionOrderIncludedCreativesRenderer": "Creative count by type",
+      "getAuctionOrderBudgetRenderer": "Total budget with daily capping tooltip"
+    },
+    "creativeSpecific": {
+      "getCreativeImageRenderer": "Image thumbnail preview",
+      "getCreativeReviewStatusRendererForCreativeList": "Review status with denied reason dialog"
+    }
+  }
+}

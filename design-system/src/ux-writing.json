@@ -1,0 +1,357 @@
+{
+  "meta": {
+    "description": "UX writing rules for MSM Portal. Defines tone, terminology, surface-specific rules, review criteria, and machine-readable checks for consistent product writing.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-11"
+  },
+  "service_voice": {
+    "principles": [
+      {
+        "id": "uxw-principle-clear",
+        "name": "Clear and specific",
+        "rule": "Say exactly what will happen. Prefer action-specific labels over generic verbs.",
+        "good_examples": {
+          "ko": [
+            "비밀번호 재설정 이메일 보내기",
+            "변경 사항 저장",
+            "테스트 링크 보내기"
+          ],
+          "en": [
+            "Send password reset email",
+            "Save changes",
+            "Send test link"
+          ]
+        },
+        "avoid": {
+          "ko": [
+            "보내기",
+            "제출",
+            "확인"
+          ],
+          "en": [
+            "Submit",
+            "Confirm",
+            "Done"
+          ]
+        }
+      },
+      {
+        "id": "uxw-principle-calm",
+        "name": "Calm and professional",
+        "rule": "Use matter-of-fact language. Explain problems without blame or unnecessary urgency.",
+        "good_examples": {
+          "ko": [
+            "입력한 이메일 주소를 다시 확인해 주세요.",
+            "이 링크는 유효하지 않습니다. 설정을 다시 확인해 주세요."
+          ],
+          "en": [
+            "Check the email address and try again.",
+            "This link is invalid. Check the settings and try again."
+          ]
+        },
+        "avoid": {
+          "ko": [
+            "반드시",
+            "지금 당장"
+          ],
+          "en": [
+            "simply",
+            "obviously",
+            "must"
+          ]
+        }
+      },
+      {
+        "id": "uxw-principle-guidance",
+        "name": "Helpful guidance",
+        "rule": "When the user is blocked, explain the next step instead of only describing the problem.",
+        "good_examples": {
+          "ko": [
+            "타이틀을 입력하면 초안으로 저장할 수 있습니다.",
+            "워크플레이스를 선택한 뒤 다시 시도해 주세요."
+          ],
+          "en": [
+            "Enter a title to save this as a draft.",
+            "Select a workplace and try again."
+          ]
+        }
+      }
+    ],
+    "terminology": {
+      "recommended": [
+        {
+          "concept": "draft",
+          "ko": "초안",
+          "en": "draft"
+        },
+        {
+          "concept": "review",
+          "ko": "검토",
+          "en": "review"
+        },
+        {
+          "concept": "workplace",
+          "ko": "워크플레이스",
+          "en": "workplace"
+        }
+      ],
+      "consistency_rule": "Use the same noun for the same product concept across labels, empty states, dialogs, and toasts."
+    }
+  },
+  "surface_rules": {
+    "buttons_and_cta": {
+      "rule": "Label the result of the action, not the UI event.",
+      "guidance": [
+        "Prefer 'Save changes' over 'Save' when the page edits an existing entity.",
+        "Prefer 'Send password reset email' over 'Submit'.",
+        "Use destructive labels that name the action, such as 'Delete order'."
+      ],
+      "do": {
+        "ko": [
+          "변경 사항 저장",
+          "주문 제출",
+          "테스트 링크 보내기"
+        ],
+        "en": [
+          "Save changes",
+          "Submit order",
+          "Send test link"
+        ]
+      },
+      "dont": {
+        "ko": [
+          "보내기",
+          "제출",
+          "확인"
+        ],
+        "en": [
+          "Submit",
+          "Confirm",
+          "Done"
+        ]
+      }
+    },
+    "labels_and_placeholders": {
+      "rule": "Labels describe the field. Placeholders give lightweight examples, not full instructions.",
+      "guidance": [
+        "Keep field labels noun-based and stable.",
+        "Do not rely on placeholder text as the only explanation.",
+        "Avoid placeholder text that repeats the label word-for-word without adding value."
+      ]
+    },
+    "validation_and_errors": {
+      "rule": "Explain what is wrong and how to recover.",
+      "guidance": [
+        "State the specific issue first.",
+        "When possible, include the next action.",
+        "Avoid blameful language such as 'You entered an invalid value.'"
+      ],
+      "examples": {
+        "ko": {
+          "good": [
+            "이메일 주소 형식을 다시 확인해 주세요.",
+            "제목을 입력하면 초안으로 저장할 수 있습니다."
+          ],
+          "bad": [
+            "오류가 발생했습니다.",
+            "잘못 입력했습니다."
+          ]
+        },
+        "en": {
+          "good": [
+            "Check the email address format and try again.",
+            "Enter a title to save this as a draft."
+          ],
+          "bad": [
+            "Error occurred.",
+            "Invalid input."
+          ]
+        }
+      }
+    },
+    "empty_states": {
+      "rule": "Empty states should explain what is missing and what the user can do next.",
+      "guidance": [
+        "Name the empty thing clearly.",
+        "Provide a next step or CTA when available.",
+        "Avoid blank or purely decorative empty states."
+      ]
+    },
+    "dialogs_and_confirmations": {
+      "rule": "The title should name the decision. The body should explain the consequence.",
+      "guidance": [
+        "Use a direct confirmation title for destructive actions.",
+        "Mention what will change, be removed, or stay the same.",
+        "Keep the confirm button action-specific."
+      ]
+    },
+    "toasts_and_status": {
+      "rule": "Toasts should be short and outcome-based. Status text should be stable and reusable.",
+      "guidance": [
+        "Use success to confirm a completed action.",
+        "Use error to explain the failure and next step when possible.",
+        "Keep status nouns consistent with the domain terminology."
+      ]
+    }
+  },
+  "writing_process": {
+    "authoring_steps": [
+      "Identify the user goal, not just the UI element.",
+      "Choose stable domain terminology before writing labels or errors.",
+      "Write the shortest copy that still explains the action or outcome.",
+      "Check the wording in Korean and English for parity of meaning, not literal word count.",
+      "Review the copy in context: label, button, dialog, empty state, or toast."
+    ],
+    "review_questions": [
+      "Does the copy tell the user what will happen?",
+      "Would this still make sense without reading surrounding code?",
+      "If the action fails, does the user know the next step?",
+      "Is the same product concept named the same way across the screen?"
+    ]
+  },
+  "validation_process": {
+    "automation_policy": {
+      "default_severity": "warning",
+      "rationale": "UX writing quality needs human judgment, so automated checks should guide reviewers without blocking legitimate domain-specific wording."
+    },
+    "automated_checks": [
+      {
+        "id": "uxw-discouraged-phrases",
+        "description": "Warn when a locale string contains discouraged tone markers such as blameful or unnecessarily forceful wording.",
+        "targets": [
+          "msm-portal/js/msm-portal-web/src/i18n/assets/en/*.json",
+          "msm-portal/js/msm-portal-web/src/i18n/assets/ko/*.json"
+        ]
+      },
+      {
+        "id": "uxw-generic-cta",
+        "description": "Warn when submit-style action keys use generic verbs instead of the concrete outcome.",
+        "targets": [
+          "msm-portal/js/msm-portal-web/src/i18n/assets/en/*.json",
+          "msm-portal/js/msm-portal-web/src/i18n/assets/ko/*.json"
+        ]
+      }
+    ],
+    "manual_review": [
+      "Confirm that button labels reflect the real action on the current screen.",
+      "Confirm that empty states and error states include recovery guidance.",
+      "Review key copy in both Korean and English for consistent meaning.",
+      "Check destructive dialogs for consequence clarity and button specificity."
+    ]
+  },
+  "machine_checks": {
+    "discouraged_phrases": [
+      {
+        "id": "uxw-discouraged-en-simply",
+        "locale": "en",
+        "match_type": "includes",
+        "value": "simply",
+        "severity": "warning",
+        "message": "Avoid 'simply' in product copy. It can sound dismissive.",
+        "suggestion": "State the next step directly."
+      },
+      {
+        "id": "uxw-discouraged-en-obviously",
+        "locale": "en",
+        "match_type": "includes",
+        "value": "obviously",
+        "severity": "warning",
+        "message": "Avoid 'obviously' in product copy. It can sound blameful.",
+        "suggestion": "Explain the action without judging the user."
+      },
+      {
+        "id": "uxw-discouraged-ko-just-now",
+        "locale": "ko",
+        "match_type": "includes",
+        "value": "지금 당장",
+        "severity": "warning",
+        "message": "Avoid urgent phrasing unless the task is truly time-sensitive.",
+        "suggestion": "Use a calmer recovery instruction."
+      }
+    ],
+    "generic_cta_rules": [
+      {
+        "id": "uxw-generic-submit-en",
+        "locale": "en",
+        "key_suffixes": [
+          ".submit"
+        ],
+        "exact_values": [
+          "Submit"
+        ],
+        "severity": "warning",
+        "message": "Replace generic 'Submit' with the concrete action outcome.",
+        "suggestion": "Use wording like 'Send test link', 'Save changes', or 'Submit order'."
+      },
+      {
+        "id": "uxw-generic-submit-ko",
+        "locale": "ko",
+        "key_suffixes": [
+          ".submit"
+        ],
+        "exact_values": [
+          "보내기"
+        ],
+        "severity": "warning",
+        "message": "Replace generic '보내기' with the concrete action outcome.",
+        "suggestion": "'테스트 링크 보내기', '변경 사항 저장', '주문 제출'처럼 결과가 드러나는 문구를 사용하세요."
+      }
+    ]
+  },
+  "examples": {
+    "button_labels": [
+      {
+        "scenario": "Password reset form",
+        "before": {
+          "ko": "보내기",
+          "en": "Submit"
+        },
+        "after": {
+          "ko": "비밀번호 재설정 이메일 보내기",
+          "en": "Send password reset email"
+        },
+        "why": "The improved label tells the user exactly what will happen."
+      },
+      {
+        "scenario": "Edit page primary action",
+        "before": {
+          "ko": "저장",
+          "en": "Save"
+        },
+        "after": {
+          "ko": "변경 사항 저장",
+          "en": "Save changes"
+        },
+        "why": "The improved label matches the edit intent and sets a clearer expectation."
+      }
+    ],
+    "error_messages": [
+      {
+        "scenario": "Required title for saving a draft",
+        "before": {
+          "ko": "오류가 발생했습니다.",
+          "en": "Error occurred."
+        },
+        "after": {
+          "ko": "타이틀을 입력하면 초안으로 저장할 수 있습니다.",
+          "en": "Enter a title to save this as a draft."
+        },
+        "why": "The improved message explains the recovery step."
+      }
+    ],
+    "empty_states": [
+      {
+        "scenario": "Empty order list",
+        "before": {
+          "ko": "데이터가 없습니다.",
+          "en": "No data."
+        },
+        "after": {
+          "ko": "예약형 주문이 없습니다. 새 주문을 만들어 시작해 보세요.",
+          "en": "There are no reserved orders yet. Create a new order to get started."
+        },
+        "why": "The improved empty state names the missing content and suggests the next action."
+      }
+    ]
+  }
+}

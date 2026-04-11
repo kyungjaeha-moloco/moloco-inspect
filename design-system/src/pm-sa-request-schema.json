@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "meta": {
+    "description": "Structured request contract for PM/SA driven UI improvements. Used to turn free-form product requests into machine-readable work items for background agents.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-11"
+  },
+  "schema": {
+    "title": "MSM Portal UI Improvement Request",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "goal",
+      "target",
+      "change_intent",
+      "success_criteria"
+    ],
+    "properties": {
+      "goal": {
+        "type": "string",
+        "description": "What outcome the PM/SA wants for the user or product."
+      },
+      "target": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["client", "route_or_page"],
+        "properties": {
+          "client": {
+            "type": "string",
+            "enum": ["msm-default", "tving", "shortmax", "onboard-demo"]
+          },
+          "route_or_page": {
+            "type": "string",
+            "description": "The route path, screen name, or page identifier."
+          },
+          "component_name": {
+            "type": "string",
+            "description": "Optional design-system or product component name."
+          },
+          "element_label": {
+            "type": "string",
+            "description": "Optional visible label or nearby text describing the selected UI."
+          },
+          "selection_context": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "test_id": { "type": "string" },
+              "source_file": { "type": "string" },
+              "language": { "type": "string" }
+            }
+          }
+        }
+      },
+      "change_intent": {
+        "type": "string",
+        "enum": [
+          "copy_update",
+          "spacing_adjustment",
+          "token_alignment",
+          "component_swap",
+          "layout_adjustment",
+          "state_handling",
+          "accessibility_improvement"
+        ]
+      },
+      "requested_change": {
+        "type": "string",
+        "description": "Human-readable description of what should change."
+      },
+      "constraints": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Things that must stay the same, such as layout, client branding, or interaction flow."
+      },
+      "success_criteria": {
+        "type": "array",
+        "minItems": 1,
+        "items": { "type": "string" }
+      },
+      "validation_expectations": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "design_system_validate",
+            "typecheck",
+            "preview_screenshot",
+            "language_match",
+            "copy_visible_on_route",
+            "spacing_visible_on_route"
+          ]
+        }
+      },
+      "attachments": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["selected_screenshot", "full_page_screenshot", "figma_reference", "copy_doc"]
+            },
+            "description": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "ui_form_spec": {
+    "field_order": [
+      "goal",
+      "target.client",
+      "target.route_or_page",
+      "target.component_name",
+      "change_intent",
+      "requested_change",
+      "constraints",
+      "success_criteria",
+      "validation_expectations"
+    ],
+    "required_fields": [
+      "goal",
+      "target.client",
+      "target.route_or_page",
+      "change_intent",
+      "success_criteria"
+    ],
+    "recommended_defaults": {
+      "validation_expectations": [
+        "design_system_validate",
+        "typecheck",
+        "preview_screenshot"
+      ]
+    }
+  },
+  "examples": [
+    {
+      "goal": "로그인 화면의 CTA를 더 명확하게 만든다.",
+      "target": {
+        "client": "tving",
+        "route_or_page": "/sign-in",
+        "component_name": "MCSignInForm",
+        "element_label": "로그인 버튼"
+      },
+      "change_intent": "copy_update",
+      "requested_change": "버튼 레이블을 '로그인 하기'로 바꾼다.",
+      "constraints": [
+        "레이아웃과 버튼 크기는 유지한다.",
+        "현재 페이지 언어를 그대로 유지한다."
+      ],
+      "success_criteria": [
+        "로그인 버튼 레이블이 현재 route에서 바로 보인다.",
+        "preview와 screenshot이 한국어로 유지된다."
+      ],
+      "validation_expectations": [
+        "design_system_validate",
+        "typecheck",
+        "preview_screenshot",
+        "language_match",
+        "copy_visible_on_route"
+      ]
+    }
+  ]
+}

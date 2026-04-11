@@ -1,0 +1,254 @@
+{
+  "$schema": "../schemas/index.schema.json",
+  "meta": {
+    "description": "Agent loading guide for the MSM Portal Design System. Tells AI agents which files and sections to read for each task type.",
+    "version": "1.0.0",
+    "lastUpdated": "2026-04-11",
+    "totalFiles": 11
+  },
+
+  "files": {
+    "tokens.json": {
+      "description": "Design tokens: colors, spacing, typography, elevation, border radius, layout constants. All accessed via theme.mcui.* in styled-components.",
+      "size_hint": "large",
+      "sections": ["color", "colorPalette", "spacing", "typography", "borderRadius", "elevation", "layoutConstants"],
+      "agent_value": "Prevents hardcoded values. Every visual property (color, spacing, font size) must reference a token via props.theme.mcui.*."
+    },
+    "components.json": {
+      "description": "Component catalog across 8 categories: Form Inputs (v1), Form Shared, Form Layout, Buttons, Navigation, Feedback & Overlay, Table, Layout — with props, when_to_use, do_not_use, states, and compositions.",
+      "size_hint": "large",
+      "sections": ["Form Inputs (v1)", "Form Shared", "Form Layout", "Buttons", "Navigation", "Feedback & Overlay", "Shared Styled", "Table", "Layout"],
+      "agent_value": "Prevents invented props and wrong component choices. Always check when_to_use and do_not_use before selecting a component."
+    },
+    "patterns.json": {
+      "description": "20 composition patterns with code examples. Key patterns include: form-basic, form-full-page, list-page, detail-page, create-page, edit-page, delete-confirm-dialog, styled-component, action-button, tab-navigation, trpc-data-fetching, provider-stack, field-layout, page-container-component, error-handling, loading-state, route-registration, i18n-usage, accessibility, navigation.",
+      "size_hint": "large",
+      "sections": ["form-basic", "form-full-page", "styled-component", "action-button", "delete-confirm-dialog", "field-layout", "tab-navigation", "trpc-data-fetching", "provider-stack", "list-page", "detail-page", "create-page", "page-container-component", "edit-page", "error-handling", "loading-state", "route-registration", "i18n-usage", "accessibility", "navigation"],
+      "agent_value": "Enables scaffolding complete features. Patterns with layer_structure and file_checklist define every file to create and each layer's responsibility."
+    },
+    "conventions.json": {
+      "description": "Naming rules (MC/MT/SC/ME/use prefixes), file structure, import aliases, architecture, import order, and machine-checkable constraints.",
+      "size_hint": "medium",
+      "sections": ["namingPrefixes", "fileNaming", "importAliases", "importOrder", "architecture", "constraints"],
+      "agent_value": "Prevents convention violations. The constraints array enables self-validation of generated code before delivery."
+    },
+    "api-ui-contracts.json": {
+      "description": "Entity-level API contracts mapping Proto types to converter files to Model fields to UI components and table columns.",
+      "size_hint": "medium",
+      "sections": ["entities"],
+      "agent_value": "Grounds data fetching code in reality. Shows exact converter files, field mappings, API endpoints, and which table columns come from which API fields."
+    },
+    "component-behaviors.json": {
+      "description": "Semantic actions and data flow for each component — what users DO and how that maps to Formik/React events. Organized by formInputs, buttons, table, navigation, dialog.",
+      "size_hint": "small",
+      "sections": ["formInputs", "buttons", "table", "navigation", "dialog"],
+      "agent_value": "Encodes user intent (not just technical events). Helps agents generate correct interaction handling code for each component type."
+    },
+    "state-machines.json": {
+      "description": "State transition definitions for complex interactive components, starting with the shared MCForm* base machine and individual component extensions.",
+      "size_hint": "small",
+      "sections": ["formInputs"],
+      "agent_value": "Defines valid state transitions and their triggers. Prevents impossible state combinations (e.g., error shown before touch)."
+    },
+    "pm-sa-request-schema.json": {
+      "description": "Structured request schema and form specification for PM/SA driven UI changes. Defines the minimum fields needed to safely turn product requests into agent work items.",
+      "size_hint": "small",
+      "sections": ["schema", "ui_form_spec", "examples"],
+      "agent_value": "Reduces ambiguity in free-form requests. Helps agents identify goal, target page, intent type, success criteria, and validation expectations before editing code."
+    },
+    "preview-verification.json": {
+      "description": "Preview verification contract for runtime review. Defines what must match before a preview is safe to show: client, route, language, screenshot readiness, and intent-specific checks.",
+      "size_hint": "small",
+      "sections": ["global_rules", "intent_rules", "verification_order"],
+      "agent_value": "Turns preview correctness into machine-readable rules. Prevents wrong-client, wrong-language, and invisible-copy previews from reaching PM/SA review."
+    },
+    "golden-example-states.json": {
+      "description": "Golden example states for key components. Documents the canonical states that should be visible in docs, previews, and review checks.",
+      "size_hint": "small",
+      "sections": ["components"],
+      "agent_value": "Defines what good looks like for major components. Helps both humans and agents review default, error, disabled, loading, and active states consistently."
+    },
+    "ux-writing.json": {
+      "description": "UX writing guidance for labels, placeholders, dialogs, errors, empty states, and toasts. Includes tone rules, examples, and machine-readable checks for wording consistency.",
+      "size_hint": "small",
+      "sections": ["service_voice", "surface_rules", "writing_process", "validation_process", "machine_checks", "examples"],
+      "agent_value": "Keeps product writing clear, consistent, and professional. Helps agents choose action-specific labels, recovery-oriented errors, and consistent terminology."
+    }
+  },
+
+  "task_loading_guide": {
+    "building_a_new_page": {
+      "description": "Scaffolding a completely new feature page (list, detail, create, or edit)",
+      "load_order": [
+        "conventions.json → architecture, namingPrefixes, fileNaming, importAliases",
+        "patterns.json → find matching pattern (list-page, detail-page, create-page, edit-page, page-container-component)",
+        "api-ui-contracts.json → find entity field mappings and endpoints",
+        "components.json → select components based on when_to_use",
+        "tokens.json → spacing and typography for styled-components"
+      ],
+      "start_with": "patterns.json",
+      "critical_check": "conventions.json#constraints"
+    },
+    "interpreting_pm_sa_request": {
+      "description": "Turning a PM/SA improvement request into a safe engineering task",
+      "load_order": [
+        "pm-sa-request-schema.json → confirm required fields and intent type",
+        "preview-verification.json → understand what must be true before preview is reviewable",
+        "index.json → choose the matching task type",
+        "components.json → find likely target component",
+        "patterns.json → confirm composition pattern"
+      ],
+      "start_with": "pm-sa-request-schema.json",
+      "critical_check": "The request must include client, route, intent type, and success criteria before editing code"
+    },
+    "implementing_a_form": {
+      "description": "Building a form with validation, field groups, panels, and submission",
+      "load_order": [
+        "patterns.json → form-basic or form-full-page or create-page or edit-page",
+        "components.json → Form Inputs (v1) and Form Shared categories",
+        "state-machines.json → formInputs shared base machine",
+        "component-behaviors.json → formInputs semantic actions and data flow",
+        "conventions.json → constraints (Formik context rule)",
+        "tokens.json → spacing for form layout"
+      ],
+      "start_with": "patterns.json#form-basic",
+      "critical_check": "All MCForm* components must be inside a <Formik> context"
+    },
+    "styling_a_component": {
+      "description": "Applying visual styles using design tokens and styled-components",
+      "load_order": [
+        "tokens.json → color, spacing, typography, borderRadius, elevation",
+        "conventions.json → constraints (no hardcoded hex/px values), styledComponentRules",
+        "patterns.json → styled-component pattern",
+        "components.json → check component's structure field for expected dimensions/padding"
+      ],
+      "start_with": "tokens.json",
+      "critical_check": "No hardcoded hex or px values — see conventions.json#constraints"
+    },
+    "adding_a_table_view": {
+      "description": "Implementing a data table with columns, rows, and row-level actions",
+      "load_order": [
+        "api-ui-contracts.json → entity tableColumns and field mappings",
+        "components.json → Table category (MCTable, MCDataTable)",
+        "patterns.json → list-page",
+        "component-behaviors.json → table interactions",
+        "patterns.json → action-button (for row-level actions)"
+      ],
+      "start_with": "api-ui-contracts.json",
+      "critical_check": "Column definitions must match API contract field names"
+    },
+    "handling_user_interactions": {
+      "description": "Implementing buttons, dialogs, navigation, and user action flows",
+      "load_order": [
+        "component-behaviors.json → find component's semantic_actions",
+        "state-machines.json → valid state transitions",
+        "components.json → component props and available compositions",
+        "patterns.json → delete-confirm-dialog, action-button, tab-navigation, navigation"
+      ],
+      "start_with": "component-behaviors.json",
+      "critical_check": "Match semantic action to correct component — check do_not_use in components.json"
+    },
+    "connecting_api_to_ui": {
+      "description": "Wiring tRPC/backend data to frontend Container and Component layers",
+      "load_order": [
+        "api-ui-contracts.json → entity definition, converter files, field mappings, endpoints",
+        "patterns.json → trpc-data-fetching, provider-stack",
+        "components.json → data display components (Table, Layout categories)",
+        "conventions.json → architecture section (Container handles data fetching, not Component)"
+      ],
+      "start_with": "api-ui-contracts.json",
+      "critical_check": "Data fetching must happen in Container layer only — never in Component"
+    },
+    "adding_i18n_strings": {
+      "description": "Adding user-facing strings with translation support",
+      "load_order": [
+        "patterns.json → i18n-usage",
+        "ux-writing.json → service_voice, surface_rules, examples",
+        "conventions.json → constraints (no raw strings rule)"
+      ],
+      "start_with": "patterns.json#i18n-usage",
+      "critical_check": "All user-facing strings must use useTranslation — and the resulting copy should follow ux-writing.json rules for tone, specificity, and recovery guidance"
+    },
+    "registering_a_route": {
+      "description": "Adding a new page to the app's routing configuration",
+      "load_order": [
+        "patterns.json → route-registration",
+        "conventions.json → importAliases, architecture"
+      ],
+      "start_with": "patterns.json#route-registration",
+      "critical_check": "Use MERouteKey enum for route identifiers"
+    },
+    "handling_errors_and_loading": {
+      "description": "Implementing loading skeletons and error boundary states",
+      "load_order": [
+        "patterns.json → error-handling, loading-state",
+        "components.json → Feedback & Overlay category",
+        "component-behaviors.json → relevant component error states"
+      ],
+      "start_with": "patterns.json#error-handling",
+      "critical_check": "Loading and error states must be handled in Container, not Component"
+    },
+    "code_review": {
+      "description": "Reviewing generated or written UI code for correctness and convention compliance",
+      "load_order": [
+        "conventions.json → constraints (all rules)",
+        "components.json → verify correct component usage, props, and when_to_use",
+        "tokens.json → verify no hardcoded color/spacing/font values",
+        "ux-writing.json → tone, CTA, error, and empty-state guidance",
+        "patterns.json → verify correct architecture pattern and layer boundaries"
+      ],
+      "start_with": "conventions.json#constraints",
+      "critical_check": "All constraints in conventions.json must pass"
+    },
+    "reviewing_a_preview": {
+      "description": "Verifying that a generated preview is safe to show to PM/SA reviewers",
+      "load_order": [
+        "preview-verification.json → global_rules and intent_rules",
+        "ux-writing.json → surface_rules and examples for visible copy",
+        "golden-example-states.json → understand the expected visible state",
+        "components.json → check component-specific states and examples",
+        "visual-inspection.json → compare screenshot structure and hierarchy"
+      ],
+      "start_with": "preview-verification.json",
+      "critical_check": "Preview client, route, language, and change visibility must match the request before review"
+    }
+  },
+
+  "decision_trees": {
+    "user_input": {
+      "text_single_line": { "component": "MCFormTextInput", "ref": "components.json#Form Inputs (v1)" },
+      "text_multi_line": { "component": "MCFormTextArea", "ref": "components.json#Form Inputs (v1)" },
+      "number": { "component": "MCFormNumberInput", "ref": "components.json#Form Inputs (v1)" },
+      "checkbox": { "component": "MCFormCheckBox", "ref": "components.json#Form Inputs (v1)" },
+      "toggle_switch": { "component": "MCFormSwitchInput", "ref": "components.json#Form Inputs (v1)" },
+      "select_one_from_few": { "component": "MCFormRadioGroup", "ref": "components.json#Form Inputs (v1)" },
+      "select_one_from_many": { "component": "MCFormSingleRichSelect", "ref": "components.json#Form Inputs (v1)" },
+      "select_multiple": { "component": "MCFormMultiRichSelect", "ref": "components.json#Form Inputs (v1)" },
+      "date_time": { "component": "MCFormDatePicker or MCFormTimePicker — check components.json", "ref": "components.json#Form Inputs (v1)" },
+      "color": { "component": "MCFormColorPicker — check components.json", "ref": "components.json#Form Inputs (v1)" },
+      "file_upload": { "component": "MCFormFileInput — check components.json", "ref": "components.json#Form Inputs (v1)" },
+      "non_formik_text": { "component": "MCSingleTextInput (not MCFormTextInput)", "ref": "components.json#Form Inputs (v1)#do_not_use" }
+    },
+    "user_action": {
+      "primary_submit": { "component": "MCButton2 variant=contained type=submit", "ref": "components.json#Buttons" },
+      "secondary_cancel": { "component": "MCButton2 (default variant)", "ref": "components.json#Buttons" },
+      "destructive_delete": { "component": "MCButton2 + MCCommonDialog", "pattern": "patterns.json#delete-confirm-dialog" },
+      "row_level_actions": { "component": "MCMoreActionsButton", "pattern": "patterns.json#action-button" },
+      "tab_navigation": { "component": "MCBarTabs", "ref": "components.json#Navigation", "pattern": "patterns.json#tab-navigation" },
+      "sidebar_navigation": { "component": "MCNavbarItems — check components.json#Navigation", "ref": "components.json#Navigation" }
+    },
+    "page_type": {
+      "list_entities": { "pattern": "patterns.json#list-page" },
+      "view_entity_detail": { "pattern": "patterns.json#detail-page" },
+      "create_entity": { "pattern": "patterns.json#create-page" },
+      "edit_entity": { "pattern": "patterns.json#edit-page" }
+    },
+    "feedback_display": {
+      "inline_validation_error": { "component": "MCFormTextInput (handled automatically via Formik)", "ref": "component-behaviors.json#formInputs" },
+      "page_level_alert": { "component": "MCAlert or MCBanner — check components.json#Feedback & Overlay", "ref": "components.json#Feedback & Overlay" },
+      "toast_notification": { "component": "MCToast — check components.json#Feedback & Overlay", "ref": "components.json#Feedback & Overlay" },
+      "confirm_before_action": { "component": "MCCommonDialog", "pattern": "patterns.json#delete-confirm-dialog" },
+      "loading_skeleton": { "pattern": "patterns.json#loading-state" }
+    }
+  }
+}
