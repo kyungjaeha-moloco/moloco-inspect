@@ -28,6 +28,9 @@ function parseChangedFilesFromDiff(diffText) {
 }
 
 export function createMsmPortalProductRunner({ repoRoot, worktreeBase }) {
+  const appRelativePath = path.join('js', 'msm-portal-web');
+  const sourceAppRoot = path.join(repoRoot, appRelativePath);
+
   async function listGitPaths(args) {
     try {
       const { stdout } = await execFileAsync('git', args, {
@@ -306,6 +309,17 @@ export function createMsmPortalProductRunner({ repoRoot, worktreeBase }) {
     }
   }
 
+  async function runTypecheck({ worktreePath }) {
+    const worktreeAppRoot = path.join(worktreePath, appRelativePath);
+    const tsconfigPath = path.join(worktreeAppRoot, 'tsconfig.json');
+
+    await execFileAsync('pnpm', ['exec', 'tsc', '--noEmit', '-p', tsconfigPath], {
+      cwd: sourceAppRoot,
+      timeout: 300_000,
+      env: { ...process.env, COREPACK_ENABLE_AUTO_PIN: '0' },
+    });
+  }
+
   return {
     id: 'msm-portal',
     repoRoot,
@@ -318,5 +332,6 @@ export function createMsmPortalProductRunner({ repoRoot, worktreeBase }) {
     applyPatchToLocalRepo,
     resetWorktree,
     removeWorktree,
+    runTypecheck,
   };
 }

@@ -306,7 +306,7 @@ function toRepoRelativePath(filePath) {
   }
 
   const normalizedPath = path.normalize(filePath.trim());
-  const relativeToRepo = path.relative(MSM_REPO_ROOT, normalizedPath);
+  const relativeToRepo = path.relative(productRunner.repoRoot, normalizedPath);
 
   if (!relativeToRepo.startsWith('..') && !path.isAbsolute(relativeToRepo)) {
     return relativeToRepo;
@@ -1447,13 +1447,8 @@ async function runPipeline(id) {
 
       const changedMsmWebFiles = changedFiles.some((file) => previewAdapter.isProductFile(file));
       if (changedMsmWebFiles) {
-        const runtimeConfig = getPreviewRuntimeConfig(worktreePath);
         appendLog(id, 'Running msm-portal-web typecheck...');
-        await execFileAsync('pnpm', ['exec', 'tsc', '--noEmit', '-p', runtimeConfig.tsconfigPath], {
-          cwd: runtimeConfig.sourceAppRoot,
-          timeout: 300_000,
-          env: { ...process.env, COREPACK_ENABLE_AUTO_PIN: '0' },
-        });
+        await productRunner.runTypecheck({ worktreePath });
         appendLog(id, 'Typecheck passed');
       }
 
