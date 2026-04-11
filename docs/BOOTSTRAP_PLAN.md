@@ -25,6 +25,7 @@
 - dashboard 문서 앱
 - analytics schema / ledger contract 문서
 - orchestrator 1차 이관
+- chrome-extension 1차 이관
 
 ### Phase 3
 
