@@ -8,6 +8,7 @@
 - inspect worktree를 만든다
 - 로컬 미커밋 변경을 worktree에 동기화한다
 - baseline commit을 만든다
+- product typecheck / build / test를 실행한다
 - local apply와 fallback file sync를 수행한다
 - repo 밖 경로로 빠지지 않게 막는다
 

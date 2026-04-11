@@ -24,6 +24,8 @@ orchestrator는 아래 정도만 기대하면 됩니다.
 - `syncLocalChangesIntoWorktree()`
 - `commitBaseline()`
 - `runTypecheck()`
+- `runBuild()`
+- `runTests()`
 - `removeWorktree()`
 - `applyPatchToLocalRepo()`
 - `syncChangedFilesFromWorktree()`
@@ -61,6 +63,16 @@ type MTProductRunner = {
   commitBaseline(worktreePath: string): Promise<boolean>;
   runTypecheck(args: {
     worktreePath: string;
+  }): Promise<void>;
+  runBuild(args: {
+    worktreePath: string;
+    client?: string;
+    mode?: string;
+  }): Promise<void>;
+  runTests(args: {
+    worktreePath: string;
+    filter?: string | null;
+    coverage?: boolean;
   }): Promise<void>;
   removeWorktree(worktreePath: string): Promise<void>;
   resolveSafeRepoRelativePath(relativePath: string): {
@@ -132,13 +144,15 @@ type MTProductRunner = {
 - local workspace 변경 동기화
 - baseline commit
 - product typecheck 실행
+- product build 실행
+- product test 실행
 - local apply (`git apply` / `git apply --3way` / changed file sync fallback)
 - worktree reset / cleanup
 
 아직 orchestrator에 남아 있는 큰 product-specific 실행 책임은 주로:
 
-- product build/test 실행
 - copy namespace 검증에서 source repo 파일을 직접 읽는 부분
+- build/test를 어떤 시점과 조건에서 실제로 돌릴지 결정하는 policy
 - 일부 repo root 기반 analytics/apply 주변 로직
 
 입니다.
