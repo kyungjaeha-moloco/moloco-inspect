@@ -90,7 +90,9 @@
 - `msm-portal/js/msm-portal-web/src/*`
 - runtime preview를 위한 실제 앱 코드와 mock auth/workplace flow
 - 실제 수정 대상 git repo (`msm-portal/.git`)
-- 일부 dashboard/orchestrator runtime alias
+- dashboard의 runtime preview alias
+- orchestrator의 product repo / worktree / 실제 앱 실행 의존성
+- preview-kit이 호출하는 MSM Portal e2e helper script 원본
 
 ## 현재 dependency boundary
 
@@ -99,5 +101,12 @@
   - `orchestrator/`
   - `chrome-extension/`
   - `design-system/`
+  - `tooling/preview-kit/`
 - external source workspace
   - `msm-portal/`
+
+## 현재 정리된 것
+
+- local `design-system`은 proposal repo 안에서 직접 읽습니다
+- `preview-kit`이 preview bootstrap, runtime config, screenshot capture, route verify, copy verify contract를 감쌉니다
+- orchestrator는 preview 관련 product path를 직접 계산하는 대신 adapter config를 통해 읽기 시작했습니다

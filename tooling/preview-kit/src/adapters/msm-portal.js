@@ -2,8 +2,11 @@ import { applyLanguageToRoute, extractWorkplaceIdFromRoute, normalizeLanguage } 
 import { captureScreenshotWithMsmPortal } from '../capture.js';
 import { verifyCopyVisibleWithMsmPortal } from '../verify.js';
 import { verifyRouteWithMsmPortal } from '../route-verify.js';
+import { createMsmPortalRuntimeConfig } from '../config.js';
 
 export const MSM_PREVIEW_BOOTSTRAP_PATH = '/__codex/preview-bootstrap';
+export const MSM_PORTAL_PRODUCT_FILE_PREFIX = 'js/msm-portal-web/';
+export const MSM_PORTAL_PRODUCT_SOURCE_PREFIX = 'js/msm-portal-web/src/';
 
 export function getPreviewRouteFromPayload(payload) {
   const explicitPath = typeof payload?.pagePath === 'string' ? payload.pagePath.trim() : '';
@@ -73,9 +76,18 @@ export function createMsmPortalPreviewAdapter() {
   return {
     id: 'msm-portal',
     previewBootstrapPath: MSM_PREVIEW_BOOTSTRAP_PATH,
+    createRuntimeConfig(args) {
+      return createMsmPortalRuntimeConfig(args);
+    },
     extractWorkplaceIdFromRoute,
     getPreviewRouteFromPayload,
     getPreviewLanguageFromPayload,
+    isProductFile(relativePath) {
+      return typeof relativePath === 'string' && relativePath.startsWith(MSM_PORTAL_PRODUCT_FILE_PREFIX);
+    },
+    isProductSourceFile(relativePath) {
+      return typeof relativePath === 'string' && relativePath.startsWith(MSM_PORTAL_PRODUCT_SOURCE_PREFIX);
+    },
     buildPreviewContext(args) {
       return buildMsmPreviewContext(args);
     },

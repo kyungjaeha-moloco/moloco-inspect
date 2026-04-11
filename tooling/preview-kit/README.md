@@ -14,16 +14,26 @@
 
 초기 scaffold와 MSM Portal preview adapter 초안이 들어가 있습니다.
 
-다음 단계에서 아래를 추가할 예정입니다.
+현재는 아래까지 들어와 있습니다.
 
-1. adapter별 runtime dependency를 더 분리
-2. product-specific CLI 경로를 adapter config로 더 이동
-3. 이후 다른 product adapter를 추가할 수 있게 확장
+1. adapter factory
+2. preview context / bootstrap route 계산
+3. runtime config 생성
+4. screenshot capture wrapper
+5. copy visibility verify wrapper
+6. route profile verify wrapper
+
+다음 단계에서 아래를 더 진행하면 좋습니다.
+
+1. product-specific CLI/runtime dependency를 adapter package 바깥으로 더 분리
+2. 다른 product adapter를 추가할 수 있게 multi-product registry 정리
+3. preview-kit을 독립 패키지처럼 실행/테스트할 수 있게 contract test 추가
 
 ## 현재 들어간 파일
 
 - `package.json`
 - `src/types.js`
+- `src/config.js`
 - `src/factory.js`
 - `src/shared.js`
 - `src/adapters/msm-portal.js`

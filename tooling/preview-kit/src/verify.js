@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -6,8 +5,7 @@ const execFileAsync = promisify(execFile);
 
 export async function verifyCopyVisibleWithMsmPortal(args) {
   const {
-    msmRepoRoot,
-    worktreePath,
+    runtimeConfig,
     previewUrl,
     expectedLanguage,
     candidates,
@@ -27,7 +25,7 @@ export async function verifyCopyVisibleWithMsmPortal(args) {
   const commandArgs = [
     'exec',
     'tsx',
-    path.join(msmRepoRoot, 'js/msm-portal-web', 'e2e', 'preview-text-util.ts'),
+    runtimeConfig.e2eScripts.previewText,
     previewUrl,
     expectedLanguage || '',
     ...uniqueCandidates,
@@ -35,7 +33,7 @@ export async function verifyCopyVisibleWithMsmPortal(args) {
 
   try {
     const { stdout } = await execFileAsync('pnpm', commandArgs, {
-      cwd: path.join(worktreePath, 'js/msm-portal-web'),
+      cwd: runtimeConfig.worktreeAppRoot,
       timeout: 120_000,
       env: { ...process.env, COREPACK_ENABLE_AUTO_PIN: '0' },
     });

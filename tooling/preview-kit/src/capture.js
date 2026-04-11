@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -6,8 +5,7 @@ const execFileAsync = promisify(execFile);
 
 export async function captureScreenshotWithMsmPortal(args) {
   const {
-    msmRepoRoot,
-    worktreePath,
+    runtimeConfig,
     previewUrl,
     screenshotPath,
     expectedLanguage,
@@ -17,7 +15,7 @@ export async function captureScreenshotWithMsmPortal(args) {
   const commandArgs = [
     'exec',
     'tsx',
-    path.join(msmRepoRoot, 'js/msm-portal-web', 'e2e', 'screenshot-util.ts'),
+    runtimeConfig.e2eScripts.screenshot,
     previewUrl,
     screenshotPath,
     ...(expectedLanguage ? [expectedLanguage] : []),
@@ -25,7 +23,7 @@ export async function captureScreenshotWithMsmPortal(args) {
   ];
 
   const { stdout } = await execFileAsync('pnpm', commandArgs, {
-    cwd: path.join(worktreePath, 'js/msm-portal-web'),
+    cwd: runtimeConfig.worktreeAppRoot,
     timeout: 120_000,
     env: {
       ...process.env,

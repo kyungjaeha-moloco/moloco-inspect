@@ -218,6 +218,13 @@ const DEFAULT_VALIDATION_EXPECTATIONS =
   ];
 const previewAdapter = createPreviewAdapter('msm-portal');
 
+function getPreviewRuntimeConfig(worktreePath) {
+  return previewAdapter.createRuntimeConfig({
+    repoRoot: MSM_REPO_ROOT,
+    worktreePath,
+  });
+}
+
 // ─── State ────────────────────────────────────────────────────────────
 
 const requests = new Map(); // id → RequestState
@@ -1119,8 +1126,7 @@ async function verifyCopyVisibleOnRoute({ payload, previewUrl, worktreePath, vis
     return { ok: true, message: 'Copy visibility verification skipped (intent is not copy_update)' };
   }
   return await previewAdapter.verifyCopyVisible({
-    msmRepoRoot: MSM_REPO_ROOT,
-    worktreePath,
+    runtimeConfig: getPreviewRuntimeConfig(worktreePath),
     previewUrl,
     expectedLanguage: getPreviewContext(payload).language || '',
     candidates: visibleTextCandidates,
@@ -1151,8 +1157,9 @@ async function getAvailablePort() {
 }
 
 function ensureWorktreeNodeModules(worktreePath) {
-  const worktreeNodeModules = path.join(worktreePath, 'js/msm-portal-web', 'node_modules');
-  const sourceNodeModules = path.join(MSM_REPO_ROOT, 'js/msm-portal-web', 'node_modules');
+  const runtimeConfig = getPreviewRuntimeConfig(worktreePath);
+  const worktreeNodeModules = runtimeConfig.worktreeNodeModulesPath;
+  const sourceNodeModules = runtimeConfig.sourceNodeModulesPath;
 
   if (fs.existsSync(worktreeNodeModules)) {
     return;
@@ -1193,6 +1200,7 @@ async function waitForServerReady(url, getEarlyError, timeoutMs = 45_000) {
 
 async function capturePreviewScreenshot({ id, worktreePath, payload }) {
   const previewContext = getPreviewContext(payload);
+  const runtimeConfig = getPreviewRuntimeConfig(worktreePath);
   const client = previewContext.client;
   const expectedLanguage = previewContext.language;
   const route = previewContext.bootstrapRoute;
@@ -1215,10 +1223,10 @@ async function capturePreviewScreenshot({ id, worktreePath, payload }) {
         '--port',
       String(port),
       '--config',
-      path.join(worktreePath, 'js/msm-portal-web', 'vite.config.ts'),
+      runtimeConfig.viteConfigPath,
     ],
     {
-      cwd: path.join(worktreePath, 'js/msm-portal-web'),
+      cwd: runtimeConfig.worktreeAppRoot,
       env: {
         ...process.env,
         CLIENT: client,
@@ -1249,8 +1257,7 @@ async function capturePreviewScreenshot({ id, worktreePath, payload }) {
   try {
     await waitForServerReady(`http://127.0.0.1:${port}/`, () => previewExitError);
     const { stdout } = await previewAdapter.captureScreenshot({
-      msmRepoRoot: MSM_REPO_ROOT,
-      worktreePath,
+      runtimeConfig,
       previewUrl,
       screenshotPath,
       expectedLanguage,
@@ -1563,7 +1570,7 @@ async function runPipeline(id) {
       updateRequest(id, { phase: 'validating' });
       const filesForValidation = changedFiles
         .filter((file) => file.endsWith('.ts') || file.endsWith('.tsx'))
-        .filter((file) => file.startsWith('js/msm-portal-web/src/'));
+        .filter((file) => previewAdapter.isProductSourceFile(file));
 
       if (filesForValidation.length) {
         appendLog(id, `Validating ${filesForValidation.length} changed TypeScript files...`);
@@ -1578,11 +1585,12 @@ async function runPipeline(id) {
         appendLog(id, 'Design-system validation skipped (no changed TypeScript files)');
       }
 
-      const changedMsmWebFiles = changedFiles.some((file) => file.startsWith('js/msm-portal-web/'));
+      const changedMsmWebFiles = changedFiles.some((file) => previewAdapter.isProductFile(file));
       if (changedMsmWebFiles) {
+        const runtimeConfig = getPreviewRuntimeConfig(worktreePath);
         appendLog(id, 'Running msm-portal-web typecheck...');
-        await execFileAsync('pnpm', ['exec', 'tsc', '--noEmit', '-p', path.join(worktreePath, 'js/msm-portal-web', 'tsconfig.json')], {
-          cwd: path.join(MSM_REPO_ROOT, 'js/msm-portal-web'),
+        await execFileAsync('pnpm', ['exec', 'tsc', '--noEmit', '-p', runtimeConfig.tsconfigPath], {
+          cwd: runtimeConfig.sourceAppRoot,
           timeout: 300_000,
           env: { ...process.env, COREPACK_ENABLE_AUTO_PIN: '0' },
         });
@@ -1617,7 +1625,7 @@ async function runPipeline(id) {
     // Step 6: Screenshot preview + verification
     try {
       if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
-      const changedMsmWebFiles = changedFiles.some((file) => file.startsWith('js/msm-portal-web/'));
+      const changedMsmWebFiles = changedFiles.some((file) => previewAdapter.isProductFile(file));
       if (!changedMsmWebFiles) {
         appendLog(id, 'Screenshot skipped (no msm-portal-web changes)');
       } else {
@@ -1645,17 +1653,18 @@ async function runPipeline(id) {
         }
 
         state.previewServer = previewResult.previewServer;
+        const previewContext = getPreviewContext(state.payload);
+        const runtimeConfig = getPreviewRuntimeConfig(worktreePath);
         updateRequest(id, {
           screenshotPath: previewResult.screenshotPath,
           previewUrl: previewResult.previewUrl,
         });
         appendLog(id, `Screenshot captured: ${path.basename(previewResult.screenshotPath)}`);
         const routeVerification = await previewAdapter.verifyRoute({
-          msmRepoRoot: MSM_REPO_ROOT,
-          worktreePath,
+          runtimeConfig,
           previewUrl: previewResult.previewUrl,
-          expectedLanguage,
-          client,
+          expectedLanguage: previewContext.language,
+          client: previewContext.client,
         });
         if (!routeVerification.ok) {
           throw new Error(routeVerification.message);
