@@ -38,7 +38,7 @@ const SOURCE_WORKSPACE_ROOT =
   process.env.SOURCE_WORKSPACE_ROOT || '/Users/kyungjae.ha/Documents/Agent-Design-System';
 const WORKSPACE_ROOT = path.resolve(__dirname, '..');
 const LOCAL_DESIGN_SYSTEM_ROOT = path.join(WORKSPACE_ROOT, 'design-system');
-const MSM_REPO_ROOT = path.join(SOURCE_WORKSPACE_ROOT, 'msm-portal');
+const DEFAULT_PRODUCT_REPO_ROOT = path.join(SOURCE_WORKSPACE_ROOT, 'msm-portal');
 const DESIGN_SYSTEM_ROOT = process.env.DESIGN_SYSTEM_ROOT ||
   (fs.existsSync(LOCAL_DESIGN_SYSTEM_ROOT) ? LOCAL_DESIGN_SYSTEM_ROOT : path.join(SOURCE_WORKSPACE_ROOT, 'design-system'));
 const WORKTREE_BASE = path.join(WORKSPACE_ROOT, '.worktrees');
@@ -221,13 +221,13 @@ const DEFAULT_VALIDATION_EXPECTATIONS =
   ];
 const previewAdapter = createPreviewAdapter('msm-portal');
 const productRunner = createProductRunner('msm-portal', {
-  repoRoot: MSM_REPO_ROOT,
+  repoRoot: DEFAULT_PRODUCT_REPO_ROOT,
   worktreeBase: WORKTREE_BASE,
 });
 
 function getPreviewRuntimeConfig(worktreePath) {
   return previewAdapter.createRuntimeConfig({
-    repoRoot: MSM_REPO_ROOT,
+    repoRoot: productRunner.repoRoot,
     worktreePath,
   });
 }
@@ -1762,7 +1762,7 @@ const server = http.createServer(async (req, res) => {
       ok: true,
       requests: requests.size,
       workspaceRoot: WORKSPACE_ROOT,
-      repoRoot: MSM_REPO_ROOT,
+      repoRoot: productRunner.repoRoot,
       designSystemRoot: DESIGN_SYSTEM_ROOT,
       model: CODEX_MODEL,
     });
@@ -1945,7 +1945,7 @@ ensureAnalyticsStorage();
 server.listen(PORT, () => {
   console.log(`[Orchestrator] Listening on http://localhost:${PORT}`);
   console.log(`[Orchestrator] Workspace root: ${WORKSPACE_ROOT}`);
-  console.log(`[Orchestrator] Repo root: ${MSM_REPO_ROOT}`);
+  console.log(`[Orchestrator] Repo root: ${productRunner.repoRoot}`);
   console.log(`[Orchestrator] Design system root: ${DESIGN_SYSTEM_ROOT}`);
   console.log(`[Orchestrator] Model: ${CODEX_MODEL}`);
   console.log(`[Orchestrator] Worktrees: ${WORKTREE_BASE}`);

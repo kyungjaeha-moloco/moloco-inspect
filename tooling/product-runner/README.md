@@ -17,6 +17,13 @@
 
 초기 MSM Portal runner scaffold가 들어가 있고, orchestrator는 점진적으로 이 runner를 통해 worktree/apply 책임을 넘기는 중입니다.
 
+기본 contract test는 아래로 실행할 수 있습니다.
+
+```bash
+cd /Users/kyungjae.ha/Documents/moloco-inspect/tooling/product-runner
+pnpm test
+```
+
 ## 관련 문서
 
 - [PRODUCT_RUNNER_CONTRACT.md](/Users/kyungjae.ha/Documents/moloco-inspect/docs/PRODUCT_RUNNER_CONTRACT.md)
