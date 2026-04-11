@@ -510,6 +510,20 @@ function summarizeRequestPayload(payload) {
   };
 }
 
+function buildExecutionMetadata(state) {
+  const metadata = productExecution.getAnalyticsMetadata();
+  return {
+    ...metadata,
+    worktreePath: state.worktreePath ? path.relative(WORKSPACE_ROOT, state.worktreePath) : null,
+    buildPolicyMatched: Array.isArray(state.changedFiles)
+      ? productExecution.shouldRunBuild({ payload: state.payload, changedFiles: state.changedFiles })
+      : false,
+    testPolicyMatched: Array.isArray(state.changedFiles)
+      ? productExecution.shouldRunTests({ payload: state.payload, changedFiles: state.changedFiles })
+      : false,
+  };
+}
+
 function buildAnalyticsSnapshot(state) {
   const durationMs = state.createdAt ? Date.now() - new Date(state.createdAt).getTime() : null;
   const changedFiles = Array.isArray(state.changedFiles) ? state.changedFiles : [];
@@ -542,6 +556,7 @@ function buildAnalyticsSnapshot(state) {
     iterationCount: state.analytics?.iterationCount ?? 0,
     tokenUsage: state.analytics?.tokenUsage ?? null,
     request: summarizeRequestPayload(state.payload),
+    execution: buildExecutionMetadata(state),
   };
 }
 

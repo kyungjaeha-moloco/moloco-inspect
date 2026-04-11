@@ -15,6 +15,13 @@
 
 초기 MSM Portal adapter가 들어가 있고, orchestrator는 점진적으로 이 계층을 통해 product-aware helper를 제거하는 중입니다.
 
+기본 contract test는 아래로 실행할 수 있습니다.
+
+```bash
+cd /Users/kyungjae.ha/Documents/moloco-inspect/tooling/product-execution
+pnpm test
+```
+
 ## 관련 문서
 
 - [PRODUCT_ADAPTER_CONTRACT.md](/Users/kyungjae.ha/Documents/moloco-inspect/docs/PRODUCT_ADAPTER_CONTRACT.md)

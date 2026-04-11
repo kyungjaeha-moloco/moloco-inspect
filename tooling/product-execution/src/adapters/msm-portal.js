@@ -323,6 +323,17 @@ export function createMsmPortalProductExecution({ repoRoot, worktreeBase }) {
     });
   }
 
+  function getAnalyticsMetadata() {
+    return {
+      layer: 'product-execution',
+      productId: 'msm-portal',
+      previewAdapterId: previewAdapter.id,
+      productRunnerId: productRunner.id,
+      repoRoot: productRunner.repoRoot,
+      worktreeBase: productRunner.worktreeBase,
+    };
+  }
+
   return {
     id: 'msm-portal',
     repoRoot: productRunner.repoRoot,
@@ -347,5 +358,6 @@ export function createMsmPortalProductExecution({ repoRoot, worktreeBase }) {
     verifyCopyVisibleOnRoute,
     capturePreviewScreenshot,
     verifyRoute,
+    getAnalyticsMetadata,
   };
 }
