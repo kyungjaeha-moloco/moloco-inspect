@@ -15,6 +15,7 @@
 5. baseline commit을 만든다
 6. changed file를 로컬 repo에 apply 하거나 fallback sync 한다
 7. repo 밖 경로로 빠지지 않도록 안전 장치를 둔다
+8. locale asset의 source/worktree string diff를 product repo 기준으로 계산한다
 
 ## orchestrator가 runner에 기대하는 것
 
@@ -26,6 +27,7 @@ orchestrator는 아래 정도만 기대하면 됩니다.
 - `runTypecheck()`
 - `runBuild()`
 - `runTests()`
+- `collectLocaleStringChanges()`
 - `removeWorktree()`
 - `applyPatchToLocalRepo()`
 - `syncChangedFilesFromWorktree()`
@@ -74,6 +76,18 @@ type MTProductRunner = {
     filter?: string | null;
     coverage?: boolean;
   }): Promise<void>;
+  collectLocaleStringChanges(args: {
+    worktreePath: string;
+    changedFiles: string[];
+  }): {
+    localeFiles: string[];
+    changedEntries: Array<{
+      file: string;
+      path: string;
+      before: unknown;
+      after: unknown;
+    }>;
+  };
   removeWorktree(worktreePath: string): Promise<void>;
   resolveSafeRepoRelativePath(relativePath: string): {
     normalized: string;
@@ -146,12 +160,12 @@ type MTProductRunner = {
 - product typecheck 실행
 - product build 실행
 - product test 실행
+- locale asset string diff 계산
 - local apply (`git apply` / `git apply --3way` / changed file sync fallback)
 - worktree reset / cleanup
 
 아직 orchestrator에 남아 있는 큰 product-specific 실행 책임은 주로:
 
-- copy namespace 검증에서 source repo 파일을 직접 읽는 부분
 - build/test를 어떤 시점과 조건에서 실제로 돌릴지 결정하는 policy
 - 일부 repo root 기반 analytics/apply 주변 로직
 

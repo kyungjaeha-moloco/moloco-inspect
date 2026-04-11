@@ -110,6 +110,6 @@
 
 - local `design-system`은 proposal repo 안에서 직접 읽습니다
 - `preview-kit`이 preview bootstrap, runtime config, screenshot capture, route verify, copy verify contract를 감쌉니다
-- `product-runner`가 product repo, inspect worktree, product typecheck/build/test, local apply fallback contract를 감싸기 시작했습니다
+- `product-runner`가 product repo, inspect worktree, product typecheck/build/test, locale diff, local apply fallback contract를 감싸기 시작했습니다
 - orchestrator는 preview 관련 product path를 직접 계산하는 대신 adapter config를 통해 읽기 시작했습니다
 - `dashboard`와 `design-system/viewer`는 proposal repo 루트의 `msm-portal` entry를 기준으로 product runtime alias를 읽습니다

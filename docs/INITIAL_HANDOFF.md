@@ -10,7 +10,7 @@
 - proposal repo 안에는 이미 `dashboard`, `orchestrator`, `chrome-extension`, `design-system` 1차 이관본이 들어와 있습니다
 - proposal repo 루트의 `msm-portal` entry는 source workspace product repo를 가리키는 연결점입니다
 - `preview-kit`은 preview/auth/verification contract의 실행 레이어입니다
-- `product-runner`는 repo/worktree/typecheck/build/test/apply fallback contract의 실행 레이어입니다
+- `product-runner`는 repo/worktree/typecheck/build/test/locale diff/apply fallback contract의 실행 레이어입니다
 - 이후에는 source workspace 의존성을 줄이는 방향으로 운영합니다
 
 ## 이미 검증된 핵심 흐름

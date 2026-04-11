@@ -11,6 +11,40 @@ function copyFileWithParents(sourcePath, destinationPath) {
   fs.copyFileSync(sourcePath, destinationPath);
 }
 
+function readJsonIfExists(filePath) {
+  if (!fs.existsSync(filePath)) return null;
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function extractChangedJsonLeafValues(beforeValue, afterValue, prefix = '') {
+  if (beforeValue === afterValue) {
+    return [];
+  }
+
+  const beforeIsObject = beforeValue && typeof beforeValue === 'object' && !Array.isArray(beforeValue);
+  const afterIsObject = afterValue && typeof afterValue === 'object' && !Array.isArray(afterValue);
+
+  if (beforeIsObject || afterIsObject) {
+    const beforeObject = beforeIsObject ? beforeValue : {};
+    const afterObject = afterIsObject ? afterValue : {};
+    const keys = new Set([...Object.keys(beforeObject), ...Object.keys(afterObject)]);
+    const changes = [];
+    for (const key of keys) {
+      const nextPrefix = prefix ? `${prefix}.${key}` : key;
+      changes.push(
+        ...extractChangedJsonLeafValues(beforeObject[key], afterObject[key], nextPrefix),
+      );
+    }
+    return changes;
+  }
+
+  return [{
+    path: prefix,
+    before: beforeValue,
+    after: afterValue,
+  }];
+}
+
 function parseChangedFilesFromDiff(diffText) {
   return Array.from(
     new Set(
@@ -351,6 +385,36 @@ export function createMsmPortalProductRunner({ repoRoot, worktreeBase }) {
     });
   }
 
+  function collectLocaleStringChanges({ worktreePath, changedFiles }) {
+    const languageAssetPattern = /\/src\/i18n\/assets\/([^/]+)\//;
+    const localeFiles = changedFiles.filter((file) => languageAssetPattern.test(file));
+    const changedEntries = [];
+
+    for (const relativeFile of localeFiles) {
+      const basePath = path.join(repoRoot, relativeFile);
+      const worktreePathname = path.join(worktreePath, relativeFile);
+      const beforeJson = readJsonIfExists(basePath);
+      const afterJson = readJsonIfExists(worktreePathname);
+      if (!beforeJson || !afterJson) continue;
+
+      const fileChanges = extractChangedJsonLeafValues(beforeJson, afterJson).filter(
+        (entry) => typeof entry.after === 'string' || typeof entry.before === 'string',
+      );
+
+      for (const entry of fileChanges) {
+        changedEntries.push({
+          file: relativeFile,
+          ...entry,
+        });
+      }
+    }
+
+    return {
+      localeFiles,
+      changedEntries,
+    };
+  }
+
   return {
     id: 'msm-portal',
     repoRoot,
@@ -366,5 +430,6 @@ export function createMsmPortalProductRunner({ repoRoot, worktreeBase }) {
     runTypecheck,
     runBuild,
     runTests,
+    collectLocaleStringChanges,
   };
 }

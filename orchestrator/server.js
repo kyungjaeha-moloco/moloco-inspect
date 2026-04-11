@@ -843,11 +843,6 @@ function isCopyChangeRequest(payload) {
   return getChangeIntent(payload) === 'copy_update' || isTextChangeRequest(payload);
 }
 
-function readJsonIfExists(filePath) {
-  if (!fs.existsSync(filePath)) return null;
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
 function extractTranslationNamespacesFromFile(worktreePath, relativeFile) {
   if (!relativeFile) return [];
 
@@ -858,62 +853,16 @@ function extractTranslationNamespacesFromFile(worktreePath, relativeFile) {
   return Array.from(new Set(matches.map((match) => match[1]).filter(Boolean)));
 }
 
-function extractChangedJsonLeafValues(beforeValue, afterValue, prefix = '') {
-  if (beforeValue === afterValue) {
-    return [];
-  }
-
-  const beforeIsObject = beforeValue && typeof beforeValue === 'object' && !Array.isArray(beforeValue);
-  const afterIsObject = afterValue && typeof afterValue === 'object' && !Array.isArray(afterValue);
-
-  if (beforeIsObject || afterIsObject) {
-    const beforeObject = beforeIsObject ? beforeValue : {};
-    const afterObject = afterIsObject ? afterValue : {};
-    const keys = new Set([...Object.keys(beforeObject), ...Object.keys(afterObject)]);
-    const changes = [];
-    for (const key of keys) {
-      const nextPrefix = prefix ? `${prefix}.${key}` : key;
-      changes.push(
-        ...extractChangedJsonLeafValues(beforeObject[key], afterObject[key], nextPrefix),
-      );
-    }
-    return changes;
-  }
-
-  return [{
-    path: prefix,
-    before: beforeValue,
-    after: afterValue,
-  }];
-}
-
 function collectCopyChangeContext({ payload, changedFiles, worktreePath }) {
   const targetFile =
     payload?.requestContract?.target?.selection_context?.source_file ||
     payload?.file ||
     null;
   const namespaces = extractTranslationNamespacesFromFile(worktreePath, targetFile);
-  const languageAssetPattern = /\/src\/i18n\/assets\/([^/]+)\//;
-  const localeFiles = changedFiles.filter((file) => languageAssetPattern.test(file));
-
-  const changedEntries = [];
-  for (const relativeFile of localeFiles) {
-    const basePath = path.join(MSM_REPO_ROOT, relativeFile);
-    const worktreePathname = path.join(worktreePath, relativeFile);
-    const beforeJson = readJsonIfExists(basePath);
-    const afterJson = readJsonIfExists(worktreePathname);
-    if (!beforeJson || !afterJson) continue;
-
-    const fileChanges = extractChangedJsonLeafValues(beforeJson, afterJson).filter(
-      (entry) => typeof entry.after === 'string' || typeof entry.before === 'string',
-    );
-    for (const entry of fileChanges) {
-      changedEntries.push({
-        file: relativeFile,
-        ...entry,
-      });
-    }
-  }
+  const { localeFiles, changedEntries } = productRunner.collectLocaleStringChanges({
+    worktreePath,
+    changedFiles,
+  });
 
   const namespaceChanges = namespaces.length
     ? changedEntries.filter((entry) =>
@@ -937,6 +886,40 @@ function collectCopyChangeContext({ payload, changedFiles, worktreePath }) {
     namespaceChanges,
     visibleTextCandidates,
   };
+}
+
+function getValidationExpectations(payload) {
+  return Array.isArray(payload?.requestContract?.validation_expectations)
+    ? payload.requestContract.validation_expectations
+    : [];
+}
+
+function shouldRunProductBuild({ payload, changedFiles }) {
+  if (!changedFiles.some((file) => previewAdapter.isProductFile(file))) {
+    return false;
+  }
+
+  const expectations = getValidationExpectations(payload);
+  if (expectations.includes('build') || expectations.includes('product_build')) {
+    return true;
+  }
+
+  return changedFiles.some((file) =>
+    /\/src\/(app-builder\/route|route\/|apps\/[^/]+\/page\/|apps\/[^/]+\/config\/layout)/.test(file),
+  );
+}
+
+function shouldRunProductTests({ payload, changedFiles }) {
+  if (!changedFiles.some((file) => previewAdapter.isProductFile(file))) {
+    return false;
+  }
+
+  const expectations = getValidationExpectations(payload);
+  if (expectations.includes('test') || expectations.includes('tests') || expectations.includes('product_test')) {
+    return true;
+  }
+
+  return changedFiles.some((file) => /\.(test|spec)\.(ts|tsx)$/.test(file));
 }
 
 function verifyCopyNamespaceAlignment({ payload, changedFiles, worktreePath }) {
@@ -1450,6 +1433,28 @@ async function runPipeline(id) {
         appendLog(id, 'Running msm-portal-web typecheck...');
         await productRunner.runTypecheck({ worktreePath });
         appendLog(id, 'Typecheck passed');
+      }
+
+      if (shouldRunProductBuild({ payload: state.payload, changedFiles })) {
+        updateRequest(id, { phase: 'running_build' });
+        appendLog(id, 'Running msm-portal-web build (policy matched)...');
+        await productRunner.runBuild({
+          worktreePath,
+          client: state.payload?.client || 'msm-default',
+          mode: 'test',
+        });
+        appendLog(id, 'Build passed');
+      } else {
+        appendLog(id, 'Build skipped (policy not matched)');
+      }
+
+      if (shouldRunProductTests({ payload: state.payload, changedFiles })) {
+        updateRequest(id, { phase: 'running_tests' });
+        appendLog(id, 'Running msm-portal-web tests (policy matched)...');
+        await productRunner.runTests({ worktreePath });
+        appendLog(id, 'Tests passed');
+      } else {
+        appendLog(id, 'Tests skipped (policy not matched)');
       }
 
       const localeCheck = verifyLocaleAlignment(state.payload, changedFiles);
