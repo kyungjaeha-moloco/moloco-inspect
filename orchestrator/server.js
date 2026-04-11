@@ -26,6 +26,9 @@ import { promisify } from 'node:util';
 import {
   createPreviewAdapter,
 } from '../tooling/preview-kit/src/index.js';
+import {
+  createProductRunner,
+} from '../tooling/product-runner/src/index.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -217,6 +220,10 @@ const DEFAULT_VALIDATION_EXPECTATIONS =
     'preview_screenshot',
   ];
 const previewAdapter = createPreviewAdapter('msm-portal');
+const productRunner = createProductRunner('msm-portal', {
+  repoRoot: MSM_REPO_ROOT,
+  worktreeBase: WORKTREE_BASE,
+});
 
 function getPreviewRuntimeConfig(worktreePath) {
   return previewAdapter.createRuntimeConfig({
@@ -716,149 +723,6 @@ function buildAnalyticsDetail(records, requestId) {
     request: latest,
     events: related.map((record) => record.event),
   };
-}
-
-async function branchExists(branchName) {
-  try {
-    await execFileAsync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branchName}`], {
-      cwd: MSM_REPO_ROOT,
-      timeout: 30_000,
-      env: { ...process.env },
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function resolveUniqueInspectBranchName(initialBranch) {
-  if (!(await branchExists(initialBranch))) {
-    return initialBranch;
-  }
-
-  for (let index = 1; index <= 20; index += 1) {
-    const candidate = `${initialBranch}-${index}`;
-    if (!(await branchExists(candidate))) {
-      return candidate;
-    }
-  }
-
-  return `${initialBranch}-${randomUUID().slice(0, 4)}`;
-}
-
-async function ensureWorktreePathAvailable(worktreePath) {
-  if (!fs.existsSync(worktreePath)) {
-    return;
-  }
-
-  try {
-    await execFileAsync('git', ['worktree', 'remove', worktreePath, '--force'], {
-      cwd: MSM_REPO_ROOT,
-      timeout: 60_000,
-      env: { ...process.env },
-    });
-    return;
-  } catch {
-    fs.rmSync(worktreePath, { recursive: true, force: true });
-  }
-}
-
-async function listGitPaths(args) {
-  try {
-    const { stdout } = await execFileAsync('git', args, {
-      cwd: MSM_REPO_ROOT,
-      timeout: 30_000,
-      env: { ...process.env },
-    });
-    return stdout
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-async function syncLocalWorkspaceChangesIntoWorktree(worktreePath) {
-  const modifiedFiles = await listGitPaths(['diff', '--name-only']);
-  const stagedFiles = await listGitPaths(['diff', '--cached', '--name-only']);
-  const untrackedFiles = await listGitPaths(['ls-files', '--others', '--exclude-standard']);
-  const deletedFiles = new Set([
-    ...(await listGitPaths(['diff', '--name-only', '--diff-filter=D'])),
-    ...(await listGitPaths(['diff', '--cached', '--name-only', '--diff-filter=D'])),
-  ]);
-
-  const filesToCopy = Array.from(
-    new Set([...modifiedFiles, ...stagedFiles, ...untrackedFiles]),
-  ).filter((relativePath) => !deletedFiles.has(relativePath));
-
-  let copiedCount = 0;
-  let removedCount = 0;
-
-  for (const relativePath of deletedFiles) {
-    const worktreeTarget = path.join(worktreePath, relativePath);
-    if (fs.existsSync(worktreeTarget)) {
-      fs.rmSync(worktreeTarget, { recursive: true, force: true });
-      removedCount += 1;
-    }
-  }
-
-  for (const relativePath of filesToCopy) {
-    const sourcePath = path.join(MSM_REPO_ROOT, relativePath);
-    const destinationPath = path.join(worktreePath, relativePath);
-
-    if (!fs.existsSync(sourcePath)) {
-      continue;
-    }
-
-    fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
-    fs.copyFileSync(sourcePath, destinationPath);
-    copiedCount += 1;
-  }
-
-  return {
-    copiedCount,
-    removedCount,
-    totalChanged: filesToCopy.length + deletedFiles.size,
-  };
-}
-
-async function commitWorktreeBaseline(worktreePath) {
-  await execFileAsync('git', ['add', '-A'], {
-    cwd: worktreePath,
-    timeout: 60_000,
-    env: { ...process.env },
-  });
-
-  const { stdout: statusOutput } = await execFileAsync('git', ['status', '--porcelain'], {
-    cwd: worktreePath,
-    timeout: 30_000,
-    env: { ...process.env },
-  });
-
-  if (!statusOutput.trim()) {
-    return false;
-  }
-
-  await execFileAsync(
-    'git',
-    [
-      '-c',
-      'user.name=Codex Preview Baseline',
-      '-c',
-      'user.email=codex-preview@local',
-      'commit',
-      '-m',
-      'chore: sync local workspace baseline',
-    ],
-    {
-      cwd: worktreePath,
-      timeout: 60_000,
-      env: { ...process.env },
-    },
-  );
-
-  return true;
 }
 
 function maybePersistSelectionScreenshot(payload) {
@@ -1458,31 +1322,27 @@ async function runPipeline(id) {
     updateRequest(id, { status: 'processing', phase: 'creating_worktree' });
     appendLog(id, 'Creating git worktree...');
 
-    if (!fs.existsSync(WORKTREE_BASE)) fs.mkdirSync(WORKTREE_BASE, { recursive: true });
-    const worktreePath = path.join(WORKTREE_BASE, id);
-    await ensureWorktreePathAvailable(worktreePath);
-
-    // Get current branch to base off
-    const { stdout: currentBranch } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: MSM_REPO_ROOT });
-    const baseBranch = currentBranch.trim();
-    const branchName = await resolveUniqueInspectBranchName(state.branch);
+    const worktreeInfo = await productRunner.createWorktree({
+      requestId: id,
+      initialBranch: state.branch,
+    });
+    const { branchName, worktreePath } = worktreeInfo;
     if (branchName !== state.branch) {
       updateRequest(id, { branch: branchName });
       appendLog(id, `Inspect branch name adjusted to avoid collision: ${branchName}`);
     }
 
-    await execAsync(`git worktree add -b ${branchName} ${worktreePath} ${baseBranch}`, { cwd: MSM_REPO_ROOT });
     updateRequest(id, { worktreePath });
     appendLog(id, `Worktree created at ${worktreePath}`);
 
-    const workspaceSync = await syncLocalWorkspaceChangesIntoWorktree(worktreePath);
+    const workspaceSync = await productRunner.syncLocalChangesIntoWorktree(worktreePath);
     if (workspaceSync.totalChanged) {
       appendLog(
         id,
         `Synced local workspace changes into worktree (copied ${workspaceSync.copiedCount}, removed ${workspaceSync.removedCount})`,
       );
 
-      const baselineCommitted = await commitWorktreeBaseline(worktreePath);
+      const baselineCommitted = await productRunner.commitBaseline(worktreePath);
       if (baselineCommitted) {
         appendLog(id, 'Committed local workspace baseline inside inspect worktree');
       }
@@ -1772,72 +1632,6 @@ function buildPrompt(payload, worktreePath = null) {
   return parts.join('\n');
 }
 
-function parseChangedFilesFromDiff(diffText) {
-  return Array.from(
-    new Set(
-      String(diffText || '')
-        .split('\n')
-        .filter((line) => line.startsWith('diff --git '))
-        .map((line) => {
-          const match = line.match(/^diff --git a\/(.+?) b\/(.+)$/);
-          return match ? match[2].trim() : null;
-        })
-        .filter(Boolean)
-        .filter((file) => !String(file).startsWith('.omc/')),
-    ),
-  );
-}
-
-function ensureSafeRepoRelativePath(relativePath) {
-  const normalized = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
-  const absolutePath = path.resolve(MSM_REPO_ROOT, normalized);
-  if (!absolutePath.startsWith(MSM_REPO_ROOT + path.sep) && absolutePath !== MSM_REPO_ROOT) {
-    throw new Error(`Refusing to apply path outside repo: ${relativePath}`);
-  }
-  return { normalized, absolutePath };
-}
-
-function copyFileWithParents(sourcePath, destinationPath) {
-  fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
-  fs.copyFileSync(sourcePath, destinationPath);
-}
-
-function syncChangedFilesFromWorktree(state) {
-  const changedFiles = Array.isArray(state.changedFiles) && state.changedFiles.length
-    ? state.changedFiles
-    : parseChangedFilesFromDiff(state.diff);
-
-  if (!changedFiles.length) {
-    throw new Error('No changed files available for file-sync fallback');
-  }
-
-  const backupRoot = path.join(MSM_REPO_ROOT, '.omc', 'apply-backups', state.id);
-  const appliedFiles = [];
-
-  for (const relativeFile of changedFiles) {
-    const { normalized, absolutePath: localPath } = ensureSafeRepoRelativePath(relativeFile);
-    const sourcePath = path.join(state.worktreePath, normalized);
-    const backupPath = path.join(backupRoot, normalized);
-
-    if (fs.existsSync(localPath)) {
-      copyFileWithParents(localPath, backupPath);
-    }
-
-    if (fs.existsSync(sourcePath)) {
-      copyFileWithParents(sourcePath, localPath);
-      appliedFiles.push(normalized);
-      continue;
-    }
-
-    if (fs.existsSync(localPath)) {
-      fs.rmSync(localPath, { force: true });
-      appliedFiles.push(normalized);
-    }
-  }
-
-  return { backupRoot, appliedFiles };
-}
-
 async function handleApprove(id) {
   const state = requests.get(id);
   if (!state || state.status !== 'preview') return null;
@@ -1848,31 +1642,20 @@ async function handleApprove(id) {
     updateRequest(id, { phase: 'applying_local_patch' });
     appendLog(id, 'PM approved, applying patch to local workspace...');
 
-    const patchPath = path.join(state.worktreePath, '.omc', `${id}.patch`);
-    fs.writeFileSync(patchPath, state.diff || '', 'utf-8');
-    try {
-      await execFileAsync('git', ['apply', '--whitespace=nowarn', patchPath], {
-        cwd: MSM_REPO_ROOT,
-        timeout: 120_000,
-        env: { ...process.env },
-      });
+    const applyResult = await productRunner.applyPatchToLocalRepo({
+      requestId: id,
+      worktreePath: state.worktreePath,
+      diff: state.diff || '',
+      changedFiles: state.changedFiles || [],
+    });
+    if (applyResult.mode === 'direct_apply') {
       appendLog(id, 'Patch applied to local workspace with direct apply');
-    } catch (directApplyError) {
-      appendLog(id, 'Direct apply failed, retrying with 3-way merge...');
-      try {
-        await execFileAsync('git', ['apply', '--3way', patchPath], {
-          cwd: MSM_REPO_ROOT,
-          timeout: 120_000,
-          env: { ...process.env },
-        });
-        appendLog(id, 'Patch applied to local workspace with 3-way merge');
-      } catch (threeWayError) {
-        appendLog(id, '3-way merge failed, syncing changed files from worktree...');
-        const { backupRoot, appliedFiles } = syncChangedFilesFromWorktree(state);
-        appendLog(id, `Copied ${appliedFiles.length} changed files from worktree`);
-        appendLog(id, `Backed up previous local files under ${backupRoot}`);
-        appendLog(id, `Apply fallback reason: ${threeWayError.message}`);
-      }
+    } else if (applyResult.mode === 'three_way') {
+      appendLog(id, 'Patch applied to local workspace with 3-way merge');
+    } else {
+      appendLog(id, '3-way merge failed, syncing changed files from worktree...');
+      appendLog(id, `Copied ${applyResult.appliedFiles?.length || 0} changed files from worktree`);
+      appendLog(id, `Backed up previous local files under ${applyResult.backupRoot}`);
     }
 
     await cleanup(id);
@@ -1903,8 +1686,7 @@ async function handleReject(id, feedback) {
 
   // Reset worktree
   if (state.worktreePath) {
-    await execAsync('git checkout -- .', { cwd: state.worktreePath });
-    await execAsync('git clean -fd', { cwd: state.worktreePath });
+    await productRunner.resetWorktree(state.worktreePath);
   }
 
   // Re-run pipeline
@@ -1931,9 +1713,7 @@ async function cleanup(id) {
     } catch { /* ignore */ }
   }
   if (state.worktreePath && fs.existsSync(state.worktreePath)) {
-    try {
-      await execAsync(`git worktree remove ${state.worktreePath} --force`, { cwd: MSM_REPO_ROOT });
-    } catch { /* ignore */ }
+    await productRunner.removeWorktree(state.worktreePath);
   }
 }
 

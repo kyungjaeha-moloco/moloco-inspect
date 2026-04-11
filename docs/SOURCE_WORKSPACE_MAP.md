@@ -93,6 +93,7 @@
 - dashboard의 runtime preview alias
 - orchestrator의 product repo / worktree / 실제 앱 실행 의존성
 - preview-kit이 호출하는 MSM Portal e2e helper script 원본
+- product-runner가 사용하는 source workspace product repo와 git metadata
 
 ## 현재 dependency boundary
 
@@ -109,5 +110,6 @@
 
 - local `design-system`은 proposal repo 안에서 직접 읽습니다
 - `preview-kit`이 preview bootstrap, runtime config, screenshot capture, route verify, copy verify contract를 감쌉니다
+- `product-runner`가 product repo, inspect worktree, local apply fallback contract를 감싸기 시작했습니다
 - orchestrator는 preview 관련 product path를 직접 계산하는 대신 adapter config를 통해 읽기 시작했습니다
 - `dashboard`와 `design-system/viewer`는 proposal repo 루트의 `msm-portal` entry를 기준으로 product runtime alias를 읽습니다

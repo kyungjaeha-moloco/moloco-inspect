@@ -1,0 +1,6 @@
+{
+  "name": "@moloco-inspect/product-runner",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0"
+}
