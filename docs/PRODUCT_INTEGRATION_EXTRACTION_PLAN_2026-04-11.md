@@ -203,6 +203,13 @@ Product-specific mock/auth bootstrap 계약 고정
 
 위 3개까지는 준비된 상태입니다.
 
+추가로 현재는 아래까지 진행된 상태입니다.
+
+- `preview-kit`이 preview bootstrap, runtime config, screenshot capture, route verify, copy verify를 adapter contract 뒤로 감쌉니다
+- orchestrator는 preview 관련 product path를 직접 계산하는 대신 adapter runtime config를 읽기 시작했습니다
+- `dashboard`와 `design-system/viewer`는 proposal repo 루트의 `msm-portal` entry를 기준으로 product alias를 읽습니다
+- `preview-kit`에는 MSM Portal adapter contract test가 추가됐습니다
+
 ## 한 줄 결론
 
 `moloco-inspect`가 다음 단계로 가려면, `msm-portal`을 많이 복사하는 것이 아니라 preview/auth/mock 흐름을 product adapter 계약으로 바꾸는 것이 먼저입니다.

@@ -7,7 +7,7 @@
 - React 문서 사이트와 운영 대시보드가 이 repo 안으로 복사되었습니다.
 - `pnpm build`가 통과합니다.
 - design-system 데이터는 이제 이 repo 안의 `../design-system/src`를 우선 읽습니다.
-- 다만 아직 완전히 독립적인 상태는 아니고, runtime preview와 실제 제품 코드는 아래 원본 workspace를 참조합니다.
+- 다만 아직 완전히 독립적인 상태는 아니고, runtime preview와 실제 제품 코드는 repo 루트의 `../msm-portal` entry를 통해 source workspace product repo를 참조합니다.
 
 기본 source workspace root:
 
@@ -44,13 +44,11 @@ pnpm install
 pnpm build
 ```
 
-## source workspace 경로
+## product repo 경로
 
-`vite.config.ts`는 `SOURCE_WORKSPACE_ROOT` 환경변수를 읽고, 없으면 기본값으로 아래를 사용합니다.
+`vite.config.ts`는 `PRODUCT_REPO_ROOT` 환경변수를 읽고, 없으면 기본값으로 repo 루트의 `../msm-portal` entry를 사용합니다.
 
-- `/Users/kyungjae.ha/Documents/Agent-Design-System`
-
-필요하면 실행 시 다른 경로로 바꿀 수 있습니다.
+필요하면 실행 시 다른 product repo 경로로 바꿀 수 있습니다.
 
 ## 다음 단계
 

@@ -4,9 +4,9 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SOURCE_WORKSPACE_ROOT =
-  process.env.SOURCE_WORKSPACE_ROOT || '/Users/kyungjae.ha/Documents/Agent-Design-System';
-const MSM_WEB = path.resolve(SOURCE_WORKSPACE_ROOT, 'msm-portal/js/msm-portal-web');
+const PRODUCT_REPO_ROOT =
+  process.env.PRODUCT_REPO_ROOT || path.resolve(__dirname, '../msm-portal');
+const MSM_WEB = path.resolve(PRODUCT_REPO_ROOT, 'js/msm-portal-web');
 const MSM_SRC = path.resolve(MSM_WEB, 'src');
 const MSM_NODE_MODULES = path.resolve(MSM_WEB, 'node_modules');
 const LOCAL_DESIGN_SYSTEM_SRC = path.resolve(__dirname, '../design-system/src');
@@ -59,7 +59,7 @@ export default defineConfig({
   server: {
     fs: {
       strict: false,
-      allow: [__dirname, MSM_SRC, MSM_NODE_MODULES, LOCAL_DESIGN_SYSTEM_SRC, SOURCE_WORKSPACE_ROOT],
+      allow: [__dirname, MSM_SRC, MSM_NODE_MODULES, LOCAL_DESIGN_SYSTEM_SRC, PRODUCT_REPO_ROOT],
     },
   },
   build: {

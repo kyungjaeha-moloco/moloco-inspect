@@ -14,14 +14,14 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@msm-portal/common/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/common/*"],
-      "@msm-portal/builder/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/app-builder/*"],
-      "@msm-portal/i18n/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/i18n/*"],
-      "@msm-portal/route/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/route/*"],
-      "@msm-portal/msm-default/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/apps/msm-default/*"],
-      "@msm-portal/tving/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/apps/tving/*"],
-      "@msm-portal/shortmax/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/apps/shortmax/*"],
-      "@msm-portal/onboard-demo/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/apps/onboard-demo/*"],
+      "@msm-portal/common/*": ["../msm-portal/js/msm-portal-web/src/common/*"],
+      "@msm-portal/builder/*": ["../msm-portal/js/msm-portal-web/src/app-builder/*"],
+      "@msm-portal/i18n/*": ["../msm-portal/js/msm-portal-web/src/i18n/*"],
+      "@msm-portal/route/*": ["../msm-portal/js/msm-portal-web/src/route/*"],
+      "@msm-portal/msm-default/*": ["../msm-portal/js/msm-portal-web/src/apps/msm-default/*"],
+      "@msm-portal/tving/*": ["../msm-portal/js/msm-portal-web/src/apps/tving/*"],
+      "@msm-portal/shortmax/*": ["../msm-portal/js/msm-portal-web/src/apps/shortmax/*"],
+      "@msm-portal/onboard-demo/*": ["../msm-portal/js/msm-portal-web/src/apps/onboard-demo/*"],
       "@source-design-system/*": ["../design-system/src/*"]
     },
     "types": ["vite/client"]

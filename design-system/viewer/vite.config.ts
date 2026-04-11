@@ -3,7 +3,9 @@ import fs from 'fs';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const MSM_WEB = path.resolve(__dirname, '../../msm-portal/js/msm-portal-web');
+const PRODUCT_REPO_ROOT =
+  process.env.PRODUCT_REPO_ROOT || path.resolve(__dirname, '../../msm-portal');
+const MSM_WEB = path.resolve(PRODUCT_REPO_ROOT, 'js/msm-portal-web');
 const MSM_SRC = path.resolve(MSM_WEB, 'src');
 const MSM_NODE_MODULES = path.resolve(MSM_WEB, 'node_modules');
 // pnpm stores transitive dependencies here
@@ -119,6 +121,7 @@ export default defineConfig({
         __dirname,
         MSM_SRC,
         MSM_NODE_MODULES,
+        PRODUCT_REPO_ROOT,
         path.resolve(__dirname, '../../'),
       ],
     },

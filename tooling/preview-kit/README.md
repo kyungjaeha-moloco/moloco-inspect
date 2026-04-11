@@ -41,6 +41,16 @@
 - `src/capture.js`
 - `src/route-verify.js`
 - `src/index.js`
+- `test/msm-portal-adapter.test.js`
+
+## 테스트
+
+기본 contract test:
+
+```bash
+cd tooling/preview-kit
+pnpm test
+```
 
 ## 원칙
 
