@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+
+# Local env
+.env
+.env.local
+
+# Screenshots and generated artifacts
+screenshots/
+attachments/
+analytics/
+
+# Editor
+.idea/
+.vscode/
