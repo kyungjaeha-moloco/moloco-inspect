@@ -11,6 +11,7 @@
 - proposal repo 루트의 `msm-portal` entry는 source workspace product repo를 가리키는 연결점입니다
 - `preview-kit`은 preview/auth/verification contract의 실행 레이어입니다
 - `product-runner`는 repo/worktree/typecheck/build/test/locale diff/apply fallback contract의 실행 레이어입니다
+- `product-execution`은 preview-kit과 product-runner를 묶어 orchestrator의 product-aware helper를 줄이는 실행 레이어입니다
 - 이후에는 source workspace 의존성을 줄이는 방향으로 운영합니다
 
 ## 이미 검증된 핵심 흐름

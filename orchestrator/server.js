@@ -17,18 +17,14 @@
 
 import http from 'node:http';
 import fs from 'node:fs';
-import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile, exec, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import {
-  createPreviewAdapter,
-} from '../tooling/preview-kit/src/index.js';
-import {
-  createProductRunner,
-} from '../tooling/product-runner/src/index.js';
+  createProductExecution,
+} from '../tooling/product-execution/src/index.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -219,18 +215,10 @@ const DEFAULT_VALIDATION_EXPECTATIONS =
     'typecheck',
     'preview_screenshot',
   ];
-const previewAdapter = createPreviewAdapter('msm-portal');
-const productRunner = createProductRunner('msm-portal', {
+const productExecution = createProductExecution('msm-portal', {
   repoRoot: DEFAULT_PRODUCT_REPO_ROOT,
   worktreeBase: WORKTREE_BASE,
 });
-
-function getPreviewRuntimeConfig(worktreePath) {
-  return previewAdapter.createRuntimeConfig({
-    repoRoot: productRunner.repoRoot,
-    worktreePath,
-  });
-}
 
 // ─── State ────────────────────────────────────────────────────────────
 
@@ -306,7 +294,7 @@ function toRepoRelativePath(filePath) {
   }
 
   const normalizedPath = path.normalize(filePath.trim());
-  const relativeToRepo = path.relative(productRunner.repoRoot, normalizedPath);
+  const relativeToRepo = path.relative(productExecution.repoRoot, normalizedPath);
 
   if (!relativeToRepo.startsWith('..') && !path.isAbsolute(relativeToRepo)) {
     return relativeToRepo;
@@ -788,8 +776,7 @@ function getPreviewClient(payload) {
 }
 
 function getPreviewContext(payload) {
-  const client = getPreviewClient(payload);
-  return previewAdapter.buildPreviewContext({ payload, client });
+  return productExecution.getPreviewContext(payload);
 }
 
 function isTextChangeRequest(payload) {
@@ -835,305 +822,38 @@ function verifyLocaleAlignment(payload, changedFiles) {
   };
 }
 
-function getChangeIntent(payload) {
-  return payload?.requestContract?.change_intent || inferChangeIntentFromPrompt(payload);
-}
-
-function isCopyChangeRequest(payload) {
-  return getChangeIntent(payload) === 'copy_update' || isTextChangeRequest(payload);
-}
-
-function extractTranslationNamespacesFromFile(worktreePath, relativeFile) {
-  if (!relativeFile) return [];
-
-  const absolutePath = path.join(worktreePath, relativeFile);
-  if (!fs.existsSync(absolutePath)) return [];
-  const source = fs.readFileSync(absolutePath, 'utf8');
-  const matches = Array.from(source.matchAll(/useTranslation\(\s*['"`]([^'"`]+)['"`]\s*\)/g));
-  return Array.from(new Set(matches.map((match) => match[1]).filter(Boolean)));
-}
-
-function collectCopyChangeContext({ payload, changedFiles, worktreePath }) {
-  const targetFile =
-    payload?.requestContract?.target?.selection_context?.source_file ||
-    payload?.file ||
-    null;
-  const namespaces = extractTranslationNamespacesFromFile(worktreePath, targetFile);
-  const { localeFiles, changedEntries } = productRunner.collectLocaleStringChanges({
-    worktreePath,
-    changedFiles,
-  });
-
-  const namespaceChanges = namespaces.length
-    ? changedEntries.filter((entry) =>
-        namespaces.some((namespace) => entry.path === namespace || entry.path.startsWith(`${namespace}.`)),
-      )
-    : [];
-
-  const visibleTextCandidates = Array.from(
-    new Set(
-      namespaceChanges
-        .map((entry) => String(entry.after || '').trim())
-        .filter(Boolean),
-    ),
-  );
-
-  return {
-    targetFile,
-    namespaces,
-    localeFiles,
-    changedEntries,
-    namespaceChanges,
-    visibleTextCandidates,
-  };
-}
-
-function getValidationExpectations(payload) {
-  return Array.isArray(payload?.requestContract?.validation_expectations)
-    ? payload.requestContract.validation_expectations
-    : [];
-}
-
 function shouldRunProductBuild({ payload, changedFiles }) {
-  if (!changedFiles.some((file) => previewAdapter.isProductFile(file))) {
-    return false;
-  }
-
-  const expectations = getValidationExpectations(payload);
-  if (expectations.includes('build') || expectations.includes('product_build')) {
-    return true;
-  }
-
-  return changedFiles.some((file) =>
-    /\/src\/(app-builder\/route|route\/|apps\/[^/]+\/page\/|apps\/[^/]+\/config\/layout)/.test(file),
-  );
+  return productExecution.shouldRunBuild({ payload, changedFiles });
 }
 
 function shouldRunProductTests({ payload, changedFiles }) {
-  if (!changedFiles.some((file) => previewAdapter.isProductFile(file))) {
-    return false;
-  }
-
-  const expectations = getValidationExpectations(payload);
-  if (expectations.includes('test') || expectations.includes('tests') || expectations.includes('product_test')) {
-    return true;
-  }
-
-  return changedFiles.some((file) => /\.(test|spec)\.(ts|tsx)$/.test(file));
+  return productExecution.shouldRunTests({ payload, changedFiles });
 }
 
 function verifyCopyNamespaceAlignment({ payload, changedFiles, worktreePath }) {
-  if (!isCopyChangeRequest(payload)) {
-    return { ok: true, message: 'Copy verification skipped (intent is not copy_update)' };
-  }
-
-  const context = collectCopyChangeContext({ payload, changedFiles, worktreePath });
-
-  if (!context.targetFile) {
-    return {
-      ok: true,
-      message: 'Copy namespace verification skipped (no source file hint available)',
-      context,
-    };
-  }
-
-  if (!context.namespaces.length) {
-    return {
-      ok: true,
-      message: 'Copy namespace verification skipped (target file has no explicit useTranslation namespace)',
-      context,
-    };
-  }
-
-  if (!context.localeFiles.length) {
-    return {
-      ok: true,
-      message: `Copy namespace verification passed (no locale assets changed; target namespaces: ${context.namespaces.join(', ')})`,
-      context,
-    };
-  }
-
-  if (!context.namespaceChanges.length) {
-    return {
-      ok: false,
-      message: `Copy namespace verification failed: locale changes did not touch namespaces used by ${path.basename(context.targetFile)} (${context.namespaces.join(', ')})`,
-      context,
-    };
-  }
-
-  return {
-    ok: true,
-    message: `Copy namespace verification passed for ${context.namespaces.join(', ')}`,
-    context,
-  };
+  return productExecution.verifyCopyNamespaceAlignment({
+    payload,
+    changedFiles,
+    worktreePath,
+  });
 }
 
 async function verifyCopyVisibleOnRoute({ payload, previewUrl, worktreePath, visibleTextCandidates }) {
-  if (!isCopyChangeRequest(payload)) {
-    return { ok: true, message: 'Copy visibility verification skipped (intent is not copy_update)' };
-  }
-  return await previewAdapter.verifyCopyVisible({
-    runtimeConfig: getPreviewRuntimeConfig(worktreePath),
+  return await productExecution.verifyCopyVisibleOnRoute({
+    payload,
     previewUrl,
-    expectedLanguage: getPreviewContext(payload).language || '',
-    candidates: visibleTextCandidates,
+    worktreePath,
+    visibleTextCandidates,
   });
-}
-
-async function getAvailablePort() {
-  return await new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.unref();
-    server.on('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        server.close(() => reject(new Error('Failed to allocate preview port')));
-        return;
-      }
-      const { port } = address;
-      server.close((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(port);
-      });
-    });
-  });
-}
-
-function ensureWorktreeNodeModules(worktreePath) {
-  const runtimeConfig = getPreviewRuntimeConfig(worktreePath);
-  const worktreeNodeModules = runtimeConfig.worktreeNodeModulesPath;
-  const sourceNodeModules = runtimeConfig.sourceNodeModulesPath;
-
-  if (fs.existsSync(worktreeNodeModules)) {
-    return;
-  }
-
-  fs.symlinkSync(sourceNodeModules, worktreeNodeModules, process.platform === 'win32' ? 'junction' : 'dir');
-}
-
-async function waitForServerReady(url, getEarlyError, timeoutMs = 45_000) {
-  const startedAt = Date.now();
-  let lastError = null;
-
-  while (Date.now() - startedAt < timeoutMs) {
-    const earlyError = typeof getEarlyError === 'function' ? getEarlyError() : null;
-    if (earlyError) {
-      throw earlyError;
-    }
-
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        redirect: 'manual',
-        signal: AbortSignal.timeout(4000),
-      });
-      if (response.ok || response.status === 302 || response.status === 404) {
-        return;
-      }
-      lastError = new Error(`Server responded with status ${response.status}`);
-    } catch (error) {
-      lastError = error;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  throw lastError || new Error(`Timed out waiting for preview server at ${url}`);
 }
 
 async function capturePreviewScreenshot({ id, worktreePath, payload }) {
-  const previewContext = getPreviewContext(payload);
-  const runtimeConfig = getPreviewRuntimeConfig(worktreePath);
-  const client = previewContext.client;
-  const expectedLanguage = previewContext.language;
-  const route = previewContext.bootstrapRoute;
-  const previewMode = 'test';
-  const port = await getAvailablePort();
-  const screenshotPath = path.join(SCREENSHOTS_DIR, `${id}.png`);
-  const previewUrl = `http://127.0.0.1:${port}${route}`;
-  ensureWorktreeNodeModules(worktreePath);
-
-  const previewServer = spawn(
-      'pnpm',
-      [
-        'exec',
-        'vite',
-        '--mode',
-        previewMode,
-        '--host',
-        '127.0.0.1',
-        '--strictPort',
-        '--port',
-      String(port),
-      '--config',
-      runtimeConfig.viteConfigPath,
-    ],
-    {
-      cwd: runtimeConfig.worktreeAppRoot,
-      env: {
-        ...process.env,
-        CLIENT: client,
-        MODE: previewMode,
-        PORT: String(port),
-        COREPACK_ENABLE_AUTO_PIN: '0',
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  );
-
-  let serverLogs = '';
-  let previewExitError = null;
-  const collectServerLog = (chunk) => {
-    serverLogs += chunk.toString();
-    serverLogs = serverLogs.slice(-4000);
-  };
-
-  previewServer.stdout.on('data', collectServerLog);
-  previewServer.stderr.on('data', collectServerLog);
-  previewServer.on('close', (code, signal) => {
-    if (code === 0 || signal === 'SIGTERM' || signal === 'SIGKILL') {
-      return;
-    }
-    previewExitError = new Error(`Preview server exited early with code ${code ?? 'unknown'}`);
+  return await productExecution.capturePreviewScreenshot({
+    id,
+    worktreePath,
+    payload,
+    screenshotsDir: SCREENSHOTS_DIR,
   });
-
-  try {
-    await waitForServerReady(`http://127.0.0.1:${port}/`, () => previewExitError);
-    const { stdout } = await previewAdapter.captureScreenshot({
-      runtimeConfig,
-      previewUrl,
-      screenshotPath,
-      expectedLanguage,
-      client,
-    });
-    return { screenshotPath, previewUrl, previewServer, screenshotStdout: stdout };
-  } catch (error) {
-    previewServer.kill('SIGTERM');
-    await new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        previewServer.kill('SIGKILL');
-        resolve();
-      }, 3000);
-      previewServer.once('close', () => {
-        clearTimeout(timer);
-        resolve();
-      });
-    });
-    const logTail = serverLogs
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .slice(-8)
-      .join(' | ');
-    if (logTail) {
-      throw new Error(`Screenshot failed: ${error.message} [preview logs: ${logTail}]`);
-    }
-    throw new Error(`Screenshot failed: ${error.message}`);
-  }
 }
 
 async function runCodexCommand({ id, worktreePath, promptInputPath, agentOutputPath, targetFile }) {
@@ -1305,7 +1025,7 @@ async function runPipeline(id) {
     updateRequest(id, { status: 'processing', phase: 'creating_worktree' });
     appendLog(id, 'Creating git worktree...');
 
-    const worktreeInfo = await productRunner.createWorktree({
+    const worktreeInfo = await productExecution.createWorktree({
       requestId: id,
       initialBranch: state.branch,
     });
@@ -1318,14 +1038,14 @@ async function runPipeline(id) {
     updateRequest(id, { worktreePath });
     appendLog(id, `Worktree created at ${worktreePath}`);
 
-    const workspaceSync = await productRunner.syncLocalChangesIntoWorktree(worktreePath);
+    const workspaceSync = await productExecution.syncLocalChangesIntoWorktree(worktreePath);
     if (workspaceSync.totalChanged) {
       appendLog(
         id,
         `Synced local workspace changes into worktree (copied ${workspaceSync.copiedCount}, removed ${workspaceSync.removedCount})`,
       );
 
-      const baselineCommitted = await productRunner.commitBaseline(worktreePath);
+      const baselineCommitted = await productExecution.commitBaseline(worktreePath);
       if (baselineCommitted) {
         appendLog(id, 'Committed local workspace baseline inside inspect worktree');
       }
@@ -1413,7 +1133,7 @@ async function runPipeline(id) {
       updateRequest(id, { phase: 'validating' });
       const filesForValidation = changedFiles
         .filter((file) => file.endsWith('.ts') || file.endsWith('.tsx'))
-        .filter((file) => previewAdapter.isProductSourceFile(file));
+        .filter((file) => productExecution.isProductSourceFile(file));
 
       if (filesForValidation.length) {
         appendLog(id, `Validating ${filesForValidation.length} changed TypeScript files...`);
@@ -1428,17 +1148,17 @@ async function runPipeline(id) {
         appendLog(id, 'Design-system validation skipped (no changed TypeScript files)');
       }
 
-      const changedMsmWebFiles = changedFiles.some((file) => previewAdapter.isProductFile(file));
+      const changedMsmWebFiles = changedFiles.some((file) => productExecution.isProductFile(file));
       if (changedMsmWebFiles) {
         appendLog(id, 'Running msm-portal-web typecheck...');
-        await productRunner.runTypecheck({ worktreePath });
+        await productExecution.runTypecheck({ worktreePath });
         appendLog(id, 'Typecheck passed');
       }
 
       if (shouldRunProductBuild({ payload: state.payload, changedFiles })) {
         updateRequest(id, { phase: 'running_build' });
         appendLog(id, 'Running msm-portal-web build (policy matched)...');
-        await productRunner.runBuild({
+        await productExecution.runBuild({
           worktreePath,
           client: state.payload?.client || 'msm-default',
           mode: 'test',
@@ -1451,7 +1171,7 @@ async function runPipeline(id) {
       if (shouldRunProductTests({ payload: state.payload, changedFiles })) {
         updateRequest(id, { phase: 'running_tests' });
         appendLog(id, 'Running msm-portal-web tests (policy matched)...');
-        await productRunner.runTests({ worktreePath });
+        await productExecution.runTests({ worktreePath });
         appendLog(id, 'Tests passed');
       } else {
         appendLog(id, 'Tests skipped (policy not matched)');
@@ -1485,7 +1205,7 @@ async function runPipeline(id) {
     // Step 6: Screenshot preview + verification
     try {
       if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
-      const changedMsmWebFiles = changedFiles.some((file) => previewAdapter.isProductFile(file));
+      const changedMsmWebFiles = changedFiles.some((file) => productExecution.isProductFile(file));
       if (!changedMsmWebFiles) {
         appendLog(id, 'Screenshot skipped (no msm-portal-web changes)');
       } else {
@@ -1514,17 +1234,15 @@ async function runPipeline(id) {
 
         state.previewServer = previewResult.previewServer;
         const previewContext = getPreviewContext(state.payload);
-        const runtimeConfig = getPreviewRuntimeConfig(worktreePath);
         updateRequest(id, {
           screenshotPath: previewResult.screenshotPath,
           previewUrl: previewResult.previewUrl,
         });
         appendLog(id, `Screenshot captured: ${path.basename(previewResult.screenshotPath)}`);
-        const routeVerification = await previewAdapter.verifyRoute({
-          runtimeConfig,
+        const routeVerification = await productExecution.verifyRoute({
           previewUrl: previewResult.previewUrl,
-          expectedLanguage: previewContext.language,
-          client: previewContext.client,
+          worktreePath,
+          payload: state.payload,
         });
         if (!routeVerification.ok) {
           throw new Error(routeVerification.message);
@@ -1642,7 +1360,7 @@ async function handleApprove(id) {
     updateRequest(id, { phase: 'applying_local_patch' });
     appendLog(id, 'PM approved, applying patch to local workspace...');
 
-    const applyResult = await productRunner.applyPatchToLocalRepo({
+    const applyResult = await productExecution.applyPatchToLocalRepo({
       requestId: id,
       worktreePath: state.worktreePath,
       diff: state.diff || '',
@@ -1686,7 +1404,7 @@ async function handleReject(id, feedback) {
 
   // Reset worktree
   if (state.worktreePath) {
-    await productRunner.resetWorktree(state.worktreePath);
+    await productExecution.resetWorktree(state.worktreePath);
   }
 
   // Re-run pipeline
@@ -1713,7 +1431,7 @@ async function cleanup(id) {
     } catch { /* ignore */ }
   }
   if (state.worktreePath && fs.existsSync(state.worktreePath)) {
-    await productRunner.removeWorktree(state.worktreePath);
+    await productExecution.removeWorktree(state.worktreePath);
   }
 }
 
@@ -1762,7 +1480,7 @@ const server = http.createServer(async (req, res) => {
       ok: true,
       requests: requests.size,
       workspaceRoot: WORKSPACE_ROOT,
-      repoRoot: productRunner.repoRoot,
+      repoRoot: productExecution.repoRoot,
       designSystemRoot: DESIGN_SYSTEM_ROOT,
       model: CODEX_MODEL,
     });
@@ -1945,7 +1663,7 @@ ensureAnalyticsStorage();
 server.listen(PORT, () => {
   console.log(`[Orchestrator] Listening on http://localhost:${PORT}`);
   console.log(`[Orchestrator] Workspace root: ${WORKSPACE_ROOT}`);
-  console.log(`[Orchestrator] Repo root: ${productRunner.repoRoot}`);
+  console.log(`[Orchestrator] Repo root: ${productExecution.repoRoot}`);
   console.log(`[Orchestrator] Design system root: ${DESIGN_SYSTEM_ROOT}`);
   console.log(`[Orchestrator] Model: ${CODEX_MODEL}`);
   console.log(`[Orchestrator] Worktrees: ${WORKTREE_BASE}`);
