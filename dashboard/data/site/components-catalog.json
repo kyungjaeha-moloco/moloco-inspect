@@ -1,0 +1,2051 @@
+{
+  "meta": {
+    "generatedAt": "2026-04-10",
+    "description": "Visual-doc snapshot generated from design-system/src/components.json",
+    "totalCategories": 15,
+    "totalComponents": 84,
+    "tierNames": {
+      "1": {
+        "name": "Core",
+        "description": "Atomic/molecule UI primitives reusable across any feature",
+        "criteria": "Is this component directly importable by page developers and reusable across any feature or page?"
+      },
+      "2": {
+        "name": "Composite",
+        "description": "Page-level compositions from Core components",
+        "criteria": "Does this component compose multiple Core components into a page-level pattern (layout, table, navigation)?"
+      },
+      "3": {
+        "name": "Domain",
+        "description": "MSM Portal domain-specific components",
+        "criteria": "Is this component only meaningful within a specific business domain (e.g., ad scheduling, video creative)?"
+      },
+      "4": {
+        "name": "Internal",
+        "description": "Styled components, enums, low-level helpers",
+        "criteria": "Is this component used internally by other components and not directly imported by page developers?"
+      }
+    }
+  },
+  "categories": [
+    {
+      "name": "Form Inputs (v1)",
+      "description": "All form components use Formik via useField(name). Must be used inside a <Formik> context.",
+      "count": 17,
+      "components": [
+        {
+          "name": "MCFormTextInput",
+          "description": "Text input with Formik integration. Shows error after touch.",
+          "shortDescription": "Single-line text input with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/input/MCFormTextInput",
+          "path": "form/v1/input/MCFormTextInput.tsx",
+          "formikRequired": true,
+          "propCount": 11,
+          "whenToUse": [
+            "Single-line text input inside Formik forms",
+            "When field-level validation with error display is needed",
+            "Text fields with label, tooltip, and hint support",
+            "Readonly text display within a form context"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context — use MCSingleTextInput instead",
+            "For multi-line text — use MCFormTextArea",
+            "For numeric input — use MCFormNumberInput"
+          ],
+          "example": "import MCFormTextInput from '@msm-portal/common/component/form/v1/input/MCFormTextInput';\n\n<MCFormTextInput\n  name=\"title\"\n  fieldLabel=\"Campaign Title\"\n  required\n  tooltip=\"Max 100 characters\"\n  hint=\"Used as the display name\"\n/>"
+        },
+        {
+          "name": "MCFormTextArea",
+          "description": "Multi-line text input with Formik integration.",
+          "shortDescription": "Multi-line text input with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/input/MCFormTextArea",
+          "path": "form/v1/input/MCFormTextArea.tsx",
+          "formikRequired": true,
+          "propCount": 5,
+          "whenToUse": [
+            "Multi-line text input inside Formik forms (descriptions, notes, comments)",
+            "When users need to enter paragraphs or freeform text",
+            "Text fields requiring more than one line of input"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context — use MCSingleTextArea instead",
+            "For single-line inputs — use MCFormTextInput",
+            "For rich text editing — this is plain text only"
+          ],
+          "example": "<MCFormTextArea name=\"description\" fieldLabel=\"Description\" required />"
+        },
+        {
+          "name": "MCFormNumberInput",
+          "description": "Numeric input with Formik integration. Converts string to parseFloat internally.",
+          "shortDescription": "Numeric input with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/input/MCFormNumberInput",
+          "path": "form/v1/input/MCFormNumberInput.tsx",
+          "formikRequired": true,
+          "propCount": 4,
+          "whenToUse": [
+            "Numeric value entry inside Formik forms (budget, count, percentage)",
+            "When the value must be stored as a number rather than a string",
+            "Numeric fields with automatic parseFloat conversion"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For phone numbers or zip codes — use MCFormTextInput (these are string-formatted)",
+            "For frequency caps with optional toggle — use MCFormOptionalFrequencyInput"
+          ],
+          "example": "<MCFormNumberInput name=\"budget\" fieldLabel=\"Daily Budget\" required />"
+        },
+        {
+          "name": "MCFormCheckBox",
+          "description": "Checkbox with Formik integration.",
+          "shortDescription": "Checkbox with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/checkbox/MCFormCheckBox",
+          "path": "form/v1/checkbox/MCFormCheckBox.tsx",
+          "formikRequired": true,
+          "propCount": 5,
+          "whenToUse": [
+            "Boolean on/off choices inside Formik forms (agree to terms, opt-in)",
+            "Multi-select from a small set of options using multiple checkboxes",
+            "When non-exclusive selection is needed within a form"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For mutually exclusive options — use MCFormRadioGroup",
+            "For immediate toggle actions — use MCFormSwitchInput"
+          ],
+          "example": "<MCFormCheckBox name=\"agreeToTerms\" fieldLabel=\"I agree to terms\" required />"
+        },
+        {
+          "name": "MCFormSwitchInput",
+          "description": "Toggle switch with Formik integration.",
+          "shortDescription": "Toggle switch with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/input/MCFormSwitchInput",
+          "path": "form/v1/input/MCFormSwitchInput.tsx",
+          "formikRequired": true,
+          "propCount": 2,
+          "whenToUse": [
+            "Immediate binary toggle actions inside Formik forms (enable/disable feature)",
+            "When the state change is conceptually 'on/off' rather than 'checked/unchecked'"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "Inside form submission flows where checked state matters — use MCFormCheckBox instead",
+            "For multi-option selection — use MCFormCheckBox or MCFormMultiRichSelect"
+          ],
+          "example": "<MCFormSwitchInput name=\"isEnabled\" fieldLabel=\"Enable feature\" />"
+        },
+        {
+          "name": "MCFormRadioGroup",
+          "description": "Radio button group with Formik integration.",
+          "shortDescription": "Radio button group with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/radio/MCFormRadioGroup",
+          "path": "form/v1/radio/MCFormRadioGroup.tsx",
+          "formikRequired": true,
+          "propCount": 5,
+          "whenToUse": [
+            "Mutually exclusive choice from 2-5 options inside Formik forms",
+            "When all options should be visible at once (not hidden in a dropdown)",
+            "Selection fields like payment type, plan tier with few options"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For more than 5 options — use MCFormSingleRichSelect",
+            "For non-exclusive choices — use MCFormCheckBox"
+          ],
+          "example": "<MCFormRadioGroup\n  name=\"paymentType\"\n  fieldLabel=\"Payment Type\"\n  direction=\"row\"\n  options={[\n    { label: 'CPC', value: 'cpc' },\n    { label: 'CPM', value: 'cpm' },\n  ]}\n/>"
+        },
+        {
+          "name": "MCFormSingleRichSelect",
+          "description": "Single-select dropdown with Formik integration. Generic over value type.",
+          "shortDescription": "Single-select dropdown with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/select/MCFormSingleRichSelect",
+          "path": "form/v1/select/MCFormSingleRichSelect.tsx",
+          "formikRequired": true,
+          "propCount": 6,
+          "whenToUse": [
+            "Single selection from 5+ options inside Formik forms",
+            "Dropdown selection for status, category, or entity type fields",
+            "When options are too many to display as radio buttons"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For 2-3 options — use MCFormRadioGroup for better visibility",
+            "For multiple selection — use MCFormMultiRichSelect"
+          ],
+          "example": "<MCFormSingleRichSelect<string>\n  name=\"status\"\n  fieldLabel=\"Status\"\n  required\n  options={statusOptions}\n/>"
+        },
+        {
+          "name": "MCFormMultiRichSelect",
+          "description": "Multi-select dropdown with Formik integration. Generic over value type.",
+          "shortDescription": "Multi-select dropdown with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/select/MCFormMultiRichSelect",
+          "path": "form/v1/select/MCFormMultiRichSelect.tsx",
+          "formikRequired": true,
+          "propCount": 4,
+          "whenToUse": [
+            "Multiple selection from a large option set inside Formik forms",
+            "Tag-style selection where users pick several values from a dropdown",
+            "When selected values need to be displayed as chips or a count"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For single selection — use MCFormSingleRichSelect",
+            "For inline chip display with fewer options — use MCFormInlineChipRichSelect"
+          ],
+          "example": "<MCFormMultiRichSelect<string>\n  name=\"tags\"\n  fieldLabel=\"Tags\"\n  options={tagOptions}\n/>"
+        },
+        {
+          "name": "MCFormCardSelect",
+          "description": "Card-based visual selector with Formik integration.",
+          "shortDescription": "Card-based visual selector with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/select/MCFormCardSelect",
+          "path": "form/v1/select/MCFormCardSelect.tsx",
+          "formikRequired": true,
+          "propCount": 3,
+          "whenToUse": [
+            "Visual selection with descriptions inside Formik forms (plan type, template)",
+            "When each option needs a label and description for clarity",
+            "Mutually exclusive choice where visual emphasis aids decision-making"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For simple text-only options — use MCFormRadioGroup",
+            "For more than 6 options — use MCFormSingleRichSelect dropdown"
+          ],
+          "example": "<MCFormCardSelect\n  name=\"planType\"\n  fieldLabel=\"Plan Type\"\n  options={[\n    { label: 'Basic', value: 'basic', description: 'Entry level plan' },\n  ]}\n/>"
+        },
+        {
+          "name": "MCFormInlineChipRichSelect",
+          "description": "Chip-style multi-select rendered inline. Selected values appear as removable chips.",
+          "shortDescription": "Chip-style multi-select with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/select/MCFormInlineChipRichSelect",
+          "path": "form/v1/select/MCFormInlineChipRichSelect.tsx",
+          "formikRequired": true,
+          "propCount": 6,
+          "whenToUse": [
+            "Multi-select where selected values should be visible as inline chips",
+            "When space is limited and a full dropdown would be too heavy",
+            "Inline tag-like selection for small to medium option sets (up to 10)"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For single selection — use MCFormSingleRichSelect",
+            "For more than 10 options — use MCFormMultiRichSelect with dropdown"
+          ],
+          "example": "<MCFormInlineChipRichSelect<string>\n  name=\"targetCountries\"\n  fieldLabel=\"Target Countries\"\n  required\n  options={countryOptions}\n/>"
+        },
+        {
+          "name": "MCFormDateRangePicker",
+          "description": "Date range picker with Formik integration.",
+          "shortDescription": "Date range picker with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/input/MCFormDateRangePicker",
+          "path": "form/v1/input/MCFormDateRangePicker.tsx",
+          "formikRequired": true,
+          "propCount": 3,
+          "whenToUse": [
+            "Date range selection inside Formik forms (campaign periods, report date ranges)",
+            "When users need to pick a start and end date without time"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For date + time ranges — use MCFormDateTimeRangePicker",
+            "For single date selection — check if a single date picker exists"
+          ],
+          "example": "<MCFormDateRangePicker name=\"campaignPeriod\" fieldLabel=\"Campaign Period\" required />"
+        },
+        {
+          "name": "MCFormDateTimeRangePicker",
+          "description": "Date + time range picker with Formik integration. Combines date and time selection for start/end range.",
+          "shortDescription": "DateTime range picker with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/input/MCFormDateTimeRangePicker",
+          "path": "form/v1/input/MCFormDateTimeRangePicker.tsx",
+          "formikRequired": true,
+          "propCount": 5,
+          "whenToUse": [
+            "Scheduling with both date and time inside Formik forms (campaign scheduling, event windows)",
+            "When users need to select start/end date AND start/end time",
+            "Time-precise range selection for ad delivery or scheduling"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For date-only ranges — use MCFormDateRangePicker",
+            "For single datetime selection — check if a single datetime picker exists"
+          ],
+          "example": "<MCFormDateTimeRangePicker name=\"schedulePeriod\" fieldLabel=\"Schedule Period\" required />"
+        },
+        {
+          "name": "MCFormColorInput",
+          "description": "Color picker with hex input and Formik integration. Shows a color swatch preview and accepts hex color codes.",
+          "shortDescription": "Color picker input with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/input/MCFormColorInput",
+          "path": "form/v1/input/MCFormColorInput.tsx",
+          "formikRequired": true,
+          "propCount": 4,
+          "whenToUse": [
+            "Brand color configuration inside Formik forms (theme customization, branding)",
+            "When users need to enter a hex color code with visual preview"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For predefined color selection from a list — use MCFormSingleRichSelect with color swatches",
+            "For non-color text input — use MCFormTextInput"
+          ],
+          "example": "<MCFormColorInput name=\"brandColor\" fieldLabel=\"Brand Color\" required />"
+        },
+        {
+          "name": "MCFormChipInput",
+          "description": "Text input that creates chips on Enter or comma. Formik integrated. Stores values as string array.",
+          "shortDescription": "Tag/chip input with Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/input/MCFormChipInput",
+          "path": "form/v1/input/MCFormChipInput.tsx",
+          "formikRequired": true,
+          "propCount": 6,
+          "whenToUse": [
+            "Free-form tag/keyword input inside Formik forms (tags, keywords, email lists)",
+            "When users type values and confirm them as chips via Enter or comma",
+            "String array fields where values are entered one at a time"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For predefined option selection — use MCFormMultiRichSelect",
+            "For single string values — use MCFormTextInput"
+          ],
+          "example": "<MCFormChipInput\n  name=\"keywords\"\n  fieldLabel=\"Keywords\"\n  hint=\"Press Enter or comma to add\"\n  placeholder=\"Type a keyword...\"\n/>"
+        },
+        {
+          "name": "MCFormWeeklyTimeTablePicker",
+          "description": "Grid-based weekly schedule picker (day × hour slots). Formik integrated. Click or drag to select time slots.",
+          "shortDescription": "Weekly schedule picker with Formik binding",
+          "status": "stable",
+          "tier": 3,
+          "tierName": "Domain",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/input/MCFormWeeklyTimeTablePicker",
+          "path": "form/v1/input/MCFormWeeklyTimeTablePicker.tsx",
+          "formikRequired": true,
+          "propCount": 4,
+          "whenToUse": [
+            "Weekly ad scheduling (dayparting) inside Formik forms",
+            "When users need to select multiple day-hour time slots on a grid",
+            "Recurring weekly schedule configuration"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For single time slot selection — use a time picker",
+            "For date-specific scheduling — use MCFormDateTimeRangePicker"
+          ],
+          "example": "<MCFormWeeklyTimeTablePicker\n  name=\"adSchedule\"\n  fieldLabel=\"Ad Schedule\"\n  tooltip=\"Select hours when ads should run\"\n/>"
+        },
+        {
+          "name": "MCFormOptionalFrequencyInput",
+          "description": "Frequency cap input with optional toggle. Formik integrated. Toggle enables/disables the frequency limit.",
+          "shortDescription": "Optional frequency input with Formik binding",
+          "status": "stable",
+          "tier": 3,
+          "tierName": "Domain",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/input/MCFormOptionalFrequencyInput",
+          "path": "form/v1/input/MCFormOptionalFrequencyInput.tsx",
+          "formikRequired": true,
+          "propCount": 4,
+          "whenToUse": [
+            "Optional frequency capping inside Formik forms (impression cap per user)",
+            "When a numeric limit needs an enable/disable toggle",
+            "Conditional numeric input that can be toggled on or off"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For required numeric input without toggle — use MCFormNumberInput",
+            "For simple boolean toggle without numeric value — use MCFormSwitchInput"
+          ],
+          "example": "<MCFormOptionalFrequencyInput\n  name=\"frequencyCap\"\n  fieldLabel=\"Frequency Cap\"\n  tooltip=\"Limit impressions per user per day\"\n/>"
+        },
+        {
+          "name": "MCFormSkippableVideoInput",
+          "description": "Video URL input with skippable option toggle. Formik integrated. Combines URL text input with a skip toggle.",
+          "shortDescription": "Video skip time input with Formik binding",
+          "status": "stable",
+          "tier": 3,
+          "tierName": "Domain",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/input/MCFormSkippableVideoInput",
+          "path": "form/v1/input/MCFormSkippableVideoInput.tsx",
+          "formikRequired": true,
+          "propCount": 4,
+          "whenToUse": [
+            "Video ad creative URL input inside Formik forms",
+            "When a video URL needs a paired skippable toggle option",
+            "Video creative configuration in ad creation flows"
+          ],
+          "doNotUse": [
+            "Outside <Formik> context",
+            "For non-video URLs — use MCFormTextInput",
+            "For video upload — this is URL-only, not a file upload component"
+          ],
+          "example": "<MCFormSkippableVideoInput\n  name=\"videoCreative\"\n  fieldLabel=\"Video Creative URL\"\n  required\n/>"
+        }
+      ]
+    },
+    {
+      "name": "Standalone Inputs",
+      "description": "Reusable input-like components that are not tied to Formik but are still part of the shared Portal contract.",
+      "count": 2,
+      "components": [
+        {
+          "name": "MCRadioGroup",
+          "description": "Controlled radio group for non-Formik usage. Composes MCFormField, MCFormFieldLabel, and Moloco radio inputs.",
+          "shortDescription": "Standalone radio group without Formik binding",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/form/v1/radio/MCRadioGroup",
+          "path": "form/v1/radio/MCRadioGroup.tsx",
+          "formikRequired": false,
+          "propCount": 9,
+          "whenToUse": [
+            "Mutually exclusive option selection outside Formik forms",
+            "Custom controlled filters or settings panels that still need MC form styling",
+            "When a field needs label, tooltip, and inline error composition without Formik"
+          ],
+          "doNotUse": [
+            "Inside <Formik> forms — use MCFormRadioGroup",
+            "For multi-select choices — use checkbox-based components",
+            "For long option lists — use a select or rich select"
+          ],
+          "example": "<MCRadioGroup\n  value={selectedStatus}\n  options={[{ label: 'Active', value: 'active' }, { label: 'Paused', value: 'paused' }]}\n  onChange={setSelectedStatus}\n  label=\"Status\"\n/>"
+        },
+        {
+          "name": "MCColorPicker",
+          "description": "Popover-based RGBA color picker with swatch preview, hex display, and optional alpha control.",
+          "shortDescription": "Standalone popover color picker",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "input",
+          "importPath": "@msm-portal/common/component/color/MCColorPicker",
+          "path": "color/MCColorPicker.tsx",
+          "formikRequired": false,
+          "propCount": 6,
+          "whenToUse": [
+            "Color selection outside Formik-managed fields",
+            "Places that need a preview swatch plus RGBA/hex feedback",
+            "Settings UIs that open a lightweight picker popover instead of a full dialog"
+          ],
+          "doNotUse": [
+            "Inside standard Formik fields — use MCFormColorInput when possible",
+            "For fixed palette choices — use a finite select/grid instead of free color picking",
+            "For read-only status color display — render a swatch or label without picker affordance"
+          ],
+          "example": "<MCColorPicker\n  color={brandColor}\n  onChange={setBrandColor}\n  colorPickerTitle=\"Brand color\"\n/>"
+        }
+      ]
+    },
+    {
+      "name": "Form Shared",
+      "description": "Shared building blocks used by form input components. Import from '@msm-portal/common/component/form/shared'.",
+      "count": 2,
+      "components": [
+        {
+          "name": "MCFormFieldLabel",
+          "description": "Form field label with optional/required state, tooltip, and description.",
+          "shortDescription": "Form field label with tooltip support",
+          "status": "stable",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared/MCFormFieldLabel",
+          "path": "form/shared/MCFormFieldLabel.tsx",
+          "formikRequired": false,
+          "propCount": 6,
+          "whenToUse": [
+            "Labeling any form input with optional/required indicator",
+            "When a field needs a tooltip icon or sub-description below the label",
+            "Building custom form fields that need consistent label styling"
+          ],
+          "doNotUse": [
+            "For standalone headings — use MCFormPanelTitle or MCFormTitle",
+            "When using MCFormTextInput or other v1 form components — they render labels internally"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormTooltip",
+          "description": "Info icon that shows a markdown tooltip on hover.",
+          "shortDescription": "Markdown tooltip for form fields",
+          "status": "stable",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared/MCFormTooltip",
+          "path": "form/shared/MCFormTooltip.tsx",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Adding contextual help text to form fields via an info icon",
+            "When supplemental information should be available on hover without cluttering the UI"
+          ],
+          "doNotUse": [
+            "For inline help text — use the hint prop on form inputs instead",
+            "For interactive content (links, buttons) — tooltip must be non-interactive",
+            "When the tooltip prop on MCFormTextInput/other form components suffices"
+          ],
+          "example": "<MCFormTooltip markdownText=\"**Bold** and _italic_ supported\" />"
+        }
+      ]
+    },
+    {
+      "name": "Form Scaffold",
+      "description": "Structural components that compose the form page layout. Used in patterns.json form patterns. Must be used inside MCFormLayout.",
+      "count": 13,
+      "components": [
+        {
+          "name": "MCFormPanel",
+          "description": "Container panel for form sections with title and body",
+          "shortDescription": "Container panel for form sections",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared",
+          "path": "form/shared/index.ts",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Group related form fields into a titled section",
+            "Every form page uses at least one MCFormPanel"
+          ],
+          "doNotUse": [
+            "Outside form context",
+            "For non-form content grouping — use a plain styled div"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormPanelTitle",
+          "description": "Title component for MCFormPanel",
+          "shortDescription": "Title heading inside MCFormPanel",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared",
+          "path": "form/shared/index.ts",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Title heading inside MCFormPanel"
+          ],
+          "doNotUse": [
+            "Outside MCFormPanel"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormPanelBody",
+          "description": "Body container inside MCFormPanel, holds field groups",
+          "shortDescription": "Body container inside MCFormPanel",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared",
+          "path": "form/shared/index.ts",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Body content area inside MCFormPanel"
+          ],
+          "doNotUse": [
+            "Outside MCFormPanel"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormFieldGroup",
+          "description": "Groups related form fields with optional title. Provides consistent spacing between fields.",
+          "shortDescription": "Groups related form fields with spacing",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared",
+          "path": "form/shared/index.ts",
+          "formikRequired": false,
+          "propCount": 2,
+          "whenToUse": [
+            "Group related form fields within MCFormPanelBody",
+            "Provide consistent vertical spacing between form fields"
+          ],
+          "doNotUse": [
+            "Outside MCFormPanelBody",
+            "For non-form content grouping"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormField",
+          "description": "Wrapper for individual form fields. Provides label, error, and hint layout.",
+          "shortDescription": "Wrapper for individual form fields",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared",
+          "path": "form/shared/index.ts",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Wrap individual form input components",
+            "Provide consistent label + error + hint layout"
+          ],
+          "doNotUse": [
+            "When using MCFormTextInput (which includes MCFormField internally)"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormTitle",
+          "description": "Title component for the entire form page",
+          "shortDescription": "Top-level form page title",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared",
+          "path": "form/shared/index.ts",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Top-level form page title"
+          ],
+          "doNotUse": [
+            "For panel-level titles — use MCFormPanelTitle"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormBody",
+          "description": "Main body container for form content. Holds MCFormPanels.",
+          "shortDescription": "Main body container for form panels",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared",
+          "path": "form/shared/index.ts",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Container for all MCFormPanels in a form page"
+          ],
+          "doNotUse": [
+            "Outside MCFormLayout"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormActions",
+          "description": "Action bar at the bottom of a form with submit/cancel buttons",
+          "shortDescription": "Action bar with submit/cancel buttons",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared",
+          "path": "form/shared/index.ts",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Bottom action bar in form pages with Save/Cancel buttons"
+          ],
+          "doNotUse": [
+            "Outside MCFormLayout",
+            "For non-form action bars"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormFieldError",
+          "description": "Inline error message display for form fields",
+          "shortDescription": "Inline validation error message",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared",
+          "path": "form/shared/index.ts",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Display Formik validation error messages below a field"
+          ],
+          "doNotUse": [
+            "For non-validation messages — use MCFormHint"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormHint",
+          "description": "Helper text below a form field",
+          "shortDescription": "Helper text below a form field",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared",
+          "path": "form/shared/index.ts",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Provide supplementary guidance text below a form field"
+          ],
+          "doNotUse": [
+            "For error messages — use MCFormFieldError"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormGuideMessage",
+          "description": "Informational guide message within a form panel",
+          "shortDescription": "Informational message in form panel",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared",
+          "path": "form/shared/index.ts",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Display informational or instructional text within a form section"
+          ],
+          "doNotUse": [
+            "For field-level hints — use MCFormHint",
+            "For error messages — use MCFormFieldError"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormDescription",
+          "description": "Description text below a form field label",
+          "shortDescription": "Description text below field label",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/shared",
+          "path": "form/shared/index.ts",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Add extended description below a field label"
+          ],
+          "doNotUse": [
+            "For error messages — use MCFormFieldError",
+            "For simple hints — use MCFormHint"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCFormPortal",
+          "description": "Portal helper that renders form content into the main layout body or root layout body for full-screen experiences.",
+          "shortDescription": "Portal surface for full-screen or overlay form content",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "form_scaffold",
+          "importPath": "@msm-portal/common/component/form/portal/MCFormPortal",
+          "path": "form/portal/MCFormPortal.tsx",
+          "formikRequired": false,
+          "propCount": 2,
+          "whenToUse": [
+            "Render form surfaces above the standard page body while still staying inside the app layout",
+            "Full-screen or overlay form experiences that must mount into root layout containers"
+          ],
+          "doNotUse": [
+            "For regular in-flow form layout — use MCFormLayout",
+            "For general-purpose modal dialogs — use MCCommonDialog",
+            "Outside the main/root layout provider tree"
+          ],
+          "example": "<MCFormPortal fullScreen>\n  <MCFormLayout>{content}</MCFormLayout>\n</MCFormPortal>"
+        }
+      ]
+    },
+    {
+      "name": "Form Layout",
+      "description": "Full-page form layout with header, scrollable body, and footer.",
+      "count": 1,
+      "components": [
+        {
+          "name": "MCFormLayout",
+          "description": "Full-page form layout. Header: 44px. Body: 860px centered. Footer: border-top.",
+          "shortDescription": "Full form page layout with header and body",
+          "status": "stable",
+          "tier": 2,
+          "tierName": "Composite",
+          "functionalCategory": "layout",
+          "importPath": "@msm-portal/common/component/form/layout/MCFormLayout",
+          "path": "form/layout/MCFormLayout.tsx",
+          "formikRequired": false,
+          "propCount": 7,
+          "whenToUse": [
+            "Full-page create/edit form layouts with header, scrollable body, and footer",
+            "When a form needs a fixed header with breadcrumbs and a fixed footer with action buttons",
+            "Entity creation and editing pages (campaigns, ad groups, creatives)"
+          ],
+          "doNotUse": [
+            "For list or detail pages — use MCContentLayout instead",
+            "For inline forms within a page section — use MCFormPanel directly",
+            "For dialogs — use MCCommonDialog"
+          ],
+          "example": ""
+        }
+      ]
+    },
+    {
+      "name": "Buttons",
+      "description": "Button components. MCButton2 comes from @moloco/moloco-cloud-react-ui.",
+      "count": 3,
+      "components": [
+        {
+          "name": "MCButton2",
+          "description": "Primary button. All portal buttons use MCButton2.",
+          "shortDescription": "Primary action button with variants",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "action",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "@moloco/moloco-cloud-react-ui",
+          "formikRequired": false,
+          "propCount": 10,
+          "whenToUse": [
+            "Primary, secondary, and text action buttons throughout the portal",
+            "Form submit/cancel actions in MCFormActions",
+            "Navigation triggers in toolbars and page headers",
+            "Any clickable action that is not a link"
+          ],
+          "doNotUse": [
+            "For contextual action menus — use MCMoreActionsButton",
+            "For link-style navigation — use React Router Link or anchor",
+            "For icon-only actions without label — ensure aria-label is set"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCMoreActionsButton",
+          "description": "MCButton2 that opens a popover menu of actions on click.",
+          "shortDescription": "Dropdown menu for additional actions",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "action",
+          "importPath": "@msm-portal/common/component/button/MCMoreActionsButton",
+          "path": "button/MCMoreActionsButton.tsx",
+          "formikRequired": false,
+          "propCount": 2,
+          "whenToUse": [
+            "Contextual actions menu in table rows or card headers",
+            "When multiple secondary actions need to be grouped behind a single trigger",
+            "Three-dot menu (ellipsis) pattern for entity actions (edit, delete, duplicate)"
+          ],
+          "doNotUse": [
+            "For primary actions — use MCButton2 directly",
+            "For grouped action categories — use MCMoreActionGroupsButton",
+            "For navigation — use routing or links"
+          ],
+          "example": "<MCMoreActionsButton\n  variant=\"text\"\n  noPadding\n  moreActionItems={[\n    { label: 'Edit', icon: 'edit', onClick: handleEdit },\n    { label: 'Delete', icon: 'delete', onClick: handleDelete },\n  ]}\n>\n  <MCIcon icon=\"more\" width={16} height={16} />\n</MCMoreActionsButton>"
+        },
+        {
+          "name": "MCMoreActionGroupsButton",
+          "description": "MCButton2 with grouped actions separated by MCDivider.",
+          "shortDescription": "Grouped dropdown actions menu",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "action",
+          "importPath": "@msm-portal/common/component/button/MCMoreActionGroupsButton",
+          "path": "button/MCMoreActionGroupsButton.tsx",
+          "formikRequired": false,
+          "propCount": 2,
+          "whenToUse": [
+            "Action menus with categorized/grouped actions separated by dividers",
+            "When actions naturally fall into logical groups (e.g., edit group + danger group)",
+            "Complex contextual menus requiring visual separation between action types"
+          ],
+          "doNotUse": [
+            "For flat action lists without grouping — use MCMoreActionsButton",
+            "For primary actions — use MCButton2 directly",
+            "For fewer than 3 actions — use MCMoreActionsButton"
+          ],
+          "example": ""
+        }
+      ]
+    },
+    {
+      "name": "Navigation",
+      "description": "Primary navigation building blocks used for the app shell and route-level movement.",
+      "count": 2,
+      "components": [
+        {
+          "name": "MCCollapsibleNavbar",
+          "description": "Collapsible sidebar navigation. Width: 260px when expanded, collapses to icon-only width.",
+          "shortDescription": "Collapsible left navigation sidebar",
+          "status": "stable",
+          "tier": 2,
+          "tierName": "Composite",
+          "functionalCategory": "navigation",
+          "importPath": "@msm-portal/common/component/navbar/MCCollapsibleNavbar",
+          "path": "navbar/MCCollapsibleNavbar.tsx",
+          "formikRequired": false,
+          "propCount": 3,
+          "whenToUse": [
+            "Primary app sidebar navigation for the portal shell",
+            "When the application needs a collapsible left-side navigation panel",
+            "Top-level route navigation with section grouping"
+          ],
+          "doNotUse": [
+            "Inside MCContentLayout or MCFormLayout — it sits alongside them at the app root",
+            "For secondary in-page navigation — use MCBarTabs",
+            "For breadcrumb navigation — use MCContentLayout with showBreadcrumb"
+          ],
+          "example": "<MCCollapsibleNavbar>\n  <MCNavbarItems sections={navSections} />\n</MCCollapsibleNavbar>"
+        },
+        {
+          "name": "MCNavbarItems",
+          "description": "Renders navigation sections with titles and items. Handles routing and active state highlighting.",
+          "shortDescription": "Navigation menu item list",
+          "status": "stable",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "navigation",
+          "importPath": "@msm-portal/common/component/navbar/MCNavbarItems",
+          "path": "navbar/MCNavbarItems.tsx",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Rendering grouped navigation items inside MCCollapsibleNavbar",
+            "When navigation needs section titles with grouped route links",
+            "Main sidebar menu items with icons and active state highlighting"
+          ],
+          "doNotUse": [
+            "Outside MCCollapsibleNavbar — it depends on navbar context",
+            "For in-page tab navigation — use MCBarTabs",
+            "For breadcrumb links — use MCContentLayout breadcrumb"
+          ],
+          "example": "<MCNavbarItems\n  sections={[\n    {\n      title: 'Campaign Management',\n      items: [\n        { label: 'Campaigns', icon: 'targeting', route: MERouteKey.CAMPAIGN_MAIN },\n        { label: 'Creatives', icon: 'creative', route: MERouteKey.CREATIVE_MAIN },\n      ],\n    },\n    {\n      title: 'Reports',\n      items: [\n        { label: 'Performance', icon: 'chart', route: MERouteKey.REPORT_MAIN },\n      ],\n    },\n  ]}\n/>"
+        }
+      ]
+    },
+    {
+      "name": "Feedback & Overlay",
+      "description": "Dialogs, popovers, and loading feedback components that temporarily sit above page content.",
+      "count": 3,
+      "components": [
+        {
+          "name": "MCCommonDialog",
+          "description": "Modal dialog with header, content area, and action buttons.",
+          "shortDescription": "Modal dialog with customizable content",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "feedback",
+          "importPath": "@msm-portal/common/component/dialog/common-dialog/MCCommonDialog",
+          "path": "dialog/common-dialog/MCCommonDialog.tsx",
+          "formikRequired": false,
+          "propCount": 7,
+          "whenToUse": [
+            "Confirmations, alerts, and small inline forms that overlay the page",
+            "When user attention must be captured before proceeding",
+            "Content-heavy dialogs with custom body and action buttons"
+          ],
+          "doNotUse": [
+            "For full-page content or forms — use MCFormLayout",
+            "For destructive action confirmations — use MCConfirmDialog (alertdialog role)",
+            "For nested dialogs more than 2 levels deep"
+          ],
+          "example": "<MCCommonDialog\n  open={isOpen}\n  onClose={() => setIsOpen(false)}\n  title=\"Confirm Delete\"\n  showDivider\n  actions={\n    <>\n      <MCButton2 onClick={() => setIsOpen(false)}>Cancel</MCButton2>\n      <MCButton2 color=\"primary\" onClick={handleConfirm}>Confirm</MCButton2>\n    </>\n  }\n>\n  Are you sure?\n</MCCommonDialog>"
+        },
+        {
+          "name": "MCPopover",
+          "description": "Styled popover. Paper: background.primary, no shadow, border.primary border.",
+          "shortDescription": "Floating popover anchored to trigger",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "feedback",
+          "importPath": "@msm-portal/common/component/popover/MCPopover",
+          "path": "popover/MCPopover.tsx",
+          "formikRequired": false,
+          "propCount": 5,
+          "whenToUse": [
+            "Contextual menus and tooltips anchored to a trigger element",
+            "Lightweight overlays that do not need full dialog semantics",
+            "Custom dropdown content that is not a standard select"
+          ],
+          "doNotUse": [
+            "For complex forms or heavy content — use MCCommonDialog",
+            "For simple action menus — use MCMoreActionsButton which wraps popover internally",
+            "For permanent/persistent content — popover is transient by design"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCLoader",
+          "description": "Loading spinner. Use while async data is being fetched.",
+          "shortDescription": "DEPRECATED — use MCCircularLoader",
+          "status": "deprecated",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "feedback",
+          "importPath": "@msm-portal/common/component/loader",
+          "path": "loader/",
+          "formikRequired": false,
+          "propCount": 0,
+          "whenToUse": [
+            "Inline or section-level loading indicators while async data fetches",
+            "When a specific section of a page is loading independently"
+          ],
+          "doNotUse": [
+            "For full-page loading — use MCCircularLoader with fillParent",
+            "For less than 300ms loading times — use debounced loading state to avoid flicker"
+          ],
+          "example": "if (isLoading) return <MCLoader />;"
+        }
+      ]
+    },
+    {
+      "name": "Display",
+      "description": "Shared presentation components for showing content structure, separation, tabs, status, and progress.",
+      "count": 5,
+      "components": [
+        {
+          "name": "MCAccordion",
+          "description": "Collapsible section with animated expand/collapse. Toggle icon: angle-down (rotates 180° when expanded).",
+          "shortDescription": "Expandable/collapsible content section",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "display",
+          "importPath": "@msm-portal/common/component/accordion/MCAccordion",
+          "path": "accordion/MCAccordion.tsx",
+          "formikRequired": false,
+          "propCount": 2,
+          "whenToUse": [
+            "Progressive disclosure of optional or advanced content sections",
+            "Collapsible form sections within MCFormPanel (e.g., Advanced Settings)",
+            "When page content should be organized into expandable sections"
+          ],
+          "doNotUse": [
+            "For tab-based content switching — use MCBarTabs",
+            "For nested accordions inside accordions — keep hierarchy flat",
+            "For always-visible content — just render it directly"
+          ],
+          "example": "<MCAccordion summary={<MCFormPanelTitle>Advanced Settings</MCFormPanelTitle>} defaultExpanded={false}>\n  {/* content */}\n</MCAccordion>"
+        },
+        {
+          "name": "MCBarTabs",
+          "description": "Tab bar with bar indicator.",
+          "shortDescription": "Horizontal tab navigation bar",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "display",
+          "importPath": "@msm-portal/common/component/tab/bar-tab/MCBarTabs",
+          "path": "tab/bar-tab/MCBarTabs.tsx",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Content switching within a single page (e.g., Overview / Settings tabs)",
+            "When multiple views share the same page context but show different content",
+            "Tab navigation that persists active tab in URL search params"
+          ],
+          "doNotUse": [
+            "For navigation between different pages/routes — use routing",
+            "For more than 6 tabs — consider a different navigation pattern",
+            "For collapsible sections — use MCAccordion"
+          ],
+          "example": "<MCBarTabs\n  tabs={[\n    { label: 'Overview', active: activeTab === 'overview', onClick: () => setActiveTab('overview') },\n    { label: 'Settings', active: activeTab === 'settings', onClick: () => setActiveTab('settings') },\n  ]}\n/>"
+        },
+        {
+          "name": "MCDivider",
+          "description": "Horizontal or vertical divider using border.primary.",
+          "shortDescription": "Horizontal or vertical separator line",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "display",
+          "importPath": "@msm-portal/common/component/divider/MCDivider",
+          "path": "divider/MCDivider.tsx",
+          "formikRequired": false,
+          "propCount": 2,
+          "whenToUse": [
+            "Visually separating content sections within a page or panel",
+            "Between action groups in MCMoreActionGroupsButton menus",
+            "Vertical dividers between inline elements using direction='column'"
+          ],
+          "doNotUse": [
+            "For purely decorative spacing — use margin/padding instead",
+            "For form section breaks — use MCFormDivider (form-specific variant)"
+          ],
+          "example": "<MCDivider />\n<MCDivider $margin={0} />\n<MCDivider direction=\"column\" />"
+        },
+        {
+          "name": "MCStatus",
+          "description": "Status badge with icon and label. Color and icon are derived automatically.",
+          "shortDescription": "Status badge with semantic colors",
+          "status": "stable",
+          "tier": 2,
+          "tierName": "Composite",
+          "functionalCategory": "display",
+          "importPath": "@msm-portal/common/component/status/MCStatus",
+          "path": "status/MCStatus.tsx",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Displaying entity lifecycle status (active, paused, draft, etc.)",
+            "Status columns in MCReportTable via cell renderers",
+            "Detail page headers showing current entity state"
+          ],
+          "doNotUse": [
+            "For custom status colors or icons — use predefined variants only",
+            "For progress indicators — use MCStepper",
+            "For boolean on/off state — use MCFormSwitchInput"
+          ],
+          "example": "<MCStatus status=\"active\" />"
+        },
+        {
+          "name": "MCStepper",
+          "description": "Step indicator for multi-step forms/flows. Uses a children-based pattern with MCStepper.Step sub-components.",
+          "shortDescription": "Multi-step progress indicator",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "display",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "@moloco/moloco-cloud-react-ui",
+          "formikRequired": false,
+          "propCount": 3,
+          "whenToUse": [
+            "Multi-step wizard flows (onboarding, multi-page creation)",
+            "Showing progress through a sequential process",
+            "When users need to see which step they are on and what comes next"
+          ],
+          "doNotUse": [
+            "For more than 6 steps — simplify the flow",
+            "For non-sequential navigation — use MCBarTabs",
+            "For status display — use MCStatus"
+          ],
+          "example": "<MCStepper activeStep={currentStep} onActiveStepChange={setCurrentStep}>\n  <MCStepper.Step title=\"Basic Info\" />\n  <MCStepper.Step title=\"Targeting\" />\n  <MCStepper.Step title=\"Creative\" />\n  <MCStepper.Step title=\"Review\" />\n</MCStepper>"
+        }
+      ]
+    },
+    {
+      "name": "Shared Styled",
+      "description": "Shared styled components. Import from '@msm-portal/common/component/styled'.",
+      "count": 2,
+      "components": [
+        {
+          "name": "SCBoldLabel",
+          "description": "Bold label using H_5.fontWeight.",
+          "shortDescription": "Bold label styled component",
+          "status": "stable",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "primitive",
+          "importPath": "@msm-portal/common/component/styled",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 0,
+          "whenToUse": [
+            "Inline bold labels for key-value displays or section emphasis",
+            "When a label needs H_5 font weight without being a heading element"
+          ],
+          "doNotUse": [
+            "For form field labels — use MCFormFieldLabel",
+            "For section titles — use MCFormPanelTitle or MCFormTitle"
+          ],
+          "example": "<SCBoldLabel>Bold text</SCBoldLabel>"
+        },
+        {
+          "name": "SCClickableText",
+          "description": "Clickable underlined text. Uses content.contentAccent color.",
+          "shortDescription": "Clickable text styled as link",
+          "status": "stable",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "primitive",
+          "importPath": "@msm-portal/common/component/styled",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 0,
+          "whenToUse": [
+            "Inline clickable text links styled with accent color and underline",
+            "When a text element needs to be clickable without being a full button"
+          ],
+          "doNotUse": [
+            "For primary actions — use MCButton2",
+            "For navigation links — use React Router Link",
+            "For text button variants — use MCButton2 variant='text'"
+          ],
+          "example": "<SCClickableText onClick={handleClick}>Click here</SCClickableText>"
+        }
+      ]
+    },
+    {
+      "name": "Moloco UI Primitives",
+      "description": "Used directly from @moloco/moloco-cloud-react-ui without portal wrapping.",
+      "count": 8,
+      "components": [
+        {
+          "name": "MCIcon",
+          "description": "Core Moloco icon primitive used for rendering MTIcon-based icons across the portal.",
+          "shortDescription": "SVG icon from Moloco icon set",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 4,
+          "whenToUse": [
+            "All icon rendering throughout the portal",
+            "Button start icons, navigation item icons, status icons",
+            "Empty state hero icons and inline decorative icons"
+          ],
+          "doNotUse": [
+            "For custom SVG icons not in the MTIcon catalog — create a custom component",
+            "As the sole interactive element — wrap in a button with aria-label"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCStack",
+          "description": "Core Moloco flex layout helper for horizontal or vertical stacking with spacing.",
+          "shortDescription": "Flex-based horizontal/vertical layout",
+          "status": "stable",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 0,
+          "whenToUse": [
+            "Quick flex layout composition for stacking elements vertically or horizontally",
+            "Empty state layouts, inline element grouping, spacing between elements"
+          ],
+          "doNotUse": [
+            "For complex page layouts — use MCContentLayout or MCFormLayout",
+            "When styled-components with explicit flex is clearer for the use case"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCSingleTextInput",
+          "description": "Raw single-line text input primitive intended for controlled usage outside Formik wrappers.",
+          "shortDescription": "Raw text input without Formik",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 0,
+          "whenToUse": [
+            "Standalone text input outside Formik context (e.g., search bars, filters)",
+            "Building custom controlled inputs not tied to form state"
+          ],
+          "doNotUse": [
+            "Inside Formik forms — use MCFormTextInput which wraps this with Formik integration",
+            "For multi-line text — use MCSingleTextArea"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCSingleTextArea",
+          "description": "Raw multi-line textarea primitive intended for controlled usage outside Formik wrappers.",
+          "shortDescription": "Raw textarea without Formik",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 0,
+          "whenToUse": [
+            "Standalone multi-line text input outside Formik context",
+            "Building custom controlled textareas not tied to form state"
+          ],
+          "doNotUse": [
+            "Inside Formik forms — use MCFormTextArea which wraps this with Formik integration",
+            "For single-line text — use MCSingleTextInput"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCTextEllipsis",
+          "description": "Single-line text truncation primitive that applies ellipsis when content overflows.",
+          "shortDescription": "Text with ellipsis overflow",
+          "status": "stable",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 0,
+          "whenToUse": [
+            "Truncating long text with ellipsis in constrained-width containers",
+            "Table cells, card titles, or any element where text overflow needs to be handled"
+          ],
+          "doNotUse": [
+            "For multi-line text clamping — use CSS -webkit-line-clamp",
+            "When full text must always be visible"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCMarkdownTooltip",
+          "description": "Tooltip primitive that can render markdown-formatted content for richer help text.",
+          "shortDescription": "Tooltip with Markdown content",
+          "status": "stable",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 0,
+          "whenToUse": [
+            "Tooltips that need rich markdown formatting (bold, italic, lists)",
+            "Standalone tooltips outside form context"
+          ],
+          "doNotUse": [
+            "Inside form fields — use the tooltip prop on form components or MCFormTooltip",
+            "For interactive popover content — use MCPopover"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCBarTab",
+          "description": "Low-level bar-tab primitive used internally when composing custom tab bars.",
+          "shortDescription": "DEPRECATED — internal tab sub-component",
+          "status": "candidate-for-removal",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 0,
+          "whenToUse": [
+            "Building custom tab bars when MCBarTabs does not fit the use case"
+          ],
+          "doNotUse": [
+            "For standard tab navigation — use MCBarTabs which composes this internally",
+            "For page-level navigation — use routing"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCBarTabIndicator",
+          "description": "Low-level visual indicator primitive paired with MCBarTab in custom tab bars.",
+          "shortDescription": "DEPRECATED — internal tab indicator",
+          "status": "candidate-for-removal",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 0,
+          "whenToUse": [
+            "Custom tab indicator positioning when building custom tab bars with MCBarTab"
+          ],
+          "doNotUse": [
+            "For standard tab navigation — use MCBarTabs which handles the indicator internally"
+          ],
+          "example": ""
+        }
+      ]
+    },
+    {
+      "name": "Table",
+      "description": "Table and tabular-data display components used for reporting and dense list views.",
+      "count": 3,
+      "components": [
+        {
+          "name": "MCReportTable",
+          "description": "Advanced data table with sorting, pagination, row actions, and typed cell renderers. Built on top of ag-grid or similar table engine.",
+          "shortDescription": "Data table for report/list pages",
+          "status": "stable",
+          "tier": 2,
+          "tierName": "Composite",
+          "functionalCategory": "display",
+          "importPath": "@msm-portal/common/component/report-table",
+          "path": "report-table/",
+          "formikRequired": false,
+          "propCount": 9,
+          "whenToUse": [
+            "Data tables for list pages (campaigns, ad groups, creatives, reports)",
+            "When sorting, pagination, and row click navigation are needed",
+            "Tabular data display with typed cell renderers for money, dates, percentages"
+          ],
+          "doNotUse": [
+            "For fewer than 3 rows — use a simple list or card layout",
+            "For non-tabular data — use MCStack or custom layouts",
+            "For form data entry in table format — use MCFormFieldGroup"
+          ],
+          "example": "import MCReportTable from '@msm-portal/common/component/report-table';\nimport { getActionsCellRenderer, getMoneyCellRenderer, getDateCellRenderer } from '@msm-portal/common/component/table/cell-renderer';\nimport { tableCaseInsensitiveSortHandler } from '@msm-portal/common/component/table/sort-handler';\n\nconst columns = [\n  { field: 'name', header: t('column.name'), sortHandler: tableCaseInsensitiveSortHandler },\n  { field: 'budget', header: t('column.budget'), cellRenderer: getMoneyCellRenderer('USD') },\n  { field: 'createdAt', header: t('column.created'), cellRenderer: getDateCellRenderer('YYYY-MM-DD') },\n  { field: 'actions', header: '', cellRenderer: getActionsCellRenderer(actionItems) },\n];\n\n<MCReportTable\n  data={campaigns}\n  columns={columns}\n  isLoading={isFetching}\n  onRowClick={(row) => navigateToDetail(row.id)}\n  defaultSortField=\"createdAt\"\n  defaultSortDirection=\"desc\"\n/>"
+        },
+        {
+          "name": "MCI18nTable",
+          "description": "Localized wrapper around Moloco MCTable. Injects table labels from i18n so empty, pagination, and page indicator text stay translated consistently.",
+          "shortDescription": "Localized table wrapper with shared labels",
+          "status": "stable",
+          "tier": 2,
+          "tierName": "Composite",
+          "functionalCategory": "display",
+          "importPath": "@msm-portal/common/component/table/i18n/MCI18nTable",
+          "path": "table/i18n/MCI18nTable.tsx",
+          "formikRequired": false,
+          "propCount": 3,
+          "whenToUse": [
+            "General shared table usage when Moloco MCTable labels should follow Portal translations",
+            "Dense list or report tables that do not need the heavier MCReportTable wrapper",
+            "Any table where the standard empty, pagination, and page-indicator copy should be localized automatically"
+          ],
+          "doNotUse": [
+            "When page developers need the full report-table contract — use MCReportTable",
+            "When custom label text must be overridden per screen — use raw MCTable carefully"
+          ],
+          "example": "<MCI18nTable\n  data={rows}\n  columns={columns}\n  isLoading={isLoading}\n/>"
+        },
+        {
+          "name": "MCTableActionBar",
+          "description": "Horizontal action row that separates left-aligned context controls from right-aligned page or table actions.",
+          "shortDescription": "Action bar for table pages",
+          "status": "stable",
+          "tier": 2,
+          "tierName": "Composite",
+          "functionalCategory": "layout",
+          "importPath": "@msm-portal/common/component/table/action-bar/MCTableActionBar",
+          "path": "table/action-bar/MCTableActionBar.tsx",
+          "formikRequired": false,
+          "propCount": 2,
+          "whenToUse": [
+            "Above tables when filters, counters, or bulk context live on the left and actions live on the right",
+            "Shared list-page headers that belong to the table region rather than the page title area"
+          ],
+          "doNotUse": [
+            "For page-level hero actions — use MCContentLayout rightAccessory",
+            "For single inline button rows that do not need two-sided alignment"
+          ],
+          "example": "<MCTableActionBar\n  leftComponent={<div>{totalCount} items</div>}\n  rightComponent={<MCButton2 color=\"primary\">Create</MCButton2>}\n/>"
+        }
+      ]
+    },
+    {
+      "name": "Layout",
+      "description": "Page-level layout components for structuring content areas.",
+      "count": 3,
+      "components": [
+        {
+          "name": "MCContentLayout",
+          "description": "Standard page layout with breadcrumb, title, and optional right accessory. Used for list pages, detail pages, settings pages.",
+          "shortDescription": "Page content layout with header/tabs",
+          "status": "stable",
+          "tier": 2,
+          "tierName": "Composite",
+          "functionalCategory": "layout",
+          "importPath": "@msm-portal/common/component/layout/content/MCContentLayout",
+          "path": "layout/content/MCContentLayout.tsx",
+          "formikRequired": false,
+          "propCount": 5,
+          "whenToUse": [
+            "All list pages, detail pages, and settings pages",
+            "When a page needs a header with title, breadcrumb, and optional right accessory",
+            "Standard page shell for non-form content"
+          ],
+          "doNotUse": [
+            "For form/create/edit pages — use MCFormLayout instead",
+            "Nested inside MCFormLayout — they are mutually exclusive page shells",
+            "For dialog content — use MCCommonDialog"
+          ],
+          "example": "import MCContentLayout from '@msm-portal/common/component/layout/content/MCContentLayout';\nimport { MCButton2 } from '@moloco/moloco-cloud-react-ui';\n\n<MCContentLayout\n  title={t('title')}\n  rightAccessory={\n    <MCButton2 color=\"primary\" onClick={handleCreate} leftIcon=\"create\">\n      {t('create')}\n    </MCButton2>\n  }\n  showBreadcrumb\n>\n  <MCBarTabs tabs={tabs} />\n  {content}\n</MCContentLayout>"
+        },
+        {
+          "name": "MCCircularLoader",
+          "description": "Full-page or inline circular loading spinner from Moloco UI.",
+          "shortDescription": "Circular loading spinner",
+          "status": "stable",
+          "tier": 2,
+          "tierName": "Composite",
+          "functionalCategory": "layout",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "@moloco/moloco-cloud-react-ui",
+          "formikRequired": false,
+          "propCount": 1,
+          "whenToUse": [
+            "Full-page loading states while data is being fetched",
+            "Container-level loading with fillParent for centered spinner",
+            "Initial page load or route transition loading"
+          ],
+          "doNotUse": [
+            "For inline/section loading — use MCLoader instead",
+            "For less than 300ms loading times — use debounced loading state"
+          ],
+          "example": "import { MCCircularLoader } from '@moloco/moloco-cloud-react-ui';\n\n// Full page loading\nif (isLoading) return <MCCircularLoader fillParent />;\n\n// Conditional rendering\nreturn isFetching || !data\n  ? <MCCircularLoader fillParent />\n  : <EntityDetail entity={data} />;"
+        },
+        {
+          "name": "MCConfirmDialog",
+          "description": "Confirmation dialog with customizable cancel and confirm buttons. Used for destructive action confirmations.",
+          "shortDescription": "Confirmation dialog with yes/no",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "layout",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "@moloco/moloco-cloud-react-ui",
+          "formikRequired": false,
+          "propCount": 6,
+          "whenToUse": [
+            "Destructive action confirmations (delete, discard changes, archive)",
+            "When the user must explicitly confirm or cancel before a dangerous operation",
+            "Alert-style dialogs requiring immediate user attention"
+          ],
+          "doNotUse": [
+            "For non-destructive confirmations — use MCCommonDialog",
+            "For complex forms inside a dialog — use MCCommonDialog with form content",
+            "For informational messages — use toast/snackbar notifications"
+          ],
+          "example": "<MCConfirmDialog\n  isOpen={confirmOpen}\n  title={t('dialog.title')}\n  cancelButtonOptions={{\n    label: t('dialog.cancel'),\n    leftIcon: <MCIcon icon=\"delete\" inheritColor />,\n    onClick: handleDiscard,\n  }}\n  confirmButtonOptions={{\n    label: t('dialog.confirm'),\n    color: 'primary',\n    leftIcon: <MCIcon icon=\"check\" inheritColor />,\n    onClick: handleConfirm,\n  }}\n  onClose={() => setConfirmOpen(false)}\n>\n  {t('dialog.message')}\n</MCConfirmDialog>"
+        }
+      ]
+    },
+    {
+      "name": "Empty State",
+      "description": "Patterns for when there is no data to display.",
+      "count": 1,
+      "components": [
+        {
+          "name": "EmptyState",
+          "description": "Composition pattern for empty data views. Combine MCStack + MCIcon + text + MCButton2.",
+          "shortDescription": "DEPRECATED — use MCEmptyState",
+          "status": "deprecated",
+          "tier": 2,
+          "tierName": "Composite",
+          "functionalCategory": "feedback",
+          "importPath": "N/A (composition pattern — no single import)",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 0,
+          "whenToUse": [
+            "When a list, table, or section has zero data to display",
+            "First-time user experience when no entities have been created yet",
+            "Filtered results that return zero matches"
+          ],
+          "doNotUse": [
+            "When data exists but is loading — use MCLoader or MCCircularLoader",
+            "For error states — use an error message pattern instead",
+            "When the empty state is temporary (< 300ms) — show loader instead"
+          ],
+          "example": "import styled from 'styled-components';\nimport { MCStack, MCIcon, MCButton2 } from '@moloco/moloco-cloud-react-ui';\n\nconst SCEmptyStateWrapper = styled.div`\n  padding: ${(props) => props.theme.mcui.spacing(8, 0)};\n`;\n\nconst SCEmptyStateTitle = styled.div`\n  font-size: ${(props) => props.theme.mcui.typography.H_4.size};\n  font-weight: ${(props) => props.theme.mcui.typography.H_4.fontWeight};\n  color: ${(props) => props.theme.mcui.palette.content.primary};\n`;\n\nconst SCEmptyStateDescription = styled.div`\n  font-size: ${(props) => props.theme.mcui.typography.BODY_2.size};\n  color: ${(props) => props.theme.mcui.palette.content.secondary};\n`;\n\n<SCEmptyStateWrapper>\n  <MCStack direction=\"column\" alignItems=\"center\" spacing={3}>\n    <MCIcon icon=\"inbox\" width={48} height={48} />\n    <SCEmptyStateTitle>No campaigns yet</SCEmptyStateTitle>\n    <SCEmptyStateDescription>Create your first campaign to get started.</SCEmptyStateDescription>\n    <MCButton2 color=\"primary\" leftIcon=\"create\" onClick={handleCreate}>Create Campaign</MCButton2>\n  </MCStack>\n</SCEmptyStateWrapper>"
+        }
+      ]
+    },
+    {
+      "name": "Library Primitives",
+      "description": "Additional components from @moloco/moloco-cloud-react-ui used directly without portal wrapping. Read type definitions for full API.",
+      "count": 19,
+      "components": [
+        {
+          "name": "MCButton",
+          "description": "Legacy button component. Prefer MCButton2 for new code. Still used in some older portal areas.",
+          "shortDescription": "Base Moloco UI button primitive",
+          "status": "stable",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 7,
+          "whenToUse": [
+            "Only when maintaining existing code that already uses MCButton",
+            "Legacy compatibility — all new code should use MCButton2"
+          ],
+          "doNotUse": [
+            "For any new UI development — use MCButton2 instead",
+            "When refactoring legacy code — migrate to MCButton2"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCBanner",
+          "description": "Notification banner for page-level messages. Supports info, warning, and critical variants.",
+          "shortDescription": "Full-width banner notification",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 6,
+          "whenToUse": [
+            "Page-level informational, warning, or critical messages",
+            "Persistent alerts that should remain visible until dismissed",
+            "System-wide announcements or deprecation notices"
+          ],
+          "doNotUse": [
+            "For inline field-level errors — use form error components",
+            "For transient toast notifications — use snackbar/toast pattern",
+            "For dialog-based alerts — use MCConfirmDialog"
+          ],
+          "example": "<MCBanner variant=\"warning\" onClose={handleDismiss}>\n  This campaign has limited budget remaining.\n</MCBanner>"
+        },
+        {
+          "name": "MCSearchBar",
+          "description": "Search input with debounce support, loading indicator, and optional border/shadow styling.",
+          "shortDescription": "Search input with filtering",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 12,
+          "whenToUse": [
+            "Table/list search and filtering",
+            "Global or section-level search inputs",
+            "When search needs debounced input handling"
+          ],
+          "doNotUse": [
+            "Inside Formik forms — use MCFormTextInput with search icon",
+            "For complex filter UIs — use MCFilter component"
+          ],
+          "example": "const [searchWord, setSearchWord] = useState('');\n\n<MCSearchBar\n  searchWord={searchWord}\n  setSearchWord={setSearchWord}\n  placeholder=\"Search campaigns...\"\n  border\n  debounceTimeout={300}\n/>"
+        },
+        {
+          "name": "MCTag",
+          "description": "Styled inline tag/label for categorization. Fully customizable via style props.",
+          "shortDescription": "Small label tag component",
+          "status": "candidate-for-removal",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 9,
+          "whenToUse": [
+            "Inline labels or badges for categorization (e.g., 'Beta', 'New', 'Premium')",
+            "Status-like tags in table cells or headers",
+            "Visually marking items with a category label"
+          ],
+          "doNotUse": [
+            "For entity lifecycle status — use MCStatus",
+            "For removable chip selections — use MCChip"
+          ],
+          "example": "<MCTag backgroundColor=\"#E3F2FD\" fontColor=\"#1565C0\" fontSize=\"12px\" borderRadius=\"4px\" padding=\"2px 8px\">\n  Beta\n</MCTag>"
+        },
+        {
+          "name": "MCBoxTab",
+          "description": "Box-style tab components for segmented tab navigation. Consists of MCBoxTabsWrapper, MCBoxTabs, MCBoxTab, and MCBoxTabIndicator styled components.",
+          "shortDescription": "Box-style tab component",
+          "status": "candidate-for-removal",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 6,
+          "whenToUse": [
+            "Box-style segmented tab navigation with underline indicator",
+            "When MCBarTabs is too minimal and a boxed tab style is needed"
+          ],
+          "doNotUse": [
+            "For standard bar-style tabs — use MCBarTabs",
+            "For page-level navigation — use routing"
+          ],
+          "example": "<MCBoxTabsWrapper $underline>\n  <MCBoxTabs>\n    <MCBoxTab $active={activeTab === 0} onClick={() => setActiveTab(0)}>Tab 1</MCBoxTab>\n    <MCBoxTab $active={activeTab === 1} onClick={() => setActiveTab(1)}>Tab 2</MCBoxTab>\n  </MCBoxTabs>\n  <MCBoxTabIndicator />\n</MCBoxTabsWrapper>"
+        },
+        {
+          "name": "MCCollapse",
+          "description": "Animated collapse/expand wrapper. Re-exports Material UI Collapse component.",
+          "shortDescription": "Collapsible content wrapper",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 4,
+          "whenToUse": [
+            "Animated show/hide of content sections",
+            "When MCAccordion is too opinionated and you need raw collapse animation"
+          ],
+          "doNotUse": [
+            "For accordion pattern with header — use MCAccordion instead",
+            "For dialog/modal animations — use MCCommonDialog"
+          ],
+          "example": "<MCCollapse in={isExpanded} timeout=\"auto\" unmountOnExit>\n  <div>Collapsible content here</div>\n</MCCollapse>"
+        },
+        {
+          "name": "MCMarkdown",
+          "description": "Renders markdown text as HTML using the Remarkable library.",
+          "shortDescription": "Markdown content renderer",
+          "status": "candidate-for-removal",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 2,
+          "whenToUse": [
+            "Rendering markdown-formatted text content",
+            "Help text, documentation, or user-authored content with markdown formatting"
+          ],
+          "doNotUse": [
+            "For plain text display — use styled-components directly",
+            "For rich text editing — this is display-only"
+          ],
+          "example": "<MCMarkdown markdownText=\"**Bold** and _italic_ text with [links](https://example.com)\" />"
+        },
+        {
+          "name": "MCChip",
+          "description": "Removable chip/tag component for displaying selected options with optional remove action.",
+          "shortDescription": "Small chip/badge element",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 8,
+          "whenToUse": [
+            "Displaying selected options as removable chips",
+            "Tag-style display of multi-select values",
+            "Building custom chip-based select inputs"
+          ],
+          "doNotUse": [
+            "For non-removable labels — use MCTag",
+            "For status badges — use MCStatus"
+          ],
+          "example": "<MCChip\n  option={{ value: 'us', label: 'United States', key: 'us' }}\n  onRemove={(opt) => handleRemove(opt)}\n/>"
+        },
+        {
+          "name": "MCDataTable",
+          "description": "Virtualized data table with column reordering, resizing, frozen columns, and custom cell renderers. For high-performance tabular data.",
+          "shortDescription": "Low-level data table primitive",
+          "status": "stable",
+          "tier": 2,
+          "tierName": "Composite",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 17,
+          "whenToUse": [
+            "High-performance tables with many rows requiring virtualization",
+            "Tables needing column reordering, resizing, or frozen columns",
+            "When MCReportTable does not provide enough customization"
+          ],
+          "doNotUse": [
+            "For standard list pages — use MCReportTable (higher-level API)",
+            "For simple data display — use a basic HTML table or MCReportTable"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCSelect",
+          "description": "Standalone select dropdown (not Formik-integrated). Built on react-select.",
+          "shortDescription": "DEPRECATED — use MCFormSingleRichSelect",
+          "status": "deprecated",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 12,
+          "whenToUse": [
+            "Standalone select inputs outside Formik context",
+            "Filter dropdowns, toolbar selects, and other non-form selects"
+          ],
+          "doNotUse": [
+            "Inside Formik forms — use MCFormSingleRichSelect or MCFormMultiRichSelect",
+            "For fewer than 3 options — use radio buttons"
+          ],
+          "example": "<MCSelect\n  options={[{ label: 'Active', value: 'active' }, { label: 'Paused', value: 'paused' }]}\n  value={selectedOption}\n  onChange={setSelectedOption}\n  label=\"Status\"\n/>"
+        },
+        {
+          "name": "MCDatePicker",
+          "description": "Standalone date picker input. Not Formik-integrated.",
+          "shortDescription": "DEPRECATED — use MCFormDateRangePicker",
+          "status": "deprecated",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 12,
+          "whenToUse": [
+            "Standalone date selection outside Formik context",
+            "Filter bars, toolbar date selectors"
+          ],
+          "doNotUse": [
+            "Inside Formik forms — use MCFormDateRangePicker or MCFormDateTimeRangePicker",
+            "For date+time selection — use MCTimePicker alongside or a datetime component"
+          ],
+          "example": "<MCDatePicker\n  value={startDate}\n  onChange={setStartDate}\n  placeholder=\"Select date\"\n  minDate={new Date()}\n/>"
+        },
+        {
+          "name": "MCTimePicker",
+          "description": "Standalone time picker input. Not Formik-integrated.",
+          "shortDescription": "Time picker component",
+          "status": "candidate-for-removal",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 9,
+          "whenToUse": [
+            "Standalone time selection outside Formik context",
+            "Paired with MCDatePicker for date+time selection"
+          ],
+          "doNotUse": [
+            "Inside Formik forms — use MCFormDateTimeRangePicker"
+          ],
+          "example": "<MCTimePicker\n  value={selectedTime}\n  onChange={setSelectedTime}\n  placeholder=\"Select time\"\n/>"
+        },
+        {
+          "name": "MCDynamicDropdown",
+          "description": "Async multi-select dropdown with paginated option loading, search, and popper-based positioning.",
+          "shortDescription": "Dynamic dropdown menu",
+          "status": "candidate-for-removal",
+          "tier": 2,
+          "tierName": "Composite",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 14,
+          "whenToUse": [
+            "Multi-select dropdowns with server-side option loading",
+            "When options are too many to load at once (paginated/cursor-based)",
+            "Async search-as-you-type select inputs"
+          ],
+          "doNotUse": [
+            "For static option lists — use MCSelect or MCFormSingleRichSelect",
+            "Inside Formik forms with static options — use MCFormMultiRichSelect"
+          ],
+          "example": "<MCDynamicDropdown<string>\n  loadOptions={async ({ cursor, searchText, limit }) => {\n    const result = await fetchOptions({ cursor, searchText, limit });\n    return { options: result.items, cursor: result.nextCursor, totalCount: result.total };\n  }}\n  value={selectedOptions}\n  onChange={setSelectedOptions}\n  selectPlaceholder=\"Select items...\"\n/>"
+        },
+        {
+          "name": "MCFilter",
+          "description": "Multi-dimension filter component supporting number, string, option, and single-option filter types with an apply button.",
+          "shortDescription": "Filter component with options",
+          "status": "stable",
+          "tier": 2,
+          "tierName": "Composite",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 16,
+          "whenToUse": [
+            "Table/list filtering with multiple dimensions",
+            "When users need to build complex filter queries across multiple fields",
+            "Data explorer-style filtering UIs"
+          ],
+          "doNotUse": [
+            "For simple single-field search — use MCSearchBar",
+            "For form-based filtering — use Formik form with MCFormSingleRichSelect"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCModal",
+          "description": "Low-level modal wrapper. Re-exports react-modal. For most use cases, prefer MCCommonDialog or MCConfirmDialog.",
+          "shortDescription": "DEPRECATED — use MCCommonDialog",
+          "status": "deprecated",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 4,
+          "whenToUse": [
+            "Building custom modal experiences not covered by MCCommonDialog",
+            "When full control over modal content, styling, and behavior is needed"
+          ],
+          "doNotUse": [
+            "For standard dialogs — use MCCommonDialog",
+            "For confirmation dialogs — use MCConfirmDialog",
+            "For simple overlays — use MCPopover"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCPopper",
+          "description": "Low-level popper positioning component. Re-exports Material UI Popper.",
+          "shortDescription": "Low-level positioning utility",
+          "status": "stable",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 4,
+          "whenToUse": [
+            "Building custom positioned overlays (tooltips, dropdowns, menus)",
+            "When MCPopover does not provide enough positioning control"
+          ],
+          "doNotUse": [
+            "For standard popover/menu — use MCPopover or MCMoreActionsButton",
+            "For modal dialogs — use MCCommonDialog"
+          ],
+          "example": ""
+        },
+        {
+          "name": "MCStateIcon",
+          "description": "State-specific icon component for entity lifecycle states. Different from MCIcon — renders state-specific colored icons.",
+          "shortDescription": "State-dependent icon display",
+          "status": "candidate-for-removal",
+          "tier": 3,
+          "tierName": "Domain",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 3,
+          "whenToUse": [
+            "Rendering colored state icons for entity lifecycle (active, paused, draft, etc.)",
+            "Paired with MCStatus or used standalone in table cells"
+          ],
+          "doNotUse": [
+            "For general-purpose icons — use MCIcon",
+            "For full status badge with label — use MCStatus"
+          ],
+          "example": "<MCStateIcon icon=\"active\" width={16} height={16} />"
+        },
+        {
+          "name": "MCSingleNumberInput",
+          "description": "Standalone number input with formatting, prefix/suffix, and validation messages. Uses react-number-format internally.",
+          "shortDescription": "Raw number input without Formik",
+          "status": "stable",
+          "tier": 1,
+          "tierName": "Core",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 21,
+          "whenToUse": [
+            "Standalone number inputs outside Formik context",
+            "Formatted number entry with prefix/suffix (currency, percentage)",
+            "Number inputs with inline error/warning/guide messages"
+          ],
+          "doNotUse": [
+            "Inside Formik forms — use MCFormNumberInput"
+          ],
+          "example": "<MCSingleNumberInput\n  value={budget}\n  onValueChange={({ floatValue }) => setBudget(floatValue)}\n  prefix=\"$\"\n  placeholder=\"Enter budget\"\n/>"
+        },
+        {
+          "name": "MCDebounceInput",
+          "description": "Generic debounced input wrapper. Wraps any input element with debounce behavior.",
+          "shortDescription": "Debounced text input",
+          "status": "candidate-for-removal",
+          "tier": 4,
+          "tierName": "Internal",
+          "functionalCategory": "primitive",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "path": "",
+          "formikRequired": false,
+          "propCount": 4,
+          "whenToUse": [
+            "Adding debounce to any input or textarea element",
+            "When you need to delay onChange callbacks to reduce API calls"
+          ],
+          "doNotUse": [
+            "For search — use MCSearchBar which has built-in debounce",
+            "When immediate feedback is needed — debounce adds delay"
+          ],
+          "example": ""
+        }
+      ]
+    }
+  ]
+}

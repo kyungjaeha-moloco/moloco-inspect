@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "useDefineForClassFields": true,
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@msm-portal/common/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/common/*"],
+      "@msm-portal/builder/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/app-builder/*"],
+      "@msm-portal/i18n/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/i18n/*"],
+      "@msm-portal/route/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/route/*"],
+      "@msm-portal/msm-default/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/apps/msm-default/*"],
+      "@msm-portal/tving/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/apps/tving/*"],
+      "@msm-portal/shortmax/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/apps/shortmax/*"],
+      "@msm-portal/onboard-demo/*": ["../../Agent-Design-System/msm-portal/js/msm-portal-web/src/apps/onboard-demo/*"],
+      "@source-design-system/*": ["../../Agent-Design-System/design-system/src/*"]
+    },
+    "types": ["vite/client"]
+  },
+  "include": ["src"]
+}
