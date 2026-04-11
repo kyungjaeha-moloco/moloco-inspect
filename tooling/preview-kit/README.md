@@ -27,6 +27,8 @@
 - `package.json`
 - `src/shared.js`
 - `src/adapters/msm-portal.js`
+- `src/verify.js`
+- `src/capture.js`
 - `src/index.js`
 
 ## 원칙

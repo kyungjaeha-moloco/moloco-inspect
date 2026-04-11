@@ -24,8 +24,10 @@ import { execFile, exec, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import {
+  captureScreenshotWithMsmPortal,
   createMsmPortalPreviewAdapter,
   normalizeLanguage,
+  verifyCopyVisibleWithMsmPortal,
 } from '../tooling/preview-kit/src/index.js';
 
 const execAsync = promisify(exec);
@@ -1123,51 +1125,13 @@ async function verifyCopyVisibleOnRoute({ payload, previewUrl, worktreePath, vis
   if (!isCopyChangeRequest(payload)) {
     return { ok: true, message: 'Copy visibility verification skipped (intent is not copy_update)' };
   }
-
-  const candidates = Array.from(
-    new Set((visibleTextCandidates || []).map((value) => String(value || '').trim()).filter(Boolean)),
-  );
-
-  if (!candidates.length) {
-    return {
-      ok: true,
-      message: 'Copy visibility verification skipped (no visible copy candidates found in changed locale values)',
-    };
-  }
-
-  const args = [
-    'exec',
-    'tsx',
-    path.join(MSM_REPO_ROOT, 'js/msm-portal-web', 'e2e', 'preview-text-util.ts'),
+  return await verifyCopyVisibleWithMsmPortal({
+    msmRepoRoot: MSM_REPO_ROOT,
+    worktreePath,
     previewUrl,
-    getPreviewLanguage(payload) || '',
-    ...candidates,
-  ];
-
-  try {
-    const { stdout } = await execFileAsync('pnpm', args, {
-      cwd: path.join(worktreePath, 'js/msm-portal-web'),
-      timeout: 120_000,
-      env: { ...process.env, COREPACK_ENABLE_AUTO_PIN: '0' },
-    });
-    const parsed = JSON.parse(stdout.trim());
-    if (!parsed.ok) {
-      return {
-        ok: false,
-        message: `Copy visibility verification failed: ${parsed.message || 'changed text not visible on preview route'}`,
-      };
-    }
-    return {
-      ok: true,
-      message: `Copy visibility verification passed: ${parsed.match || parsed.message || 'visible text found on route'}`,
-    };
-  } catch (error) {
-    const stderr = String(error?.stderr || error?.stdout || error?.message || '').trim();
-    return {
-      ok: false,
-      message: `Copy visibility verification failed: ${stderr || 'preview text check failed'}`,
-    };
-  }
+    expectedLanguage: getPreviewLanguage(payload) || '',
+    candidates: visibleTextCandidates,
+  });
 }
 
 async function getAvailablePort() {
@@ -1290,26 +1254,14 @@ async function capturePreviewScreenshot({ id, worktreePath, payload }) {
 
   try {
     await waitForServerReady(`http://127.0.0.1:${port}/`, () => previewExitError);
-    const { stdout } = await execFileAsync(
-      'pnpm',
-      [
-        'exec',
-        'tsx',
-        path.join(MSM_REPO_ROOT, 'js/msm-portal-web', 'e2e', 'screenshot-util.ts'),
-        previewUrl,
-        screenshotPath,
-        ...(expectedLanguage ? [expectedLanguage] : []),
-        ...(client ? [client] : []),
-      ],
-      {
-        cwd: path.join(worktreePath, 'js/msm-portal-web'),
-        timeout: 120_000,
-        env: {
-          ...process.env,
-          COREPACK_ENABLE_AUTO_PIN: '0',
-        },
-      },
-    );
+    const { stdout } = await captureScreenshotWithMsmPortal({
+      msmRepoRoot: MSM_REPO_ROOT,
+      worktreePath,
+      previewUrl,
+      screenshotPath,
+      expectedLanguage,
+      client,
+    });
     return { screenshotPath, previewUrl, previewServer, screenshotStdout: stdout };
   } catch (error) {
     previewServer.kill('SIGTERM');
