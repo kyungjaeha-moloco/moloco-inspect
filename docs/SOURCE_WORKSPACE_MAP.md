@@ -35,7 +35,8 @@
 
 ### Design system
 
-- `/Users/kyungjae.ha/Documents/Agent-Design-System/design-system`
+- source origin: `/Users/kyungjae.ha/Documents/Agent-Design-System/design-system`
+- migrated copy: `/Users/kyungjae.ha/Documents/moloco-inspect/design-system`
 
 포함 내용:
 
@@ -80,7 +81,7 @@
 ## 현재 이관 상태
 
 - `dashboard/`: 1차 이관 완료, local `design-system` 우선 참조
-- `orchestrator/`: 1차 이관 완료, source workspace product/design-system 참조
+- `orchestrator/`: 1차 이관 완료, local `design-system` + source workspace product 참조
 - `chrome-extension/`: 1차 이관 완료
 - `design-system/`: 1차 이관 완료
 
@@ -88,4 +89,15 @@
 
 - `msm-portal/js/msm-portal-web/src/*`
 - runtime preview를 위한 실제 앱 코드와 mock auth/workplace flow
-- 일부 orchestrator/product integration 경로
+- 실제 수정 대상 git repo (`msm-portal/.git`)
+- 일부 dashboard/orchestrator runtime alias
+
+## 현재 dependency boundary
+
+- local in `moloco-inspect`
+  - `dashboard/`
+  - `orchestrator/`
+  - `chrome-extension/`
+  - `design-system/`
+- external source workspace
+  - `msm-portal/`

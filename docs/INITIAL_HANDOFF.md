@@ -42,7 +42,7 @@
 
 ## 다음 작업 추천
 
-1. `design-system` 로컬 실행 검증
-2. orchestrator가 local `design-system`을 더 직접 쓰도록 정리
-3. extension/orchestrator/dashboard의 remaining source workspace path 문서화
-4. product integration extraction plan 구체화
+1. orchestrator가 local `design-system`을 기본 경로로 쓰게 유지
+2. extension/orchestrator/dashboard의 remaining source workspace path 문서화
+3. product integration extraction plan 구체화
+4. 이후 `msm-portal` extraction 단위를 페이지/preview bootstrap 기준으로 쪼개기

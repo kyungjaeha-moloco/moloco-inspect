@@ -31,8 +31,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SOURCE_WORKSPACE_ROOT =
   process.env.SOURCE_WORKSPACE_ROOT || '/Users/kyungjae.ha/Documents/Agent-Design-System';
 const WORKSPACE_ROOT = path.resolve(__dirname, '..');
+const LOCAL_DESIGN_SYSTEM_ROOT = path.join(WORKSPACE_ROOT, 'design-system');
 const MSM_REPO_ROOT = path.join(SOURCE_WORKSPACE_ROOT, 'msm-portal');
-const DESIGN_SYSTEM_ROOT = path.join(SOURCE_WORKSPACE_ROOT, 'design-system');
+const DESIGN_SYSTEM_ROOT = process.env.DESIGN_SYSTEM_ROOT ||
+  (fs.existsSync(LOCAL_DESIGN_SYSTEM_ROOT) ? LOCAL_DESIGN_SYSTEM_ROOT : path.join(SOURCE_WORKSPACE_ROOT, 'design-system'));
 const WORKTREE_BASE = path.join(WORKSPACE_ROOT, '.worktrees');
 const SCREENSHOTS_DIR = path.join(__dirname, 'screenshots');
 const ATTACHMENTS_DIR = path.join(__dirname, 'attachments');
