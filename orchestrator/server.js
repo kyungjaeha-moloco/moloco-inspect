@@ -916,13 +916,9 @@ function getPreviewClient(payload) {
   return inferClientFromPayload(payload);
 }
 
-function getPreviewLanguage(payload) {
-  return previewAdapter.getPreviewLanguageFromPayload(payload);
-}
-
-function buildPreviewBootstrapRoute(payload) {
+function getPreviewContext(payload) {
   const client = getPreviewClient(payload);
-  return previewAdapter.buildPreviewBootstrapRoute({ payload, client });
+  return previewAdapter.buildPreviewContext({ payload, client });
 }
 
 function isTextChangeRequest(payload) {
@@ -932,7 +928,7 @@ function isTextChangeRequest(payload) {
 }
 
 function verifyLocaleAlignment(payload, changedFiles) {
-  const expectedLanguage = getPreviewLanguage(payload);
+  const expectedLanguage = getPreviewContext(payload).language;
   if (!expectedLanguage) {
     return {
       ok: true,
@@ -1126,7 +1122,7 @@ async function verifyCopyVisibleOnRoute({ payload, previewUrl, worktreePath, vis
     msmRepoRoot: MSM_REPO_ROOT,
     worktreePath,
     previewUrl,
-    expectedLanguage: getPreviewLanguage(payload) || '',
+    expectedLanguage: getPreviewContext(payload).language || '',
     candidates: visibleTextCandidates,
   });
 }
@@ -1196,9 +1192,10 @@ async function waitForServerReady(url, getEarlyError, timeoutMs = 45_000) {
 }
 
 async function capturePreviewScreenshot({ id, worktreePath, payload }) {
-  const client = getPreviewClient(payload);
-  const expectedLanguage = getPreviewLanguage(payload);
-  const route = buildPreviewBootstrapRoute(payload);
+  const previewContext = getPreviewContext(payload);
+  const client = previewContext.client;
+  const expectedLanguage = previewContext.language;
+  const route = previewContext.bootstrapRoute;
   const previewMode = 'test';
   const port = await getAvailablePort();
   const screenshotPath = path.join(SCREENSHOTS_DIR, `${id}.png`);
@@ -1675,7 +1672,7 @@ async function runPipeline(id) {
           throw new Error(copyVisibleCheck.message);
         }
         appendLog(id, copyVisibleCheck.message);
-        appendLog(id, `Preview verification passed${getPreviewLanguage(state.payload) ? ` (language: ${getPreviewLanguage(state.payload)})` : ''}`);
+        appendLog(id, `Preview verification passed${getPreviewContext(state.payload).language ? ` (language: ${getPreviewContext(state.payload).language})` : ''}`);
       }
     } catch (error) {
       updateRequest(id, { status: 'error', phase: 'capturing_screenshot', error: `Preview verification failed: ${error.message}` });

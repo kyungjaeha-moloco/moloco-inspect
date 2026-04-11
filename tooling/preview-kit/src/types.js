@@ -5,6 +5,15 @@
  */
 
 /**
+ * @typedef {Object} MTPreviewContext
+ * @property {string | null} client
+ * @property {string | null} language
+ * @property {string} targetRoute
+ * @property {string | null} workplaceId
+ * @property {string} bootstrapRoute
+ */
+
+/**
  * @typedef {Object} MTPreviewCaptureInput
  * @property {string} msmRepoRoot
  * @property {string} worktreePath
@@ -47,6 +56,7 @@
  * @property {(route: string) => string | null} extractWorkplaceIdFromRoute
  * @property {(payload: unknown) => string} getPreviewRouteFromPayload
  * @property {(payload: unknown) => string | null} getPreviewLanguageFromPayload
+ * @property {(input: MTPreviewBootstrapInput) => MTPreviewContext} buildPreviewContext
  * @property {(input: MTPreviewBootstrapInput) => string} buildPreviewBootstrapRoute
  */
 

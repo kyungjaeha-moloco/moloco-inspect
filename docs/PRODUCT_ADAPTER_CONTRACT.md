@@ -104,14 +104,11 @@ type MTPreviewVerificationResult = {
 ```ts
 export type MTProductAdapter = {
   id: string;
-  buildPreviewBootstrapUrl(input: MTPreviewBootstrapInput): string;
+  buildPreviewContext(input: MTPreviewBootstrapInput): MTPreviewContext;
+  buildPreviewBootstrapRoute(input: MTPreviewBootstrapInput): string;
   extractWorkplaceId(targetUrl: string): string | null;
-  resolveRouteProfile(input: { url: string; client?: string | null }): string | null;
-  verifyPreview(input: {
-    url: string;
-    client?: string | null;
-    language?: string | null;
-  }): Promise<MTPreviewVerificationResult>;
+  verifyRoute(input: MTPreviewVerifyRouteInput): Promise<MTPreviewVerificationResult>;
+  verifyCopyVisible(input: MTPreviewVerifyCopyInput): Promise<MTPreviewVerificationResult>;
   captureScreenshot(input: {
     url: string;
     outputPath: string;
@@ -173,6 +170,14 @@ extension은 직접 adapter를 호출하지 않더라도, backend를 통해 아�
 1. `tooling/preview-kit`에 generic interface와 MSM adapter entrypoint 정의
 2. orchestrator에서 `msm-portal` 경로 직접 참조 대신 adapter 호출 경로 도입
 3. preview verification JSON과 adapter implementation을 연결
+
+현재 상태:
+
+- [`/Users/kyungjae.ha/Documents/moloco-inspect/tooling/preview-kit/src/factory.js`](/Users/kyungjae.ha/Documents/moloco-inspect/tooling/preview-kit/src/factory.js)
+- [`/Users/kyungjae.ha/Documents/moloco-inspect/tooling/preview-kit/src/adapters/msm-portal.js`](/Users/kyungjae.ha/Documents/moloco-inspect/tooling/preview-kit/src/adapters/msm-portal.js)
+- [`/Users/kyungjae.ha/Documents/moloco-inspect/orchestrator/server.js`](/Users/kyungjae.ha/Documents/moloco-inspect/orchestrator/server.js)
+
+까지는 연결된 상태입니다.
 
 ## 한 줄 요약
 

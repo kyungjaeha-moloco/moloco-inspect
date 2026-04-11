@@ -5,6 +5,7 @@
 ## 목표
 
 - preview bootstrap URL 생성
+- payload 기준 preview context 생성
 - route profile 기반 readiness 검증
 - screenshot capture orchestration
 - product-specific implementation 분리
@@ -15,12 +16,9 @@
 
 다음 단계에서 아래를 추가할 예정입니다.
 
-1. `verify.ts`
-   - preview verification wrapper
-2. `capture.ts`
-   - screenshot capture wrapper
-3. `msm-portal/`
-   - MSM Portal adapter implementation 보강
+1. adapter별 runtime dependency를 더 분리
+2. product-specific CLI 경로를 adapter config로 더 이동
+3. 이후 다른 product adapter를 추가할 수 있게 확장
 
 ## 현재 들어간 파일
 

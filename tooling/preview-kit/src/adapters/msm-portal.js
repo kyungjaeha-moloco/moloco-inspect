@@ -35,8 +35,12 @@ export function getPreviewLanguageFromPayload(payload) {
 }
 
 export function buildMsmPreviewBootstrapRoute(args) {
+  return buildMsmPreviewContext(args).bootstrapRoute;
+}
+
+export function buildMsmPreviewContext(args) {
   const payload = args?.payload ?? {};
-  const client = typeof args?.client === 'string' ? args.client.trim() : '';
+  const client = typeof args?.client === 'string' && args.client.trim() ? args.client.trim() : null;
   const language = getPreviewLanguageFromPayload(payload);
   const targetRoute = applyLanguageToRoute(getPreviewRouteFromPayload(payload), language);
   const previewUrl = new URL(MSM_PREVIEW_BOOTSTRAP_PATH, 'http://preview.local');
@@ -56,7 +60,13 @@ export function buildMsmPreviewBootstrapRoute(args) {
     previewUrl.searchParams.set('client', client);
   }
 
-  return `${previewUrl.pathname}${previewUrl.search}${previewUrl.hash}`;
+  return {
+    client,
+    language,
+    targetRoute,
+    workplaceId,
+    bootstrapRoute: `${previewUrl.pathname}${previewUrl.search}${previewUrl.hash}`,
+  };
 }
 
 export function createMsmPortalPreviewAdapter() {
@@ -66,6 +76,9 @@ export function createMsmPortalPreviewAdapter() {
     extractWorkplaceIdFromRoute,
     getPreviewRouteFromPayload,
     getPreviewLanguageFromPayload,
+    buildPreviewContext(args) {
+      return buildMsmPreviewContext(args);
+    },
     buildPreviewBootstrapRoute(args) {
       return buildMsmPreviewBootstrapRoute(args);
     },
