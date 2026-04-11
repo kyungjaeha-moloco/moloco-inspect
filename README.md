@@ -69,6 +69,9 @@ Moloco Inspect는 라이브 페이지를 보며 요소를 선택하고, 자연�
 - [Bootstrap Plan](./docs/BOOTSTRAP_PLAN.md)
 - [Source Workspace Map](./docs/SOURCE_WORKSPACE_MAP.md)
 - [Initial Handoff](./docs/INITIAL_HANDOFF.md)
+- [Product Integration Extraction Plan](./docs/PRODUCT_INTEGRATION_EXTRACTION_PLAN_2026-04-11.md)
+- [Product Adapter Contract](./docs/PRODUCT_ADAPTER_CONTRACT.md)
+- [Preview Bootstrap Contract](./docs/PREVIEW_BOOTSTRAP_CONTRACT.md)
 
 ## 제안 설명용 한 문장
 

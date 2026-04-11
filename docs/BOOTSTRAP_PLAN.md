@@ -54,3 +54,4 @@
 1. design-system 1차 이관
 2. dashboard가 로컬 design-system을 읽도록 전환
 3. 이후 orchestrator / extension / dashboard의 source workspace 의존성 축소
+4. product integration extraction plan 구체화

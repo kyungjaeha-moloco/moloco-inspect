@@ -1,0 +1,42 @@
+# Preview Kit
+
+`preview-kit`은 `moloco-inspect`가 product app의 preview/runtime 검증을 직접 끌어안지 않고, adapter contract를 통해 연결하도록 만들기 위한 초안 디렉토리입니다.
+
+## 목표
+
+- preview bootstrap URL 생성
+- route profile 기반 readiness 검증
+- screenshot capture orchestration
+- product-specific implementation 분리
+
+## 현재 상태
+
+초기 scaffold와 MSM Portal preview adapter 초안이 들어가 있습니다.
+
+다음 단계에서 아래를 추가할 예정입니다.
+
+1. `verify.ts`
+   - preview verification wrapper
+2. `capture.ts`
+   - screenshot capture wrapper
+3. `msm-portal/`
+   - MSM Portal adapter implementation 보강
+
+## 현재 들어간 파일
+
+- `package.json`
+- `src/shared.js`
+- `src/adapters/msm-portal.js`
+- `src/index.js`
+
+## 원칙
+
+- generic logic은 `preview-kit`에 둔다
+- product-specific logic은 adapter 디렉토리로 분리한다
+- `orchestrator`는 가능한 한 `msm-portal` 경로를 직접 몰라야 한다
+
+## 관련 문서
+
+- [`/Users/kyungjae.ha/Documents/moloco-inspect/docs/PRODUCT_ADAPTER_CONTRACT.md`](/Users/kyungjae.ha/Documents/moloco-inspect/docs/PRODUCT_ADAPTER_CONTRACT.md)
+- [`/Users/kyungjae.ha/Documents/moloco-inspect/docs/PREVIEW_BOOTSTRAP_CONTRACT.md`](/Users/kyungjae.ha/Documents/moloco-inspect/docs/PREVIEW_BOOTSTRAP_CONTRACT.md)
+- [`/Users/kyungjae.ha/Documents/moloco-inspect/docs/PRODUCT_INTEGRATION_EXTRACTION_PLAN_2026-04-11.md`](/Users/kyungjae.ha/Documents/moloco-inspect/docs/PRODUCT_INTEGRATION_EXTRACTION_PLAN_2026-04-11.md)

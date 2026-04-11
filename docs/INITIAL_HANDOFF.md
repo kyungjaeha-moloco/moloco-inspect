@@ -37,7 +37,10 @@
 1. `/Users/kyungjae.ha/Documents/moloco-inspect/README.md`
 2. `/Users/kyungjae.ha/Documents/moloco-inspect/docs/BOOTSTRAP_PLAN.md`
 3. `/Users/kyungjae.ha/Documents/moloco-inspect/docs/SOURCE_WORKSPACE_MAP.md`
-4. 원본 workspace의 상세 handoff:
+4. `/Users/kyungjae.ha/Documents/moloco-inspect/docs/PRODUCT_INTEGRATION_EXTRACTION_PLAN_2026-04-11.md`
+5. `/Users/kyungjae.ha/Documents/moloco-inspect/docs/PRODUCT_ADAPTER_CONTRACT.md`
+6. `/Users/kyungjae.ha/Documents/moloco-inspect/docs/PREVIEW_BOOTSTRAP_CONTRACT.md`
+7. 원본 workspace의 상세 handoff:
    - `/Users/kyungjae.ha/Documents/Agent-Design-System/contract-first-program/docs/CLAUDE_HANDOFF_2026-04-11.md`
 
 ## 다음 작업 추천

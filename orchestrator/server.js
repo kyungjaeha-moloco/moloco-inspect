@@ -23,6 +23,10 @@ import { fileURLToPath } from 'node:url';
 import { execFile, exec, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
+import {
+  createMsmPortalPreviewAdapter,
+  normalizeLanguage,
+} from '../tooling/preview-kit/src/index.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -213,7 +217,7 @@ const DEFAULT_VALIDATION_EXPECTATIONS =
     'typecheck',
     'preview_screenshot',
   ];
-const PREVIEW_BOOTSTRAP_PATH = '/__codex/preview-bootstrap';
+const previewAdapter = createMsmPortalPreviewAdapter();
 
 // ─── State ────────────────────────────────────────────────────────────
 
@@ -913,80 +917,13 @@ function getPreviewClient(payload) {
   return inferClientFromPayload(payload);
 }
 
-function getPreviewRoute(payload) {
-  const explicitPath = typeof payload?.pagePath === 'string' ? payload.pagePath.trim() : '';
-  if (explicitPath) return explicitPath.startsWith('/') ? explicitPath : `/${explicitPath}`;
-
-  const pageUrl = typeof payload?.pageUrl === 'string' ? payload.pageUrl.trim() : '';
-  if (!pageUrl) return '/';
-
-  try {
-    const parsed = new URL(pageUrl);
-    return `${parsed.pathname}${parsed.search}${parsed.hash}` || '/';
-  } catch {
-    return '/';
-  }
-}
-
-function normalizeLanguage(language) {
-  const normalized = typeof language === 'string' ? language.trim().toLowerCase() : '';
-  if (!normalized) return null;
-  if (normalized.startsWith('ko')) return 'ko';
-  if (normalized.startsWith('en')) return 'en';
-  return normalized;
-}
-
 function getPreviewLanguage(payload) {
-  const explicitLanguage = normalizeLanguage(payload?.language);
-  if (explicitLanguage) return explicitLanguage;
-
-  const pageUrl = typeof payload?.pageUrl === 'string' ? payload.pageUrl.trim() : '';
-  if (!pageUrl) return null;
-
-  try {
-    return normalizeLanguage(new URL(pageUrl).searchParams.get('lng'));
-  } catch {
-    return null;
-  }
-}
-
-function applyLanguageToRoute(route, language) {
-  const normalizedLanguage = normalizeLanguage(language);
-  if (!normalizedLanguage) {
-    return route;
-  }
-
-  const previewUrl = new URL(route || '/', 'http://preview.local');
-  previewUrl.searchParams.set('lng', normalizedLanguage);
-  return `${previewUrl.pathname}${previewUrl.search}${previewUrl.hash}`;
-}
-
-function extractWorkplaceIdFromRoute(route) {
-  const match = String(route || '').match(/\/v1\/p\/([^/]+)/);
-  return match?.[1] || null;
+  return previewAdapter.getPreviewLanguageFromPayload(payload);
 }
 
 function buildPreviewBootstrapRoute(payload) {
-  const targetRoute = applyLanguageToRoute(getPreviewRoute(payload), getPreviewLanguage(payload));
-  const previewUrl = new URL(PREVIEW_BOOTSTRAP_PATH, 'http://preview.local');
-  previewUrl.searchParams.set('target', targetRoute || '/');
-
-  const workplaceId = extractWorkplaceIdFromRoute(targetRoute);
-  if (workplaceId) {
-    previewUrl.searchParams.set('workplaceId', workplaceId);
-  }
-
-  const language = getPreviewLanguage(payload);
-  if (language) {
-    previewUrl.searchParams.set('lng', language);
-  }
-
   const client = getPreviewClient(payload);
-  if (client) {
-    previewUrl.searchParams.set('client', client);
-  }
-
-  return `${previewUrl.pathname}${previewUrl.search}${previewUrl.hash}`;
+  return previewAdapter.buildPreviewBootstrapRoute({ payload, client });
 }
 
 function isTextChangeRequest(payload) {
