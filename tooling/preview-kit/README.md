@@ -25,10 +25,12 @@
 ## 현재 들어간 파일
 
 - `package.json`
+- `src/types.js`
 - `src/shared.js`
 - `src/adapters/msm-portal.js`
 - `src/verify.js`
 - `src/capture.js`
+- `src/route-verify.js`
 - `src/index.js`
 
 ## 원칙

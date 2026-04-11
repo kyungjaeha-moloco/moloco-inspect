@@ -27,6 +27,7 @@ import {
   captureScreenshotWithMsmPortal,
   createMsmPortalPreviewAdapter,
   normalizeLanguage,
+  verifyRouteWithMsmPortal,
   verifyCopyVisibleWithMsmPortal,
 } from '../tooling/preview-kit/src/index.js';
 
@@ -1656,12 +1657,17 @@ async function runPipeline(id) {
           previewUrl: previewResult.previewUrl,
         });
         appendLog(id, `Screenshot captured: ${path.basename(previewResult.screenshotPath)}`);
-        String(previewResult.screenshotStdout || '')
-          .split('\n')
-          .map((line) => line.trim())
-          .filter(Boolean)
-          .filter((line) => line.startsWith('Route profile verification passed'))
-          .forEach((line) => appendLog(id, line));
+        const routeVerification = await verifyRouteWithMsmPortal({
+          msmRepoRoot: MSM_REPO_ROOT,
+          worktreePath,
+          previewUrl: previewResult.previewUrl,
+          expectedLanguage,
+          client,
+        });
+        if (!routeVerification.ok) {
+          throw new Error(routeVerification.message);
+        }
+        appendLog(id, routeVerification.message);
 
         const copyVisibleCheck = await verifyCopyVisibleOnRoute({
           payload: state.payload,
