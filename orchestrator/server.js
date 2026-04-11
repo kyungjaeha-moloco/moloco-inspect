@@ -24,11 +24,7 @@ import { execFile, exec, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import {
-  captureScreenshotWithMsmPortal,
-  createMsmPortalPreviewAdapter,
-  normalizeLanguage,
-  verifyRouteWithMsmPortal,
-  verifyCopyVisibleWithMsmPortal,
+  createPreviewAdapter,
 } from '../tooling/preview-kit/src/index.js';
 
 const execAsync = promisify(exec);
@@ -220,7 +216,7 @@ const DEFAULT_VALIDATION_EXPECTATIONS =
     'typecheck',
     'preview_screenshot',
   ];
-const previewAdapter = createMsmPortalPreviewAdapter();
+const previewAdapter = createPreviewAdapter('msm-portal');
 
 // ─── State ────────────────────────────────────────────────────────────
 
@@ -1126,7 +1122,7 @@ async function verifyCopyVisibleOnRoute({ payload, previewUrl, worktreePath, vis
   if (!isCopyChangeRequest(payload)) {
     return { ok: true, message: 'Copy visibility verification skipped (intent is not copy_update)' };
   }
-  return await verifyCopyVisibleWithMsmPortal({
+  return await previewAdapter.verifyCopyVisible({
     msmRepoRoot: MSM_REPO_ROOT,
     worktreePath,
     previewUrl,
@@ -1255,7 +1251,7 @@ async function capturePreviewScreenshot({ id, worktreePath, payload }) {
 
   try {
     await waitForServerReady(`http://127.0.0.1:${port}/`, () => previewExitError);
-    const { stdout } = await captureScreenshotWithMsmPortal({
+    const { stdout } = await previewAdapter.captureScreenshot({
       msmRepoRoot: MSM_REPO_ROOT,
       worktreePath,
       previewUrl,
@@ -1657,7 +1653,7 @@ async function runPipeline(id) {
           previewUrl: previewResult.previewUrl,
         });
         appendLog(id, `Screenshot captured: ${path.basename(previewResult.screenshotPath)}`);
-        const routeVerification = await verifyRouteWithMsmPortal({
+        const routeVerification = await previewAdapter.verifyRoute({
           msmRepoRoot: MSM_REPO_ROOT,
           worktreePath,
           previewUrl: previewResult.previewUrl,

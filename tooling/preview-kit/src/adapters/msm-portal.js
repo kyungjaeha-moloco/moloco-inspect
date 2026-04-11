@@ -1,4 +1,7 @@
 import { applyLanguageToRoute, extractWorkplaceIdFromRoute, normalizeLanguage } from '../shared.js';
+import { captureScreenshotWithMsmPortal } from '../capture.js';
+import { verifyCopyVisibleWithMsmPortal } from '../verify.js';
+import { verifyRouteWithMsmPortal } from '../route-verify.js';
 
 export const MSM_PREVIEW_BOOTSTRAP_PATH = '/__codex/preview-bootstrap';
 
@@ -65,6 +68,15 @@ export function createMsmPortalPreviewAdapter() {
     getPreviewLanguageFromPayload,
     buildPreviewBootstrapRoute(args) {
       return buildMsmPreviewBootstrapRoute(args);
+    },
+    async captureScreenshot(args) {
+      return await captureScreenshotWithMsmPortal(args);
+    },
+    async verifyCopyVisible(args) {
+      return await verifyCopyVisibleWithMsmPortal(args);
+    },
+    async verifyRoute(args) {
+      return await verifyRouteWithMsmPortal(args);
     },
   };
 }

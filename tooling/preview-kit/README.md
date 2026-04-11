@@ -26,6 +26,7 @@
 
 - `package.json`
 - `src/types.js`
+- `src/factory.js`
 - `src/shared.js`
 - `src/adapters/msm-portal.js`
 - `src/verify.js`
