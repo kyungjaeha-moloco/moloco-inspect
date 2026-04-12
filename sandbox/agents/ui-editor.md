@@ -9,6 +9,7 @@ permission:
     "cat *": allow
     "ls *": allow
     "pnpm exec tsc *": allow
+    "npx tsx /workspace/design-system/scripts/validate.ts *": allow
     "*": ask
   file:
     read: allow
@@ -31,12 +32,27 @@ You are modifying MSM Portal UI code inside a sandboxed container.
 - Preserve the current page language in any visible copy changes
 - If changing i18n locale files, verify which useTranslation namespace the component uses first
 
+## Task routing via design system index
+
+Before reading any design system files, FIRST read /workspace/design-system/src/index.json and check the `task_loading_guide` section. Match your task type to one of the entries (e.g. `styling_a_component`, `implementing_a_form`, `adding_i18n_strings`, etc.), then load ONLY the files listed in that entry's `load_order`. Do not load files not required for the matched task type.
+
+Also consult `decision_trees` in the same index.json to identify the correct component or pattern for user inputs, actions, page types, and feedback display.
+
 ## Design system references
-Read these for exact token values and component rules:
-- /workspace/design-system/src/tokens.json
-- /workspace/design-system/src/components.json
-- /workspace/design-system/src/conventions.json
-- /workspace/design-system/src/patterns.json
-- /workspace/design-system/src/ux-writing.json
 
 Use targeted lookups only. Do not dump full JSON contents.
+
+For color lookups, use /workspace/design-system/src/semantic-palette.json instead of reading the full tokens.json.
+
+For component provider requirements (e.g. required wrappers or context providers), check /workspace/design-system/src/component-dependencies.json.
+
+When encountering unfamiliar errors or violations, check /workspace/design-system/src/error-patterns.json for known patterns and fixes.
+
+## Validation loop
+
+After making any code changes, run the validation script and fix any violations before finishing:
+
+1. Run: `npx tsx /workspace/design-system/scripts/validate.ts <changed-files>`
+2. If violations are found, fix them and re-run validation
+3. Repeat up to a maximum of 3 iterations
+4. If violations remain after 3 iterations, report them clearly without further auto-fixing

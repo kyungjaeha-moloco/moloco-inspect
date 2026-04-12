@@ -58,7 +58,7 @@
   <!-- Selected element card (hidden by default) -->
   <div class="element-card" id="elementCard" style="display:none">
     <div class="element-card-header">
-      <span class="element-card-label">Selected Element</span>
+      <span class="element-card-label">선택한 요소</span>
       <button class="element-card-close" id="clearElement">&times;</button>
     </div>
     <div class="element-name" id="elementName"></div>
@@ -69,7 +69,7 @@
 
   <div class="capture-card" id="captureCard" style="display:none">
     <div class="capture-card-header">
-      <span class="element-card-label">Selected Screenshot</span>
+      <span class="element-card-label">선택한 스크린샷</span>
       <button class="element-card-close" id="clearCapture">&times;</button>
     </div>
     <img class="capture-preview-image" id="capturePreviewImage" alt="Selected screenshot preview" />
@@ -79,7 +79,7 @@
   <div class="prd-card" id="prdCard" style="display:none">
     <div class="prd-card-header">
       <div>
-        <div class="element-card-label">PRD Context</div>
+        <div class="element-card-label">PRD 컨텍스트</div>
         <div class="prd-card-subtitle">링크나 핵심 요구사항을 읽고 현재 페이지 작업으로 좁힙니다.</div>
       </div>
       <button class="element-card-close" id="clearPrd">&times;</button>
@@ -118,30 +118,30 @@
 
   <div class="request-contract-card" id="requestContractCard" style="display:none">
     <div class="request-contract-header">
-      <span class="element-card-label">Structured Request</span>
+      <span class="element-card-label">구조화된 요청</span>
       <span class="request-contract-hint" id="requestContractHint">대화형 요청 정제에 내부적으로 사용됩니다.</span>
     </div>
 
     <div class="request-contract-grid">
       <label class="request-field">
-        <span>Change intent</span>
+        <span>변경 의도</span>
         <select id="intentSelect">
           <option value="layout_adjustment">layout_adjustment</option>
         </select>
       </label>
 
       <label class="request-field">
-        <span>Goal</span>
+        <span>목표</span>
         <input type="text" id="goalInput" placeholder="예: 로그인 CTA를 더 명확하게 만든다." />
       </label>
 
       <label class="request-field">
-        <span>Success criteria</span>
+        <span>성공 기준</span>
         <input type="text" id="successCriteriaInput" placeholder="세미콜론(;)으로 여러 개를 나눌 수 있습니다." />
       </label>
 
       <label class="request-field">
-        <span>Constraints</span>
+        <span>제약 조건</span>
         <input type="text" id="constraintsInput" placeholder="예: 레이아웃 유지; 한국어 유지" />
       </label>
     </div>
@@ -172,7 +172,7 @@
     <div class="input-status" id="inputStatus"></div>
     <div class="input-box">
       <div class="selection-chip-row" id="selectionChipRow" style="display:none"></div>
-      <textarea class="input-field" id="promptInput" placeholder="Ask or build anything" rows="3"></textarea>
+      <textarea class="input-field" id="promptInput" placeholder="무엇이든 요청하세요" rows="3"></textarea>
       <div class="input-toolbar">
         <button class="toolbar-btn" id="screenshotBtn" title="Take screenshot">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">

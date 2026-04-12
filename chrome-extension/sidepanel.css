@@ -1133,3 +1133,55 @@ body {
   background: #346bea;
   color: #fff;
 }
+
+/* ─── Progress Stepper ───────────────────────────────── */
+
+.progress-stepper {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0;
+}
+
+.progress-stepper .step {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #1e1e30;
+  color: #666;
+  font-size: 11px;
+  text-align: center;
+  transition: all 0.3s;
+}
+
+.progress-stepper .step.active {
+  background: #346bea;
+  color: #fff;
+}
+
+.progress-stepper .step.done {
+  background: #1b3a1b;
+  color: #66bb6a;
+}
+
+.progress-timer {
+  font-size: 11px;
+  color: #888;
+  margin-top: 4px;
+}
+
+/* ─── Clarification Skip Button ──────────────────────── */
+
+.clarification-skip {
+  background: transparent;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 7px 14px;
+  color: #aaa;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.clarification-skip:hover {
+  border-color: #666;
+  color: #ddd;
+}

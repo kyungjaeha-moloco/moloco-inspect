@@ -77,6 +77,93 @@
   let prdContext = null;
   let isPrdLoading = false;
 
+  // ─── Error Humanization ─────────────────────────────────────────────
+  function humanizeError(rawError) {
+    const text = String(rawError || '').trim();
+    const map = [
+      [/ECONNREFUSED|Failed to fetch|fetch failed/i, '서버에 연결할 수 없습니다. Orchestrator가 실행 중인지 확인해주세요.'],
+      [/timeout|timed out|aborted due to timeout/i, '작업 시간이 초과되었습니다. 요청을 다시 보내거나 더 구체적으로 작성해보세요.'],
+      [/Pipeline error/i, '작업 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.'],
+      [/Agent error|Agent:/i, 'AI 에이전트가 요청을 처리하지 못했습니다. 요청을 더 구체적으로 작성해보세요.'],
+      [/credit balance|quota/i, 'API 사용 한도에 도달했습니다. 관리자에게 문의해주세요.'],
+      [/Extension context invalidated/i, '확장 프로그램이 업데이트되었습니다. 페이지를 새로고침해주세요.'],
+    ];
+    for (const [pattern, message] of map) {
+      if (pattern.test(text)) return message;
+    }
+    return `오류가 발생했습니다: ${text.slice(0, 100)}`;
+  }
+
+  // ─── Progress Stepper State ────────────────────────────────────────
+  let progressTimerId = null;
+
+  const PHASE_TO_STEP = {
+    creating_sandbox: 0,
+    syncing_source: 0,
+    queued: 0,
+    creating_worktree: 0,
+    running_agent: 1,
+    running_codex: 1,
+    validating: 2,
+    collecting_diff: 2,
+    preview_ready: 3,
+    capturing_screenshot: 3,
+    no_change_needed: 3,
+    applying_local_patch: 3,
+    pipeline_error: -1,
+  };
+
+  const STEP_LABELS = ['준비', '코드 수정', '검증', '완료'];
+
+  function createStepperElement() {
+    const stepper = document.createElement('div');
+    stepper.className = 'progress-stepper';
+    STEP_LABELS.forEach((label, i) => {
+      const step = document.createElement('div');
+      step.className = 'step';
+      step.dataset.stepIndex = i;
+      step.textContent = label;
+      stepper.appendChild(step);
+    });
+    return stepper;
+  }
+
+  function updateStepperForPhase(stepperEl, phase) {
+    if (!stepperEl) return;
+    const activeIdx = PHASE_TO_STEP[phase] != null ? PHASE_TO_STEP[phase] : 0;
+    stepperEl.querySelectorAll('.step').forEach((step) => {
+      const idx = parseInt(step.dataset.stepIndex, 10);
+      step.classList.remove('active', 'done');
+      if (activeIdx >= 0) {
+        if (idx < activeIdx) step.classList.add('done');
+        else if (idx === activeIdx) step.classList.add('active');
+      }
+    });
+  }
+
+  function startProgressTimer(timerEl) {
+    if (progressTimerId) {
+      clearInterval(progressTimerId);
+      progressTimerId = null;
+    }
+    if (!timerEl) return;
+    const startTime = Date.now();
+    timerEl.textContent = '0:00 경과';
+    progressTimerId = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const mins = Math.floor(elapsed / 60);
+      const secs = String(elapsed % 60).padStart(2, '0');
+      timerEl.textContent = `${mins}:${secs} 경과`;
+    }, 1000);
+  }
+
+  function stopProgressTimer() {
+    if (progressTimerId) {
+      clearInterval(progressTimerId);
+      progressTimerId = null;
+    }
+  }
+
   // ─── Helpers ────────────────────────────────────────────────────────
   function escapeHtml(str) {
     const div = document.createElement('div');
@@ -397,6 +484,21 @@
     submitBtn.className = 'clarification-submit';
     submitBtn.textContent = '이 기준으로 진행';
     footer.appendChild(submitBtn);
+
+    const skipBtn = document.createElement('button');
+    skipBtn.type = 'button';
+    skipBtn.className = 'clarification-skip';
+    skipBtn.textContent = '바로 진행';
+    skipBtn.addEventListener('click', () => {
+      promptInput.value = pendingClarification.initialPrompt;
+      pendingClarification = null;
+      bubble.classList.add('clarification-complete');
+      bubble.querySelectorAll('button, textarea').forEach((node) => {
+        node.disabled = true;
+      });
+      submit();
+    });
+    footer.appendChild(skipBtn);
     inputWrap.appendChild(footer);
 
     bubble.appendChild(inputWrap);
@@ -1408,13 +1510,24 @@
     status.className = 'msg-status';
     status.innerHTML = '<span class="dot dot-waiting"></span> waiting';
 
+    const stepper = createStepperElement();
+    updateStepperForPhase(stepper, 'queued');
+
+    const timer = document.createElement('div');
+    timer.className = 'progress-timer';
+    timer.textContent = '0:00 경과';
+
     bubble.appendChild(title);
+    bubble.appendChild(stepper);
+    bubble.appendChild(timer);
     bubble.appendChild(body);
     bubble.appendChild(meta);
     bubble.appendChild(status);
     msg.appendChild(bubble);
     messagesEl.appendChild(msg);
     scrollToBottom();
+
+    startProgressTimer(timer);
 
     activeProgressCard = {
       requestId,
@@ -1423,6 +1536,8 @@
       body,
       meta,
       status,
+      stepper,
+      timer,
       payload,
     };
 
@@ -1438,12 +1553,21 @@
       activeProgressCard.title.textContent = title;
     }
 
+    updateStepperForPhase(activeProgressCard.stepper, phase);
+
+    // Stop timer on terminal phases
+    const terminalPhases = ['preview_ready', 'no_change_needed', 'pipeline_error', 'applying_local_patch'];
+    if (terminalPhases.includes(phase)) {
+      stopProgressTimer();
+    }
+
     activeProgressCard.body.textContent = getProgressPhaseCopy(phase, latestLog, activeProgressCard.payload);
     activeProgressCard.status.innerHTML = `<span class="dot dot-${statusType}"></span> ${escapeHtml(statusLabel)}`;
     scrollToBottom();
   }
 
   function clearActiveProgressCard() {
+    stopProgressTimer();
     activeProgressCard = null;
   }
 
@@ -1650,12 +1774,12 @@
 
     const approveBtn = document.createElement('button');
     approveBtn.className = 'preview-btn approve-btn';
-    approveBtn.textContent = 'Approve → Apply locally';
+    approveBtn.textContent = '승인하고 적용';
     approveBtn.addEventListener('click', () => handleApprove(requestId, actions));
 
     const rejectBtn = document.createElement('button');
     rejectBtn.className = 'preview-btn reject-btn';
-    rejectBtn.textContent = 'Request Changes';
+    rejectBtn.textContent = '수정 요청';
     rejectBtn.addEventListener('click', () => handleReject(requestId, actions));
 
     const cancelBtn = document.createElement('button');
@@ -1873,7 +1997,7 @@
         updateSendState();
 
         if (chrome.runtime.lastError) {
-          addSystemMessage('Failed to send: ' + chrome.runtime.lastError.message, 'error');
+          addSystemMessage(humanizeError(chrome.runtime.lastError.message), 'error');
           return;
         }
         if (response && response.ok) {
@@ -1898,7 +2022,7 @@
             }, 1200);
           }
         } else {
-          addSystemMessage('Error: ' + (response ? response.error : 'Unknown'), 'error');
+          addSystemMessage(humanizeError(response ? response.error : 'Unknown'), 'error');
         }
       }
     );
@@ -2157,7 +2281,7 @@
             statusLabel: 'error',
             title: 'Codex 작업 중 문제가 생겼어요',
           });
-          addSystemMessage('Error: ' + (response.error || 'Unknown'), 'error');
+          addSystemMessage(humanizeError(response.error || 'Unknown'), 'error');
         } else if (response.status === 'processing' || response.status === 'pending') {
           inputStatus.textContent = '';
           updateProgressMessage({
