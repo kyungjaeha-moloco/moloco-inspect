@@ -989,24 +989,14 @@ const server = http.createServer(async (req, res) => {
       const testId = payload.testId || null;
       const language = payload.language || null;
 
-      const analysisPrompt = `You are an AI assistant that helps PM/SA understand how their UI change request will be handled.
+      const analysisPrompt = `You analyze UI change requests for PM/SA users. Respond ONLY with valid JSON (no markdown, no code fences, no newlines inside string values).
 
-The user is looking at: ${client} client, route ${pagePath}${language ? `, language: ${language}` : ''}
-${component ? `Selected component: ${component}` : ''}${testId ? ` (testId: ${testId})` : ''}
+Context: ${client} client, route: ${pagePath}${language ? ', language: ' + language : ''}${component ? ', component: ' + component : ''}${testId ? ', testId: ' + testId : ''}
 
-Their request: "${userPrompt}"
+User request: "${userPrompt}"
 
-Respond in Korean with a JSON object containing:
-{
-  "understanding": "한 문장으로 사용자의 의도를 정확히 요약 (사용자의 실제 목적을 포착)",
-  "analysis": "이 요청을 구현하려면 어떤 코드를 어떻게 수정해야 하는지 구체적으로 설명 (2-3문장)",
-  "steps": ["구체적 실행 단계 1", "구체적 실행 단계 2", "구체적 실행 단계 3"],
-  "risks": "주의할 점이나 사이드 이펙트 가능성 (1문장, 없으면 null)",
-  "verification": "완료 후 어떻게 검증할지 (1문장)"
-}
-
-Be specific to their actual request. Do not give generic responses. Reference the actual component, route, and intent.
-Respond ONLY with the JSON object, no markdown or code blocks.`;
+Return this exact JSON structure in Korean:
+{"understanding":"사용자 의도 한 문장 요약","analysis":"구현 방법 구체 설명 2-3문장","steps":["단계1","단계2","단계3"],"risks":"주의점 또는 null","verification":"검증 방법 한 문장"}`;
 
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -1016,8 +1006,8 @@ Respond ONLY with the JSON object, no markdown or code blocks.`;
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-20250414',
-          max_tokens: 512,
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 600,
           messages: [{ role: 'user', content: analysisPrompt }],
         }),
       });
@@ -1027,12 +1017,21 @@ Respond ONLY with the JSON object, no markdown or code blocks.`;
       }
 
       const result = await response.json();
-      const text = result.content?.[0]?.text || '{}';
+      let text = (result.content?.[0]?.text || '').trim();
+      // Strip markdown code fences if present
+      text = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
       let analysis;
       try {
         analysis = JSON.parse(text);
       } catch {
-        analysis = { understanding: text.slice(0, 200), analysis: '', steps: [], risks: null, verification: '' };
+        // Try to extract JSON from the text
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try { analysis = JSON.parse(jsonMatch[0]); } catch { analysis = null; }
+        }
+        if (!analysis) {
+          analysis = { understanding: text.slice(0, 300), analysis: '', steps: [], risks: null, verification: '' };
+        }
       }
 
       return json(res, 200, { ok: true, analysis });
