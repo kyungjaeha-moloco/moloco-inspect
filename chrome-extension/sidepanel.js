@@ -61,7 +61,7 @@
   let currentRequestId = null; // HTTP mode: orchestrator request ID
   let pollingTimer = null;
   let pollCount = 0;
-  const MAX_POLL = 120; // 2 minutes for HTTP mode (Claude Code takes longer)
+  const MAX_POLL = 300; // 10 minutes for HTTP mode (sandbox agent needs time)
   let welcomeVisible = true;
   let inspectActive = false;
   let isSubmitting = false;

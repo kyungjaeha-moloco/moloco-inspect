@@ -18,7 +18,7 @@ export function createSandboxClient({ openCodePort, serverPassword }) {
     headers['Authorization'] = `Basic ${Buffer.from(`opencode:${serverPassword}`).toString('base64')}`;
   }
 
-  async function request(method, path, body, { timeout = 120_000 } = {}) {
+  async function request(method, path, body, { timeout = 600_000 } = {}) {
     const url = `${baseUrl}${path}`;
     const options = {
       method,

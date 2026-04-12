@@ -151,21 +151,23 @@ export async function extractDiff({ containerId }) {
 
   const changedFiles = statusRaw
     .split('\n')
-    .map((l) => l.trim())
+    .filter((l) => l.length > 3)
+    .map((l) => l.substring(3)) // porcelain format: 2-char status + space + path
+    .map((f) => f.trim())
     .filter(Boolean)
-    .map((l) => l.slice(3)) // strip status prefix "?? " or " M " etc
     .filter((f) => !f.startsWith('.opencode/'));
 
   if (!changedFiles.length) {
     return { diffText: '', changedFiles: [], diffStat: '' };
   }
 
-  // Stage only changed files (not entire repo)
-  const fileList = changedFiles.map((f) => `"${f}"`).join(' ');
-  await execInContainer({
-    containerId,
-    command: `cd /workspace/msm-portal && git add -- ${fileList}`,
-  });
+  // Stage changed files one by one (avoids shell escaping issues)
+  for (const file of changedFiles) {
+    await execInContainer({
+      containerId,
+      command: `cd /workspace/msm-portal && git add -- '${file.replace(/'/g, "'\\''")}'`,
+    });
+  }
 
   const { stdout: diffText } = await execInContainer({
     containerId,
