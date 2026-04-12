@@ -535,8 +535,100 @@ body {
 .execution-plan-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
+  border-left: 3px solid #346bea;
+  padding-left: 14px;
+}
+
+.plan-ai-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plan-ai-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(52, 107, 234, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8fb2ff;
+  flex-shrink: 0;
+}
+
+.plan-ai-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.plan-ai-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(102, 187, 106, 0.14);
+  color: #9fe3a2;
+  font-weight: 600;
+}
+
+.plan-conversation {
+  font-size: 13px;
+  line-height: 1.65;
+  color: #f0f2ff;
+}
+
+.plan-approach {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #c4c9e0;
+}
+
+.plan-prd-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #a7aecf;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+}
+
+.plan-safeguard {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  color: #9fe3a2;
+  line-height: 1.5;
+}
+
+.plan-safeguard svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #66bb6a;
+}
+
+.plan-scope {
+  font-size: 11px;
+  color: #666;
+}
+
+.progress-dashboard-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #8fb2ff;
+  text-decoration: none;
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+.progress-dashboard-link:hover {
+  color: #c4d5ff;
+  text-decoration: underline;
 }
 
 .progress-card {

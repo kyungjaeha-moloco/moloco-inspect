@@ -640,70 +640,138 @@
     );
   }
 
-  function buildExecutionPlanPreview(plan) {
+  function buildConversationalPlan(plan) {
     const payload = plan.payload;
     const contract = plan.requestContract;
+    const intent = contract?.change_intent || 'layout_adjustment';
     const targetLabel = describeTargetInNaturalLanguage(payload);
     const routeLabel = payload.pagePath || contract?.target?.route_or_page || '/';
-    const clientLabel = payload.client ? `${payload.client}` : '현재 클라이언트';
-    const intentLabel = describeIntent(contract?.change_intent);
-    const prdLine = plan.prdContext?.title
-      ? `PRD 근거: ${plan.prdContext.title} · ${plan.prdContext.summary || '현재 페이지와 관련된 변경 후보를 참고합니다.'}`
+    const language = payload.language || null;
+    const prd = plan.prdContext;
+
+    // Build a natural, conversational paragraph — like an AI thinking out loud
+    const opening = buildConversationalOpening(intent, targetLabel, payload);
+    const approach = buildConversationalApproach(intent, payload, routeLabel);
+    const safeguards = buildConversationalSafeguards(intent, language);
+    const prdNote = prd?.title
+      ? `참고로 "${prd.title}" PRD 문서의 맥락도 함께 반영하겠습니다.`
       : null;
 
-    return {
-      title: '제가 이해한 요청과 진행 계획',
-      lines: [
-        `이해한 요청: ${targetLabel} 쪽에서 ${intentLabel}`,
-        `진행 방식: ${describePlanApproach(contract?.change_intent, payload)}`,
-        `검증 방식: ${describePlanVerification(contract?.change_intent, payload)}`,
-        `작업 범위: ${clientLabel} · ${routeLabel}`,
-      ].concat(prdLine ? [prdLine] : []),
+    return { opening, approach, safeguards, prdNote, targetLabel, routeLabel, intent };
+  }
+
+  function buildConversationalOpening(intent, targetLabel, payload) {
+    const prompt = String(payload.userPrompt || '').trim();
+    const shortPrompt = prompt.length > 40 ? prompt.slice(0, 40) + '…' : prompt;
+
+    const openings = {
+      copy_update: `"${shortPrompt}" — ${targetLabel} 쪽의 문구를 바꾸고 싶으신 거죠. 어떤 텍스트가 어디서 렌더되는지 먼저 추적해볼게요.`,
+      spacing_adjustment: `${targetLabel} 주변 간격이 눈에 걸리셨군요. 현재 값을 확인하고 디자인 토큰 기준으로 한 단계만 조정해볼게요.`,
+      token_alignment: `${targetLabel}을 디자인 시스템 토큰에 맞추고 싶으신 거군요. 현재 하드코딩된 값이 있는지 먼저 확인하겠습니다.`,
+      component_swap: `${targetLabel}을 더 적합한 컴포넌트로 교체하는 방향이네요. 기존 동작을 깨뜨리지 않으면서 바꿀 수 있는지 살펴볼게요.`,
+      layout_adjustment: `${targetLabel}의 배치나 정렬을 다듬고 싶으신 거군요. 주변 요소와의 관계를 보면서 최소한으로 조정하겠습니다.`,
+      state_handling: `${targetLabel}의 동작이나 상태 흐름을 바꾸려는 요청이네요. 어떤 조건에서 어떻게 달라져야 하는지 코드를 먼저 읽어볼게요.`,
+      accessibility_improvement: `${targetLabel}의 접근성을 개선하는 방향이군요. 키보드 접근, 라벨, 포커스 흐름을 중심으로 살펴보겠습니다.`,
     };
+
+    return openings[intent] || `"${shortPrompt}" — ${targetLabel}을 수정하는 방향이네요. 코드를 살펴보고 가장 작은 변경부터 시도해볼게요.`;
+  }
+
+  function buildConversationalApproach(intent, payload, routeLabel) {
+    const approaches = {
+      copy_update: `${routeLabel} 화면에서 해당 컴포넌트가 사용하는 번역 네임스페이스를 확인하고, 올바른 locale 파일에서 정확한 키만 수정하겠습니다. 다른 페이지의 문구는 건드리지 않을게요.`,
+      spacing_adjustment: `현재 간격 값을 확인한 뒤 디자인 시스템의 spacing 토큰 중 적절한 값으로 교체하겠습니다. 레이아웃 구조 자체는 바꾸지 않을게요.`,
+      token_alignment: `하드코딩된 색상이나 크기 값을 찾아서 디자인 시스템 토큰으로 교체하겠습니다. 눈에 보이는 결과는 최대한 같게 유지할게요.`,
+      component_swap: `기존 컴포넌트의 props와 동작을 분석하고, 새 컴포넌트로 옮겼을 때 빠지는 게 없는지 확인하겠습니다.`,
+      layout_adjustment: `Flex/Grid 구조를 분석하고, 요청하신 방향으로 최소한의 CSS나 속성만 조정하겠습니다.`,
+      state_handling: `관련 이벤트 핸들러와 상태 로직을 읽고, 요청하신 동작 변화가 반영되도록 수정하겠습니다. UI 모양은 유지합니다.`,
+      accessibility_improvement: `ARIA 속성, role, tabIndex, 포커스 이동 순서를 점검하고 필요한 부분을 추가하겠습니다.`,
+    };
+
+    return approaches[intent] || `${routeLabel} 화면의 관련 코드를 읽고, 요청 방향에 맞게 최소한의 변경을 적용하겠습니다.`;
+  }
+
+  function buildConversationalSafeguards(intent, language) {
+    const base = '수정 후 design-system 검증과 typecheck를 실행해서 문제가 없는지 확인하겠습니다.';
+    if (language) {
+      return `${base} ${language === 'ko' ? '한국어' : language} 언어 설정도 유지됩니다.`;
+    }
+    return base;
   }
 
   function addExecutionPlanMessage(plan) {
     removeWelcome();
 
-    const preview = buildExecutionPlanPreview(plan);
+    const conv = buildConversationalPlan(plan);
     const msg = document.createElement('div');
     msg.className = 'msg msg-system';
 
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble execution-plan-card';
 
-    const titleEl = document.createElement('div');
-    titleEl.className = 'assistant-question-title';
-    titleEl.textContent = preview.title;
-    bubble.appendChild(titleEl);
+    // AI avatar + thinking indicator
+    const header = document.createElement('div');
+    header.className = 'plan-ai-header';
+    header.innerHTML = `
+      <div class="plan-ai-avatar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18">
+          <circle cx="12" cy="12" r="7"/>
+          <line x1="12" y1="1" x2="12" y2="5"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="1" y1="12" x2="5" y2="12"/>
+          <line x1="19" y1="12" x2="23" y2="12"/>
+        </svg>
+      </div>
+      <span class="plan-ai-name">Inspect Agent</span>
+      <span class="plan-ai-badge">요청을 분석했어요</span>
+    `;
+    bubble.appendChild(header);
 
-    const helperEl = document.createElement('div');
-    helperEl.className = 'assistant-question-helper';
-    helperEl.textContent = '제가 이해한 방향이 맞으면 진행을 눌러주세요. 다르면 바로 요청을 더 다듬을 수 있습니다.';
-    bubble.appendChild(helperEl);
+    // Conversational opening — the AI's understanding
+    const openingEl = document.createElement('div');
+    openingEl.className = 'plan-conversation';
+    openingEl.textContent = conv.opening;
+    bubble.appendChild(openingEl);
 
-    const list = document.createElement('div');
-    list.className = 'assistant-question-list';
-    preview.lines.forEach((line) => {
-      const item = document.createElement('div');
-      item.className = 'assistant-question-item';
-      item.textContent = line;
-      list.appendChild(item);
-    });
-    bubble.appendChild(list);
+    // Approach — what the AI will do
+    const approachEl = document.createElement('div');
+    approachEl.className = 'plan-approach';
+    approachEl.textContent = conv.approach;
+    bubble.appendChild(approachEl);
 
+    // PRD note if present
+    if (conv.prdNote) {
+      const prdEl = document.createElement('div');
+      prdEl.className = 'plan-prd-note';
+      prdEl.textContent = conv.prdNote;
+      bubble.appendChild(prdEl);
+    }
+
+    // Safeguards — verification
+    const safeguardEl = document.createElement('div');
+    safeguardEl.className = 'plan-safeguard';
+    safeguardEl.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M8 1.5l5.5 3v4c0 3.5-2.5 5.5-5.5 7-3-1.5-5.5-3.5-5.5-7v-4L8 1.5z"/><path d="M6 8l1.5 1.5L10.5 6"/></svg> ${escapeHtml(conv.safeguards)}`;
+    bubble.appendChild(safeguardEl);
+
+    // Scope tag
+    const scopeEl = document.createElement('div');
+    scopeEl.className = 'plan-scope';
+    scopeEl.textContent = `${conv.targetLabel} · ${conv.routeLabel}`;
+    bubble.appendChild(scopeEl);
+
+    // Actions
     const actions = document.createElement('div');
     actions.className = 'execution-plan-actions';
 
     const confirmBtn = document.createElement('button');
     confirmBtn.type = 'button';
     confirmBtn.className = 'execution-plan-confirm';
-    confirmBtn.textContent = '이 계획으로 진행';
+    confirmBtn.textContent = '이대로 진행해주세요';
 
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
     editBtn.className = 'execution-plan-edit';
-    editBtn.textContent = '요청 더 다듬기';
+    editBtn.textContent = '조금 다르게 해줘';
 
     actions.appendChild(confirmBtn);
     actions.appendChild(editBtn);
@@ -1517,11 +1585,21 @@
     timer.className = 'progress-timer';
     timer.textContent = '0:00 경과';
 
+    const dashLink = document.createElement('a');
+    dashLink.className = 'progress-dashboard-link';
+    dashLink.textContent = '대시보드에서 상세 보기 →';
+    dashLink.href = '#';
+    dashLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.runtime.sendMessage({ type: 'inspect-open-url', url: `http://127.0.0.1:4174/analytics/request/${requestId}` });
+    });
+
     bubble.appendChild(title);
     bubble.appendChild(stepper);
     bubble.appendChild(timer);
     bubble.appendChild(body);
     bubble.appendChild(meta);
+    bubble.appendChild(dashLink);
     bubble.appendChild(status);
     msg.appendChild(bubble);
     messagesEl.appendChild(msg);
