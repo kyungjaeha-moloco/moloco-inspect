@@ -1,5 +1,5 @@
 /**
- * Click-to-Inspect Background Service Worker
+ * Moloco Inspect Background Service Worker
  *
  * Dual mode:
  * - HTTP mode (default): sends requests to Orchestration Server
@@ -535,7 +535,7 @@ function sendNative(msg, callback) {
     if (chrome.runtime.lastError) {
       const err = chrome.runtime.lastError.message;
       if (!err.includes('exited')) {
-        console.error('[Click-to-Inspect] Native messaging error:', err);
+        console.error('[Moloco Inspect] Native messaging error:', err);
       }
       if (callback) callback(response || { ok: false, status: 'error', error: err });
       return;

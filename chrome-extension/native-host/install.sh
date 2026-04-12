@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install Native Messaging Host for Click-to-Inspect Chrome Extension
+# Install Native Messaging Host for Moloco Inspect Chrome Extension
 # Usage: ./install.sh [extension-id] [project-root]
 #
 # Example:
@@ -27,7 +27,7 @@ ARC_NM_DIR="$HOME/Library/Application Support/Arc/User Data/NativeMessagingHosts
 EXTENSION_ID="${1:-}"
 PROJECT_ROOT="${2:-}"
 
-echo "=== Click-to-Inspect Native Host Installer ==="
+echo "=== Moloco Inspect Native Host Installer ==="
 echo ""
 
 # C1 fix: Validate extension ID
@@ -77,7 +77,7 @@ echo "[3/3] Registering Native Messaging Host ..."
 
 MANIFEST="{
   \"name\": \"$HOST_NAME\",
-  \"description\": \"Click-to-Inspect bridge for Claude Code\",
+  \"description\": \"Moloco Inspect bridge\",
   \"path\": \"$BRIDGE_DST\",
   \"type\": \"stdio\",
   \"allowed_origins\": [\"chrome-extension://$EXTENSION_ID/\"]

@@ -1,7 +1,7 @@
 #!/usr/local/bin/node
 
 /**
- * Native Messaging Host for Click-to-Inspect
+ * Native Messaging Host for Moloco Inspect
  *
  * Protocol: Chrome sends 4-byte little-endian length prefix + JSON via stdin.
  * We respond with the same format on stdout.

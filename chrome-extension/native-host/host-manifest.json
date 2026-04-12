@@ -1,6 +1,6 @@
 {
   "name": "com.claudecode.inspect",
-  "description": "Click-to-Inspect bridge for Codex — writes inspect-prompt.json",
+  "description": "Moloco Inspect bridge — writes inspect-prompt.json",
   "path": "PLACEHOLDER_RUN_INSTALL_SH",
   "type": "stdio",
   "allowed_origins": ["chrome-extension://PLACEHOLDER_EXTENSION_ID/"]

@@ -1,5 +1,5 @@
 /**
- * Click-to-Inspect Side Panel
+ * Moloco Inspect Side Panel
  *
  * Chat-like UI for inspecting elements and sending edit requests.
  * Supports HTTP mode (Orchestration Server) and Native mode (local file).
@@ -1466,12 +1466,12 @@
     const routeLabel = payload?.pagePath || payload?.requestContract?.target?.route_or_page || '현재 화면';
 
     const phaseCopyMap = {
-      queued: `Codex가 ${routeLabel} 기준으로 작업 범위를 정리하고 있어요.`,
-      creating_worktree: `Codex가 안전한 작업 공간을 준비하고 있어요.`,
-      running_codex: `Codex가 ${targetLabel} 주변 코드를 실제로 수정하고 있어요.`,
-      collecting_diff: `Codex가 바뀐 파일과 변경 범위를 정리하고 있어요.`,
-      validating: `Codex가 validate와 typecheck를 돌려서 안전한지 확인하고 있어요.`,
-      capturing_screenshot: `Codex가 preview 화면을 캡처해서 바로 검토할 수 있게 준비하고 있어요.`,
+      queued: `Agent가 ${routeLabel} 기준으로 작업 범위를 정리하고 있어요.`,
+      creating_worktree: `Agent가 안전한 작업 공간을 준비하고 있어요.`,
+      running_codex: `Agent가 ${targetLabel} 주변 코드를 실제로 수정하고 있어요.`,
+      collecting_diff: `Agent가 바뀐 파일과 변경 범위를 정리하고 있어요.`,
+      validating: `Agent가 validate와 typecheck를 돌려서 안전한지 확인하고 있어요.`,
+      capturing_screenshot: `Agent가 preview 화면을 캡처해서 바로 검토할 수 있게 준비하고 있어요.`,
       preview_ready: `Preview가 준비됐어요. 바뀐 화면을 바로 검토할 수 있어요.`,
       no_change_needed: `이번 요청은 현재 화면 기준으로 바로 적용할 변경이 없다고 판단했어요.`,
       applying_local_patch: `승인된 변경을 로컬 워크스페이스에 적용하고 있어요.`,
@@ -1479,7 +1479,7 @@
       pipeline_error: `작업 중 문제가 생겨서 원인을 정리하고 있어요.`,
     };
 
-    const base = phaseCopyMap[phase] || `Codex가 ${targetLabel} 요청을 처리하고 있어요.`;
+    const base = phaseCopyMap[phase] || `Agent가 ${targetLabel} 요청을 처리하고 있어요.`;
     if (!latestLog) return base;
     return `${base} ${latestLog}`;
   }
@@ -1496,7 +1496,7 @@
 
     const title = document.createElement('div');
     title.className = 'progress-card-title';
-    title.textContent = 'Codex가 작업을 시작했어요';
+    title.textContent = 'Agent가 작업을 시작했어요';
 
     const body = document.createElement('div');
     body.className = 'progress-card-body';
@@ -1575,7 +1575,7 @@
     const map = {
       queued: 'Queued',
       creating_worktree: 'Preparing worktree',
-      running_codex: 'Codex is editing',
+      running_codex: 'Agent is editing',
       collecting_diff: 'Collecting diff',
       validating: 'Running validation',
       capturing_screenshot: 'Capturing screenshot',
@@ -2014,8 +2014,8 @@
             startHttpPolling(response.requestId);
           } else {
             // Native mode: simple file-based polling
-            addSystemMessage('Sent to Codex', 'sent');
-            inputStatus.textContent = 'Switch to Codex and press Enter';
+            addSystemMessage('Agent에 전송됨', 'sent');
+            inputStatus.textContent = '';
             setTimeout(() => {
               inputStatus.textContent = '';
               startNativePolling();
@@ -2238,7 +2238,7 @@
             latestLog: response.latestLog || '',
             statusType: 'applied',
             statusLabel: 'preview ready',
-            title: 'Codex가 preview를 준비했어요',
+            title: 'Agent가 preview를 준비했어요',
           });
           addPreviewCard(
             response.diff,
@@ -2256,7 +2256,7 @@
             latestLog: response.latestLog || '',
             statusType: 'waiting',
             statusLabel: 'no change',
-            title: 'Codex가 이번 요청은 변경 없이 유지하는 편이 맞다고 판단했어요',
+            title: 'Agent가 이번 요청은 변경 없이 유지하는 편이 맞다고 판단했어요',
           });
           addNoChangeCard(requestId, response.latestLog || response.error || '');
         } else if (response.status === 'approved') {
@@ -2268,7 +2268,7 @@
             latestLog: response.latestLog || '',
             statusType: 'applied',
             statusLabel: 'applied',
-            title: 'Codex가 변경을 적용했어요',
+            title: 'Agent가 변경을 적용했어요',
           });
         } else if (response.status === 'error') {
           stopPolling();
@@ -2279,7 +2279,7 @@
             latestLog: response.error || response.latestLog || '',
             statusType: 'error',
             statusLabel: 'error',
-            title: 'Codex 작업 중 문제가 생겼어요',
+            title: 'Agent 작업 중 문제가 생겼어요',
           });
           addSystemMessage(humanizeError(response.error || 'Unknown'), 'error');
         } else if (response.status === 'processing' || response.status === 'pending') {
@@ -2306,14 +2306,14 @@
       pollCount++;
       if (pollCount >= 60) {
         stopPolling();
-        addSystemMessage('Timed out waiting for Codex', 'timeout');
+        addSystemMessage('Agent 응답 시간이 초과되었습니다', 'timeout');
         return;
       }
       chrome.runtime.sendMessage({ type: 'inspect-status' }, (response) => {
         if (chrome.runtime.lastError) return;
         if (response && response.status === 'consumed') {
           stopPolling();
-          addSystemMessage('Changes applied!', 'applied');
+          addSystemMessage('변경이 적용되었습니다!', 'applied');
         }
       });
     }, 1000);

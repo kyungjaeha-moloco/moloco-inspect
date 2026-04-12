@@ -1,5 +1,5 @@
 /**
- * Click-to-Inspect Popup Script
+ * Moloco Inspect Popup Script
  */
 
 const toggleBtn = document.getElementById('toggleBtn');

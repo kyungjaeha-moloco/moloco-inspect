@@ -1,5 +1,5 @@
 /**
- * Click-to-Inspect Content Script
+ * Moloco Inspect Content Script
  *
  * Injected into localhost pages. Provides:
  * - Alt+Shift+X toggle for inspect mode
@@ -54,7 +54,7 @@
       });
     } catch (error) {
       if (!String(error?.message || error).includes('Extension context invalidated')) {
-        console.warn('[Click-to-Inspect] sendMessage failed:', error);
+        console.warn('[Moloco Inspect] sendMessage failed:', error);
       }
     }
   }
@@ -352,11 +352,11 @@
   // ─── Toast ──────────────────────────────────────────────────────────
 
   const TOAST_MESSAGES = {
-    sent: 'Sent to Codex',
-    waiting: 'Waiting for Codex to apply...',
-    applied: 'Changes applied!',
+    sent: 'Agent에 전송됨',
+    waiting: 'Agent가 적용 중...',
+    applied: '변경이 적용되었습니다!',
     error: 'Failed to send',
-    timeout: 'Timed out waiting for Claude Code',
+    timeout: 'Agent 응답 시간 초과',
   };
 
   function showToast(status, extra) {
@@ -372,10 +372,7 @@
     else if (status === 'sent') icon = '<span>\u2794</span>';
     else if (status === 'error' || status === 'timeout') icon = '<span>\u2717</span>';
 
-    const subtext =
-      status === 'sent'
-        ? '<div style="font-size:10px;color:#aaa;margin-top:2px">Switch to Codex and press Enter</div>'
-        : '';
+    const subtext = '';
 
     const msg = TOAST_MESSAGES[status] || status;
     const extraStr = extra ? ' — ' + escapeHtml(extra) : '';
@@ -768,5 +765,5 @@
     }
   });
 
-  console.log('[Click-to-Inspect] Content script loaded. Press Alt+Shift+X to activate.');
+  console.log('[Moloco Inspect] Content script loaded. Press Alt+Shift+X to activate.');
 })();
