@@ -1,12 +1,8 @@
-import React, { Suspense, lazy } from 'react';
+import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { DocsLayout, Breadcrumbs } from '../components/DocsLayout';
 import type { ComponentsCatalog } from '../types';
 import { contractRuleCount, draftedContractCount } from '../utils';
-
-const LazyAnalyticsOverviewSection = lazy(() =>
-  import('../analytics/AnalyticsPanels').then((module) => ({ default: module.AnalyticsOverviewSection })),
-);
 
 function KanbanColumn({
   title,
@@ -49,6 +45,7 @@ export function ProgressPage({
   const inProgress = [
     'Connecting the React docs app directly to live catalog and dependency JSON',
     'Improving component cards so provider requirements are visible at a glance',
+    'Building dedicated request list page with filtering and pagination',
   ];
   const done = [
     'Contract-first documentation workspace and tracker',
@@ -58,6 +55,8 @@ export function ProgressPage({
     'All public shared components are now cataloged in design-system',
     'Human-readable docs browser for colors and components',
     'Dependency map expanded for form, auth, workplace, and ad-pacing components',
+    'Navigation restructure with Ops Hub and Design System areas',
+    'Analytics overview section with hourly throughput chart',
   ];
   const blocked = [
     'Some domain components still need safer sample data before true runtime previews',
@@ -87,33 +86,45 @@ export function ProgressPage({
           <NavLink className="button-link secondary" to="/design/components">
             Open components
           </NavLink>
+          <NavLink className="button-link secondary" to="/ops/requests">
+            요청 목록
+          </NavLink>
         </div>
       </section>
 
       <section className="docs-grid">
-        <article className="docs-card span-3 stat">
-          <div className="label">Contracts</div>
-          <div className="value">{draftedContractCount}</div>
-          <div className="note">Core component contracts drafted and reviewed</div>
+        <article className="docs-section-card span-12">
+          <div className="docs-section-head">
+            <div>
+              <h2>프로그램 현황</h2>
+              <p className="docs-section-copy">
+                Contract 작성, 규칙 구현, 카탈로그 커버리지 등 프로그램 핵심 수치를 요약합니다.
+              </p>
+            </div>
+          </div>
+          <div className="docs-grid compact-grid">
+            <article className="docs-card span-3 stat">
+              <div className="label">Contracts</div>
+              <div className="value">{draftedContractCount}</div>
+              <div className="note">Core component contracts drafted and reviewed</div>
+            </article>
+            <article className="docs-card span-3 stat">
+              <div className="label">Contract Rules</div>
+              <div className="value">{contractRuleCount}</div>
+              <div className="note">Live contract-first rules currently wired into the validator</div>
+            </article>
+            <article className="docs-card span-3 stat">
+              <div className="label">Cataloged Components</div>
+              <div className="value">{componentsCatalog.meta.totalComponents}</div>
+              <div className="note">Live component inventory loaded from the latest design-system source</div>
+            </article>
+            <article className="docs-card span-3 stat">
+              <div className="label">Dependency Entries</div>
+              <div className="value">{dependencyCoverageCount}</div>
+              <div className="note">Components with explicit provider and rendering guidance</div>
+            </article>
+          </div>
         </article>
-        <article className="docs-card span-3 stat">
-          <div className="label">Contract Rules</div>
-          <div className="value">{contractRuleCount}</div>
-          <div className="note">Live contract-first rules currently wired into the validator</div>
-        </article>
-        <article className="docs-card span-3 stat">
-          <div className="label">Cataloged Components</div>
-          <div className="value">{componentsCatalog.meta.totalComponents}</div>
-          <div className="note">Live component inventory loaded from the latest design-system source</div>
-        </article>
-        <article className="docs-card span-3 stat">
-          <div className="label">Dependency Entries</div>
-          <div className="value">{dependencyCoverageCount}</div>
-          <div className="note">Components with explicit provider and rendering guidance</div>
-        </article>
-        <Suspense fallback={<article className="docs-section-card span-12"><div className="analytics-loading">운영 지표를 불러오는 중…</div></article>}>
-          <LazyAnalyticsOverviewSection />
-        </Suspense>
 
         <article className="docs-section-card span-12">
           <div className="docs-section-head">

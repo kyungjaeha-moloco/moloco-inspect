@@ -286,7 +286,7 @@ function AnalyticsTable({ records }: { records: AnalyticsRecord[] }) {
         <div className="analytics-table-row" key={record.id}>
           <span>
             <strong>
-              <NavLink className="analytics-detail-link" to={`/analytics/request/${record.id}`}>
+              <NavLink className="analytics-detail-link" to={`/ops/requests/${record.id}`}>
                 {record.id}
               </NavLink>
             </strong>
@@ -342,7 +342,7 @@ export function AnalyticsOverviewSection() {
               어떤 요청이 들어왔고, 어디를 수정했고, 승인까지 얼마나 걸렸는지를 운영 관점에서 볼 수 있는 ledger 기반 요약입니다.
             </p>
           </div>
-          <button className="analytics-refresh-btn" onClick={() => window.location.reload()}>
+          <button className="analytics-refresh-btn" onClick={reload}>
             새로고침
           </button>
         </div>

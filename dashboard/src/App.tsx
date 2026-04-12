@@ -19,8 +19,10 @@ import { ProgressPage } from './pages/ProgressPage';
 import { DesignSystemHomePage } from './pages/DesignSystemPage';
 import { FoundationsColorsPage } from './pages/FoundationsPage';
 import { ComponentsPage } from './pages/ComponentsPage';
+import { ComponentDetailPage } from './pages/ComponentDetailPage';
 import { UxWritingPage } from './pages/UxWritingPage';
 import { AnalyticsDetailPage } from './pages/AnalyticsDetailPage';
+import { RequestListPage } from './pages/RequestListPage';
 
 const liveComponentsJson = componentsJson as LiveComponentsJson;
 const componentDependenciesData = componentDependenciesJson as ComponentDependenciesJson;
@@ -51,12 +53,7 @@ export function App() {
       />
       <Route
         path="/ops/requests"
-        element={
-          <ProgressPage
-            componentsCatalog={componentsCatalog}
-            dependencyCoverageCount={dependencyCoverageCount}
-          />
-        }
+        element={<RequestListPage />}
       />
       <Route path="/ops/requests/:requestId" element={<AnalyticsDetailPage />} />
       <Route
@@ -99,6 +96,10 @@ export function App() {
       <Route
         path="/design/components"
         element={<ComponentsPage componentsCatalog={componentsCatalog} />}
+      />
+      <Route
+        path="/design/components/:slug"
+        element={<ComponentDetailPage catalog={componentsCatalog} />}
       />
       <Route
         path="/design/ux-writing"
