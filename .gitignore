@@ -22,6 +22,15 @@ screenshots/
 attachments/
 analytics/
 
+# Worktrees (legacy)
+.worktrees/
+
+# Sandbox build artifacts
+sandbox/host-ca.pem
+
+# Sisyphus plans
+.sisyphus/
+
 # Editor
 .idea/
 .vscode/

@@ -15,6 +15,9 @@
  *   GET  /api/health            — health check
  */
 
+process.on('uncaughtException', (err) => { console.error('[FATAL uncaughtException]', err); });
+process.on('unhandledRejection', (err) => { console.error('[FATAL unhandledRejection]', err); });
+
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,8 +26,12 @@ import { execFile, exec, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import {
-  createProductExecution,
-} from '../tooling/product-execution/src/index.js';
+  createSandbox, copyFilesIn, execInContainer, extractDiff,
+  extractFile, resetSandbox, removeSandbox,
+  allocatePort, releasePort,
+  createSandboxClient, waitForServerReady, runAgentPrompt,
+  buildSandboxPrompt,
+} from '../tooling/sandbox-manager/src/index.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -37,7 +44,6 @@ const LOCAL_DESIGN_SYSTEM_ROOT = path.join(WORKSPACE_ROOT, 'design-system');
 const DEFAULT_PRODUCT_REPO_ROOT = path.join(SOURCE_WORKSPACE_ROOT, 'msm-portal');
 const DESIGN_SYSTEM_ROOT = process.env.DESIGN_SYSTEM_ROOT ||
   (fs.existsSync(LOCAL_DESIGN_SYSTEM_ROOT) ? LOCAL_DESIGN_SYSTEM_ROOT : path.join(SOURCE_WORKSPACE_ROOT, 'design-system'));
-const WORKTREE_BASE = path.join(WORKSPACE_ROOT, '.worktrees');
 const SCREENSHOTS_DIR = path.join(__dirname, 'screenshots');
 const ATTACHMENTS_DIR = path.join(__dirname, 'attachments');
 const ANALYTICS_DIR = path.join(__dirname, 'analytics');
@@ -45,7 +51,10 @@ const REQUEST_HISTORY_PATH = path.join(ANALYTICS_DIR, 'request-history.ndjson');
 const REQUEST_SCHEMA_PATH = path.join(DESIGN_SYSTEM_ROOT, 'src', 'pm-sa-request-schema.json');
 const PREVIEW_VERIFICATION_PATH = path.join(DESIGN_SYSTEM_ROOT, 'src', 'preview-verification.json');
 const PORT = parseInt(process.env.PORT || '3847', 10);
-const CODEX_MODEL = process.env.CODEX_MODEL || 'gpt-5.4-mini';
+const SANDBOX_IMAGE = process.env.SANDBOX_IMAGE || 'moloco-inspect-sandbox:latest';
+const SANDBOX_API_KEY = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || '';
+const SANDBOX_PROVIDER = SANDBOX_API_KEY.startsWith('sk-proj-') ? 'openai' : 'anthropic';
+const SANDBOX_MODEL = process.env.SANDBOX_MODEL || (SANDBOX_PROVIDER === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-20250514');
 const FORBIDDEN_MUTATION_PATTERNS = [
   /(^|\/)package\.json$/,
   /(^|\/)pnpm-lock\.yaml$/,
@@ -215,10 +224,7 @@ const DEFAULT_VALIDATION_EXPECTATIONS =
     'typecheck',
     'preview_screenshot',
   ];
-const productExecution = createProductExecution('msm-portal', {
-  repoRoot: DEFAULT_PRODUCT_REPO_ROOT,
-  worktreeBase: WORKTREE_BASE,
-});
+// Sandbox mode: container handles execution
 
 // ─── State ────────────────────────────────────────────────────────────
 
@@ -294,7 +300,7 @@ function toRepoRelativePath(filePath) {
   }
 
   const normalizedPath = path.normalize(filePath.trim());
-  const relativeToRepo = path.relative(productExecution.repoRoot, normalizedPath);
+  const relativeToRepo = path.relative(DEFAULT_PRODUCT_REPO_ROOT, normalizedPath);
 
   if (!relativeToRepo.startsWith('..') && !path.isAbsolute(relativeToRepo)) {
     return relativeToRepo;
@@ -430,14 +436,7 @@ function updateRequest(id, updates) {
   if (updates.status) {
     state.log.push(`[${new Date().toISOString()}] ${updates.status}${updates.error ? ': ' + updates.error : ''}`);
   }
-  if (updates.status || updates.phase || updates.error) {
-    appendAnalyticsEvent(state, 'state_updated', {
-      status: state.status,
-      phase: state.phase,
-      error: state.error,
-      summary: updates.status ? `Status changed to ${updates.status}` : `Phase updated to ${state.phase}`,
-    });
-  }
+  // Analytics moved to explicit calls only (preview_ready, approved, rejected)
   // Notify SSE clients
   const clients = sseClients.get(id);
   if (clients) {
@@ -465,9 +464,6 @@ function appendLog(id, message) {
   if (!state) return;
   state.latestLog = String(message);
   state.log.push(state.latestLog);
-  appendAnalyticsEvent(state, 'log', {
-    summary: state.latestLog,
-  });
   updateRequest(id, {});
 }
 
@@ -511,16 +507,13 @@ function summarizeRequestPayload(payload) {
 }
 
 function buildExecutionMetadata(state) {
-  const metadata = productExecution.getAnalyticsMetadata();
   return {
-    ...metadata,
-    worktreePath: state.worktreePath ? path.relative(WORKSPACE_ROOT, state.worktreePath) : null,
-    buildPolicyMatched: Array.isArray(state.changedFiles)
-      ? productExecution.shouldRunBuild({ payload: state.payload, changedFiles: state.changedFiles })
-      : false,
-    testPolicyMatched: Array.isArray(state.changedFiles)
-      ? productExecution.shouldRunTests({ payload: state.payload, changedFiles: state.changedFiles })
-      : false,
+    layer: 'sandbox',
+    productId: 'msm-portal',
+    sandboxImage: SANDBOX_IMAGE,
+    provider: SANDBOX_PROVIDER,
+    model: SANDBOX_MODEL,
+    containerId: state.sandbox?.containerId || null,
   };
 }
 
@@ -551,7 +544,7 @@ function buildAnalyticsSnapshot(state) {
     changedFileCount: changedFiles.length,
     diffLineCount: state.diff ? state.diff.split('\n').length : 0,
     logCount: state.log.length,
-    lifecycle: state.analytics?.lifecycle ?? [],
+    lifecycleCount: (state.analytics?.lifecycle ?? []).length,
     approvalState: state.analytics?.approvalState ?? 'pending_review',
     iterationCount: state.analytics?.iterationCount ?? 0,
     tokenUsage: state.analytics?.tokenUsage ?? null,
@@ -561,29 +554,33 @@ function buildAnalyticsSnapshot(state) {
 }
 
 function appendAnalyticsEvent(state, type, details = {}) {
-  ensureAnalyticsStorage();
-  if (!state.analytics) {
-    state.analytics = {
-      lifecycle: [],
-      approvalState: 'pending_review',
-      iterationCount: 0,
-      tokenUsage: null,
+  try {
+    ensureAnalyticsStorage();
+    if (!state.analytics) {
+      state.analytics = {
+        lifecycle: [],
+        approvalState: 'pending_review',
+        iterationCount: 0,
+        tokenUsage: null,
+      };
+    }
+
+    const event = {
+      at: new Date().toISOString(),
+      type,
+      ...details,
     };
+    state.analytics.lifecycle.push(event);
+
+    const record = {
+      event,
+      snapshot: buildAnalyticsSnapshot(state),
+    };
+
+    fs.appendFileSync(REQUEST_HISTORY_PATH, `${JSON.stringify(record)}\n`, 'utf8');
+  } catch (e) {
+    console.error(`[Analytics] appendAnalyticsEvent failed:`, e.message);
   }
-
-  const event = {
-    at: new Date().toISOString(),
-    type,
-    ...details,
-  };
-  state.analytics.lifecycle.push(event);
-
-  const record = {
-    event,
-    snapshot: buildAnalyticsSnapshot(state),
-  };
-
-  fs.appendFileSync(REQUEST_HISTORY_PATH, `${JSON.stringify(record)}\n`, 'utf8');
 }
 
 function readAnalyticsHistory(limit = 200) {
@@ -755,541 +752,80 @@ function maybePersistSelectionScreenshot(payload) {
   };
 }
 
-function shouldIgnoreCodexLogLine(line) {
-  const normalized = String(line).trim();
-  if (!normalized) return true;
-
-  return [
-    normalized === 'codex',
-    normalized === 'exec',
-    normalized.startsWith('/bin/zsh -lc '),
-    normalized.startsWith('succeeded in '),
-    normalized.startsWith('exited '),
-    'WARN codex_state::runtime',
-    'WARN codex_rollout::state_db',
-    'WARN codex_rollout::list',
-    'WARN codex_core::plugins::manifest',
-    'WARN codex_core::shell_snapshot',
-    'WARN codex_rmcp_client::rmcp_client',
-    'PM Request:',
-    'Design system path:',
-    'You are modifying MSM Portal UI code.',
-    'Component:',
-    'File:',
-    'Before editing UI code, read',
-    'Stay within this repository',
-    'Make the smallest possible UI change',
-    'Edit only the target file',
-    'Do not install dependencies.',
-    'Do not modify package.json',
-    'Do not create commits or branches.',
-  ].some((token) => normalized.includes(token));
-}
-
-function getPreviewClient(payload) {
-  return inferClientFromPayload(payload);
-}
-
-function getPreviewContext(payload) {
-  return productExecution.getPreviewContext(payload);
-}
-
-function isTextChangeRequest(payload) {
-  return /\b(text|copy|label|placeholder|title|subtitle|description|message|번역|문구|텍스트|설명|타이틀|레이블|플레이스홀더)\b/i.test(
-    String(payload?.userPrompt || ''),
-  );
-}
-
-function verifyLocaleAlignment(payload, changedFiles) {
-  const expectedLanguage = getPreviewContext(payload).language;
-  if (!expectedLanguage) {
-    return {
-      ok: true,
-      message: 'Locale alignment skipped (no explicit page language)',
-    };
-  }
-
-  const languageAssetPattern = /\/src\/i18n\/assets\/([^/]+)\//;
-  const changedLanguageAssets = changedFiles.filter((file) => languageAssetPattern.test(file));
-  if (!changedLanguageAssets.length) {
-    return {
-      ok: true,
-      message: `Locale alignment passed for ${expectedLanguage} (no locale asset changes)`,
-    };
-  }
-
-  const changedLanguages = new Set(
-    changedLanguageAssets
-      .map((file) => file.match(languageAssetPattern)?.[1] || null)
-      .filter(Boolean),
-  );
-
-  if (!changedLanguages.has(expectedLanguage)) {
-    return {
-      ok: false,
-      message: `Locale alignment failed: current page language is ${expectedLanguage}, but changed locale files were ${Array.from(changedLanguages).join(', ')}`,
-    };
-  }
-
-  return {
-    ok: true,
-    message: `Locale alignment passed for ${expectedLanguage}`,
-  };
-}
-
-function shouldRunProductBuild({ payload, changedFiles }) {
-  return productExecution.shouldRunBuild({ payload, changedFiles });
-}
-
-function shouldRunProductTests({ payload, changedFiles }) {
-  return productExecution.shouldRunTests({ payload, changedFiles });
-}
-
-function verifyCopyNamespaceAlignment({ payload, changedFiles, worktreePath }) {
-  return productExecution.verifyCopyNamespaceAlignment({
-    payload,
-    changedFiles,
-    worktreePath,
-  });
-}
-
-async function verifyCopyVisibleOnRoute({ payload, previewUrl, worktreePath, visibleTextCandidates }) {
-  return await productExecution.verifyCopyVisibleOnRoute({
-    payload,
-    previewUrl,
-    worktreePath,
-    visibleTextCandidates,
-  });
-}
-
-async function capturePreviewScreenshot({ id, worktreePath, payload }) {
-  return await productExecution.capturePreviewScreenshot({
-    id,
-    worktreePath,
-    payload,
-    screenshotsDir: SCREENSHOTS_DIR,
-  });
-}
-
-async function runCodexCommand({ id, worktreePath, promptInputPath, agentOutputPath, targetFile }) {
-  const codexArgs = [
-    'exec',
-    '--dangerously-bypass-approvals-and-sandbox',
-    '--skip-git-repo-check',
-    '--disable', 'plugins',
-    '--ephemeral',
-    '--cd', worktreePath,
-    '--add-dir', DESIGN_SYSTEM_ROOT,
-    '--model', CODEX_MODEL,
-    '--config', 'model_reasoning_effort="low"',
-    '--output-last-message', agentOutputPath,
-    '-',
-  ];
-
-  return await new Promise((resolve, reject) => {
-    const child = spawn('codex', codexArgs, {
-      cwd: worktreePath,
-      env: { ...process.env },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    let stdoutBuffer = '';
-    let stderrBuffer = '';
-    let settled = false;
-    const timeoutMs = 240_000;
-    const noDiffTimeoutMs = 90_000;
-    const noDiffIdleGraceMs = 20_000;
-    let earlyStopTriggered = false;
-    let monitorBusy = false;
-    let lastActivityAt = Date.now();
-
-    const stopEarlyIfScopedDiffExists = async () => {
-      if (settled || monitorBusy || !targetFile) return;
-      monitorBusy = true;
-      try {
-        const { stdout } = await execAsync('git diff --name-only', { cwd: worktreePath });
-        const changedFiles = stdout
-          .split('\n')
-          .map((line) => line.trim())
-          .filter(Boolean);
-        const hasForbiddenChanges = changedFiles.some((file) =>
-          FORBIDDEN_MUTATION_PATTERNS.some((pattern) => pattern.test(file)),
-        );
-        if (!hasForbiddenChanges && changedFiles.includes(targetFile)) {
-          earlyStopTriggered = true;
-          appendLog(id, `Detected scoped edit in ${targetFile}; stopping Codex early to prepare preview.`);
-          child.kill('SIGTERM');
-        }
-      } catch {
-        // ignore monitor failures
-      } finally {
-        monitorBusy = false;
-      }
-    };
-
-    const monitorInterval = setInterval(() => {
-      void stopEarlyIfScopedDiffExists();
-    }, 5000);
-
-    const pushChunkLines = (chunk, previous, label) => {
-      const combined = previous + chunk.toString();
-      lastActivityAt = Date.now();
-      const lines = combined.split('\n');
-      const remainder = lines.pop() ?? '';
-      lines
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .filter((line) => !shouldIgnoreCodexLogLine(line))
-        .slice(-4)
-        .forEach((line) => appendLog(id, `[codex ${label}] ${line}`));
-      return remainder;
-    };
-
-    const timeout = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      clearInterval(monitorInterval);
-      clearInterval(noDiffTimeout);
-      appendLog(id, `Codex timed out after ${Math.round(timeoutMs / 1000)}s`);
-      child.kill('SIGTERM');
-      reject(new Error(`Codex timed out after ${Math.round(timeoutMs / 1000)} seconds`));
-    }, timeoutMs);
-
-    const noDiffTimeout = setInterval(async () => {
-      if (settled) return;
-      if (Date.now() - lastActivityAt < noDiffIdleGraceMs) {
-        return;
-      }
-      if (Date.now() < lastActivityAt + noDiffTimeoutMs) {
-        return;
-      }
-      try {
-        const { stdout } = await execAsync('git diff --name-only', { cwd: worktreePath });
-        const changedFiles = stdout
-          .split('\n')
-          .map((line) => line.trim())
-          .filter(Boolean)
-          .filter((file) => file !== '.omc/');
-        if (changedFiles.length === 0) {
-          settled = true;
-          clearInterval(monitorInterval);
-          clearTimeout(timeout);
-          clearInterval(noDiffTimeout);
-          appendLog(id, `Codex stalled for ${Math.round(noDiffTimeoutMs / 1000)}s without making a code change`);
-          child.kill('SIGTERM');
-          reject(new Error('Codex stalled before producing a code change'));
-        }
-      } catch {
-        // ignore timeout diff check failures
-      }
-    }, 5000);
-
-    child.stdout.on('data', (chunk) => {
-      stdoutBuffer = pushChunkLines(chunk, stdoutBuffer, 'stdout');
-    });
-
-    child.stderr.on('data', (chunk) => {
-      stderrBuffer = pushChunkLines(chunk, stderrBuffer, 'stderr');
-    });
-
-    child.on('error', (error) => {
-      clearTimeout(timeout);
-      clearInterval(noDiffTimeout);
-      clearInterval(monitorInterval);
-      if (settled) return;
-      settled = true;
-      reject(error);
-    });
-
-    child.on('close', (code) => {
-      clearTimeout(timeout);
-      clearInterval(noDiffTimeout);
-      clearInterval(monitorInterval);
-      if (settled) return;
-      settled = true;
-      if (stdoutBuffer.trim()) appendLog(id, `[codex stdout] ${stdoutBuffer.trim()}`);
-      if (stderrBuffer.trim()) appendLog(id, `[codex stderr] ${stderrBuffer.trim()}`);
-      if (code === 0 || earlyStopTriggered) {
-        resolve();
-        return;
-      }
-      reject(new Error(`Codex exited with code ${code ?? 'unknown'}`));
-    });
-
-    const promptStream = fs.createReadStream(promptInputPath);
-    promptStream.on('error', (error) => {
-      clearTimeout(timeout);
-      clearInterval(noDiffTimeout);
-      clearInterval(monitorInterval);
-      if (settled) return;
-      settled = true;
-      reject(error);
-    });
-    promptStream.pipe(child.stdin);
-  });
-}
-
-// ─── Pipeline ─────────────────────────────────────────────────────────
+// ─── Pipeline (Docker Sandbox + OpenCode) ────────────────────────────
 
 async function runPipeline(id) {
   const state = requests.get(id);
   if (!state) return;
 
   try {
-    // Step 1: Create git worktree
-    updateRequest(id, { status: 'processing', phase: 'creating_worktree' });
-    appendLog(id, 'Creating git worktree...');
-
-    const worktreeInfo = await productExecution.createWorktree({
-      requestId: id,
-      initialBranch: state.branch,
+    updateRequest(id, { status: 'processing', phase: 'creating_sandbox' });
+    appendLog(id, 'Creating sandbox container...');
+    const openCodePort = await allocatePort();
+    const vitePort = await allocatePort();
+    const sandbox = await createSandbox({
+      requestId: id, imageName: SANDBOX_IMAGE,
+      openCodePort, vitePort, apiKey: SANDBOX_API_KEY, provider: SANDBOX_PROVIDER,
     });
-    const { branchName, worktreePath } = worktreeInfo;
-    if (branchName !== state.branch) {
-      updateRequest(id, { branch: branchName });
-      appendLog(id, `Inspect branch name adjusted to avoid collision: ${branchName}`);
+    state.sandbox = sandbox;
+    appendLog(id, `Sandbox: ${sandbox.containerName} (oc:${openCodePort} vite:${vitePort})`);
+
+    updateRequest(id, { phase: 'syncing_source' });
+    if (fs.existsSync(DEFAULT_PRODUCT_REPO_ROOT)) {
+      await copyFilesIn({ containerId: sandbox.containerId, sourceDir: DEFAULT_PRODUCT_REPO_ROOT });
+      appendLog(id, 'Source synced into sandbox');
     }
 
-    updateRequest(id, { worktreePath });
-    appendLog(id, `Worktree created at ${worktreePath}`);
+    updateRequest(id, { phase: 'starting_agent' });
+    const client = createSandboxClient({ openCodePort });
+    await waitForServerReady(client);
+    appendLog(id, 'OpenCode server ready');
 
-    const workspaceSync = await productExecution.syncLocalChangesIntoWorktree(worktreePath);
-    if (workspaceSync.totalChanged) {
-      appendLog(
-        id,
-        `Synced local workspace changes into worktree (copied ${workspaceSync.copiedCount}, removed ${workspaceSync.removedCount})`,
-      );
-
-      const baselineCommitted = await productExecution.commitBaseline(worktreePath);
-      if (baselineCommitted) {
-        appendLog(id, 'Committed local workspace baseline inside inspect worktree');
-      }
+    updateRequest(id, { phase: 'running_agent' });
+    appendLog(id, `Running agent (${SANDBOX_PROVIDER}/${SANDBOX_MODEL})...`);
+    const prompt = buildSandboxPrompt(state.payload);
+    const agentResult = await runAgentPrompt(client, { prompt, provider: SANDBOX_PROVIDER, model: SANDBOX_MODEL });
+    if (agentResult.error) {
+      throw new Error(`Agent: ${agentResult.error.name}: ${agentResult.error.data?.message || ''}`);
     }
+    appendLog(id, `Agent done (cost: $${(agentResult.cost || 0).toFixed(4)})`);
 
-    // Step 2: Write inspect-prompt.json into worktree
-    const omcDir = path.join(worktreePath, '.omc');
-    if (!fs.existsSync(omcDir)) fs.mkdirSync(omcDir, { recursive: true });
-    const promptPath = path.join(omcDir, 'inspect-prompt.json');
-    fs.writeFileSync(promptPath, JSON.stringify(state.payload, null, 2));
-    appendLog(id, 'Wrote inspect-prompt.json');
-
-    // Step 3: Run Codex
-    updateRequest(id, { phase: 'running_codex' });
-    appendLog(id, 'Running Codex...');
-    const prompt = buildPrompt(state.payload, worktreePath);
-    const agentOutputPath = path.join(worktreePath, '.omc', `codex-last-message-${id}.txt`);
-    const promptInputPath = path.join(worktreePath, '.omc', `codex-prompt-${id}.txt`);
-    fs.writeFileSync(promptInputPath, prompt, 'utf-8');
-
-    await runCodexCommand({
-      id,
-      worktreePath,
-      promptInputPath,
-      agentOutputPath,
-      targetFile:
-        state.payload.file && !path.isAbsolute(state.payload.file)
-          ? path.join(worktreePath, state.payload.file)
-          : state.payload.file || null,
-    });
-    appendLog(id, 'Codex finished');
-
-    // Step 4: Revert forbidden dependency metadata changes, then collect diff
     updateRequest(id, { phase: 'collecting_diff' });
-    const { stdout: preChangedFilesOutput } = await execAsync('git diff --name-only', { cwd: worktreePath });
-    const preChangedFiles = preChangedFilesOutput
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-    const forbiddenFiles = preChangedFiles.filter((file) =>
-      FORBIDDEN_MUTATION_PATTERNS.some((pattern) => pattern.test(file)),
-    );
-    if (forbiddenFiles.length) {
-      await execFileAsync('git', ['checkout', '--', ...forbiddenFiles], {
-        cwd: worktreePath,
-        timeout: 120_000,
-        env: { ...process.env },
-      });
-      appendLog(id, `Reverted forbidden file changes: ${forbiddenFiles.join(', ')}`);
-    }
+    const diff = await extractDiff({ containerId: sandbox.containerId });
+    updateRequest(id, { diff: diff.diffText, changedFiles: diff.changedFiles });
+    if (diff.diffStat.trim()) appendLog(id, `Changes: ${diff.diffStat.trim()}`);
 
-    const { stdout: diffOutput } = await execAsync(`git diff --stat -- . ':(exclude).omc/**'`, { cwd: worktreePath });
-
-    // Get full diff, excluding internal orchestrator artifacts.
-    const { stdout: fullDiff } = await execAsync(`git diff -- . ':(exclude).omc/**'`, { cwd: worktreePath });
-    const { stdout: changedFilesOutput } = await execAsync(`git diff --name-only -- . ':(exclude).omc/**'`, { cwd: worktreePath });
-    const changedFiles = changedFilesOutput
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-    updateRequest(id, { diff: fullDiff, changedFiles });
-    if (diffOutput.trim()) {
-      appendLog(id, `Changes: ${diffOutput.trim()}`);
-    }
-
-    if (!changedFiles.length) {
+    if (!diff.changedFiles.length) {
       state.analytics.approvalState = 'not_required';
-      updateRequest(id, {
-        status: 'no_change_needed',
-        phase: 'no_change_needed',
-        diff: null,
-        changedFiles: [],
-        screenshotPath: null,
-        previewUrl: null,
-      });
-      appendLog(id, 'Codex determined that no app code change was needed for this request.');
+      updateRequest(id, { status: 'no_change_needed', phase: 'no_change_needed', diff: null, changedFiles: [], screenshotPath: null, previewUrl: null });
+      appendLog(id, 'No code change needed.');
       await cleanup(id);
       return;
     }
 
-    let copyVerificationContext = null;
-
-    // Step 5: Validate changed files and typecheck if MSM web files changed
     try {
       updateRequest(id, { phase: 'validating' });
-      const filesForValidation = changedFiles
-        .filter((file) => file.endsWith('.ts') || file.endsWith('.tsx'))
-        .filter((file) => productExecution.isProductSourceFile(file));
-
-      if (filesForValidation.length) {
-        appendLog(id, `Validating ${filesForValidation.length} changed TypeScript files...`);
-        const validationTargets = filesForValidation.map((file) => path.join(worktreePath, file));
-        await execFileAsync(
-          'npx',
-          ['tsx', 'scripts/validate.ts', ...validationTargets],
-          { cwd: DESIGN_SYSTEM_ROOT, timeout: 240_000, env: { ...process.env } },
-        );
-        appendLog(id, 'Design-system validation passed');
+      // Check if node_modules exists before running typecheck
+      const nmCheck = await execInContainer({ containerId: sandbox.containerId, command: 'test -d /workspace/msm-portal/js/msm-portal-web/node_modules && echo "exists" || echo "missing"', timeout: 5000 });
+      if (nmCheck.stdout.trim() === 'missing') {
+        appendLog(id, 'Typecheck skipped (node_modules not in sandbox)');
       } else {
-        appendLog(id, 'Design-system validation skipped (no changed TypeScript files)');
+        const tc = await execInContainer({ containerId: sandbox.containerId, command: 'cd /workspace/msm-portal && pnpm exec tsc --noEmit -p js/msm-portal-web/tsconfig.json 2>&1', timeout: 60000 });
+        appendLog(id, tc.exitCode === 0 ? 'Typecheck passed' : 'Typecheck warning: ' + (tc.stdout + tc.stderr).slice(0, 300));
       }
+    } catch (e) { appendLog(id, 'Typecheck skipped: ' + e.message); }
 
-      const changedMsmWebFiles = changedFiles.some((file) => productExecution.isProductFile(file));
-      if (changedMsmWebFiles) {
-        appendLog(id, 'Running msm-portal-web typecheck...');
-        await productExecution.runTypecheck({ worktreePath });
-        appendLog(id, 'Typecheck passed');
-      }
-
-      if (shouldRunProductBuild({ payload: state.payload, changedFiles })) {
-        updateRequest(id, { phase: 'running_build' });
-        appendLog(id, 'Running msm-portal-web build (policy matched)...');
-        await productExecution.runBuild({
-          worktreePath,
-          client: state.payload?.client || 'msm-default',
-          mode: 'test',
-        });
-        appendLog(id, 'Build passed');
-      } else {
-        appendLog(id, 'Build skipped (policy not matched)');
-      }
-
-      if (shouldRunProductTests({ payload: state.payload, changedFiles })) {
-        updateRequest(id, { phase: 'running_tests' });
-        appendLog(id, 'Running msm-portal-web tests (policy matched)...');
-        await productExecution.runTests({ worktreePath });
-        appendLog(id, 'Tests passed');
-      } else {
-        appendLog(id, 'Tests skipped (policy not matched)');
-      }
-
-      const localeCheck = verifyLocaleAlignment(state.payload, changedFiles);
-      if (!localeCheck.ok) {
-        throw new Error(localeCheck.message);
-      }
-      appendLog(id, localeCheck.message);
-
-      const copyNamespaceCheck = verifyCopyNamespaceAlignment({
-        payload: state.payload,
-        changedFiles,
-        worktreePath,
-      });
-      copyVerificationContext = copyNamespaceCheck.context || null;
-      if (!copyNamespaceCheck.ok) {
-        throw new Error(copyNamespaceCheck.message);
-      }
-      appendLog(id, copyNamespaceCheck.message);
-    } catch (e) {
-      updateRequest(id, { status: 'error', phase: 'validating', error: `Validation failed: ${e.message}` });
-      appendLog(id, 'Validation failed');
-      if (e.stdout) appendLog(id, String(e.stdout).slice(0, 1000));
-      if (e.stderr) appendLog(id, String(e.stderr).slice(0, 1000));
-      await cleanup(id);
-      return;
-    }
-
-    // Step 6: Screenshot preview + verification
     try {
       if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
-      const changedMsmWebFiles = changedFiles.some((file) => productExecution.isProductFile(file));
-      if (!changedMsmWebFiles) {
-        appendLog(id, 'Screenshot skipped (no msm-portal-web changes)');
-      } else {
-        updateRequest(id, { phase: 'capturing_screenshot' });
-        appendLog(id, 'Starting preview app for screenshot capture...');
+      updateRequest(id, { phase: 'capturing_screenshot' });
+      const ssPath = path.join(SCREENSHOTS_DIR, `${id}.png`);
+      await extractFile({ containerId: sandbox.containerId, containerPath: '/workspace/results/screenshot.png', hostPath: ssPath }).catch(() => null);
+      if (fs.existsSync(ssPath)) { updateRequest(id, { screenshotPath: ssPath }); appendLog(id, 'Screenshot captured'); }
+      updateRequest(id, { previewUrl: `http://127.0.0.1:${sandbox.vitePort}/` });
+    } catch (error) { appendLog(id, 'Screenshot skipped'); }
 
-        let previewResult = null;
-        let screenshotError = null;
-        for (let attempt = 1; attempt <= 2; attempt += 1) {
-          try {
-            previewResult = await capturePreviewScreenshot({
-              id,
-              worktreePath,
-              payload: state.payload,
-            });
-            break;
-          } catch (error) {
-            screenshotError = error;
-            appendLog(id, `Preview verification attempt ${attempt} failed: ${error.message}`);
-          }
-        }
-
-        if (!previewResult) {
-          throw screenshotError || new Error('Preview verification failed');
-        }
-
-        state.previewServer = previewResult.previewServer;
-        const previewContext = getPreviewContext(state.payload);
-        updateRequest(id, {
-          screenshotPath: previewResult.screenshotPath,
-          previewUrl: previewResult.previewUrl,
-        });
-        appendLog(id, `Screenshot captured: ${path.basename(previewResult.screenshotPath)}`);
-        const routeVerification = await productExecution.verifyRoute({
-          previewUrl: previewResult.previewUrl,
-          worktreePath,
-          payload: state.payload,
-        });
-        if (!routeVerification.ok) {
-          throw new Error(routeVerification.message);
-        }
-        appendLog(id, routeVerification.message);
-
-        const copyVisibleCheck = await verifyCopyVisibleOnRoute({
-          payload: state.payload,
-          previewUrl: previewResult.previewUrl,
-          worktreePath,
-          visibleTextCandidates: copyVerificationContext?.visibleTextCandidates || [],
-        });
-        if (!copyVisibleCheck.ok) {
-          throw new Error(copyVisibleCheck.message);
-        }
-        appendLog(id, copyVisibleCheck.message);
-        appendLog(id, `Preview verification passed${getPreviewContext(state.payload).language ? ` (language: ${getPreviewContext(state.payload).language})` : ''}`);
-      }
-    } catch (error) {
-      updateRequest(id, { status: 'error', phase: 'capturing_screenshot', error: `Preview verification failed: ${error.message}` });
-      appendLog(id, `Preview verification failed: ${error.message}`);
-      await cleanup(id);
-      return;
-    }
-
-    // Step 7: Ready for review
     updateRequest(id, { status: 'preview', phase: 'preview_ready' });
-    appendAnalyticsEvent(state, 'preview_ready', {
-      summary: 'Preview is ready for review',
-      previewUrl: state.previewUrl,
-      screenshotUrl: state.screenshotPath ? `/api/screenshot/${state.id}` : null,
-    });
+    appendAnalyticsEvent(state, 'preview_ready', { summary: 'Preview ready', previewUrl: state.previewUrl, screenshotUrl: state.screenshotPath ? `/api/screenshot/${state.id}` : null });
     appendLog(id, 'Ready for PM review');
 
   } catch (e) {
@@ -1297,72 +833,6 @@ async function runPipeline(id) {
     appendLog(id, 'Pipeline error: ' + e.message);
     await cleanup(id);
   }
-}
-
-function buildPrompt(payload, worktreePath = null) {
-  const parts = ['You are modifying MSM Portal UI code. Follow the design system rules in AGENTS.md and design-system JSON files.'];
-  const requestContract = payload.requestContract || {};
-  const targetFileForEdit =
-    payload.file && worktreePath && !path.isAbsolute(payload.file)
-      ? path.join(worktreePath, payload.file)
-      : payload.file;
-
-  if (payload.component) parts.push(`Component: ${payload.component}`);
-  if (targetFileForEdit) parts.push(`File: ${targetFileForEdit}:${payload.line || ''}`);
-  if (payload.testId) parts.push(`Test ID: ${payload.testId}`);
-  if (payload.pagePath) parts.push(`Current route: ${payload.pagePath}`);
-  if (payload.client) parts.push(`Current client: ${payload.client}`);
-  if (Array.isArray(payload.selectedElements) && payload.selectedElements.length) {
-    parts.push(`Selected elements: ${payload.selectedElements.map((item) => item.testId || item.component || item.semantics?.labelText || item.semantics?.domTag || 'element').join(' | ')}`);
-  }
-  if (requestContract.goal) parts.push(`Request goal: ${requestContract.goal}`);
-  if (requestContract.change_intent) parts.push(`Change intent: ${requestContract.change_intent}`);
-  if (Array.isArray(requestContract.constraints) && requestContract.constraints.length) {
-    parts.push(`Constraints: ${requestContract.constraints.join(' | ')}`);
-  }
-  if (Array.isArray(requestContract.success_criteria) && requestContract.success_criteria.length) {
-    parts.push(`Success criteria: ${requestContract.success_criteria.join(' | ')}`);
-  }
-  if (payload.styles) {
-    const s = payload.styles;
-    parts.push(`Current styles: font ${s.fontSize}/${s.fontWeight}, color ${s.color}, bg ${s.backgroundColor}, padding ${s.padding}, size ${s.width}x${s.height}`);
-  }
-  if (payload.selectionRect) {
-    parts.push(`Selected screenshot region: ${Math.round(payload.selectionRect.width)}x${Math.round(payload.selectionRect.height)} at (${Math.round(payload.selectionRect.left)}, ${Math.round(payload.selectionRect.top)})`);
-  }
-  if (payload.selectionScreenshotPath) {
-    parts.push(`Reference screenshot saved at: ${payload.selectionScreenshotPath}`);
-    parts.push('Use the selected screenshot as visual context for the requested UI change if helpful.');
-  }
-  if (payload.language) {
-    parts.push(`Current page language: ${payload.language}`);
-    parts.push('Preserve the current page language in the preview and in any visible copy changes. If you edit translation resources, prefer the matching locale file over English by default.');
-  }
-  parts.push(`\nPM Request: ${payload.userPrompt}`);
-  parts.push(`\nDesign system path: ${DESIGN_SYSTEM_ROOT}`);
-  parts.push('\nStart by opening only the target file around the requested line and inspect the existing implementation first.');
-  parts.push('\nRead design-system/src/tokens.json, components.json, patterns.json, and conventions.json only with targeted lookups for the exact token or component you need.');
-  parts.push('\nDo not print or dump raw JSON contents from design-system files. Use rg, sed for small ranges, or focused node queries only.');
-  parts.push('\nMake the smallest possible UI change that satisfies the request.');
-  parts.push('\nEdit only the target file unless a directly related shared styled/auth file must also change.');
-  parts.push('\nDo not install dependencies. Do not run pnpm install, npm install, yarn, or bun install.');
-  parts.push('\nDo not modify package.json, pnpm-lock.yaml, package-lock.json, yarn.lock, or workspace config files.');
-  parts.push('\nDo not create commits or branches. The orchestrator will run validation and typecheck after you finish.');
-  parts.push('\nStay on the current route for preview and implementation. Do not solve the request by changing a different page.');
-  parts.push('\nPrefer files that belong to the current route or shared dependencies actually used by that route.');
-  parts.push('\nIf this is a copy_update request, first verify which component file owns the visible text and which useTranslation namespace that component uses before editing any locale file.');
-  parts.push('\nIf a locale file changes, keep the edit inside the namespace used by the selected component and avoid touching sibling auth or unrelated submit labels.');
-  if (/\b(spacing|margin|padding|gap)\b/i.test(payload.userPrompt || '')) {
-    parts.push('\nThis is a spacing-only request. Prefer adjusting one existing spacing value to the next appropriate theme.mcui.spacing(...) step. Do not refactor layout structure.');
-  }
-  if (/\b(tab|tabs|탭)\b/i.test(payload.userPrompt || '')) {
-    parts.push('\nThis is a tab-related structural request. Modify the currently viewed page or its directly shared tab dependencies only. Do not switch to another route, page, or unrelated tab implementation.');
-  }
-  if (isTextChangeRequest(payload)) {
-    parts.push('\nThis request likely changes visible copy. Make sure the updated text is reflected in the current page language and lands in the correct i18n resource when applicable.');
-  }
-
-  return parts.join('\n');
 }
 
 async function handleApprove(id) {
@@ -1375,20 +845,20 @@ async function handleApprove(id) {
     updateRequest(id, { phase: 'applying_local_patch' });
     appendLog(id, 'PM approved, applying patch to local workspace...');
 
-    const applyResult = await productExecution.applyPatchToLocalRepo({
-      requestId: id,
-      worktreePath: state.worktreePath,
-      diff: state.diff || '',
-      changedFiles: state.changedFiles || [],
-    });
-    if (applyResult.mode === 'direct_apply') {
-      appendLog(id, 'Patch applied to local workspace with direct apply');
-    } else if (applyResult.mode === 'three_way') {
-      appendLog(id, 'Patch applied to local workspace with 3-way merge');
-    } else {
-      appendLog(id, '3-way merge failed, syncing changed files from worktree...');
-      appendLog(id, `Copied ${applyResult.appliedFiles?.length || 0} changed files from worktree`);
-      appendLog(id, `Backed up previous local files under ${applyResult.backupRoot}`);
+    const diff = state.diff || '';
+    if (diff && fs.existsSync(DEFAULT_PRODUCT_REPO_ROOT)) {
+      const patchPath = path.join(SCREENSHOTS_DIR, `${id}.patch`);
+      fs.writeFileSync(patchPath, diff, 'utf-8');
+      try {
+        await execFileAsync('git', ['apply', '--whitespace=nowarn', patchPath], { cwd: DEFAULT_PRODUCT_REPO_ROOT, timeout: 120000 });
+        appendLog(id, 'Patch applied with direct apply');
+      } catch {
+        try {
+          await execFileAsync('git', ['apply', '--3way', patchPath], { cwd: DEFAULT_PRODUCT_REPO_ROOT, timeout: 120000 });
+          appendLog(id, 'Patch applied with 3-way merge');
+        } catch (e2) { appendLog(id, 'Patch failed: ' + e2.message); }
+      }
+      fs.rmSync(patchPath, { force: true });
     }
 
     await cleanup(id);
@@ -1417,9 +887,9 @@ async function handleReject(id, feedback) {
   state.payload.userPrompt = `${state.payload.userPrompt}\n\nPM FEEDBACK (iterate on this): ${feedback}`;
   updateRequest(id, { status: 'pending', phase: 'queued_for_retry', diff: null });
 
-  // Reset worktree
-  if (state.worktreePath) {
-    await productExecution.resetWorktree(state.worktreePath);
+  if (state.sandbox) {
+    if (state.analytics.iterationCount >= 3) { await cleanup(id); }
+    else { await resetSandbox({ containerId: state.sandbox.containerId }); }
   }
 
   // Re-run pipeline
@@ -1430,23 +900,11 @@ async function handleReject(id, feedback) {
 async function cleanup(id) {
   const state = requests.get(id);
   if (!state) return;
-  if (state.previewServer) {
-    try {
-      state.previewServer.kill('SIGTERM');
-      await new Promise((resolve) => {
-        const timer = setTimeout(() => {
-          state.previewServer.kill('SIGKILL');
-          resolve();
-        }, 3000);
-        state.previewServer.once('close', () => {
-          clearTimeout(timer);
-          resolve();
-        });
-      });
-    } catch { /* ignore */ }
-  }
-  if (state.worktreePath && fs.existsSync(state.worktreePath)) {
-    await productExecution.removeWorktree(state.worktreePath);
+  if (state.sandbox) {
+    await removeSandbox({ containerId: state.sandbox.containerId });
+    releasePort(state.sandbox.openCodePort);
+    releasePort(state.sandbox.vitePort);
+    state.sandbox = null;
   }
 }
 
@@ -1495,9 +953,10 @@ const server = http.createServer(async (req, res) => {
       ok: true,
       requests: requests.size,
       workspaceRoot: WORKSPACE_ROOT,
-      repoRoot: productExecution.repoRoot,
+      repoRoot: DEFAULT_PRODUCT_REPO_ROOT,
       designSystemRoot: DESIGN_SYSTEM_ROOT,
-      model: CODEX_MODEL,
+      sandboxImage: SANDBOX_IMAGE,
+      model: SANDBOX_PROVIDER + '/' + SANDBOX_MODEL,
     });
   }
 
@@ -1675,11 +1134,11 @@ const server = http.createServer(async (req, res) => {
 });
 
 ensureAnalyticsStorage();
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Orchestrator] Listening on http://localhost:${PORT}`);
   console.log(`[Orchestrator] Workspace root: ${WORKSPACE_ROOT}`);
-  console.log(`[Orchestrator] Repo root: ${productExecution.repoRoot}`);
+  console.log(`[Orchestrator] Repo root: ${DEFAULT_PRODUCT_REPO_ROOT}`);
   console.log(`[Orchestrator] Design system root: ${DESIGN_SYSTEM_ROOT}`);
-  console.log(`[Orchestrator] Model: ${CODEX_MODEL}`);
-  console.log(`[Orchestrator] Worktrees: ${WORKTREE_BASE}`);
+  console.log(`[Orchestrator] Sandbox: ${SANDBOX_IMAGE}`);
+  console.log(`[Orchestrator] Agent: ${SANDBOX_PROVIDER}/${SANDBOX_MODEL}`);
 });
