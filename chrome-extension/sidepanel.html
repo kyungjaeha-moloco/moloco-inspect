@@ -23,7 +23,7 @@
         <svg class="theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
           <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
         </svg>
-        <svg class="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="display:none">
+        <svg class="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
       </button>
@@ -47,20 +47,20 @@
 
   <!-- Settings panel (hidden by default) -->
   <div class="settings-panel" id="settingsPanel">
-    <label>Connection mode</label>
+    <label>연결 방식</label>
     <select id="modeSelect">
-      <option value="http">HTTP orchestrator</option>
-      <option value="native">Native file mode</option>
+      <option value="http">HTTP (Sandbox Agent)</option>
+      <option value="native">Native (파일 기반)</option>
     </select>
-    <div class="settings-hint">Use HTTP mode for sandbox agent edits. Use native mode for the simple file-based fallback.</div>
+    <div class="settings-hint">HTTP: Docker sandbox에서 agent가 코드를 수정합니다. Native: 로컬 파일 기반 fallback.</div>
 
-    <label>Server URL</label>
+    <label>서버 URL</label>
     <input type="text" id="serverUrl" placeholder="http://localhost:3847" />
-    <div class="settings-hint">Background orchestrator endpoint for local agent execution</div>
+    <div class="settings-hint">Orchestrator 서버 주소</div>
 
-    <label>Project root path</label>
+    <label>프로젝트 경로</label>
     <input type="text" id="projectRoot" placeholder="/Users/you/project" />
-    <div class="settings-hint">Where local inspect request files will be written in native mode</div>
+    <div class="settings-hint">Native 모드에서 요청 파일이 저장될 경로</div>
   </div>
 
   <!-- Selected element card (hidden by default) -->
