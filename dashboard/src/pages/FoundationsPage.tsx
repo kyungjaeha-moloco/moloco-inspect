@@ -17,30 +17,6 @@ export function FoundationsColorsPage({
     <DocsLayout
       title="Foundations"
       description="Human-readable design documentation built from the live JSON design-system source of truth."
-      sidebarGroups={[
-        {
-          title: 'Overview',
-          items: [
-            { label: 'Design System Home', to: '/design-system' },
-            { label: 'Colors', to: '/foundations/colors' },
-            { label: 'Components', to: '/components' },
-            { label: 'UX Writing', to: '/ux-writing' },
-          ],
-        },
-        {
-          title: 'Base Material',
-          items: sections.map((section, index) => ({
-            label: sectionMeta[section]?.title ?? section,
-            href: `#section-${section}`,
-            active: index === 0,
-            tone: 'sub' as const,
-          })),
-        },
-        {
-          title: 'Theme',
-          chips: ['Semantic', 'Light / Dark', 'Visual'],
-        },
-      ]}
     >
       <div className="docs-topbar">
         <Breadcrumbs items={['Foundations', 'Base material', 'Colors']} />

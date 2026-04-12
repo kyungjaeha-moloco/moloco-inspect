@@ -13,17 +13,6 @@ export function AnalyticsDetailPage() {
     <DocsLayout
       title="Request Detail"
       description="개별 요청이 어떤 계획과 lifecycle을 거쳐 preview와 apply까지 갔는지 확인하는 drill-down 화면입니다."
-      sidebarGroups={[
-        {
-          title: 'Overview',
-          items: [
-            { label: 'Progress Dashboard', to: '/' },
-            { label: 'Design System Home', to: '/design-system' },
-            { label: 'Components', to: '/components' },
-            { label: 'UX Writing', to: '/ux-writing' },
-          ],
-        },
-      ]}
     >
       <div className="docs-topbar">
         <Breadcrumbs items={['Program', 'Analytics', requestId || 'Request']} />

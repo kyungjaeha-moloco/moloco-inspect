@@ -38,8 +38,10 @@ const dependencyCoverageCount = Object.keys(componentDependenciesData.components
 export function App() {
   return (
     <Routes>
+      {/* Ops Hub */}
+      <Route path="/" element={<Navigate to="/ops" replace />} />
       <Route
-        path="/"
+        path="/ops"
         element={
           <ProgressPage
             componentsCatalog={componentsCatalog}
@@ -48,7 +50,7 @@ export function App() {
         }
       />
       <Route
-        path="/progress"
+        path="/ops/requests"
         element={
           <ProgressPage
             componentsCatalog={componentsCatalog}
@@ -56,9 +58,20 @@ export function App() {
           />
         }
       />
-      <Route path="/analytics/request/:requestId" element={<AnalyticsDetailPage />} />
+      <Route path="/ops/requests/:requestId" element={<AnalyticsDetailPage />} />
       <Route
-        path="/design-system"
+        path="/ops/progress"
+        element={
+          <ProgressPage
+            componentsCatalog={componentsCatalog}
+            dependencyCoverageCount={dependencyCoverageCount}
+          />
+        }
+      />
+
+      {/* Design System */}
+      <Route
+        path="/design"
         element={
           <DesignSystemHomePage
             foundationsData={foundationsData}
@@ -69,18 +82,38 @@ export function App() {
         }
       />
       <Route
-        path="/foundations/colors"
+        path="/design/foundations"
+        element={
+          <DesignSystemHomePage
+            foundationsData={foundationsData}
+            componentsCatalog={componentsCatalog}
+            dependencyCoverageCount={dependencyCoverageCount}
+            uxWritingData={uxWritingData}
+          />
+        }
+      />
+      <Route
+        path="/design/foundations/colors"
         element={<FoundationsColorsPage foundationsData={foundationsData} />}
       />
       <Route
-        path="/components"
+        path="/design/components"
         element={<ComponentsPage componentsCatalog={componentsCatalog} />}
       />
       <Route
-        path="/ux-writing"
+        path="/design/ux-writing"
         element={<UxWritingPage uxWritingData={uxWritingData} />}
       />
-      <Route path="*" element={<Navigate replace to="/" />} />
+
+      {/* Legacy redirects */}
+      <Route path="/design-system" element={<Navigate to="/design" replace />} />
+      <Route path="/components" element={<Navigate to="/design/components" replace />} />
+      <Route path="/foundations/colors" element={<Navigate to="/design/foundations/colors" replace />} />
+      <Route path="/ux-writing" element={<Navigate to="/design/ux-writing" replace />} />
+      <Route path="/analytics/request/:requestId" element={<Navigate to="/ops/requests/:requestId" replace />} />
+
+      {/* Catch-all */}
+      <Route path="*" element={<Navigate to="/ops" replace />} />
     </Routes>
   );
 }

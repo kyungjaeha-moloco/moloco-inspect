@@ -68,22 +68,6 @@ export function ProgressPage({
     <DocsLayout
       title="Program Dashboard"
       description="Contract-first 전환 프로젝트의 진행 상황과 다음 액션을 한 화면에서 볼 수 있는 운영용 대시보드입니다."
-      sidebarGroups={[
-        {
-          title: 'Overview',
-          items: [
-            { label: 'Progress Dashboard', to: '/' },
-            { label: 'Design System Home', to: '/design-system' },
-            { label: 'Foundations / Colors', to: '/foundations/colors' },
-            { label: 'Components', to: '/components' },
-            { label: 'UX Writing', to: '/ux-writing' },
-          ],
-        },
-        {
-          title: 'Current Focus',
-          chips: ['React docs app', 'Component previews', 'DS catalog'],
-        },
-      ]}
     >
       <div className="docs-topbar">
         <Breadcrumbs items={['Program', 'Dashboard']} />
@@ -97,10 +81,10 @@ export function ProgressPage({
           어디까지 왔는지를 함께 보여줍니다.
         </p>
         <div className="hero-actions">
-          <NavLink className="button-link primary" to="/design-system">
+          <NavLink className="button-link primary" to="/design">
             Open docs site
           </NavLink>
-          <NavLink className="button-link secondary" to="/components">
+          <NavLink className="button-link secondary" to="/design/components">
             Open components
           </NavLink>
         </div>

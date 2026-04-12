@@ -16,27 +16,6 @@ export function UxWritingPage({
     <DocsLayout
       title="UX Writing"
       description="전체 서비스의 writing이 일관성과 전문성을 갖추도록 돕는 운영 가이드입니다."
-      sidebarGroups={[
-        {
-          title: 'Overview',
-          items: [
-            { label: 'Design System Home', to: '/design-system' },
-            { label: 'Foundations / Colors', to: '/foundations/colors' },
-            { label: 'Components', to: '/components' },
-            { label: 'UX Writing', to: '/ux-writing' },
-            { label: 'Progress Dashboard', to: '/' },
-          ],
-        },
-        {
-          title: 'Sections',
-          items: [
-            { label: 'Voice Principles', href: '#voice-principles', tone: 'sub' },
-            { label: 'Surface Rules', href: '#surface-rules', tone: 'sub' },
-            { label: 'Validation', href: '#validation', tone: 'sub' },
-            { label: 'Examples', href: '#examples', tone: 'sub' },
-          ],
-        },
-      ]}
     >
       <div className="docs-topbar">
         <Breadcrumbs items={['Documentation', 'UX Writing']} />

@@ -66,34 +66,10 @@ export function ComponentsPage({
     [visibleComponents],
   );
 
-  const sidebarCategoryNames = filteredCategories.map((category) => category.name);
-  const activeSidebarCategory =
-    selectedCategory !== 'all' ? selectedCategory : (sidebarCategoryNames[0] ?? '');
-
   return (
     <DocsLayout
       title="Components"
       description="MSM Portal 서비스에서 실제로 쓰는 공통 UI 컴포넌트를 검색하고 훑어보는 React 기반 카탈로그입니다."
-      sidebarGroups={[
-        {
-          title: 'Overview',
-          items: [
-            { label: 'Design System Home', to: '/design-system' },
-            { label: 'Foundations / Colors', to: '/foundations/colors' },
-            { label: 'Components', to: '/components' },
-            { label: 'UX Writing', to: '/ux-writing' },
-          ],
-        },
-        {
-          title: 'Categories',
-          items: sidebarCategoryNames.map((category) => ({
-            label: category,
-            href: `#category-${slugify(category)}`,
-            active: category === activeSidebarCategory,
-            tone: 'sub' as const,
-          })),
-        },
-      ]}
     >
       <div className="docs-topbar">
         <Breadcrumbs items={['Components', 'Catalog']} />

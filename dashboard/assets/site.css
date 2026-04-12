@@ -139,6 +139,154 @@ code {
 }
 
 /* -------------------------------------------------------
+   App Shell — Top bar + Sidebar + Main
+   ------------------------------------------------------- */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-topbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 52px;
+  padding: 0 24px;
+  background: var(--color-surface, #fff);
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.app-topbar-brand {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-primary, #6366f1);
+}
+
+.app-topbar-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--color-bg-tertiary, #f3f4f6);
+}
+
+.app-topbar-tab {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-text-secondary, #64748b);
+  transition: all 0.15s ease;
+}
+
+.app-topbar-tab.active {
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #1e293b);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  font-weight: 600;
+}
+
+.app-topbar-tab:hover:not(.active) {
+  color: var(--color-text, #1e293b);
+}
+
+.app-topbar-spacer {
+  flex: 1;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--sidebar-bg, #1e1b4b);
+  color: rgba(255,255,255,0.85);
+  overflow-y: auto;
+  height: calc(100vh - 52px);
+  position: sticky;
+  top: 52px;
+}
+
+.app-sidebar .sidebar-header {
+  padding: 20px 16px 12px;
+}
+
+.app-sidebar .sidebar-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.5);
+}
+
+.app-sidebar .sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 8px;
+}
+
+.app-sidebar .sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-sidebar .sidebar-group-title {
+  padding: 8px 8px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.4);
+}
+
+.app-sidebar .sidebar-link {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.7);
+  text-decoration: none;
+  transition: all 0.12s ease;
+}
+
+.app-sidebar .sidebar-link:hover {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.95);
+  text-decoration: none;
+}
+
+.app-sidebar .sidebar-link.active {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  padding: 32px 40px 64px;
+  background: var(--color-bg-secondary, #f8fafc);
+  overflow-y: auto;
+}
+
+/* -------------------------------------------------------
    Shell / Layout
    ------------------------------------------------------- */
 
@@ -148,6 +296,7 @@ code {
   padding: 32px 0 64px;
 }
 
+/* OLD LAYOUT - REPLACED *
 .docs-shell {
   display: grid;
   grid-template-columns: 228px minmax(0, 1fr);
@@ -157,10 +306,10 @@ code {
   margin: 0;
   padding: 0;
 }
+* OLD LAYOUT - REPLACED */
 
-/* -------------------------------------------------------
-   Sidebar — Dark Indigo
-   ------------------------------------------------------- */
+/* OLD LAYOUT - REPLACED *
+   Sidebar — Dark Indigo (docs-sidebar)
 
 .docs-sidebar {
   position: sticky;
@@ -185,6 +334,7 @@ code {
   background: rgba(255,255,255,0.12);
   border-radius: 4px;
 }
+* OLD LAYOUT - REPLACED */
 
 .sidebar-brand {
   display: flex;
@@ -288,15 +438,15 @@ code {
   border: 1px solid rgba(255,255,255,0.12);
 }
 
-/* -------------------------------------------------------
+/* OLD LAYOUT - REPLACED *
    Main Content
-   ------------------------------------------------------- */
 
 .docs-main {
   min-width: 0;
   padding: 32px 40px 64px;
   background: var(--color-bg);
 }
+* OLD LAYOUT - REPLACED */
 
 /* -------------------------------------------------------
    Topbar & Breadcrumbs
@@ -2272,6 +2422,7 @@ code {
    ------------------------------------------------------- */
 
 @media (max-width: 960px) {
+  /* OLD LAYOUT - REPLACED *
   .docs-shell {
     grid-template-columns: 1fr;
     width: 100%;
@@ -2286,6 +2437,7 @@ code {
     border-bottom: 1px solid rgba(255,255,255,0.08);
     padding: 0;
   }
+  * OLD LAYOUT - REPLACED */
 
   .sidebar-brand {
     padding: 16px 16px 14px;
@@ -2295,9 +2447,11 @@ code {
     padding: 0 10px 16px;
   }
 
+  /* OLD LAYOUT - REPLACED *
   .docs-main {
     padding: 24px 20px 48px;
   }
+  * OLD LAYOUT - REPLACED */
 
   .docs-topbar {
     align-items: flex-start;

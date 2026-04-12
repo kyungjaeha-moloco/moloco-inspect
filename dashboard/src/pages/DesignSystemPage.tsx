@@ -19,18 +19,6 @@ export function DesignSystemHomePage({
     <DocsLayout
       title="Documentation"
       description="Contract-first 디자인 시스템을 사람도 이해할 수 있게 보여주는 React 기반 문서 브라우저입니다."
-      sidebarGroups={[
-        {
-          title: 'Overview',
-          items: [
-            { label: 'Design System Home', to: '/design-system' },
-            { label: 'Foundations / Colors', to: '/foundations/colors' },
-            { label: 'Components', to: '/components' },
-            { label: 'UX Writing', to: '/ux-writing' },
-            { label: 'Progress Dashboard', to: '/' },
-          ],
-        },
-      ]}
     >
       <div className="docs-topbar">
         <Breadcrumbs items={['Documentation', 'Home']} />
@@ -44,13 +32,13 @@ export function DesignSystemHomePage({
           JSON 파일이 아니라 실제 문서 사이트처럼 보고, 비교하고, 팀과 함께 판단할 수 있게 만드는 출발점입니다.
         </p>
         <div className="hero-actions">
-          <NavLink className="button-link primary" to="/foundations/colors">
+          <NavLink className="button-link primary" to="/design/foundations/colors">
             Open Foundations
           </NavLink>
-          <NavLink className="button-link secondary" to="/components">
+          <NavLink className="button-link secondary" to="/design/components">
             Open Components
           </NavLink>
-          <NavLink className="button-link secondary" to="/ux-writing">
+          <NavLink className="button-link secondary" to="/design/ux-writing">
             Open UX Writing
           </NavLink>
         </div>
@@ -115,7 +103,7 @@ export function DesignSystemHomePage({
             </div>
           </div>
           <div className="hero-actions">
-            <NavLink className="button-link primary" to="/foundations/colors">
+            <NavLink className="button-link primary" to="/design/foundations/colors">
               Browse Colors
             </NavLink>
           </div>
@@ -147,7 +135,7 @@ export function DesignSystemHomePage({
             </div>
           </div>
           <div className="hero-actions">
-            <NavLink className="button-link primary" to="/components">
+            <NavLink className="button-link primary" to="/design/components">
               Browse Components
             </NavLink>
           </div>
@@ -178,7 +166,7 @@ export function DesignSystemHomePage({
             </div>
           </div>
           <div className="hero-actions">
-            <NavLink className="button-link primary" to="/ux-writing">
+            <NavLink className="button-link primary" to="/design/ux-writing">
               Browse UX Writing
             </NavLink>
           </div>
