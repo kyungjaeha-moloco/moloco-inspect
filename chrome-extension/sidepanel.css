@@ -320,9 +320,18 @@ body, .header, .msg-bubble, .input-area, .input-box, .context-strip,
 }
 
 /* Focus visible for accessibility */
-button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+button:focus-visible, select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Input area elements use parent :focus-within instead of individual outlines */
+.input-box input:focus-visible,
+.input-box textarea:focus-visible,
+.input-box button:focus-visible,
+.settings-panel input:focus-visible,
+.settings-panel select:focus-visible {
+  outline: none;
 }
 
 /* ─── Header ──────────────────────────────────────────── */
@@ -1289,8 +1298,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 
 .input-box:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--border-focus);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-light);
 }
 
 .selection-chip-row {
