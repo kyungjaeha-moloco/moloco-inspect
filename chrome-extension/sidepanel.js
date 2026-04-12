@@ -1492,7 +1492,38 @@
 
   settingsBtn.addEventListener('click', () => {
     settingsPanel.classList.toggle('open');
+    if (settingsPanel.classList.contains('open')) {
+      loadSystemInfo();
+    }
   });
+
+  function loadSystemInfo() {
+    chrome.runtime.sendMessage({ type: 'popup-get-health' }, (response) => {
+      if (chrome.runtime.lastError || !response || !response.health) return;
+      const h = response.health;
+      const infoAgent = document.getElementById('infoAgent');
+      const infoSandbox = document.getElementById('infoSandbox');
+      const infoRequests = document.getElementById('infoRequests');
+      if (infoAgent) infoAgent.textContent = h.model || 'unknown';
+      if (infoSandbox) infoSandbox.textContent = h.sandboxImage || (h.serverReachable ? '연결됨' : '연결 안됨');
+      if (infoRequests) infoRequests.textContent = typeof h.requests === 'number' ? `${h.requests}개 활성` : '-';
+    });
+  }
+
+  const openDashboard = document.getElementById('openDashboard');
+  const openDesignSystem = document.getElementById('openDesignSystem');
+  if (openDashboard) {
+    openDashboard.addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.runtime.sendMessage({ type: 'inspect-open-url', url: 'http://127.0.0.1:4174/' });
+    });
+  }
+  if (openDesignSystem) {
+    openDesignSystem.addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.runtime.sendMessage({ type: 'inspect-open-url', url: 'http://127.0.0.1:4174/design-system' });
+    });
+  }
 
   closeBtn.addEventListener('click', () => {
     settingsPanel.classList.remove('open');

@@ -27,9 +27,9 @@
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
       </button>
-      <button class="icon-btn" id="settingsBtn" title="Settings">
+      <button class="icon-btn" id="settingsBtn" title="설정">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-          <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>
         </svg>
       </button>
       <button class="icon-btn" id="closeBtn" title="Close">
@@ -61,6 +61,36 @@
     <label>프로젝트 경로</label>
     <input type="text" id="projectRoot" placeholder="/Users/you/project" />
     <div class="settings-hint">Native 모드에서 요청 파일이 저장될 경로</div>
+
+    <div class="settings-divider"></div>
+
+    <label>시스템 정보</label>
+    <div class="settings-info" id="systemInfo">
+      <div class="settings-info-row">
+        <span>Agent</span>
+        <span id="infoAgent">확인 중...</span>
+      </div>
+      <div class="settings-info-row">
+        <span>Sandbox</span>
+        <span id="infoSandbox">확인 중...</span>
+      </div>
+      <div class="settings-info-row">
+        <span>요청 수</span>
+        <span id="infoRequests">-</span>
+      </div>
+      <div class="settings-info-row">
+        <span>버전</span>
+        <span>1.2.0</span>
+      </div>
+    </div>
+
+    <div class="settings-divider"></div>
+
+    <label>바로가기</label>
+    <div class="settings-links">
+      <a class="settings-link" href="#" id="openDashboard">운영 대시보드 열기</a>
+      <a class="settings-link" href="#" id="openDesignSystem">디자인 시스템 문서</a>
+    </div>
   </div>
 
   <!-- Selected element card (hidden by default) -->
