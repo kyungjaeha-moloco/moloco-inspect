@@ -666,6 +666,57 @@
     );
   }
 
+  async function fetchAiAnalysis(payload) {
+    const { serverUrl } = await new Promise((resolve) => {
+      chrome.storage.local.get(['serverUrl'], (result) => {
+        resolve({ serverUrl: result.serverUrl || 'http://localhost:3847' });
+      });
+    });
+
+    const response = await fetch(`${serverUrl}/api/analyze-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userPrompt: payload.userPrompt || '',
+        component: payload.component || null,
+        pagePath: payload.pagePath || '/',
+        client: payload.client || 'msm-default',
+        testId: payload.testId || null,
+        language: payload.language || null,
+      }),
+    });
+
+    if (!response.ok) return null;
+    const result = await response.json();
+    return result.ok ? result.analysis : null;
+  }
+
+  function addThinkingMessage() {
+    removeWelcome();
+    const msg = document.createElement('div');
+    msg.className = 'msg msg-system';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.innerHTML = `
+      <div class="plan-ai-header">
+        <div class="plan-ai-avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18">
+            <circle cx="12" cy="12" r="7"/><line x1="12" y1="1" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="1" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="23" y2="12"/>
+          </svg>
+        </div>
+        <span class="plan-ai-name">Inspect Agent</span>
+        <span class="plan-thinking-badge">요청을 분석하는 중...</span>
+      </div>
+      <div class="plan-thinking-dots"><span></span><span></span><span></span></div>
+    `;
+
+    msg.appendChild(bubble);
+    messagesEl.appendChild(msg);
+    scrollToBottom();
+    return msg;
+  }
+
   function buildConversationalPlan(plan) {
     const payload = plan.payload;
     const contract = plan.requestContract;
@@ -728,6 +779,7 @@
   function addExecutionPlanMessage(plan) {
     removeWelcome();
 
+    const ai = plan.aiAnalysis || null;
     const conv = buildConversationalPlan(plan);
     const msg = document.createElement('div');
     msg.className = 'msg msg-system';
@@ -735,7 +787,7 @@
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble execution-plan-card';
 
-    // AI avatar + thinking indicator
+    // AI avatar + badge
     const header = document.createElement('div');
     header.className = 'plan-ai-header';
     header.innerHTML = `
@@ -749,35 +801,78 @@
         </svg>
       </div>
       <span class="plan-ai-name">Inspect Agent</span>
-      <span class="plan-ai-badge">요청을 분석했어요</span>
+      <span class="plan-ai-badge">${ai ? '요청을 분석했어요' : '실행 계획'}</span>
     `;
     bubble.appendChild(header);
 
-    // Conversational opening — the AI's understanding
-    const openingEl = document.createElement('div');
-    openingEl.className = 'plan-conversation';
-    openingEl.textContent = conv.opening;
-    bubble.appendChild(openingEl);
+    if (ai) {
+      // AI-generated understanding
+      const understandingEl = document.createElement('div');
+      understandingEl.className = 'plan-conversation';
+      understandingEl.textContent = ai.understanding || conv.opening;
+      bubble.appendChild(understandingEl);
 
-    // Approach — what the AI will do
-    const approachEl = document.createElement('div');
-    approachEl.className = 'plan-approach';
-    approachEl.textContent = conv.approach;
-    bubble.appendChild(approachEl);
+      // AI-generated analysis
+      if (ai.analysis) {
+        const analysisEl = document.createElement('div');
+        analysisEl.className = 'plan-approach';
+        analysisEl.textContent = ai.analysis;
+        bubble.appendChild(analysisEl);
+      }
 
-    // PRD note if present
+      // AI-generated steps
+      if (Array.isArray(ai.steps) && ai.steps.length) {
+        const stepsEl = document.createElement('div');
+        stepsEl.className = 'plan-steps';
+        ai.steps.forEach((step, idx) => {
+          const stepEl = document.createElement('div');
+          stepEl.className = 'plan-step-item';
+          stepEl.innerHTML = `<span class="plan-step-num">${idx + 1}</span><span>${escapeHtml(step)}</span>`;
+          stepsEl.appendChild(stepEl);
+        });
+        bubble.appendChild(stepsEl);
+      }
+
+      // AI-generated risks
+      if (ai.risks) {
+        const riskEl = document.createElement('div');
+        riskEl.className = 'plan-risk';
+        riskEl.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M8 1L1 14h14L8 1z"/><line x1="8" y1="6" x2="8" y2="9"/><circle cx="8" cy="11.5" r="0.5" fill="currentColor"/></svg> ${escapeHtml(ai.risks)}`;
+        bubble.appendChild(riskEl);
+      }
+
+      // AI-generated verification
+      if (ai.verification) {
+        const verifyEl = document.createElement('div');
+        verifyEl.className = 'plan-safeguard';
+        verifyEl.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M8 1.5l5.5 3v4c0 3.5-2.5 5.5-5.5 7-3-1.5-5.5-3.5-5.5-7v-4L8 1.5z"/><path d="M6 8l1.5 1.5L10.5 6"/></svg> ${escapeHtml(ai.verification)}`;
+        bubble.appendChild(verifyEl);
+      }
+    } else {
+      // Fallback: template-based plan
+      const openingEl = document.createElement('div');
+      openingEl.className = 'plan-conversation';
+      openingEl.textContent = conv.opening;
+      bubble.appendChild(openingEl);
+
+      const approachEl = document.createElement('div');
+      approachEl.className = 'plan-approach';
+      approachEl.textContent = conv.approach;
+      bubble.appendChild(approachEl);
+
+      const safeguardEl = document.createElement('div');
+      safeguardEl.className = 'plan-safeguard';
+      safeguardEl.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M8 1.5l5.5 3v4c0 3.5-2.5 5.5-5.5 7-3-1.5-5.5-3.5-5.5-7v-4L8 1.5z"/><path d="M6 8l1.5 1.5L10.5 6"/></svg> ${escapeHtml(conv.safeguards)}`;
+      bubble.appendChild(safeguardEl);
+    }
+
+    // PRD note
     if (conv.prdNote) {
       const prdEl = document.createElement('div');
       prdEl.className = 'plan-prd-note';
       prdEl.textContent = conv.prdNote;
       bubble.appendChild(prdEl);
     }
-
-    // Safeguards — verification
-    const safeguardEl = document.createElement('div');
-    safeguardEl.className = 'plan-safeguard';
-    safeguardEl.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M8 1.5l5.5 3v4c0 3.5-2.5 5.5-5.5 7-3-1.5-5.5-3.5-5.5-7v-4L8 1.5z"/><path d="M6 8l1.5 1.5L10.5 6"/></svg> ${escapeHtml(conv.safeguards)}`;
-    bubble.appendChild(safeguardEl);
 
     // Scope tag
     const scopeEl = document.createElement('div');
@@ -2312,8 +2407,24 @@
       finalPrompt: finalText,
     };
     pendingClarification = null;
-    inputStatus.textContent = '계획을 확인해주시면 실제 수정과 preview 생성을 시작합니다.';
-    addExecutionPlanMessage(pendingExecutionPlan);
+    inputStatus.textContent = '요청을 분석하고 있습니다...';
+
+    // Show thinking indicator immediately
+    const thinkingMsg = addThinkingMessage();
+
+    // Call AI analysis API
+    fetchAiAnalysis(payload).then((analysis) => {
+      // Remove thinking indicator
+      if (thinkingMsg && thinkingMsg.parentNode) thinkingMsg.remove();
+      pendingExecutionPlan.aiAnalysis = analysis;
+      inputStatus.textContent = '계획을 확인해주시면 실제 수정과 preview 생성을 시작합니다.';
+      addExecutionPlanMessage(pendingExecutionPlan);
+    }).catch(() => {
+      // Fallback: show plan without AI analysis
+      if (thinkingMsg && thinkingMsg.parentNode) thinkingMsg.remove();
+      inputStatus.textContent = '계획을 확인해주시면 실제 수정과 preview 생성을 시작합니다.';
+      addExecutionPlanMessage(pendingExecutionPlan);
+    });
   }
 
   // ─── HTTP Polling (Orchestrator) ────────────────────────────────────

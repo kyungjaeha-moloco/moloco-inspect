@@ -978,6 +978,69 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // AI-powered request analysis — generates a thoughtful plan using LLM
+  if (pathname === '/api/analyze-request' && req.method === 'POST') {
+    try {
+      const payload = await parseBody(req);
+      const userPrompt = payload.userPrompt || '';
+      const component = payload.component || null;
+      const pagePath = payload.pagePath || '/';
+      const client = payload.client || 'msm-default';
+      const testId = payload.testId || null;
+      const language = payload.language || null;
+
+      const analysisPrompt = `You are an AI assistant that helps PM/SA understand how their UI change request will be handled.
+
+The user is looking at: ${client} client, route ${pagePath}${language ? `, language: ${language}` : ''}
+${component ? `Selected component: ${component}` : ''}${testId ? ` (testId: ${testId})` : ''}
+
+Their request: "${userPrompt}"
+
+Respond in Korean with a JSON object containing:
+{
+  "understanding": "한 문장으로 사용자의 의도를 정확히 요약 (사용자의 실제 목적을 포착)",
+  "analysis": "이 요청을 구현하려면 어떤 코드를 어떻게 수정해야 하는지 구체적으로 설명 (2-3문장)",
+  "steps": ["구체적 실행 단계 1", "구체적 실행 단계 2", "구체적 실행 단계 3"],
+  "risks": "주의할 점이나 사이드 이펙트 가능성 (1문장, 없으면 null)",
+  "verification": "완료 후 어떻게 검증할지 (1문장)"
+}
+
+Be specific to their actual request. Do not give generic responses. Reference the actual component, route, and intent.
+Respond ONLY with the JSON object, no markdown or code blocks.`;
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': SANDBOX_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-20250414',
+          max_tokens: 512,
+          messages: [{ role: 'user', content: analysisPrompt }],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Analysis API returned ${response.status}`);
+      }
+
+      const result = await response.json();
+      const text = result.content?.[0]?.text || '{}';
+      let analysis;
+      try {
+        analysis = JSON.parse(text);
+      } catch {
+        analysis = { understanding: text.slice(0, 200), analysis: '', steps: [], risks: null, verification: '' };
+      }
+
+      return json(res, 200, { ok: true, analysis });
+    } catch (error) {
+      return json(res, 500, { ok: false, error: error.message });
+    }
+  }
+
   if (pathname === '/api/analytics/requests') {
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '200', 10) || 200, 500);
     const records = readAnalyticsHistory(limit * 4);
