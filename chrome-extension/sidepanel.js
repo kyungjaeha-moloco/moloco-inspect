@@ -55,6 +55,32 @@
   const successCriteriaInput = document.getElementById('successCriteriaInput');
   const constraintsInput = document.getElementById('constraintsInput');
 
+  // ─── Theme ────────────────────────────────────────────────────────
+  const themeToggle = document.getElementById('themeToggle');
+  const savedTheme = localStorage.getItem('moloco-inspect-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  updateThemeIcon(savedTheme);
+
+  themeToggle.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('moloco-inspect-theme', next);
+    updateThemeIcon(next);
+  });
+
+  function updateThemeIcon(theme) {
+    const lightIcon = themeToggle.querySelector('.theme-icon-light');
+    const darkIcon = themeToggle.querySelector('.theme-icon-dark');
+    if (theme === 'dark') {
+      lightIcon.style.display = 'none';
+      darkIcon.style.display = 'block';
+    } else {
+      lightIcon.style.display = 'block';
+      darkIcon.style.display = 'none';
+    }
+  }
+
   // ─── State ──────────────────────────────────────────────────────────
   let currentElement = null;
   let selectedElements = [];
