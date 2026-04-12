@@ -1,0 +1,9 @@
+{
+  "name": "sandbox-manager",
+  "version": "1.0.0",
+  "description": "Docker container sandbox lifecycle manager for moloco-inspect",
+  "type": "module",
+  "dependencies": {
+    "@opencode-ai/sdk": "^1.4.3"
+  }
+}
