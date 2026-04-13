@@ -847,13 +847,7 @@ async function runPipeline(id) {
       }
     } catch (e) { appendLog(id, 'Typecheck skipped: ' + e.message); }
 
-    try {
-      if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
-      updateRequest(id, { phase: 'capturing_screenshot' });
-      const ssPath = path.join(SCREENSHOTS_DIR, `${id}.png`);
-      await extractFile({ containerId: sandbox.containerId, containerPath: '/workspace/results/screenshot.png', hostPath: ssPath }).catch(() => null);
-      if (fs.existsSync(ssPath)) { updateRequest(id, { screenshotPath: ssPath }); appendLog(id, 'Screenshot captured'); }
-    } catch (error) { appendLog(id, 'Screenshot skipped'); }
+    // Screenshot capture moved to after vite is ready (uses Playwright inside sandbox)
 
     // Start live preview in sandbox + diff viewer
     try {
@@ -871,6 +865,16 @@ async function runPipeline(id) {
         command: 'cd /workspace/msm-portal/js/msm-portal-web && pnpm install --frozen-lockfile 2>&1 | tail -3',
         timeout: 180000,
       });
+      // Inject auth tokens directly into index.html before vite starts
+      const wpId = clientEnv === 'tving' ? 'TVING_OMS' : clientEnv.toUpperCase();
+      const authScript = `<script>(function(){var e=Date.now()+288e5,a=JSON.stringify({token:"mock-preview-token",expiresAt:e}),w=JSON.stringify({token:"mock-workplace-token:${wpId}",workplaceId:"${wpId}",expiresAt:e});try{localStorage.setItem("MSM_AUTH",a);localStorage.setItem("MSM_AUTH_WORKPLACE",w);sessionStorage.setItem("MSM_AUTH",a);sessionStorage.setItem("MSM_AUTH_WORKPLACE",w)}catch(x){}})()</script>`;
+      await execInContainer({
+        containerId: sandbox.containerId,
+        command: `cd /workspace/msm-portal/js/msm-portal-web && sed -i 's|</head>|${authScript.replace(/'/g, "\\'")}\\n</head>|' index.html`,
+        timeout: 5000,
+      }).catch(e => appendLog(id, 'Auth inject into index.html skipped: ' + e.message));
+      appendLog(id, 'Auth tokens injected into index.html');
+
       appendLog(id, 'Starting live preview server...');
       // Start vite in background
       await execInContainer({
@@ -890,24 +894,61 @@ async function runPipeline(id) {
         if (check.stdout.trim() === '200') { viteReady = true; break; }
       }
 
-      // Route live preview through bootstrap page on the sandbox vite server for proper auth
-      const previewClient = state.payload?.client || state.request?.client || 'tving';
-      const previewWpId = previewClient === 'tving' ? 'TVING_OMS' : previewClient.toUpperCase();
-      const bootstrapTarget = encodeURIComponent(pagePath || '/');
-      const livePreviewUrl = `http://127.0.0.1:${sandbox.vitePort}/__codex/preview-bootstrap?target=${bootstrapTarget}&workplaceId=${previewWpId}&lng=ko&client=${previewClient}`;
+      // Auth tokens already injected into index.html — direct access works
+      const livePreviewUrl = `http://127.0.0.1:${sandbox.vitePort}${pagePath}`;
       const diffViewUrl = `http://127.0.0.1:${PORT}/api/diff-view/${id}`;
       updateRequest(id, {
         previewUrl: diffViewUrl,
         livePreviewUrl: livePreviewUrl,
       });
       appendLog(id, viteReady ? 'Live preview ready' : 'Live preview starting (may need a moment to load)');
+
+      // Capture screenshot using Playwright inside the sandbox (after vite is ready)
+      if (viteReady) {
+        try {
+          if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+          updateRequest(id, { phase: 'capturing_screenshot' });
+          appendLog(id, 'Capturing screenshot via Playwright...');
+          const screenshotScript = `
+const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launch({ executablePath: '/usr/bin/chromium-browser', args: ['--no-sandbox', '--disable-gpu'] });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  // Seed auth tokens
+  await page.goto('http://localhost:5173${(pagePath || '/').replace(/'/g, "\\'")}', { waitUntil: 'networkidle', timeout: 20000 }).catch(() => page.goto('http://localhost:5173/', { waitUntil: 'networkidle', timeout: 15000 }));
+  await page.evaluate(() => {
+    var e=Date.now()+288e5;
+    localStorage.setItem('MSM_AUTH',JSON.stringify({token:'mock-preview-token',expiresAt:e}));
+    localStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:'mock-workplace-token:TVING_OMS',workplaceId:'TVING_OMS',expiresAt:e}));
+    sessionStorage.setItem('MSM_AUTH',JSON.stringify({token:'mock-preview-token',expiresAt:e}));
+    sessionStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:'mock-workplace-token:TVING_OMS',workplaceId:'TVING_OMS',expiresAt:e}));
+  });
+  await page.reload({ waitUntil: 'networkidle', timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(2000);
+  await page.screenshot({ path: '/workspace/results/screenshot.png', fullPage: false });
+  await browser.close();
+})();`.trim();
+          await execInContainer({
+            containerId: sandbox.containerId,
+            command: `mkdir -p /workspace/results && node -e '${screenshotScript.replace(/'/g, "'\"'\"'")}'`,
+            timeout: 45000,
+          });
+          const ssPath = path.join(SCREENSHOTS_DIR, `${id}.png`);
+          await extractFile({ containerId: sandbox.containerId, containerPath: '/workspace/results/screenshot.png', hostPath: ssPath }).catch(() => null);
+          if (fs.existsSync(ssPath)) {
+            updateRequest(id, { screenshotPath: ssPath });
+            appendLog(id, 'Screenshot captured');
+          } else {
+            appendLog(id, 'Screenshot file not found after capture');
+          }
+        } catch (ssErr) {
+          appendLog(id, 'Screenshot capture failed: ' + (ssErr.message || '').slice(0, 200));
+        }
+      }
     } catch (error) {
       // Even on error, try to set live preview URL if sandbox has a vite port
       const diffViewUrl = `http://127.0.0.1:${PORT}/api/diff-view/${id}`;
-      const fbClient = state.payload?.client || state.request?.client || 'tving';
-      const fbWpId = fbClient === 'tving' ? 'TVING_OMS' : fbClient.toUpperCase();
-      const fbTarget = encodeURIComponent(state.request?.pagePath || '/');
-      const fallbackLive = sandbox?.vitePort ? `http://127.0.0.1:${sandbox.vitePort}/__codex/preview-bootstrap?target=${fbTarget}&workplaceId=${fbWpId}&lng=ko&client=${fbClient}` : null;
+      const fallbackLive = sandbox?.vitePort ? `http://127.0.0.1:${sandbox.vitePort}${state.request?.pagePath || '/'}` : null;
       updateRequest(id, { previewUrl: diffViewUrl, livePreviewUrl: fallbackLive });
       appendLog(id, 'Live preview setup error: ' + (error.message || '').slice(0, 200));
     }
