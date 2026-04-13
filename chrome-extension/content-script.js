@@ -565,17 +565,22 @@
         toggle();
         return;
       }
-      if (e.key === 'Escape' && active) {
-        if (selectedEntries.length) {
-          exitInspectModeKeepSelection();
-        } else {
-          deactivate();
+      if (e.key === 'Escape') {
+        if (captureActive) {
+          finishCaptureMode();
+          return;
         }
-        return;
-      }
-      if (e.key === 'Escape' && captureActive) {
-        finishCaptureMode();
-        return;
+        if (active) {
+          deactivate();
+          return;
+        }
+        // Clear selection when not in inspect mode (element was selected then inspect exited)
+        if (selectedEntries.length) {
+          clearSelectedOverlay();
+          removeTooltip();
+          safeSendMessage({ type: 'selection-cleared' });
+          return;
+        }
       }
       const input = document.querySelector('.__inspect-prompt-input');
       if (e.key === 'Enter' && document.activeElement === input) {

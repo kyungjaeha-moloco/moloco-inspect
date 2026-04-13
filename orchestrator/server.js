@@ -883,8 +883,11 @@ async function runPipeline(id) {
         if (check.stdout.trim() === '200') { viteReady = true; break; }
       }
 
-      // Always set both preview URLs — vite may still be starting
-      const livePreviewUrl = `http://127.0.0.1:${sandbox.vitePort}${pagePath}`;
+      // Route live preview through bootstrap page on the sandbox vite server for proper auth
+      const previewClient = state.payload?.client || state.request?.client || 'tving';
+      const previewWpId = previewClient === 'tving' ? 'TVING_OMS' : previewClient.toUpperCase();
+      const bootstrapTarget = encodeURIComponent(pagePath || '/');
+      const livePreviewUrl = `http://127.0.0.1:${sandbox.vitePort}/__codex/preview-bootstrap?target=${bootstrapTarget}&workplaceId=${previewWpId}&lng=ko&client=${previewClient}`;
       const diffViewUrl = `http://127.0.0.1:${PORT}/api/diff-view/${id}`;
       updateRequest(id, {
         previewUrl: diffViewUrl,
@@ -894,7 +897,10 @@ async function runPipeline(id) {
     } catch (error) {
       // Even on error, try to set live preview URL if sandbox has a vite port
       const diffViewUrl = `http://127.0.0.1:${PORT}/api/diff-view/${id}`;
-      const fallbackLive = sandbox?.vitePort ? `http://127.0.0.1:${sandbox.vitePort}${state.request?.pagePath || '/'}` : null;
+      const fbClient = state.payload?.client || state.request?.client || 'tving';
+      const fbWpId = fbClient === 'tving' ? 'TVING_OMS' : fbClient.toUpperCase();
+      const fbTarget = encodeURIComponent(state.request?.pagePath || '/');
+      const fallbackLive = sandbox?.vitePort ? `http://127.0.0.1:${sandbox.vitePort}/__codex/preview-bootstrap?target=${fbTarget}&workplaceId=${fbWpId}&lng=ko&client=${fbClient}` : null;
       updateRequest(id, { previewUrl: diffViewUrl, livePreviewUrl: fallbackLive });
       appendLog(id, 'Live preview setup error: ' + (error.message || '').slice(0, 200));
     }
@@ -1054,96 +1060,227 @@ function buildDiffViewerHtml({ requestId, diff, screenshotUrl, changedFiles, use
 
   const fileListHtml = changedFiles.map(f => `<li><code>${f}</code></li>`).join('');
 
+  const addCount = diff.split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++')).length;
+  const delCount = diff.split('\n').filter(l => l.startsWith('-') && !l.startsWith('---')).length;
+
   return `<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>Preview — ${requestId.slice(0,8)}</title>
+<title>Review — ${requestId.slice(0,8)}</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Inter', -apple-system, sans-serif; background: #f4f4f4; color: #161616; }
-  .container { max-width: 960px; margin: 0 auto; padding: 24px; }
-  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-  .header h1 { font-size: 20px; font-weight: 600; }
-  .badge { padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; }
-  .badge-preview { background: #E3F2FD; color: #0f62fe; }
-  .badge-approved { background: #E8F5E9; color: #24a148; }
-  .prompt { padding: 16px; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 20px; font-size: 14px; line-height: 1.6; }
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface-raised: #1c2129;
+    --border: #30363d; --border-accent: #388bfd40;
+    --text: #e6edf3; --text-secondary: #8b949e; --text-muted: #484f58;
+    --accent: #388bfd; --accent-hover: #58a6ff;
+    --green: #3fb950; --green-bg: rgba(63,185,80,0.1); --green-border: rgba(63,185,80,0.3);
+    --red: #f85149; --red-bg: rgba(248,81,73,0.1); --red-border: rgba(248,81,73,0.3);
+    --hunk-bg: rgba(56,139,253,0.1); --hunk-text: #79c0ff;
+    --radius: 8px; --radius-lg: 12px;
+  }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+
+  /* Header */
+  .header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .header-icon { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), #a371f7); display: flex; align-items: center; justify-content: center; }
+  .header-icon svg { color: #fff; }
+  .header h1 { font-size: 18px; font-weight: 600; flex: 1; }
+  .header code { font-size: 13px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; }
+  .badge { padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; }
+  .badge-preview { background: rgba(56,139,253,0.15); color: var(--accent); border: 1px solid rgba(56,139,253,0.3); }
+  .badge-approved { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+
+  /* Prompt card */
+  .prompt-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 24px; }
+  .prompt-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 8px; }
+  .prompt-text { font-size: 14px; line-height: 1.7; color: var(--text); }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; transition: border-color 0.15s; }
+  .stat:hover { border-color: var(--border-accent); }
+  .stat-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.red { color: var(--red); }
+  .stat-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+
+  /* Sections */
   .section { margin-bottom: 24px; }
-  .section h2 { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #525252; margin-bottom: 12px; }
-  .file-list { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
-  .file-list li code { padding: 4px 10px; background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 12px; }
-  .diff-viewer { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: auto; max-height: 600px; }
-  .diff-viewer pre { padding: 16px; font-family: 'JetBrains Mono', 'SF Mono', monospace; font-size: 12px; line-height: 1.6; white-space: pre; tab-size: 2; }
-  .diff-add { background: #e6ffec; color: #1a7f37; display: block; }
-  .diff-del { background: #ffebe9; color: #cf222e; display: block; }
-  .diff-hunk { background: #ddf4ff; color: #0550ae; display: block; font-weight: 600; }
-  .diff-file { background: #f6f8fa; color: #24292f; display: block; font-weight: 700; padding: 4px 0; border-top: 1px solid #e0e0e0; margin-top: 8px; }
-  .screenshot { max-width: 100%; border-radius: 8px; border: 1px solid #e0e0e0; }
-  .actions { display: flex; gap: 12px; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e0e0e0; }
-  .btn { padding: 10px 24px; border-radius: 6px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; font-family: inherit; }
-  .btn-approve { background: #24a148; color: #fff; }
-  .btn-approve:hover { background: #198038; }
-  .btn-reject { background: #fff; color: #da1e28; border: 1px solid #da1e28; }
-  .btn-reject:hover { background: #fff1f1; }
-  .btn-live { background: #0f62fe; color: #fff; text-decoration: none; }
-  .btn-live:hover { background: #0043ce; }
-  .btn-dashboard { background: #fff; color: #525252; border: 1px solid #e0e0e0; text-decoration: none; }
-  .btn-dashboard:hover { background: #f4f4f4; }
-  .stats { display: flex; gap: 16px; margin-bottom: 20px; }
-  .stat { padding: 12px 16px; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; text-align: center; }
-  .stat-value { font-size: 20px; font-weight: 700; }
-  .stat-label { font-size: 11px; color: #525252; text-transform: uppercase; margin-top: 2px; }
+  .section-header { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .section-header svg { color: var(--text-muted); }
+
+  /* File chips */
+  .file-list { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+  .file-chip { padding: 5px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); transition: all 0.15s; cursor: default; }
+  .file-chip:hover { border-color: var(--accent); color: var(--text); background: var(--surface-raised); }
+
+  /* Diff viewer */
+  .diff-viewer { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+  .diff-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
+  .diff-toolbar-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+  .diff-toolbar-stats { display: flex; gap: 12px; font-size: 12px; font-family: 'JetBrains Mono', monospace; }
+  .diff-toolbar-stats .add { color: var(--green); }
+  .diff-toolbar-stats .del { color: var(--red); }
+  .diff-scroll { overflow: auto; max-height: 640px; }
+  .diff-scroll pre { padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7; white-space: pre; tab-size: 2; counter-reset: line; }
+  .diff-add { background: var(--green-bg); color: #aff5b4; display: block; padding: 0 16px; margin: 0 -16px; }
+  .diff-del { background: var(--red-bg); color: #ffc1ba; display: block; padding: 0 16px; margin: 0 -16px; }
+  .diff-hunk { background: var(--hunk-bg); color: var(--hunk-text); display: block; font-weight: 500; padding: 4px 16px; margin: 8px -16px 4px; border-radius: 4px; }
+  .diff-file { color: var(--accent); display: block; font-weight: 600; padding: 8px 16px; margin: 12px -16px 4px; border-top: 1px solid var(--border); }
+  .diff-file:first-child { margin-top: 0; border-top: none; }
+
+  /* Screenshot */
+  .screenshot-wrap { border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); background: var(--surface); }
+  .screenshot { width: 100%; display: block; }
+
+  /* Actions */
+  .actions { display: flex; gap: 12px; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+  .btn { padding: 10px 20px; border-radius: var(--radius); font-size: 13px; font-weight: 600; border: none; cursor: pointer; font-family: 'Inter', sans-serif; display: inline-flex; align-items: center; gap: 8px; transition: all 0.15s; text-decoration: none; }
+  .btn svg { width: 16px; height: 16px; }
+  .btn-approve { background: var(--green); color: #fff; }
+  .btn-approve:hover { background: #46c252; box-shadow: 0 0 0 3px var(--green-bg); }
+  .btn-reject { background: transparent; color: var(--red); border: 1px solid var(--red-border); }
+  .btn-reject:hover { background: var(--red-bg); }
+  .btn-live { background: var(--accent); color: #fff; }
+  .btn-live:hover { background: var(--accent-hover); box-shadow: 0 0 0 3px rgba(56,139,253,0.2); }
+  .btn-secondary { background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--text-muted); color: var(--text); }
+
+  /* Result banner */
+  .result-banner { padding: 16px 20px; border-radius: var(--radius); font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+  .result-approved { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .result-rejected { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+
+  /* Feedback dialog */
+  .feedback-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px); }
+  .feedback-dialog { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; width: 480px; max-width: 90vw; }
+  .feedback-dialog h3 { font-size: 16px; margin-bottom: 12px; }
+  .feedback-dialog textarea { width: 100%; height: 100px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: inherit; font-size: 13px; padding: 12px; resize: vertical; }
+  .feedback-dialog textarea:focus { outline: none; border-color: var(--accent); }
+  .feedback-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
-    <h1>Preview <code style="font-size:14px;opacity:0.6">${requestId.slice(0,8)}</code></h1>
+    <div class="header-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+    </div>
+    <h1>Code Review <code>${requestId.slice(0,8)}</code></h1>
     <span class="badge badge-${status === 'preview' ? 'preview' : 'approved'}">${status}</span>
   </div>
 
-  <div class="prompt">${userPrompt.replace(/</g, '&lt;') || 'No prompt'}</div>
+  <div class="prompt-card">
+    <div class="prompt-label">Request</div>
+    <div class="prompt-text">${userPrompt.replace(/</g, '&lt;').replace(/\n/g, '<br>') || 'No prompt'}</div>
+  </div>
 
   <div class="stats">
     <div class="stat"><div class="stat-value">${changedFiles.length}</div><div class="stat-label">Changed Files</div></div>
-    <div class="stat"><div class="stat-value">${diff.split('\\n').filter(l => l.startsWith('+')).length}</div><div class="stat-label">Lines Added</div></div>
-    <div class="stat"><div class="stat-value">${diff.split('\\n').filter(l => l.startsWith('-')).length}</div><div class="stat-label">Lines Removed</div></div>
+    <div class="stat"><div class="stat-value green">+${addCount}</div><div class="stat-label">Additions</div></div>
+    <div class="stat"><div class="stat-value red">-${delCount}</div><div class="stat-label">Deletions</div></div>
   </div>
 
-  ${changedFiles.length ? `<div class="section"><h2>Changed Files</h2><ul class="file-list">${fileListHtml}</ul></div>` : ''}
+  ${changedFiles.length ? `<div class="section">
+    <div class="section-header">
+      <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0113.25 16h-9.5A1.75 1.75 0 012 14.25V1.75z"/></svg>
+      Changed Files
+    </div>
+    <ul class="file-list">${changedFiles.map(f => `<li class="file-chip">${f}</li>`).join('')}</ul>
+  </div>` : ''}
 
-  ${screenshotHtml}
+  ${screenshotUrl ? `<div class="section">
+    <div class="section-header">
+      <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M16 13.25A1.75 1.75 0 0114.25 15H1.75A1.75 1.75 0 010 13.25V2.75C0 1.784.784 1 1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5zM1.75 2.5a.25.25 0 00-.25.25v10.5c0 .138.112.25.25.25h12.5a.25.25 0 00.25-.25V2.75a.25.25 0 00-.25-.25H1.75z"/></svg>
+      Screenshot
+    </div>
+    <div class="screenshot-wrap"><img src="${screenshotUrl}" alt="Preview" class="screenshot" /></div>
+  </div>` : ''}
 
   <div class="section">
-    <h2>Code Changes</h2>
-    <div class="diff-viewer"><pre>${coloredDiff}</pre></div>
+    <div class="section-header" style="justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:8px">
+        <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M8.75 1.75a.75.75 0 00-1.5 0V5H4a.75.75 0 000 1.5h3.25v3.25a.75.75 0 001.5 0V6.5H12A.75.75 0 0012 5H8.75V1.75z"/></svg>
+        Code Changes
+      </span>
+    </div>
+    <div class="diff-viewer">
+      <div class="diff-toolbar">
+        <span class="diff-toolbar-label">${changedFiles.length} file${changedFiles.length !== 1 ? 's' : ''} changed</span>
+        <div class="diff-toolbar-stats">
+          <span class="add">+${addCount}</span>
+          <span class="del">-${delCount}</span>
+        </div>
+      </div>
+      <div class="diff-scroll"><pre>${coloredDiff}</pre></div>
+    </div>
   </div>
 
-  <div class="actions">
-    ${livePreviewUrl ? `<a class="btn btn-live" href="${livePreviewUrl}" target="_blank">Live Preview 열기 ↗</a>` : ''}
-    <button class="btn btn-approve" onclick="handleAction('approve')">Approve & Create PR</button>
-    <button class="btn btn-reject" onclick="handleAction('reject')">Reject</button>
-    <a class="btn btn-dashboard" href="http://127.0.0.1:${PORT}/requests/${requestId}" target="_blank">Dashboard</a>
+  <div class="actions" id="actions">
+    ${livePreviewUrl ? `<a class="btn btn-live" href="${livePreviewUrl}" target="_blank">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h7v7"/><path d="M13 3L6 10"/><path d="M11 9v4H3V5h4"/></svg>
+      Live Preview
+    </a>` : ''}
+    <button class="btn btn-approve" onclick="handleApprove()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8l3 3 5-6"/></svg>
+      Approve & Create PR
+    </button>
+    <button class="btn btn-reject" onclick="showRejectDialog()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      Request Changes
+    </button>
+    <a class="btn btn-secondary" href="http://127.0.0.1:${PORT}/requests/${requestId}" target="_blank">Dashboard</a>
   </div>
 </div>
+
+<div class="feedback-overlay" id="feedbackOverlay" style="display:none">
+  <div class="feedback-dialog">
+    <h3>Request Changes</h3>
+    <p style="color:var(--text-secondary);font-size:13px;margin-bottom:12px">Describe what should be different. The agent will iterate on this feedback.</p>
+    <textarea id="feedbackText" placeholder="e.g., Move the button to the right side, change the color to blue..."></textarea>
+    <div class="feedback-actions">
+      <button class="btn btn-secondary" onclick="hideRejectDialog()">Cancel</button>
+      <button class="btn btn-reject" onclick="handleReject()">Submit Feedback</button>
+    </div>
+  </div>
+</div>
+
 <script>
-async function handleAction(action) {
-  const url = action === 'approve'
-    ? '/api/approve/${requestId}'
-    : '/api/reject/${requestId}';
+function showRejectDialog() {
+  document.getElementById('feedbackOverlay').style.display = 'flex';
+  document.getElementById('feedbackText').focus();
+}
+function hideRejectDialog() {
+  document.getElementById('feedbackOverlay').style.display = 'none';
+}
+async function handleApprove() {
   try {
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const res = await fetch('/api/approve/${requestId}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     const data = await res.json();
     if (data.ok !== false) {
-      document.querySelector('.actions').innerHTML = action === 'approve'
-        ? '<div style="color:#24a148;font-weight:600">Approved — PR will be created</div>'
-        : '<div style="color:#da1e28;font-weight:600">Rejected — changes discarded</div>';
-    } else {
-      alert('Error: ' + (data.error || 'Unknown'));
-    }
+      document.getElementById('actions').innerHTML = '<div class="result-banner result-approved"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M4 8l3 3 5-6"/></svg>Approved — PR is being created' + (data.prUrl ? ' <a href="' + data.prUrl + '" target="_blank" style="color:inherit;margin-left:8px">View PR \\u2192</a>' : '') + '</div>';
+    } else { alert('Error: ' + (data.error || 'Unknown')); }
   } catch(e) { alert('Failed: ' + e.message); }
 }
+async function handleReject() {
+  const feedback = document.getElementById('feedbackText').value.trim();
+  if (!feedback) { document.getElementById('feedbackText').focus(); return; }
+  hideRejectDialog();
+  try {
+    const res = await fetch('/api/reject/${requestId}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feedback }) });
+    const data = await res.json();
+    if (data.ok !== false) {
+      document.getElementById('actions').innerHTML = '<div class="result-banner result-rejected"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 4l-8 8"/><path d="M4 4l8 8"/></svg>Changes requested — agent is iterating</div>';
+    } else { alert('Error: ' + (data.error || 'Unknown')); }
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') hideRejectDialog();
+});
 </script>
 </body>
 </html>`;
@@ -1199,17 +1336,37 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     const client = state.payload?.client || state.request?.client || 'tving';
+    const workplaceId = client === 'tving' ? 'TVING_OMS' : client.toUpperCase();
+
+    // If first visit (no __previewed cookie), redirect through bootstrap page for proper auth seeding
+    const cookies = req.headers.cookie || '';
+    if (!cookies.includes('__previewed=1') && !subPath.includes('__codex/preview-bootstrap') && !subPath.includes('/@') && !subPath.match(/\.\w+$/)) {
+      const bootstrapTarget = encodeURIComponent((subPath || '/') + (url.search || ''));
+      const bootstrapUrl = `/__codex/preview-bootstrap?target=${bootstrapTarget}&workplaceId=${workplaceId}&lng=ko&client=${client}`;
+      res.writeHead(302, {
+        'Location': `/preview/${reqId}${bootstrapUrl}`,
+        'Set-Cookie': `__previewed=1; Path=/preview/${reqId}; Max-Age=28800`,
+      });
+      res.end();
+      return;
+    }
+
     const target = `http://127.0.0.1:${state.sandbox.vitePort}${subPath}${url.search}`;
-    const AUTH_INJECT = `<script>(function(){var e=Date.now()+288e5,a=JSON.stringify({token:"mock-preview-token",expiresAt:e}),w=JSON.stringify({token:"mock-workplace-token:${client}",workplaceId:"${client}",expiresAt:e});try{localStorage.setItem("MSM_AUTH",a);localStorage.setItem("MSM_AUTH_WORKPLACE",w);sessionStorage.setItem("MSM_AUTH",a);sessionStorage.setItem("MSM_AUTH_WORKPLACE",w)}catch(x){}})()</script>`;
+    // Fallback: also inject auth tokens directly into HTML in case bootstrap is unavailable
+    const AUTH_INJECT = `<script>(function(){var e=Date.now()+288e5,a=JSON.stringify({token:"mock-preview-token",expiresAt:e}),w=JSON.stringify({token:"mock-workplace-token:${workplaceId}",workplaceId:"${workplaceId}",expiresAt:e});try{localStorage.setItem("MSM_AUTH",a);localStorage.setItem("MSM_AUTH_WORKPLACE",w);sessionStorage.setItem("MSM_AUTH",a);sessionStorage.setItem("MSM_AUTH_WORKPLACE",w)}catch(x){}})()</script>`;
     try {
       const proxyReq = http.request(target, { method: req.method, headers: { ...req.headers, host: `127.0.0.1:${state.sandbox.vitePort}` } }, (proxyRes) => {
         const ct = proxyRes.headers['content-type'] || '';
         if (ct.includes('text/html')) {
-          // Buffer HTML to inject auth tokens
+          // Buffer HTML to inject auth tokens and rewrite asset paths
+          const proxyBase = `/preview/${reqId}`;
           const chunks = [];
           proxyRes.on('data', c => chunks.push(c));
           proxyRes.on('end', () => {
             let html = Buffer.concat(chunks).toString('utf-8');
+            // Rewrite absolute asset paths to go through the preview proxy
+            html = html.replace(/(src|href)="\/(?!\/)/g, `$1="${proxyBase}/`);
+            html = html.replace(/(from\s+")\/(@[^"]+)/g, `$1${proxyBase}/$2`);
             html = html.replace('</head>', AUTH_INJECT + '</head>');
             const headers = { ...proxyRes.headers };
             headers['content-length'] = Buffer.byteLength(html);
