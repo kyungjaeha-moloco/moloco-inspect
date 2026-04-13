@@ -1043,6 +1043,107 @@ button:focus-visible, select:focus-visible {
   margin-top: 1px;
 }
 
+/* Enhanced AI analysis sections */
+.plan-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plan-section-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.plan-section-label {
+  flex-shrink: 0;
+}
+
+.plan-step-count {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--accent-text);
+  background: var(--accent-light);
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: auto;
+}
+
+.plan-step-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.plan-code {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 10.5px;
+  background: var(--code-bg, rgba(255,255,255,0.06));
+  color: var(--accent);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.plan-risk-card {
+  background: var(--risk-bg, rgba(251,191,36,0.06));
+  border: 1px solid var(--risk-border, rgba(251,191,36,0.15));
+  border-radius: var(--radius-sm, 6px);
+  padding: 10px 12px;
+}
+
+.plan-risk-header {
+  color: var(--warning, #fbbf24);
+}
+
+.plan-risk-body {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.plan-verify-card {
+  background: var(--verify-bg, rgba(52,211,153,0.06));
+  border: 1px solid var(--verify-border, rgba(52,211,153,0.15));
+  border-radius: var(--radius-sm, 6px);
+  padding: 10px 12px;
+}
+
+.plan-verify-header {
+  color: var(--safeguard-icon, #34d399);
+}
+
+.plan-verify-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.plan-verify-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.plan-verify-item svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--safeguard-icon, #34d399);
+}
+
+.plan-verify-body {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
 .progress-dashboard-link {
   display: inline-flex;
   align-items: center;

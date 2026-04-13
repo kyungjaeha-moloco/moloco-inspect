@@ -831,47 +831,70 @@
     bubble.appendChild(header);
 
     if (ai) {
-      // AI-generated understanding
+      // AI understanding
       const understandingEl = document.createElement('div');
       understandingEl.className = 'plan-conversation';
       understandingEl.textContent = ai.understanding || conv.opening;
       bubble.appendChild(understandingEl);
 
-      // AI-generated analysis
+      // Collapsible analysis section
       if (ai.analysis) {
-        const analysisEl = document.createElement('div');
-        analysisEl.className = 'plan-approach';
-        analysisEl.textContent = ai.analysis;
-        bubble.appendChild(analysisEl);
+        const analysisSection = document.createElement('div');
+        analysisSection.className = 'plan-section';
+        analysisSection.innerHTML = `<div class="plan-section-header"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="8.5"/><line x1="8" y1="8.5" x2="10.5" y2="10"/></svg><span class="plan-section-label">접근 방식</span></div>`;
+        const analysisBody = document.createElement('div');
+        analysisBody.className = 'plan-approach';
+        analysisBody.textContent = ai.analysis;
+        analysisSection.appendChild(analysisBody);
+        bubble.appendChild(analysisSection);
       }
 
-      // AI-generated steps
+      // Steps with section header and file highlighting
       if (Array.isArray(ai.steps) && ai.steps.length) {
+        const stepsSection = document.createElement('div');
+        stepsSection.className = 'plan-section';
+        stepsSection.innerHTML = `<div class="plan-section-header"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M3 3h10v10H3z"/><path d="M6 6h4"/><path d="M6 8.5h4"/><path d="M6 11h2.5"/></svg><span class="plan-section-label">실행 단계</span><span class="plan-step-count">${ai.steps.length}단계</span></div>`;
         const stepsEl = document.createElement('div');
         stepsEl.className = 'plan-steps';
         ai.steps.forEach((step, idx) => {
           const stepEl = document.createElement('div');
           stepEl.className = 'plan-step-item';
-          stepEl.innerHTML = `<span class="plan-step-num">${idx + 1}</span><span>${escapeHtml(step)}</span>`;
+          // Highlight file paths in backticks or .tsx/.ts/.jsx/.js extensions
+          // Highlight backtick-wrapped text, then bare filenames not already inside <code>
+          const highlighted = escapeHtml(step).replace(/`([^`]+)`/g, '<code class="plan-code">$1</code>').replace(/(?!<code[^>]*>)(?<![/\w])(\S+\.(tsx?|jsx?|json|css))(?![^<]*<\/code>)/g, '<code class="plan-code">$1</code>');
+          stepEl.innerHTML = `<span class="plan-step-num">${idx + 1}</span><span class="plan-step-text">${highlighted}</span>`;
           stepsEl.appendChild(stepEl);
         });
-        bubble.appendChild(stepsEl);
+        stepsSection.appendChild(stepsEl);
+        bubble.appendChild(stepsSection);
       }
 
-      // AI-generated risks
+      // Risks with warning card style
       if (ai.risks) {
-        const riskEl = document.createElement('div');
-        riskEl.className = 'plan-risk';
-        riskEl.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M8 1L1 14h14L8 1z"/><line x1="8" y1="6" x2="8" y2="9"/><circle cx="8" cy="11.5" r="0.5" fill="currentColor"/></svg> ${escapeHtml(ai.risks)}`;
-        bubble.appendChild(riskEl);
+        const riskSection = document.createElement('div');
+        riskSection.className = 'plan-section plan-risk-card';
+        riskSection.innerHTML = `<div class="plan-section-header plan-risk-header"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M8 1L1 14h14L8 1z"/><line x1="8" y1="6" x2="8" y2="9"/><circle cx="8" cy="11.5" r="0.5" fill="currentColor"/></svg><span class="plan-section-label">주의 사항</span></div><div class="plan-risk-body">${escapeHtml(ai.risks)}</div>`;
+        bubble.appendChild(riskSection);
       }
 
-      // AI-generated verification
+      // Verification as checklist
       if (ai.verification) {
-        const verifyEl = document.createElement('div');
-        verifyEl.className = 'plan-safeguard';
-        verifyEl.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M8 1.5l5.5 3v4c0 3.5-2.5 5.5-5.5 7-3-1.5-5.5-3.5-5.5-7v-4L8 1.5z"/><path d="M6 8l1.5 1.5L10.5 6"/></svg> ${escapeHtml(ai.verification)}`;
-        bubble.appendChild(verifyEl);
+        const verifySection = document.createElement('div');
+        verifySection.className = 'plan-section plan-verify-card';
+        // Split by period or newline for multiple items
+        const items = ai.verification.split(/[.\n]/).map(s => s.trim()).filter(Boolean);
+        let verifyHtml = `<div class="plan-section-header plan-verify-header"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M8 1.5l5.5 3v4c0 3.5-2.5 5.5-5.5 7-3-1.5-5.5-3.5-5.5-7v-4L8 1.5z"/><path d="M6 8l1.5 1.5L10.5 6"/></svg><span class="plan-section-label">검증 방법</span></div>`;
+        if (items.length > 1) {
+          verifyHtml += '<div class="plan-verify-list">';
+          items.forEach(item => {
+            verifyHtml += `<div class="plan-verify-item"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="11" height="11"><rect x="2" y="2" width="12" height="12" rx="2"/></svg><span>${escapeHtml(item)}</span></div>`;
+          });
+          verifyHtml += '</div>';
+        } else {
+          verifyHtml += `<div class="plan-verify-body">${escapeHtml(ai.verification)}</div>`;
+        }
+        verifySection.innerHTML = verifyHtml;
+        bubble.appendChild(verifySection);
       }
     } else {
       // Fallback: template-based plan
