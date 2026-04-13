@@ -16,6 +16,10 @@ build/
 .env
 .env.local
 .omc/
+.openboard/
+
+# One-off scripts
+design-system/add-storybook-paths.cjs
 
 # Screenshots and generated artifacts
 screenshots/
