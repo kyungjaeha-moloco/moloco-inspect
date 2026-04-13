@@ -1,8 +1,133 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { NavLink, useParams } from 'react-router-dom';
 import { API_BASE } from '../analytics/types';
 import { formatDuration, formatTimestamp, getStatusBadgeClass } from '../analytics/helpers';
 import { useAnalyticsRequestDetail } from '../analytics/hooks';
+
+function colorDiffLine(line: string) {
+  if (line.startsWith('+') && !line.startsWith('+++')) return 'diff-add';
+  if (line.startsWith('-') && !line.startsWith('---')) return 'diff-del';
+  if (line.startsWith('@@')) return 'diff-hunk';
+  if (line.startsWith('diff --git')) return 'diff-file';
+  return '';
+}
+
+function DiffViewer({ diff, changedFiles }: { diff: string; changedFiles: string[] }) {
+  const [expanded, setExpanded] = useState(true);
+  const lines = diff.split('\n');
+  const addCount = lines.filter(l => l.startsWith('+') && !l.startsWith('+++')).length;
+  const delCount = lines.filter(l => l.startsWith('-') && !l.startsWith('---')).length;
+
+  return (
+    <div className="section">
+      <div className="section-header" style={{ cursor: 'pointer' }} onClick={() => setExpanded(!expanded)}>
+        <h2 className="section-title">Code Changes</h2>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span className="badge badge-success" style={{ fontFamily: 'var(--font-mono)' }}>+{addCount}</span>
+          <span className="badge badge-danger" style={{ fontFamily: 'var(--font-mono)' }}>-{delCount}</span>
+          <span className="badge badge-neutral">{changedFiles.length} file{changedFiles.length !== 1 ? 's' : ''}</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{expanded ? '▼' : '▶'}</span>
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+          <pre style={{ padding: 16, fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.7, overflowX: 'auto', maxHeight: 500, margin: 0, whiteSpace: 'pre', tabSize: 2 }}>
+            {lines.map((line, i) => {
+              const cls = colorDiffLine(line);
+              return <div key={i} className={cls} style={cls ? { padding: '0 8px', margin: '0 -8px' } : undefined}>{line || '\u00A0'}</div>;
+            })}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ApproveRejectActions({ requestId, status, onAction }: { requestId: string; status: string; onAction: () => void }) {
+  const [feedback, setFeedback] = useState('');
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [actionResult, setActionResult] = useState<{ type: string; message: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleApprove = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/approve/${requestId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const data = await res.json();
+      if (data.ok !== false) {
+        setActionResult({ type: 'approved', message: data.prUrl ? `PR created: ${data.prUrl}` : 'Approved — PR is being created' });
+        onAction();
+      } else {
+        setActionResult({ type: 'error', message: data.error || 'Approval failed' });
+      }
+    } catch (e: any) {
+      setActionResult({ type: 'error', message: e.message });
+    }
+    setLoading(false);
+  }, [requestId, onAction]);
+
+  const handleReject = useCallback(async () => {
+    if (!feedback.trim()) return;
+    setLoading(true);
+    setShowFeedback(false);
+    try {
+      const res = await fetch(`${API_BASE}/api/reject/${requestId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feedback }) });
+      const data = await res.json();
+      if (data.ok !== false) {
+        setActionResult({ type: 'rejected', message: 'Changes requested — agent is iterating' });
+        setFeedback('');
+        onAction();
+      } else {
+        setActionResult({ type: 'error', message: data.error || 'Rejection failed' });
+      }
+    } catch (e: any) {
+      setActionResult({ type: 'error', message: e.message });
+    }
+    setLoading(false);
+  }, [requestId, feedback, onAction]);
+
+  if (actionResult) {
+    return (
+      <div className={`detail-field`} style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', background: actionResult.type === 'approved' ? 'rgba(36,161,72,0.08)' : actionResult.type === 'rejected' ? 'rgba(218,30,40,0.06)' : 'rgba(218,30,40,0.06)', border: `1px solid ${actionResult.type === 'approved' ? 'var(--success)' : 'var(--danger)'}` }}>
+        <div style={{ fontWeight: 600, color: actionResult.type === 'approved' ? 'var(--success)' : actionResult.type === 'rejected' ? 'var(--danger)' : 'var(--danger)' }}>
+          {actionResult.type === 'approved' ? '✓ ' : actionResult.type === 'rejected' ? '↻ ' : '✕ '}{actionResult.message}
+        </div>
+      </div>
+    );
+  }
+
+  if (status !== 'preview') return null;
+
+  return (
+    <div className="section">
+      <div className="section-header">
+        <h2 className="section-title">Review Actions</h2>
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <button className="btn btn-primary" onClick={handleApprove} disabled={loading} style={{ background: 'var(--success)', color: '#fff' }}>
+          ✓ Approve &amp; Create PR
+        </button>
+        <button className="btn btn-outline" onClick={() => setShowFeedback(!showFeedback)} disabled={loading} style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}>
+          ✕ Request Changes
+        </button>
+      </div>
+      {showFeedback && (
+        <div style={{ marginTop: 12 }}>
+          <textarea
+            value={feedback}
+            onChange={e => setFeedback(e.target.value)}
+            placeholder="Describe what should be different..."
+            style={{ width: '100%', minHeight: 80, padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 13, resize: 'vertical' }}
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button className="btn btn-outline" onClick={() => setShowFeedback(false)} style={{ borderColor: 'var(--border)' }}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleReject} disabled={!feedback.trim() || loading} style={{ background: 'var(--danger)', color: '#fff' }}>Submit Feedback</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -262,6 +387,14 @@ export function RequestDetailPage() {
         </div>
       )}
 
+      {/* Approve / Reject actions */}
+      <ApproveRejectActions requestId={requestId || ''} status={req?.status || ''} onAction={() => window.location.reload()} />
+
+      {/* Inline Diff Viewer */}
+      {req?.diff && (
+        <DiffViewer diff={req.diff} changedFiles={req?.changedFiles || []} />
+      )}
+
       {/* Changed files list */}
       {req?.changedFiles && req.changedFiles.length > 0 && (
         <div className="section">
@@ -277,27 +410,47 @@ export function RequestDetailPage() {
         </div>
       )}
 
-      {/* Timeline */}
-      {events.length > 0 && (
-        <div className="section">
-          <div className="section-header">
-            <h2 className="section-title">Timeline</h2>
-          </div>
-          <div className="timeline">
-            {events.map((event, i) => (
-              <div className="timeline-item" key={`${event.at}-${event.type}-${i}`}>
-                <div className="timeline-time">{formatTimestamp(event.at)}</div>
-                <div className="timeline-content">
-                  <span className="timeline-label">{event.type}</span>
-                  {(event.summary || event.phase || event.status) && (
-                    <span> {event.summary || event.phase || event.status}</span>
-                  )}
+      {/* Timeline — merge analytics events + log entries */}
+      {(() => {
+        const logEntries = (Array.isArray(req?.log) ? req.log : []).map((entry: any, i: number) => {
+          const isObj = entry && typeof entry === 'object' && entry.at;
+          return {
+            at: isObj ? entry.at : '',
+            type: 'log',
+            summary: isObj ? entry.message : String(entry),
+            _key: `log-${i}`,
+          };
+        });
+        const analyticsEntries = events.map((event: any, i: number) => ({
+          ...event,
+          _key: `evt-${event.at}-${event.type}-${i}`,
+        }));
+        const merged = [...analyticsEntries, ...logEntries]
+          .filter((e: any) => e.at)
+          .sort((a: any, b: any) => new Date(a.at).getTime() - new Date(b.at).getTime());
+        if (!merged.length) return null;
+        return (
+          <div className="section">
+            <div className="section-header">
+              <h2 className="section-title">Timeline</h2>
+              <span className="badge badge-neutral">{merged.length}</span>
+            </div>
+            <div className="timeline">
+              {merged.map((entry: any) => (
+                <div className={`timeline-item${entry.type === 'log' ? ' timeline-log' : ''}`} key={entry._key}>
+                  <div className="timeline-time">{formatTimestamp(entry.at)}</div>
+                  <div className="timeline-content">
+                    <span className={`timeline-label${entry.type === 'pipeline_error' ? ' badge-danger' : entry.type === 'log' ? ' badge-muted' : ''}`}>{entry.type}</span>
+                    {(entry.summary || entry.phase || entry.status) && (
+                      <span> {entry.summary || entry.phase || entry.status}</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </>
   );
 }

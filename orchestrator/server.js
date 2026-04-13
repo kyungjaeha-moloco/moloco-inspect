@@ -480,7 +480,7 @@ function appendLog(id, message) {
   const state = requests.get(id);
   if (!state) return;
   state.latestLog = String(message);
-  state.log.push(state.latestLog);
+  state.log.push({ at: new Date().toISOString(), message: state.latestLog });
   updateRequest(id, {});
 }
 
@@ -779,6 +779,7 @@ async function runPipeline(id) {
 
   try {
     updateRequest(id, { status: 'processing', phase: 'creating_sandbox' });
+    appendAnalyticsEvent(state, 'pipeline_start', { summary: 'Pipeline started', phase: 'creating_sandbox' });
     appendLog(id, 'Creating sandbox container...');
     const openCodePort = await allocatePort();
     const vitePort = await allocatePort();
@@ -788,6 +789,7 @@ async function runPipeline(id) {
       openCodePort, vitePort, apiKey: sandboxApiKey, provider: SANDBOX_PROVIDER,
     });
     state.sandbox = sandbox;
+    appendAnalyticsEvent(state, 'sandbox_created', { summary: `Container ${sandbox.containerName}`, phase: 'creating_sandbox', ports: { openCode: openCodePort, vite: vitePort } });
     appendLog(id, `Sandbox: ${sandbox.containerName} (oc:${openCodePort} vite:${vitePort})`);
 
     updateRequest(id, { phase: 'syncing_source' });
@@ -807,18 +809,23 @@ async function runPipeline(id) {
     appendLog(id, 'OpenCode server ready');
 
     updateRequest(id, { phase: 'running_agent' });
+    appendAnalyticsEvent(state, 'agent_start', { summary: `Running ${SANDBOX_PROVIDER}/${SANDBOX_MODEL}`, phase: 'running_agent', provider: SANDBOX_PROVIDER, model: SANDBOX_MODEL });
     appendLog(id, `Running agent (${SANDBOX_PROVIDER}/${SANDBOX_MODEL})...`);
     const prompt = buildSandboxPrompt(state.payload);
     const agentResult = await runAgentPrompt(client, { prompt, provider: SANDBOX_PROVIDER, model: SANDBOX_MODEL });
     if (agentResult.error) {
       throw new Error(`Agent: ${agentResult.error.name}: ${agentResult.error.data?.message || ''}`);
     }
+    appendAnalyticsEvent(state, 'agent_done', { summary: `Agent finished ($${(agentResult.cost || 0).toFixed(4)})`, phase: 'collecting_diff', cost: agentResult.cost || 0 });
     appendLog(id, `Agent done (cost: $${(agentResult.cost || 0).toFixed(4)})`);
 
     updateRequest(id, { phase: 'collecting_diff' });
     const diff = await extractDiff({ containerId: sandbox.containerId });
     updateRequest(id, { diff: diff.diffText, changedFiles: diff.changedFiles });
-    if (diff.diffStat.trim()) appendLog(id, `Changes: ${diff.diffStat.trim()}`);
+    if (diff.diffStat.trim()) {
+      appendAnalyticsEvent(state, 'diff_collected', { summary: diff.diffStat.trim(), phase: 'collecting_diff', filesChanged: diff.changedFiles.length });
+      appendLog(id, `Changes: ${diff.diffStat.trim()}`);
+    }
 
     if (!diff.changedFiles.length) {
       state.analytics.approvalState = 'not_required';
@@ -911,6 +918,7 @@ async function runPipeline(id) {
 
   } catch (e) {
     updateRequest(id, { status: 'error', phase: 'pipeline_error', error: e.message });
+    appendAnalyticsEvent(state, 'pipeline_error', { summary: e.message.slice(0, 200), phase: 'pipeline_error' });
     appendLog(id, 'Pipeline error: ' + e.message);
     await cleanup(id);
   }

@@ -740,9 +740,42 @@ a.data-table-row:hover {
 }
 
 .timeline-label {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
 }
+
+.timeline-label.badge-muted {
+  color: var(--text-muted);
+  background: var(--bg-hover);
+}
+
+.timeline-label.badge-danger {
+  color: var(--danger);
+  background: rgba(218,30,40,0.08);
+}
+
+.timeline-log {
+  opacity: 0.75;
+}
+
+.timeline-log::before {
+  width: 6px;
+  height: 6px;
+  background: var(--border);
+}
+
+/* ---------- Inline Diff ---------- */
+.diff-add { background: rgba(36,161,72,0.08); color: #1a7f37; }
+.diff-del { background: rgba(218,30,40,0.06); color: #cf222e; }
+.diff-hunk { background: rgba(15,98,254,0.06); color: var(--accent); font-weight: 600; }
+.diff-file { color: var(--text-primary); font-weight: 700; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px; }
+.badge-success { background: rgba(36,161,72,0.1); color: var(--success); }
+.badge-danger { background: rgba(218,30,40,0.08); color: var(--danger); }
 
 /* ---------- Buttons ---------- */
 .btn {
