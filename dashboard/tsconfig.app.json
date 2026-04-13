@@ -22,7 +22,8 @@
       "@msm-portal/tving/*": ["../msm-portal/js/msm-portal-web/src/apps/tving/*"],
       "@msm-portal/shortmax/*": ["../msm-portal/js/msm-portal-web/src/apps/shortmax/*"],
       "@msm-portal/onboard-demo/*": ["../msm-portal/js/msm-portal-web/src/apps/onboard-demo/*"],
-      "@source-design-system/*": ["../design-system/src/*"]
+      "@source-design-system/*": ["../design-system/src/*"],
+      "@source-design-system-workflows/*": ["../design-system/workflows/*"]
     },
     "types": ["vite/client"]
   },

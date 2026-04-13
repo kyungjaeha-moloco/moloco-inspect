@@ -10,15 +10,7 @@ export function CopyButton({ text, className }: { text: string; className?: stri
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // fallback
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      // Clipboard API unavailable
     }
   };
 

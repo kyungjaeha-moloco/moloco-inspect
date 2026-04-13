@@ -31,7 +31,9 @@ export async function createSandbox({
     '-e', `SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt`,
   ];
 
-  if (provider === 'openai' || apiKey.startsWith('sk-proj-')) {
+  if (provider === 'opencode') {
+    envFlags.push('-e', `OPENCODE_API_KEY=${apiKey}`);
+  } else if (provider === 'openai' || apiKey.startsWith('sk-proj-')) {
     envFlags.push('-e', `OPENAI_API_KEY=${apiKey}`);
   } else {
     envFlags.push('-e', `ANTHROPIC_API_KEY=${apiKey}`);

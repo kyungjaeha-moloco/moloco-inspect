@@ -1,29 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import type { FoundationsData, PaletteSection, TokenValue } from '../types';
+import type { ColorToken, FoundationsData, PaletteSection, TokenValue, TokensJson } from '../types';
 import { getContrastText, formatSemantic } from '../utils';
 import { CopyButton } from '../components/CopyButton';
 
 type Props = {
   colorsData: FoundationsData;
-  tokensData: any;
+  tokensData: TokensJson;
 };
 
-type TabId = 'semantic-colors' | 'palette' | 'spacing' | 'typography';
-
-type ColorToken = {
-  name: string;
-  token: string;
-  hex: string;
-  tier: string;
-  status: string;
-  usage: string;
-  $description?: string;
-  do_not_use_for?: string;
-  components?: string[];
-  role?: string;
-  pairedWith?: string[];
-  states?: Record<string, { token: string; hex: string; $description?: string }>;
-};
+type TabId = 'semantic-colors' | 'palette' | 'spacing' | 'typography' | 'naming-map';
 
 function isTokenValue(v: unknown): v is TokenValue {
   return typeof v === 'object' && v !== null && 'hex' in v;
@@ -44,6 +29,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'palette', label: 'Color Palette' },
   { id: 'spacing', label: 'Spacing' },
   { id: 'typography', label: 'Typography' },
+  { id: 'naming-map', label: 'Naming Map' },
 ];
 
 const COLOR_SECTIONS = ['text', 'background', 'border', 'icon'] as const;
@@ -120,6 +106,9 @@ export function TokensPage({ colorsData, tokensData }: Props) {
       {activeTab === 'typography' && (
         <TypographyTab tokensData={tokensData} />
       )}
+      {activeTab === 'naming-map' && (
+        <NamingMapTab tokensData={tokensData} />
+      )}
     </>
   );
 }
@@ -162,7 +151,7 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
 };
 const PROPERTY_LABELS: Record<string, string> = { text: 'Text', background: 'Bg', border: 'Border', icon: 'Icon' };
 
-function buildRoleGroups(tokensData: any): RoleGroup[] {
+function buildRoleGroups(tokensData: TokensJson): RoleGroup[] {
   const map = new Map<string, RoleGroup>();
 
   for (const property of COLOR_SECTIONS) {
@@ -268,7 +257,7 @@ function RolePreview({ group }: { group: RoleGroup }) {
   );
 }
 
-function SemanticColorsTab({ tokensData }: { tokensData: any }) {
+function SemanticColorsTab({ tokensData }: { tokensData: TokensJson }) {
   const groups = useMemo(() => buildRoleGroups(tokensData), [tokensData]);
   const [showDetail, setShowDetail] = useState<string | null>(null);
 
@@ -451,15 +440,13 @@ function PaletteTab({
 /*  Tab 3: Spacing                                                    */
 /* ------------------------------------------------------------------ */
 
-function SpacingTab({ tokensData }: { tokensData: any }) {
+function SpacingTab({ tokensData }: { tokensData: TokensJson }) {
   const spacing = tokensData.spacing;
   if (!spacing) return <div className="empty-state">No spacing data available.</div>;
 
   const baseUnit: number = spacing.baseUnit ?? 8;
-  const values: Array<{ multiplier: number; px: number; usage: string; category?: string }> =
-    spacing.values ?? [];
-  const categories: Record<string, { range: string; description: string }> =
-    spacing.categories ?? {};
+  const values = spacing.values ?? [];
+  const categories = spacing.categories ?? {};
 
   return (
     <>
@@ -525,23 +512,165 @@ function SpacingTab({ tokensData }: { tokensData: any }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Tab 5: Naming Map — DS name ↔ runtime path                       */
+/* ------------------------------------------------------------------ */
+
+type NamingMapRow = {
+  dsName: string;
+  runtimePath: string;
+  hex: string;
+  role: string;
+  property: string;
+};
+
+const PROPERTY_SECTIONS = [
+  { key: 'text', label: 'text' },
+  { key: 'background', label: 'background' },
+  { key: 'border', label: 'border' },
+  { key: 'icon', label: 'icon' },
+] as const;
+
+const ROLE_OPTIONS = ['all', 'neutral', 'brand', 'danger', 'success', 'warning', 'information', 'disabled', 'selected', 'input'];
+
+function buildNamingMapRows(tokensData: TokensJson): NamingMapRow[] {
+  const rows: NamingMapRow[] = [];
+  for (const { key, label } of PROPERTY_SECTIONS) {
+    const tokens: ColorToken[] = tokensData.color?.[key]?.tokens ?? [];
+    for (const t of tokens) {
+      rows.push({
+        dsName: t.name,
+        runtimePath: t.token,
+        hex: t.hex,
+        role: t.role ?? 'neutral',
+        property: label,
+      });
+    }
+  }
+  return rows;
+}
+
+function NamingMapTab({ tokensData }: { tokensData: TokensJson }) {
+  const allRows = useMemo(() => buildNamingMapRows(tokensData), [tokensData]);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return allRows.filter((row) => {
+      const matchesSearch = !q || row.dsName.toLowerCase().includes(q) || row.runtimePath.toLowerCase().includes(q);
+      const matchesRole = roleFilter === 'all' || row.role === roleFilter;
+      return matchesSearch && matchesRole;
+    });
+  }, [allRows, search, roleFilter]);
+
+  return (
+    <>
+      <div className="naming-map-note">
+        <strong>Known naming gap:</strong> The runtime path uses <code>foundation.assent</code> (misspelling of "accent").
+        This is a known library issue — do not rename, as it would break all consumers.
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+        <input
+          type="text"
+          placeholder="Filter by DS name or runtime path..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            flex: 1,
+            padding: '8px 12px',
+            border: '1px solid var(--border-primary)',
+            borderRadius: 4,
+            fontSize: 13,
+            fontFamily: 'inherit',
+            background: 'var(--bg-primary)',
+            color: 'var(--text-primary)',
+          }}
+        />
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          style={{
+            padding: '8px 12px',
+            border: '1px solid var(--border-primary)',
+            borderRadius: 4,
+            fontSize: 13,
+            fontFamily: 'inherit',
+            background: 'var(--bg-primary)',
+            color: 'var(--text-primary)',
+            minWidth: 140,
+          }}
+        >
+          {ROLE_OPTIONS.map((r) => (
+            <option key={r} value={r}>{r === 'all' ? 'All roles' : r}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="section">
+        <div className="section-header">
+          <h2 className="section-title">DS Name to Runtime Path</h2>
+          <span className="badge badge-neutral">{filtered.length} tokens</span>
+        </div>
+        <table className="token-table">
+          <thead>
+            <tr>
+              <th>DS Name</th>
+              <th>Runtime Path</th>
+              <th>Hex</th>
+              <th>Role</th>
+              <th>Property</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((row) => (
+              <tr key={`${row.property}-${row.dsName}`}>
+                <td>
+                  <code className="mono" style={{ fontSize: 12 }}>{row.dsName}</code>
+                  <CopyButton text={row.dsName} className="copy-btn-light" />
+                </td>
+                <td>
+                  <code className="mono" style={{ fontSize: 12 }}>{row.runtimePath}</code>
+                  <CopyButton text={row.runtimePath} className="copy-btn-light" />
+                </td>
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span
+                      className="color-swatch"
+                      style={{ backgroundColor: row.hex }}
+                      title={row.hex}
+                    />
+                    <span className="token-hex">{row.hex}</span>
+                    <CopyButton text={row.hex} className="copy-btn-light" />
+                  </div>
+                </td>
+                <td><span className="badge badge-neutral">{row.role}</span></td>
+                <td><span className="badge badge-info">{row.property}</span></td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '32px 0' }}>
+                  No tokens match your filter.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Tab 4: Typography                                                 */
 /* ------------------------------------------------------------------ */
 
-function TypographyTab({ tokensData }: { tokensData: any }) {
+function TypographyTab({ tokensData }: { tokensData: TokensJson }) {
   const typography = tokensData.typography;
   if (!typography) return <div className="empty-state">No typography data available.</div>;
 
-  const tokens: Array<{
-    name: string;
-    token: string;
-    size: string;
-    weight: string;
-    lineHeight: string | null;
-    letterSpacing?: string;
-    usage: string;
-    category?: string;
-  }> = typography.tokens ?? [];
+  const tokens = typography.tokens ?? [];
 
   return (
     <div className="section">

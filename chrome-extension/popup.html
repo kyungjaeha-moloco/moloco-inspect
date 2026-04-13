@@ -3,12 +3,40 @@
 <head>
   <meta charset="utf-8">
   <style>
+    :root, [data-theme="light"] {
+      --bg-base: #ffffff;
+      --bg-surface: #f4f4f4;
+      --text-primary: #161616;
+      --text-secondary: #525252;
+      --text-muted: #8d8d8d;
+      --border: #e0e0e0;
+      --accent: #0f62fe;
+      --accent-hover: #0353e9;
+      --accent-light: #a6c8ff;
+      --danger: #da1e28;
+      --danger-hover: #ba1b23;
+      --success: #24a148;
+    }
+    [data-theme="dark"] {
+      --bg-base: #161616;
+      --bg-surface: #262626;
+      --text-primary: #f4f4f4;
+      --text-secondary: #c6c6c6;
+      --text-muted: #6f6f6f;
+      --border: #393939;
+      --accent: #4589ff;
+      --accent-hover: #6ea6ff;
+      --accent-light: #78a9ff;
+      --danger: #fa4d56;
+      --danger-hover: #da1e28;
+      --success: #42be65;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       width: 280px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #1a1a2e;
-      color: #e0e0e0;
+      font-family: 'Inter', 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
       padding: 16px;
     }
     .header {
@@ -24,15 +52,16 @@
     .header h1 {
       font-size: 14px;
       font-weight: 600;
-      color: #fff;
+      color: var(--text-primary);
     }
     .status {
       display: flex;
       align-items: center;
       gap: 8px;
       padding: 8px 12px;
-      background: #2a2a3e;
-      border-radius: 6px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
       font-size: 12px;
       margin-bottom: 12px;
     }
@@ -40,12 +69,12 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #666;
+      background: var(--text-muted);
     }
-    .status-dot.active { background: #66bb6a; }
-    .status-dot.inactive { background: #666; }
-    .status-dot.connected { background: #346bea; }
-    .status-dot.error { background: #e53935; }
+    .status-dot.active { background: var(--success); }
+    .status-dot.inactive { background: var(--text-muted); }
+    .status-dot.connected { background: var(--accent); }
+    .status-dot.error { background: var(--danger); }
     .status-stack {
       display: grid;
       gap: 8px;
@@ -53,7 +82,7 @@
     }
     .status-meta {
       font-size: 11px;
-      color: #888;
+      color: var(--text-muted);
       margin-top: 4px;
       line-height: 1.4;
       white-space: pre-line;
@@ -62,70 +91,71 @@
       margin-left: auto;
       border: none;
       background: transparent;
-      color: #9bb7ff;
+      color: var(--accent);
       font-size: 11px;
       cursor: pointer;
     }
-    .refresh-btn:hover { color: #c4d5ff; }
+    .refresh-btn:hover { color: var(--accent-hover); }
     .toggle-btn {
       width: 100%;
       padding: 10px;
-      background: #346bea;
-      color: #fff;
+      background: var(--accent);
+      color: #ffffff;
       border: none;
-      border-radius: 6px;
+      border-radius: 4px;
       font-size: 13px;
       cursor: pointer;
       font-weight: 500;
       margin-bottom: 12px;
     }
-    .toggle-btn:hover { background: #2a5bd6; }
-    .toggle-btn.active { background: #e53935; }
-    .toggle-btn.active:hover { background: #c62828; }
+    .toggle-btn:hover { background: var(--accent-hover); }
+    .toggle-btn.active { background: var(--danger); }
+    .toggle-btn.active:hover { background: var(--danger-hover); }
     .shortcut {
       text-align: center;
       font-size: 11px;
-      color: #666;
+      color: var(--text-muted);
     }
     kbd {
-      background: #333;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
       padding: 2px 6px;
       border-radius: 3px;
       font-size: 11px;
-      color: #aaa;
+      color: var(--text-secondary);
     }
     .settings {
       margin-top: 12px;
       padding-top: 12px;
-      border-top: 1px solid #333;
+      border-top: 1px solid var(--border);
     }
     .settings label {
       display: block;
       font-size: 11px;
-      color: #888;
+      color: var(--text-muted);
       margin-bottom: 4px;
     }
     .settings input {
       width: 100%;
       padding: 6px 8px;
-      background: #2a2a3e;
-      border: 1px solid #444;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
       border-radius: 4px;
-      color: #fff;
+      color: var(--text-primary);
       font-size: 11px;
       outline: none;
     }
-    .settings input:focus { border-color: #346bea; }
+    .settings input:focus { border-color: var(--accent); }
     .settings .hint {
       font-size: 10px;
-      color: #555;
+      color: var(--text-muted);
       margin-top: 4px;
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <svg viewBox="0 0 24 24" fill="none" stroke="#346bea" stroke-width="2">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent)">
       <circle cx="12" cy="12" r="7"/>
       <line x1="12" y1="1" x2="12" y2="5"/>
       <line x1="12" y1="19" x2="12" y2="23"/>
@@ -161,6 +191,11 @@
     <div class="hint">Where native-mode request files will be written</div>
   </div>
 
+  <script>
+    // Sync theme with side panel preference
+    const saved = localStorage.getItem('moloco-inspect-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', saved);
+  </script>
   <script src="popup.js"></script>
 </body>
 </html>

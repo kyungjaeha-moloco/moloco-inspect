@@ -57,13 +57,13 @@
 
   // ─── Theme ────────────────────────────────────────────────────────
   const themeToggle = document.getElementById('themeToggle');
-  const savedTheme = localStorage.getItem('moloco-inspect-theme') || 'dark';
+  const savedTheme = localStorage.getItem('moloco-inspect-theme') || 'light';
   document.documentElement.setAttribute('data-theme', savedTheme);
   updateThemeIcon(savedTheme);
 
   themeToggle.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme') || 'dark';
-    const next = current === 'dark' ? 'light' : 'dark';
+    const current = document.documentElement.getAttribute('data-theme') || 'light';
+    const next = current === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('moloco-inspect-theme', next);
     updateThemeIcon(next);
@@ -142,6 +142,7 @@
   const STEP_LABELS = ['준비', '코드 수정', '검증', '완료'];
 
   function createStepperElement() {
+    const wrapper = document.createElement('div');
     const stepper = document.createElement('div');
     stepper.className = 'progress-stepper';
     STEP_LABELS.forEach((label, i) => {
@@ -151,12 +152,26 @@
       step.textContent = label;
       stepper.appendChild(step);
     });
-    return stepper;
+    wrapper.appendChild(stepper);
+    // Progress bar
+    const barTrack = document.createElement('div');
+    barTrack.className = 'progress-bar-track';
+    const barFill = document.createElement('div');
+    barFill.className = 'progress-bar-fill animating';
+    barFill.style.width = '0%';
+    barTrack.appendChild(barFill);
+    wrapper.appendChild(barTrack);
+    wrapper._barFill = barFill;
+    wrapper._stepper = stepper;
+    return wrapper;
   }
 
-  function updateStepperForPhase(stepperEl, phase) {
-    if (!stepperEl) return;
+  function updateStepperForPhase(stepperWrapper, phase) {
+    if (!stepperWrapper) return;
+    const stepperEl = stepperWrapper._stepper || stepperWrapper;
+    const barFill = stepperWrapper._barFill;
     const activeIdx = PHASE_TO_STEP[phase] != null ? PHASE_TO_STEP[phase] : 0;
+    const totalSteps = STEP_LABELS.length;
     stepperEl.querySelectorAll('.step').forEach((step) => {
       const idx = parseInt(step.dataset.stepIndex, 10);
       step.classList.remove('active', 'done');
@@ -165,6 +180,16 @@
         else if (idx === activeIdx) step.classList.add('active');
       }
     });
+    // Update progress bar
+    if (barFill) {
+      const pct = totalSteps > 0 ? Math.round(((activeIdx + 0.5) / totalSteps) * 100) : 0;
+      barFill.style.width = `${pct}%`;
+      const terminalPhases = ['preview_ready', 'no_change_needed', 'pipeline_error', 'applying_local_patch'];
+      if (terminalPhases.includes(phase)) {
+        barFill.style.width = '100%';
+        barFill.classList.remove('animating');
+      }
+    }
   }
 
   function startProgressTimer(timerEl) {
@@ -1743,7 +1768,7 @@
     dashLink.href = '#';
     dashLink.addEventListener('click', (e) => {
       e.preventDefault();
-      chrome.runtime.sendMessage({ type: 'inspect-open-url', url: `http://127.0.0.1:4174/analytics/request/${requestId}` });
+      chrome.runtime.sendMessage({ type: 'inspect-open-url', url: `http://127.0.0.1:4174/requests/${requestId}` });
     });
 
     bubble.appendChild(title);
@@ -1774,7 +1799,7 @@
     return activeProgressCard;
   }
 
-  function updateProgressMessage({ requestId, phase, latestLog, statusType, statusLabel, title }) {
+  function updateProgressMessage({ requestId, phase, latestLog, statusType, statusLabel, title, previewUrl }) {
     if (!activeProgressCard || activeProgressCard.requestId !== requestId) {
       return;
     }
@@ -1792,7 +1817,24 @@
     }
 
     activeProgressCard.body.textContent = getProgressPhaseCopy(phase, latestLog, activeProgressCard.payload);
-    activeProgressCard.status.innerHTML = `<span class="dot dot-${statusType}"></span> ${escapeHtml(statusLabel)}`;
+    const isWorking = statusType === 'sent' || statusType === 'waiting';
+    activeProgressCard.status.innerHTML = `<span class="dot dot-${statusType}${isWorking ? ' dot-working' : ''}"></span> ${escapeHtml(statusLabel)}`;
+
+    // Show preview URL link when available
+    if (previewUrl && !activeProgressCard.previewLink) {
+      const link = document.createElement('a');
+      link.className = 'progress-dashboard-link';
+      link.textContent = '변경사항 확인하기 →';
+      link.href = '#';
+      link.style.color = 'var(--accent)';
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        openExternalUrl(previewUrl);
+      });
+      activeProgressCard.root.querySelector('.msg-bubble').insertBefore(link, activeProgressCard.status);
+      activeProgressCard.previewLink = link;
+    }
+
     scrollToBottom();
   }
 
@@ -1957,7 +1999,7 @@
       if (previewUrl) {
         const openPageBtn = document.createElement('button');
         openPageBtn.className = 'preview-open-full-btn preview-open-page-btn';
-        openPageBtn.textContent = '실제 preview 페이지 열기';
+        openPageBtn.textContent = '변경사항 확인하기';
         openPageBtn.addEventListener('click', () => {
           openExternalUrl(previewUrl);
         });
@@ -2217,6 +2259,16 @@
 
   function performSubmit(plan) {
     const payload = plan.payload;
+    // Attach AI analysis to payload so orchestrator can store it
+    if (plan.aiAnalysis) {
+      payload.aiAnalysis = {
+        understanding: plan.aiAnalysis.understanding || null,
+        analysis: plan.aiAnalysis.analysis || null,
+        steps: plan.aiAnalysis.steps || [],
+        warnings: plan.aiAnalysis.warnings || [],
+        successCriteria: plan.aiAnalysis.successCriteria || [],
+      };
+    }
     isSubmitting = true;
     updateSendState();
 
@@ -2485,6 +2537,7 @@
             statusType: 'applied',
             statusLabel: 'preview ready',
             title: 'Agent가 preview를 준비했어요',
+            previewUrl: response.previewUrl || null,
           });
           addPreviewCard(
             response.diff,
@@ -2536,6 +2589,7 @@
             latestLog: response.latestLog || '',
             statusType: response.status === 'pending' ? 'waiting' : 'sent',
             statusLabel: response.status === 'pending' ? 'waiting' : 'working',
+            previewUrl: response.previewUrl || null,
           });
         }
         // 'pending' and 'processing' — keep polling
@@ -2648,6 +2702,48 @@
   });
 
   updateContextStrip();
+
+  // Infra status polling
+  async function getServerUrl() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['serverUrl'], (result) => {
+        resolve(result.serverUrl || 'http://localhost:3847');
+      });
+    });
+  }
+
+  async function updateInfraStatus() {
+    const orcDot = document.getElementById('infraOrcDot');
+    const orcLabel = document.getElementById('infraOrcLabel');
+    const sandboxCount = document.getElementById('infraSandboxCount');
+    const modelLabel = document.getElementById('infraModel');
+    if (!orcDot) return;
+    const baseUrl = await getServerUrl();
+    try {
+      const res = await fetch(`${baseUrl}/api/health`, { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        const data = await res.json();
+        orcDot.className = 'infra-dot up';
+        orcLabel.textContent = 'Online';
+        modelLabel.textContent = data.model || '?';
+      } else {
+        orcDot.className = 'infra-dot down';
+        orcLabel.textContent = 'Error';
+      }
+    } catch {
+      orcDot.className = 'infra-dot down';
+      orcLabel.textContent = 'Offline';
+    }
+    try {
+      const res = await fetch(`${baseUrl}/api/sandboxes`, { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        const data = await res.json();
+        sandboxCount.textContent = String((data.sandboxes || []).length);
+      }
+    } catch {}
+  }
+  updateInfraStatus();
+  setInterval(updateInfraStatus, 10000);
 
   window.__CLICK_TO_INSPECT_TEST_API = {
     renderPreviewCard(args = {}) {

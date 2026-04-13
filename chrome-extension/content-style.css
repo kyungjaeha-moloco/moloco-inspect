@@ -1,10 +1,10 @@
-/* Moloco Inspect — Content Script Styles */
+/* Moloco Inspect — Content Script Styles (Carbon Design) */
 
 #__inspect-overlay {
   position: fixed;
   pointer-events: none;
-  border: 2px solid #346bea;
-  background: rgba(52, 107, 234, 0.08);
+  border: 2px solid #0f62fe;
+  background: rgba(15, 98, 254, 0.08);
   z-index: 99998;
   transition: all 0.05s ease;
 }
@@ -13,9 +13,9 @@
 .__inspect-selected-overlay {
   position: fixed;
   pointer-events: none;
-  border: 2px solid #346bea;
-  background: rgba(52, 107, 234, 0.14);
-  box-shadow: 0 0 0 3px rgba(52, 107, 234, 0.12);
+  border: 2px solid #0f62fe;
+  background: rgba(15, 98, 254, 0.14);
+  box-shadow: 0 0 0 3px rgba(15, 98, 254, 0.12);
   z-index: 99998;
 }
 
@@ -29,13 +29,13 @@
   gap: 6px;
   padding: 5px 9px;
   border-radius: 999px;
-  background: #346bea;
+  background: #0f62fe;
   color: #ffffff;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Inter', 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
-  box-shadow: 0 6px 18px rgba(52, 107, 234, 0.28);
+  box-shadow: 0 6px 18px rgba(15, 98, 254, 0.28);
 }
 
 #__inspect-selected-badge::before,
@@ -50,46 +50,47 @@
 #__inspect-tooltip {
   position: fixed;
   z-index: 99999;
-  background: #1a1a2e;
-  color: #fff;
+  background: #161616;
+  color: #f4f4f4;
   padding: 12px 16px;
-  border-radius: 8px;
-  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  border-radius: 4px;
+  font-family: 'IBM Plex Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
   font-size: 12px;
   line-height: 1.6;
   max-width: 420px;
   min-width: 300px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  border: 1px solid #393939;
 }
 
 .__inspect-component-name {
-  color: #64b5f6;
+  color: #a6c8ff;
   font-size: 14px;
   font-weight: bold;
 }
 
 .__inspect-file-path {
-  color: #81c784;
+  color: #42be65;
 }
 
 .__inspect-test-id {
-  color: #ffb74d;
+  color: #f1c21b;
 }
 
 .__inspect-style-info {
-  color: #aaa;
+  color: #8d8d8d;
   font-size: 11px;
   margin-bottom: 10px;
 }
 
 .__inspect-prompt-section {
-  border-top: 1px solid #333;
+  border-top: 1px solid #393939;
   padding-top: 8px;
   margin-top: 4px;
 }
 
 .__inspect-prompt-label {
-  color: #aaa;
+  color: #8d8d8d;
   font-size: 10px;
   margin-bottom: 4px;
 }
@@ -101,22 +102,22 @@
 
 .__inspect-prompt-input {
   flex: 1;
-  background: #2a2a3e;
-  border: 1px solid #444;
+  background: #262626;
+  border: 1px solid #525252;
   border-radius: 4px;
   padding: 6px 8px;
-  color: #fff;
+  color: #f4f4f4;
   font-size: 12px;
   font-family: inherit;
   outline: none;
 }
 
 .__inspect-prompt-input:focus {
-  border-color: #346bea;
+  border-color: #4589ff;
 }
 
 .__inspect-send-btn {
-  background: #346bea;
+  background: #0f62fe;
   border: none;
   border-radius: 4px;
   padding: 6px 10px;
@@ -127,11 +128,11 @@
 }
 
 .__inspect-send-btn:hover {
-  background: #2a5bd6;
+  background: #0353e9;
 }
 
 .__inspect-hint {
-  color: #555;
+  color: #6f6f6f;
   font-size: 10px;
   margin-top: 4px;
 }
@@ -142,36 +143,37 @@
   bottom: 24px;
   right: 20px;
   z-index: 100000;
-  background: #1a1a2e;
-  color: #fff;
+  background: #161616;
+  color: #f4f4f4;
   padding: 12px 20px;
-  border-radius: 10px;
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  border-radius: 4px;
+  font-family: 'IBM Plex Mono', 'SF Mono', 'Fira Code', monospace;
   font-size: 13px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   gap: 10px;
-  border-left: 4px solid #346bea;
+  border: 1px solid #393939;
+  border-left: 4px solid #0f62fe;
   animation: __inspect-slide-in 0.3s ease forwards;
 }
 
 #__inspect-toast[data-status="sent"] {
-  border-left-color: #346bea;
+  border-left-color: #0f62fe;
 }
 
 #__inspect-toast[data-status="waiting"] {
-  border-left-color: #ffa726;
+  border-left-color: #f1c21b;
 }
 
 #__inspect-toast[data-status="applied"] {
-  background: #1b5e20;
-  border-left-color: #66bb6a;
+  background: #161616;
+  border-left-color: #24a148;
 }
 
 #__inspect-toast[data-status="error"] {
-  background: #b71c1c;
-  border-left-color: #ff5252;
+  background: #161616;
+  border-left-color: #da1e28;
 }
 
 #__inspect-toast.hiding {
@@ -182,7 +184,7 @@
   width: 14px;
   height: 14px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #ffa726;
+  border-top-color: #f1c21b;
   border-radius: 50%;
   animation: __inspect-spin 0.8s linear infinite;
 }
@@ -217,16 +219,16 @@ body.__capture-active * {
   inset: 0;
   z-index: 99997;
   pointer-events: none;
-  background: rgba(8, 10, 20, 0.18);
+  background: rgba(22, 22, 22, 0.18);
 }
 
 #__capture-selection {
   position: fixed;
   z-index: 99998;
   pointer-events: none;
-  border: 2px solid #346bea;
-  background: rgba(52, 107, 234, 0.12);
-  box-shadow: 0 0 0 9999px rgba(8, 10, 20, 0.28);
+  border: 2px solid #0f62fe;
+  background: rgba(15, 98, 254, 0.12);
+  box-shadow: 0 0 0 9999px rgba(22, 22, 22, 0.28);
 }
 
 #__capture-help {
@@ -235,11 +237,12 @@ body.__capture-active * {
   left: 50%;
   transform: translateX(-50%);
   z-index: 99999;
-  background: #1a1a2e;
-  color: #fff;
+  background: #161616;
+  color: #f4f4f4;
   padding: 10px 14px;
   border-radius: 999px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Inter', 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   font-size: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  border: 1px solid #393939;
 }

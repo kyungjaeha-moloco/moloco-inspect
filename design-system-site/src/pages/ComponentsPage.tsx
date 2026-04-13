@@ -16,6 +16,28 @@ function statusBadge(status?: string) {
   return <span className={`badge ${cls}`}>{status}</span>;
 }
 
+const ComponentCard = React.memo(function ComponentCard({ comp }: { comp: ComponentEntry & { categoryName: string } }) {
+  return (
+    <Link
+      to={`/components/${slugify(comp.name)}`}
+      className="card"
+    >
+      <div style={{ marginBottom: 12, pointerEvents: 'none' }}>
+        <ComponentPreview component={comp} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+        <div className="card-title" style={{ marginBottom: 0 }}>{comp.name}</div>
+        {statusBadge(comp.status)}
+      </div>
+      <div className="card-desc">{comp.shortDescription ?? comp.description}</div>
+      <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+        <span className="badge badge-neutral">{comp.categoryName}</span>
+        {comp.tierName && <span className="badge badge-info">{comp.tierName}</span>}
+      </div>
+    </Link>
+  );
+});
+
 export function ComponentsPage({ catalog }: Props) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -74,24 +96,7 @@ export function ComponentsPage({ catalog }: Props) {
 
       <div className="card-grid">
         {filtered.map((comp) => (
-          <Link
-            key={comp.name}
-            to={`/components/${slugify(comp.name)}`}
-            className="card"
-          >
-            <div style={{ marginBottom: 12, pointerEvents: 'none' }}>
-              <ComponentPreview component={comp} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-              <div className="card-title" style={{ marginBottom: 0 }}>{comp.name}</div>
-              {statusBadge(comp.status)}
-            </div>
-            <div className="card-desc">{comp.shortDescription ?? comp.description}</div>
-            <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-              <span className="badge badge-neutral">{comp.categoryName}</span>
-              {comp.tierName && <span className="badge badge-info">{comp.tierName}</span>}
-            </div>
-          </Link>
+          <ComponentCard key={comp.name} comp={comp} />
         ))}
       </div>
 

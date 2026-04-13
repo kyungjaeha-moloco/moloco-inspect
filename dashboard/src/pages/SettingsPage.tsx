@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { APP_VERSION } from '../constants';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3847';
 
@@ -93,7 +94,7 @@ export function SettingsPage() {
         <div className="settings-section">
           <div className="settings-row">
             <span className="settings-row-label">Dashboard Version</span>
-            <span className="settings-row-value mono">0.1.0</span>
+            <span className="settings-row-value mono">{APP_VERSION}</span>
           </div>
           <div className="settings-row">
             <span className="settings-row-label">API Base URL</span>
@@ -134,14 +135,9 @@ export function SettingsPage() {
           <div className="settings-row">
             <span className="settings-row-label">Chrome Extension</span>
             <span className="settings-row-value">
-              <a
-                className="link"
-                href="chrome://extensions"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Manage Extensions
-              </a>
+              <span className="mono" style={{ opacity: 0.6 }}>
+                Type chrome://extensions in your address bar
+              </span>
             </span>
           </div>
         </div>

@@ -1,133 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { NavLink, useParams } from 'react-router-dom';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3847';
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
-type AnalyticsDetail = {
-  request: {
-    id: string;
-    status: string;
-    phase: string;
-    createdAt?: string | null;
-    updatedAt?: string | null;
-    durationMs?: number | null;
-    approvalState?: string | null;
-    previewUrl?: string | null;
-    screenshotUrl?: string | null;
-    changedFiles?: string[];
-    latestLog?: string | null;
-    error?: string | null;
-    request?: {
-      userPrompt?: string | null;
-      pagePath?: string | null;
-      client?: string | null;
-      language?: string | null;
-      requestContract?: {
-        change_intent?: string | null;
-        goal?: string | null;
-      };
-    };
-    execution?: {
-      layer?: string | null;
-      productId?: string | null;
-      previewAdapterId?: string | null;
-      productRunnerId?: string | null;
-      repoRoot?: string | null;
-      worktreeBase?: string | null;
-      worktreePath?: string | null;
-      buildPolicyMatched?: boolean;
-      testPolicyMatched?: boolean;
-    };
-  };
-  events: Array<{
-    at: string;
-    type: string;
-    summary?: string;
-    status?: string;
-    phase?: string;
-  }>;
-};
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
-
-function formatDuration(ms: number | null | undefined): string {
-  if (typeof ms !== 'number' || Number.isNaN(ms) || ms <= 0) return '\u2014';
-  if (ms < 1000) return `${ms}ms`;
-  const seconds = Math.round(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remain = seconds % 60;
-  return remain ? `${minutes}m ${remain}s` : `${minutes}m`;
-}
-
-function getStatusBadgeClass(status: string): string {
-  if (status === 'completed') return 'badge badge-success';
-  if (status === 'error' || status === 'failed') return 'badge badge-danger';
-  if (status === 'in-progress' || status === 'processing') return 'badge badge-info';
-  return 'badge badge-neutral';
-}
-
-function formatTimestamp(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/*  Data hook                                                          */
-/* ------------------------------------------------------------------ */
-
-function useAnalyticsRequestDetail(requestId: string | undefined) {
-  const [detail, setDetail] = useState<AnalyticsDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    if (!requestId) {
-      setDetail(null);
-      setLoading(false);
-      setError('Missing request id');
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/api/analytics/request/${requestId}`);
-      if (!res.ok) throw new Error(`Detail returned ${res.status}`);
-      const json = await res.json();
-      setDetail(json.detail ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Detail fetch failed');
-      setDetail(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [requestId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!cancelled) void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [load]);
-
-  return { detail, loading, error, reload: load };
-}
+import { API_BASE } from '../analytics/types';
+import { formatDuration, formatTimestamp, getStatusBadgeClass } from '../analytics/helpers';
+import { useAnalyticsRequestDetail } from '../analytics/hooks';
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -228,17 +103,76 @@ export function RequestDetailPage() {
               <div className="detail-field-value detail-code">{req.error}</div>
             </div>
           )}
+
+          {/* AI Analysis */}
+          {(req?.request as any)?.aiAnalysis && (
+            <>
+              <div className="detail-field" style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                <div className="detail-field-label">Agent Analysis</div>
+                <div className="detail-field-value">
+                  {(req?.request as any).aiAnalysis.understanding || '\u2014'}
+                </div>
+              </div>
+              {(req?.request as any).aiAnalysis.analysis && (
+                <div className="detail-field">
+                  <div className="detail-field-label">Approach</div>
+                  <div className="detail-field-value">
+                    {(req?.request as any).aiAnalysis.analysis}
+                  </div>
+                </div>
+              )}
+              {Array.isArray((req?.request as any).aiAnalysis.steps) && (req?.request as any).aiAnalysis.steps.length > 0 && (
+                <div className="detail-field">
+                  <div className="detail-field-label">Execution Steps</div>
+                  <div className="detail-field-value">
+                    <ol style={{ margin: 0, paddingLeft: 20 }}>
+                      {(req?.request as any).aiAnalysis.steps.map((step: string, i: number) => (
+                        <li key={i} style={{ marginBottom: 4 }}>{step}</li>
+                      ))}
+                    </ol>
+                  </div>
+                </div>
+              )}
+              {Array.isArray((req?.request as any).aiAnalysis.warnings) && (req?.request as any).aiAnalysis.warnings.length > 0 && (
+                <div className="detail-field">
+                  <div className="detail-field-label">Warnings</div>
+                  <div className="detail-field-value" style={{ color: 'var(--warning)' }}>
+                    {(req?.request as any).aiAnalysis.warnings.map((w: string, i: number) => (
+                      <div key={i}>⚠ {w}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {Array.isArray((req?.request as any).aiAnalysis.successCriteria) && (req?.request as any).aiAnalysis.successCriteria.length > 0 && (
+                <div className="detail-field">
+                  <div className="detail-field-label">Success Criteria</div>
+                  <div className="detail-field-value" style={{ color: 'var(--success)' }}>
+                    {(req?.request as any).aiAnalysis.successCriteria.map((c: string, i: number) => (
+                      <div key={i}>✓ {c}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Right: Artifacts */}
         <div className="detail-card">
           <h3 className="detail-card-title">Artifacts</h3>
           <div className="detail-field">
-            <div className="detail-field-label">Preview URL</div>
-            <div className="detail-field-value">
+            <div className="detail-field-label">변경사항 확인</div>
+            <div className="detail-field-value" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {(req as any)?.livePreviewUrl && (
+                <a className="link" href={(req as any).livePreviewUrl} target="_blank" rel="noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'var(--accent)', color: '#fff', borderRadius: 6, fontWeight: 500, textDecoration: 'none' }}>
+                  Live Preview &rarr;
+                </a>
+              )}
               {req?.previewUrl ? (
-                <a className="link" href={req.previewUrl} target="_blank" rel="noreferrer">
-                  {req.previewUrl}
+                <a className="link" href={req.previewUrl} target="_blank" rel="noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'var(--accent-dim)', borderRadius: 6, fontWeight: 500, textDecoration: 'none' }}>
+                  Diff Viewer &rarr;
                 </a>
               ) : (
                 '\u2014'
@@ -246,26 +180,17 @@ export function RequestDetailPage() {
             </div>
           </div>
           <div className="detail-field">
-            <div className="detail-field-label">Screenshot</div>
+            <div className="detail-field-label">수정된 화면</div>
             <div className="detail-field-value">
               {req?.screenshotUrl ? (
-                <>
-                  <a
-                    className="link"
-                    href={`${API_BASE}${req.screenshotUrl}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open screenshot
-                  </a>
-                  <img
-                    alt="Screenshot preview"
-                    src={`${API_BASE}${req.screenshotUrl}`}
-                    style={{ marginTop: 8, maxWidth: '100%', borderRadius: 6 }}
-                  />
-                </>
+                <img
+                  alt="수정된 화면 미리보기"
+                  src={`${API_BASE}${req.screenshotUrl}`}
+                  style={{ maxWidth: '100%', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer' }}
+                  onClick={() => window.open(`${API_BASE}${req.screenshotUrl}`, '_blank')}
+                />
               ) : (
-                '\u2014'
+                <span style={{ color: 'var(--text-muted)' }}>스크린샷이 아직 없습니다</span>
               )}
             </div>
           </div>

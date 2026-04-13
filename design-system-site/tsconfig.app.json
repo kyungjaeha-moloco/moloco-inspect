@@ -14,7 +14,8 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@design-system/*": ["../design-system/src/*"]
+      "@design-system/*": ["../design-system/src/*"],
+      "@design-system-workflows/*": ["../design-system/workflows/*"]
     },
     "types": ["vite/client"]
   },

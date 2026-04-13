@@ -1,6 +1,8 @@
-import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { NAV_ITEMS } from '../navigation';
+import { CommandSearch } from './CommandSearch';
+import type { ComponentsCatalog } from '../types';
 
 const ICONS: Record<string, React.ReactNode> = {
   overview: (
@@ -37,6 +39,13 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M2 3h12M2 7h8M2 11h10M2 15h6" />
     </svg>
   ),
+  blocks: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="1" width="14" height="6" rx="1" />
+      <rect x="1" y="9" width="6" height="6" rx="1" />
+      <rect x="9" y="9" width="6" height="6" rx="1" />
+    </svg>
+  ),
   governance: (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M8 1v14M1 8h14" />
@@ -45,8 +54,24 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
 };
 
-export function DSLayout({ children }: { children: React.ReactNode }) {
-  const _location = useLocation();
+type DSLayoutProps = {
+  children: React.ReactNode;
+  catalog: ComponentsCatalog;
+};
+
+export function DSLayout({ children, catalog }: DSLayoutProps) {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('ds-theme') as 'light' | 'dark') ||
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    }
+    return 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('ds-theme', theme);
+  }, [theme]);
 
   // Group nav items by section
   const sections: Array<{ title: string | null; items: typeof NAV_ITEMS }> = [];
@@ -70,6 +95,7 @@ export function DSLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="ds-shell">
+      <CommandSearch catalog={catalog} />
       <aside className="ds-sidebar">
         <div className="sidebar-brand">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -77,6 +103,15 @@ export function DSLayout({ children }: { children: React.ReactNode }) {
             <text x="4.5" y="14.5" fontSize="12" fontWeight="700" fill="#fff">M</text>
           </svg>
           Design System
+        </div>
+        <div
+          className="sidebar-search-hint"
+          onClick={() => {
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+          }}
+        >
+          <span>Search</span>
+          <kbd>⌘K</kbd>
         </div>
         <nav className="sidebar-nav">
           {sections.map((section, si) => (
@@ -101,6 +136,13 @@ export function DSLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="sidebar-footer">
+          <button
+            className="theme-toggle"
+            onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? '\u{1F319}' : '\u{2600}\u{FE0F}'}
+          </button>
           Moloco Design System v0.1
         </div>
       </aside>

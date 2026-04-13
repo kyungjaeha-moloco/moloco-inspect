@@ -1,0 +1,257 @@
+# Moloco Design System
+
+> Internal design system for the Moloco ad-tech platform. React + TypeScript. Components use the MC prefix and are split between `@moloco/moloco-cloud-react-ui` (primitives) and `@msm-portal/common/component/...` (app-level composites).
+
+## Components
+
+All components use the MC prefix. Formik-bound form inputs require a `FormikHarness` provider.
+
+### Form Inputs (Formik-bound — require FormikHarness)
+- **MCFormTextInput** — `@msm-portal/common/component/form/v1/input/MCFormTextInput` — Single-line text input with Formik binding
+- **MCFormTextArea** — `@msm-portal/common/component/form/v1/input/MCFormTextArea` — Multi-line text input with Formik binding
+- **MCFormNumberInput** — `@msm-portal/common/component/form/v1/input/MCFormNumberInput` — Numeric input with Formik binding
+- **MCFormCheckBox** — `@msm-portal/common/component/form/v1/checkbox/MCFormCheckBox` — Checkbox with Formik binding
+- **MCFormSwitchInput** — `@msm-portal/common/component/form/v1/input/MCFormSwitchInput` — Toggle switch with Formik binding
+- **MCFormRadioGroup** — `@msm-portal/common/component/form/v1/radio/MCFormRadioGroup` — Radio button group with Formik binding
+- **MCFormSingleRichSelect** — `@msm-portal/common/component/form/v1/select/MCFormSingleRichSelect` — Single-select dropdown with Formik binding
+- **MCFormMultiRichSelect** — `@msm-portal/common/component/form/v1/select/MCFormMultiRichSelect` — Multi-select dropdown with Formik binding
+- **MCFormCardSelect** — `@msm-portal/common/component/form/v1/select/MCFormCardSelect` — Card-based visual selector with Formik binding
+- **MCFormInlineChipRichSelect** — `@msm-portal/common/component/form/v1/select/MCFormInlineChipRichSelect` — Chip-style multi-select with Formik binding
+- **MCFormDateRangePicker** — `@msm-portal/common/component/form/v1/input/MCFormDateRangePicker` — Date range picker with Formik binding
+- **MCFormDateTimeRangePicker** — `@msm-portal/common/component/form/v1/input/MCFormDateTimeRangePicker` — DateTime range picker with Formik binding
+- **MCFormColorInput** — `@msm-portal/common/component/form/v1/input/MCFormColorInput` — Color picker input with Formik binding
+- **MCFormChipInput** — `@msm-portal/common/component/form/v1/input/MCFormChipInput` — Tag/chip input with Formik binding
+- **MCFormWeeklyTimeTablePicker** — `@msm-portal/common/component/form/v1/input/MCFormWeeklyTimeTablePicker` — Weekly schedule picker with Formik binding
+- **MCFormOptionalFrequencyInput** — `@msm-portal/common/component/form/v1/input/MCFormOptionalFrequencyInput` — Optional frequency input with Formik binding
+- **MCFormSkippableVideoInput** — `@msm-portal/common/component/form/v1/input/MCFormSkippableVideoInput` — Video skip time input with Formik binding
+
+### Form Standalone (no Formik)
+- **MCRadioGroup** — `@msm-portal/common/component/form/v1/radio/MCRadioGroup` — Standalone radio group without Formik binding
+- **MCColorPicker** — `@msm-portal/common/component/color/MCColorPicker` — Standalone popover color picker
+- **MCI18nWeeklyTimeTablePicker** — `@msm-portal/common/component/weekly-time-table-picker/MCI18nWeeklyTimeTablePicker` — Localized weekly schedule picker
+- **MCSingleTextInput** — `@moloco/moloco-cloud-react-ui` — Raw text input without Formik
+- **MCSingleTextArea** — `@moloco/moloco-cloud-react-ui` — Raw textarea without Formik
+- **MCSingleNumberInput** — `@moloco/moloco-cloud-react-ui` — Raw number input without Formik
+- **MCDebounceInput** — `@moloco/moloco-cloud-react-ui` — Debounced text input
+
+### Form Layout & Structure
+- **MCFormFieldLabel** — `@msm-portal/common/component/form/shared/MCFormFieldLabel` — Form field label with tooltip support
+- **MCFormTooltip** — `@msm-portal/common/component/form/shared/MCFormTooltip` — Markdown tooltip for form fields
+- **MCCollapsibleFormFieldGroup** — `@msm-portal/common/component/form/collapsible-field/MCCollapsibleFormFieldGroup` — Expandable form field group
+- **MCFormAccordion** — `@msm-portal/common/component/form/shared/MCFormAccordion` — Formik-aware accordion for form sections
+- **MCFormPanel** — `@msm-portal/common/component/form/shared` — Container panel for form sections
+- **MCFormPanelTitle** — `@msm-portal/common/component/form/shared` — Title heading inside MCFormPanel
+- **MCFormPanelBody** — `@msm-portal/common/component/form/shared` — Body container inside MCFormPanel
+- **MCFormFieldGroup** — `@msm-portal/common/component/form/shared` — Groups related form fields with spacing
+- **MCFormField** — `@msm-portal/common/component/form/shared` — Wrapper for individual form fields
+- **MCFormTitle** — `@msm-portal/common/component/form/shared` — Top-level form page title
+- **MCFormBody** — `@msm-portal/common/component/form/shared` — Main body container for form panels
+- **MCFormActions** — `@msm-portal/common/component/form/shared` — Action bar with submit/cancel buttons
+- **MCFormFieldError** — `@msm-portal/common/component/form/shared` — Inline validation error message
+- **MCFormHint** — `@msm-portal/common/component/form/shared` — Helper text below a form field
+- **MCFormGuideMessage** — `@msm-portal/common/component/form/shared` — Informational message in form panel
+- **MCFormDescription** — `@msm-portal/common/component/form/shared` — Description text below field label
+- **MCFormPortal** — `@msm-portal/common/component/form/portal/MCFormPortal` — Portal surface for full-screen or overlay form content
+- **MCFormLayout** — `@msm-portal/common/component/form/layout/MCFormLayout` — Full form page layout with header and body
+
+### Buttons & Actions
+- **MCButton2** — `@moloco/moloco-cloud-react-ui` — Primary action button with variants (use this, not MCButton)
+- **MCMoreActionsButton** — `@msm-portal/common/component/button/MCMoreActionsButton` — Dropdown menu for additional actions
+- **MCMoreActionGroupsButton** — `@msm-portal/common/component/button/MCMoreActionGroupsButton` — Grouped dropdown actions menu
+- **MCButton** — `@moloco/moloco-cloud-react-ui` — Base Moloco UI button primitive (prefer MCButton2)
+
+### Navigation & Layout
+- **MCCollapsibleNavbar** — `@msm-portal/common/component/navbar/MCCollapsibleNavbar` — Collapsible left navigation sidebar
+- **MCNavbarItems** — `@msm-portal/common/component/navbar/MCNavbarItems` — Navigation menu item list
+- **MCProfileButton** — `@msm-portal/common/component/layout/header/user-popover/MCProfileButton` — User account menu button for the app header
+- **MCWorkplaceSelectorPopper** — `@msm-portal/common/component/layout/header/workplace-selector/MCWorkplaceSelectorPopper` — Header workplace switcher
+- **MCWorkplaceSelector** — `@msm-portal/common/component/auth/workplace-selector/MCWorkplaceSelector` — Searchable workplace selection list
+- **MCContentLayout** — `@msm-portal/common/component/layout/content/MCContentLayout` — Page content layout with header/tabs
+- **MCBarTabs** — `@msm-portal/common/component/tab/bar-tab/MCBarTabs` — Horizontal tab navigation bar
+
+### Overlays & Feedback
+- **MCCommonDialog** — `@msm-portal/common/component/dialog/common-dialog/MCCommonDialog` — Modal dialog with customizable content
+- **MCConfirmDialog** — `@moloco/moloco-cloud-react-ui` — Confirmation dialog with yes/no
+- **MCPopover** — `@msm-portal/common/component/popover/MCPopover` — Floating popover anchored to trigger
+- **MCBanner** — `@moloco/moloco-cloud-react-ui` — Full-width banner notification
+- **MCCircularLoader** — `@moloco/moloco-cloud-react-ui` — Circular loading spinner
+
+### Display & Data
+- **MCReportTable** — `@msm-portal/common/component/report-table` — Data table for report/list pages
+- **MCI18nTable** — `@msm-portal/common/component/table/i18n/MCI18nTable` — Localized table wrapper with shared labels
+- **MCTableActionBar** — `@msm-portal/common/component/table/action-bar/MCTableActionBar` — Action bar for table pages
+- **MCAccordion** — `@msm-portal/common/component/accordion/MCAccordion` — Expandable/collapsible content section
+- **MCDivider** — `@msm-portal/common/component/divider/MCDivider` — Horizontal or vertical separator line
+- **MCStatus** — `@msm-portal/common/component/status/MCStatus` — Status badge with semantic colors
+- **MCStatusBadge** — `@msm-portal/common/component/status-badge/MCStatusBadge` — Compact status pill with explicit label
+- **MCStepper** — `@moloco/moloco-cloud-react-ui` — Multi-step progress indicator
+- **MCTimer** — `@msm-portal/common/component/timer/MCTimer` — Countdown timer helper component
+
+### Primitives (from @moloco/moloco-cloud-react-ui)
+- **MCIcon** — SVG icon from Moloco icon set
+- **MCStack** — Flex-based horizontal/vertical layout
+- **MCTextEllipsis** — Text with ellipsis overflow
+- **MCMarkdownTooltip** — Tooltip with Markdown content
+- **MCMarkdown** — Markdown content renderer
+- **MCSearchBar** — Search input with filtering
+- **MCTag** — Small label tag component
+- **MCChip** — Small chip/badge element
+- **MCDataTable** — Low-level data table primitive
+- **MCBoxTab** — Box-style tab component
+- **MCCollapse** — Collapsible content wrapper
+- **MCFilter** — Filter component with options
+- **MCDynamicDropdown** — Dynamic dropdown menu
+- **MCStateIcon** — State-dependent icon display
+- **MCPopper** — Low-level positioning utility
+- **MCTimePicker** — Time picker component
+
+### Auth
+- **MCSignInForm** — `@msm-portal/common/component/auth/form/sign-in/MCSignInForm` — Portal sign-in form
+- **MCTFAForm** — `@msm-portal/common/component/auth/form/sign-in/MCTFAForm` — Two-factor verification form
+- **MCForgotPasswordForm** — `@msm-portal/common/component/auth/form/forgot-password/MCForgotPasswordForm` — Forgot-password request form
+- **MCPostForgotPassword** — `@msm-portal/common/component/auth/form/forgot-password/MCPostForgotPassword` — Post-reset-request confirmation screen
+
+### Ad Pacing Dashboard
+- **MCAdPacingDashboardConfigurator** — `@msm-portal/common/component/ad-pacing-dashboard/MCAdPacingDashboardConfigurator` — Top configuration bar for ad pacing dashboard
+- **MCAdPacingDashboardColumnConfigurator** — `@msm-portal/common/component/ad-pacing-dashboard/MCAdPacingDashboardColumnConfigurator` — Column settings panel for ad pacing dashboard
+- **MCAdPacingDashboardTable** — `@msm-portal/common/component/ad-pacing-dashboard/MCAdPacingDashboardTable` — Ad pacing dashboard table
+
+### Deprecated (do not use)
+- **MCLoader** — DEPRECATED, use MCCircularLoader
+- **MCSelect** — DEPRECATED, use MCFormSingleRichSelect
+- **MCDatePicker** — DEPRECATED, use MCFormDateRangePicker
+- **MCModal** — DEPRECATED, use MCCommonDialog
+- **MCBarTab / MCBarTabIndicator** — DEPRECATED internal sub-components
+- **EmptyState** — DEPRECATED, use MCEmptyState
+
+## Design Tokens
+
+### Colors
+Access via `theme.mcui.palette.{category}.{role}`. Use semantic tokens — never raw hex values.
+
+The 9 semantic roles: **neutral**, **brand**, **danger**, **success**, **warning**, **information**, **disabled**, **inverse**, **grey/blueGrey**
+
+#### Text tokens
+| Token name | Palette path | Hex | Usage |
+|---|---|---|---|
+| text.neutral.default | theme.mcui.palette.content.primary | #212121 | Default body text, main content |
+| text.neutral.subtle | theme.mcui.palette.content.secondary | #5D5D5D | Labels, hints, subdued text |
+| text.brand | theme.mcui.palette.content.contentAccent | #346bea | Links, clickable text, brand actions |
+| text.danger.default | theme.mcui.palette.content.negative | #dd1f11 | Error messages, destructive action text |
+| text.success.default | theme.mcui.palette.content.positive | #429746 | Success messages, positive status text |
+| text.warning.default | theme.mcui.palette.content.warning | #ffca28 | Warning messages, caution text |
+| text.information.default | theme.mcui.palette.content.informative | #0288D1 | Informational messages, help text |
+| text.disabled | theme.mcui.palette.content.disabled | #9E9E9E | Disabled text, placeholder text |
+| text.inverse | theme.mcui.palette.content.inversePrimary | #FFFFFF | Text on dark/colored backgrounds |
+
+#### Background tokens
+| Token name | Palette path | Hex | Usage |
+|---|---|---|---|
+| bg.neutral | theme.mcui.palette.background.primary | #FFFFFF | Main surface, panels, headers, popovers |
+| bg.neutral.subtle | theme.mcui.palette.background.secondary | #F8F8F8 | Elevated surfaces, secondary backgrounds |
+| bg.brand | theme.mcui.palette.foundation.assent | #346bea | Brand/primary action backgrounds |
+| bg.danger.default | theme.mcui.palette.background.negative | #ffeae9 | Error/danger background |
+| bg.danger.bold | theme.mcui.palette.foundation.negative | #dd1f11 | Destructive buttons |
+| bg.success.default | theme.mcui.palette.background.positive | #E8F5E9 | Success background |
+| bg.success.bold | theme.mcui.palette.foundation.positive | #429746 | Bold success background |
+| bg.warning.default | theme.mcui.palette.background.warning | #ffebad | Warning background |
+| bg.information.default | theme.mcui.palette.background.informative | #E1F5FE | Info background |
+| bg.disabled | theme.mcui.palette.background.disabled | #F5F5F5 | Disabled element backgrounds |
+| bg.selected | theme.mcui.palette.background.selected | #E3F2FD | Selected item background |
+
+#### Border tokens
+| Token name | Palette path | Hex | Usage |
+|---|---|---|---|
+| border.neutral.default | theme.mcui.palette.border.primary | #ececec | Standard borders, dividers, panel borders |
+| border.brand.default | theme.mcui.palette.foundation.assent | #346bea | Focus rings, active state borders |
+| border.danger.default | theme.mcui.palette.foundation.negative | #dd1f11 | Error state borders on inputs |
+| border.disabled | theme.mcui.palette.border.disabled | #E0E0E0 | Disabled element borders |
+
+#### Icon tokens
+| Token name | Palette path | Hex | Usage |
+|---|---|---|---|
+| icon.neutral | theme.mcui.palette.icon.primary | #8891a7 | Default icon color |
+| icon.neutral.subtle | theme.mcui.palette.icon.secondary | #5d5d5d | Subdued icons, secondary actions |
+| icon.brand | theme.mcui.palette.icon.accent | #346bea | Brand/accent icons, active/selected state |
+| icon.danger | theme.mcui.palette.icon.critical | #dd1f11 | Critical/error icons |
+| icon.inverse | theme.mcui.palette.icon.inversePrimary | #FFFFFF | Icons on dark/colored backgrounds |
+
+### Spacing
+Base unit: 8px. Access via `theme.mcui.spacing(n)`.
+
+| Multiplier | px | Usage | Category |
+|---|---|---|---|
+| 0.5x | 4px | Tight gap between icon and text | inline |
+| 1x | 8px | Inner padding small, icon gaps | inline |
+| 1.5x | 12px | Form field gap, small padding | inset |
+| 2x | 16px | Standard padding, row gaps | inset |
+| 3x | 24px | Section margin-bottom | stack |
+| 4x | 32px | Large section gaps, form action padding | stack |
+| 5x | 40px | Form title margin | layout |
+| 6x | 48px | Panel padding (MCFormPanel) | layout |
+| 8x | 64px | Extra-large layout spacing | layout |
+
+### Typography
+Access via `theme.mcui.typography.{name}`.
+
+| Name | Size | Weight | Usage |
+|---|---|---|---|
+| H_1 | 34px | 400 | Dashboard number. Largest display text. |
+| H_2 | 28px | 400 | Page title |
+| H_3 | 18px | 500 | Section title, panel titles (MCFormPanelTitle) |
+| H_4 | 16px | 500 | Sub-section headings |
+| H_5 | 14px | 700 | Selected menu, bold labels (SCBoldLabel) |
+| BUTTON_DEFAULT | 14px | 500 | Default button text |
+| BUTTON_SMALL | 12px | 500 | Small button text |
+| BODY_1_BODY | 14px | 400 | Standard body text, form field labels |
+| BODY_2 | 12px | 400 | Secondary text, hints (MCFormHint) |
+| BODY_2_SPECIAL | 12px | 400 | Table body, LNB, error messages (MCFormFieldError) |
+| BODY_3 | 12px | 500 | Small text, captions, group labels |
+| BODY_4 | 10px | 500 | Extra small text, micro labels |
+
+### Border Radius
+| Name | Value | Usage |
+|---|---|---|
+| radius.small | 2px | Panels (MCFormPanel), guide messages |
+| radius.default | 4px | Buttons, inputs, popovers, cards |
+| radius.large | 8px | Dialogs, large cards, modals |
+| radius.circle | 50% | Avatars, status dots, round buttons |
+
+## Patterns
+
+| Pattern ID | Name | When to use |
+|---|---|---|
+| form-basic | Basic Form Pattern | Any form that collects user input |
+| form-full-page | Full-Page Form Pattern | Creating or editing entities that need their own page (campaigns, ads, etc.) |
+| styled-component | Styled Component Pattern | Always use styled-components with theme tokens — never hardcode values or use inline styles |
+| action-button | Action Button Pattern | Table rows or list items need contextual actions |
+| delete-confirm-dialog | Delete Confirmation Dialog Pattern | Standard confirmation dialog for destructive actions |
+| field-layout | Field Layout Pattern | Controlling field width and group direction |
+| tab-navigation | Tab Navigation Pattern | Tab-based content switching within a page |
+| trpc-data-fetching | tRPC Data Fetching Pattern | Type-safe data fetching with tRPC and TanStack React Query |
+| provider-stack | Provider Stack | Full provider hierarchy at app root (order matters) |
+| list-page | List Page Pattern | Building a page that lists entities with tabs and a create button |
+| detail-page | Detail Page Pattern | Building a page that shows entity details fetched from API |
+| create-page | Create Page Pattern | Building a page to create a new entity |
+| page-container-component | Page → Container → Component Architecture | Every new feature MUST follow this pattern |
+| edit-page | Edit Page Pattern | Building a page to edit an existing entity |
+| error-handling | Error Handling Pattern | Any container that fetches data or performs mutations |
+| loading-state | Loading State Pattern | Any async data fetching |
+| route-registration | Route Registration Pattern | Adding any new page to the application |
+| i18n-usage | i18n Usage Pattern | Any component or container with user-facing text |
+| accessibility | Accessibility Pattern | Every component and page must follow these practices |
+| navigation | Navigation Pattern | Navigating between pages |
+
+## Key Rules
+
+- All components use MC prefix (e.g., MCButton2, MCFormTextInput)
+- Form inputs require `FormikHarness` provider wrapping the form
+- Import app-level components from `@msm-portal/common/component/{path}/{ComponentName}`
+- Import primitives from `@moloco/moloco-cloud-react-ui`
+- Use semantic color tokens, never raw hex values
+- Always use `theme.mcui.spacing(n)` for spacing — never hardcoded px values
+- Typography: apply via `theme.mcui.typography.{name}` in styled-components
+- Use `MCButton2` not `MCButton`; use `MCFormSingleRichSelect` not `MCSelect`; use `MCCommonDialog` not `MCModal`
+- Every feature follows Page → Container → Component architecture
+- All user-facing text must use i18n (no hardcoded strings)
+- Styled-components must use theme tokens — no inline styles, no hardcoded colors

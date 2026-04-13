@@ -90,7 +90,7 @@
         "#E0E0E0 -> should be props.theme.mcui.palette.border.disabled or background.primaryPressed",
         "#F5F5F5 -> should be props.theme.mcui.palette.background.disabled"
       ],
-      "fix": "Replace hex value with the corresponding theme.mcui.palette.* token. See semantic-palette.json -> quickLookup for hex-to-token mapping.",
+      "fix": "Replace hex value with the corresponding theme.mcui.palette.* token. See tokens.json -> palette for hex-to-token mapping.",
       "severity": "error",
       "category": "styling",
       "validation_ref": "style-no-hex"
@@ -287,7 +287,7 @@
       "error": "Visual: brand color appears as wrong shade of blue",
       "cause": "Using a different blue (#0070f3, #2196F3, #1976D2) instead of the MSM Portal brand blue #346bea",
       "detection": "Visual inspection shows blue that does not match brand specification",
-      "fix": "Use theme.mcui.palette.foundation.assent which maps to #346bea. See semantic-palette.json -> quickLookup.",
+      "fix": "Use theme.mcui.palette.foundation.assent which maps to #346bea. See tokens.json -> palette for token mappings.",
       "severity": "error",
       "category": "styling"
     },

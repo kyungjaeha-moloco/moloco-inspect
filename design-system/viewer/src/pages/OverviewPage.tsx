@@ -183,7 +183,6 @@ const LAYERS = [
 
 const DS_FILES: Array<{ file: string; purpose: string; category: string }> = [
   { file: 'tokens.json', purpose: 'Colors, spacing, typography, elevation, animation', category: 'Foundation' },
-  { file: 'semantic-palette.json', purpose: 'theme.mcui.palette.* → hex mapping (light/dark)', category: 'Foundation' },
   { file: 'components.json', purpose: '48 components: props, accessibility, states', category: 'Components' },
   { file: 'component-behaviors.json', purpose: 'Semantic actions & data flow per component', category: 'Components' },
   { file: 'component-dependencies.json', purpose: 'Provider/context requirements per component', category: 'Components' },

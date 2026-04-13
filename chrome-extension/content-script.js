@@ -723,6 +723,7 @@
   );
 
   // M4 fix: respond to state queries from popup
+  if (!chrome.runtime?.onMessage) return;
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'toggle-inspect') {
       toggle();

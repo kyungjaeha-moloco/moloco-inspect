@@ -10,6 +10,7 @@ const MSM_WEB = path.resolve(PRODUCT_REPO_ROOT, 'js/msm-portal-web');
 const MSM_SRC = path.resolve(MSM_WEB, 'src');
 const MSM_NODE_MODULES = path.resolve(MSM_WEB, 'node_modules');
 const LOCAL_DESIGN_SYSTEM_SRC = path.resolve(__dirname, '../design-system/src');
+const LOCAL_DESIGN_SYSTEM_WORKFLOWS = path.resolve(__dirname, '../design-system/workflows');
 
 export default defineConfig({
   base: './',
@@ -28,6 +29,7 @@ export default defineConfig({
       '@msm-portal/shortmax': path.resolve(MSM_SRC, 'apps/shortmax'),
       '@msm-portal/onboard-demo': path.resolve(MSM_SRC, 'apps/onboard-demo'),
       '@source-design-system': LOCAL_DESIGN_SYSTEM_SRC,
+      '@source-design-system-workflows': LOCAL_DESIGN_SYSTEM_WORKFLOWS,
       react: path.resolve(MSM_NODE_MODULES, 'react'),
       'react-dom': path.resolve(MSM_NODE_MODULES, 'react-dom'),
       'react-router-dom': path.resolve(MSM_NODE_MODULES, 'react-router-dom'),

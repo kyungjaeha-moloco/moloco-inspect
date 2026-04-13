@@ -1,6 +1,30 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { NAV_ITEMS } from '../navigation';
+import { APP_VERSION } from '../constants';
+
+/* ---------- Theme helpers ---------- */
+type Theme = 'light' | 'dark';
+
+function getInitialTheme(): Theme {
+  if (typeof window !== 'undefined') {
+    return (localStorage.getItem('ops-theme') as Theme) || 'light';
+  }
+  return 'light';
+}
+
+const SunIcon = () => (
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="8" cy="8" r="3" />
+    <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" />
+  </svg>
+);
+
+const MoonIcon = () => (
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M13.9 8.6a6 6 0 01-6.5-6.5A6 6 0 108 14a6 6 0 005.9-5.4z" />
+  </svg>
+);
 
 const ICONS: Record<string, React.ReactNode> = {
   overview: (
@@ -26,13 +50,22 @@ const ICONS: Record<string, React.ReactNode> = {
 };
 
 export function OpsLayout({ children }: { children: React.ReactNode }) {
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('ops-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === 'light' ? 'dark' : 'light'));
+
   return (
     <div className="ops-shell">
       <aside className="ops-sidebar">
         <div className="sidebar-brand">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="var(--accent)">
             <rect width="18" height="18" rx="4" opacity="0.9" />
-            <text x="4" y="13" fontSize="11" fontWeight="700" fill="#18181b">M</text>
+            <text x="4" y="13" fontSize="11" fontWeight="700" fill="var(--bg-base)">M</text>
           </svg>
           Moloco Ops
         </div>
@@ -53,7 +86,13 @@ export function OpsLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="sidebar-footer">
-          Moloco Inspect v0.1
+          <button className="theme-toggle" onClick={toggleTheme} type="button">
+            {theme === 'light' ? <MoonIcon /> : <SunIcon />}
+            {theme === 'light' ? 'Dark mode' : 'Light mode'}
+          </button>
+          <div style={{ padding: '0 12px', marginTop: 8 }}>
+            Moloco Inspect v{APP_VERSION}
+          </div>
         </div>
       </aside>
       <main className="ops-main">

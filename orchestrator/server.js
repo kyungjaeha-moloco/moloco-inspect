@@ -9,7 +9,8 @@
  *   POST /api/prd/ingest       — read PRD link/text and extract current-page change hints
  *   GET  /api/status/:id       — poll status of a request
  *   GET  /api/events/:id       — SSE stream for real-time updates
- *   POST /api/approve/:id      — approve changes → apply locally
+ *   POST /api/approve/:id      — approve changes → create GitHub PR
+ *   GET  /api/diff-view/:id    — self-contained HTML diff viewer + approve/reject
  *   POST /api/reject/:id       — reject with feedback → iterate
  *   GET  /api/screenshot/:id   — serve screenshot image
  *   GET  /api/health            — health check
@@ -19,6 +20,7 @@ process.on('uncaughtException', (err) => { console.error('[FATAL uncaughtExcepti
 process.on('unhandledRejection', (err) => { console.error('[FATAL unhandledRejection]', err); });
 
 import http from 'node:http';
+import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,8 +55,19 @@ const PREVIEW_VERIFICATION_PATH = path.join(DESIGN_SYSTEM_ROOT, 'src', 'preview-
 const PORT = parseInt(process.env.PORT || '3847', 10);
 const SANDBOX_IMAGE = process.env.SANDBOX_IMAGE || 'moloco-inspect-sandbox:latest';
 const SANDBOX_API_KEY = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || '';
-const SANDBOX_PROVIDER = SANDBOX_API_KEY.startsWith('sk-proj-') ? 'openai' : 'anthropic';
-const SANDBOX_MODEL = process.env.SANDBOX_MODEL || (SANDBOX_PROVIDER === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-20250514');
+const OPENCODE_AUTH_PATH = '/tmp/opencode-auth.json';
+const HAS_OPENCODE_AUTH = fs.existsSync(OPENCODE_AUTH_PATH);
+const OPENCODE_API_KEY = (() => {
+  try {
+    if (HAS_OPENCODE_AUTH) {
+      const auth = JSON.parse(fs.readFileSync(OPENCODE_AUTH_PATH, 'utf8'));
+      return auth?.opencode?.key || '';
+    }
+  } catch {}
+  return '';
+})();
+const SANDBOX_PROVIDER = process.env.SANDBOX_PROVIDER || (SANDBOX_API_KEY.startsWith('sk-ant-') ? 'anthropic' : SANDBOX_API_KEY.startsWith('sk-proj-') ? 'openai' : HAS_OPENCODE_AUTH ? 'opencode' : 'anthropic');
+const SANDBOX_MODEL = process.env.SANDBOX_MODEL || (SANDBOX_PROVIDER === 'opencode' ? 'opencode/gpt-5-nano' : SANDBOX_PROVIDER === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-6');
 const FORBIDDEN_MUTATION_PATTERNS = [
   /(^|\/)package\.json$/,
   /(^|\/)pnpm-lock\.yaml$/,
@@ -351,7 +364,10 @@ function buildNormalizedRequestContract(payload) {
   }
 
   return {
-    goal: provided.goal || payload?.goal || payload?.userPrompt || 'UI improvement request',
+    goal: (provided.goal && provided.goal !== payload?.userPrompt ? provided.goal : null)
+      || payload?.aiAnalysis?.understanding
+      || payload?.goal
+      || 'UI improvement request',
     target,
     change_intent: changeIntent,
     requested_change: provided.requested_change || payload?.userPrompt || '',
@@ -449,6 +465,7 @@ function updateRequest(id, updates) {
       diff: state.diff,
       screenshotUrl: state.screenshotPath ? `/api/screenshot/${id}` : null,
       previewUrl: state.previewUrl,
+      livePreviewUrl: state.livePreviewUrl || null,
       prUrl: state.prUrl,
       error: state.error,
     });
@@ -503,6 +520,7 @@ function summarizeRequestPayload(payload) {
     },
     plan: payload?.approvedPlan || payload?.planSummary || null,
     planConfirmed: Boolean(payload?.approvedPlan || payload?.planSummary),
+    aiAnalysis: payload?.aiAnalysis || null,
   };
 }
 
@@ -537,6 +555,7 @@ function buildAnalyticsSnapshot(state) {
     branch: state.branch,
     worktreePath: state.worktreePath ? path.relative(WORKSPACE_ROOT, state.worktreePath) : null,
     previewUrl: state.previewUrl,
+    livePreviewUrl: state.livePreviewUrl || null,
     screenshotUrl: state.screenshotPath ? `/api/screenshot/${state.id}` : null,
     screenshotPath: screenshotRelative,
     attachmentPath: attachmentRelative,
@@ -763,9 +782,10 @@ async function runPipeline(id) {
     appendLog(id, 'Creating sandbox container...');
     const openCodePort = await allocatePort();
     const vitePort = await allocatePort();
+    const sandboxApiKey = SANDBOX_PROVIDER === 'opencode' ? (OPENCODE_API_KEY || SANDBOX_API_KEY) : SANDBOX_API_KEY;
     const sandbox = await createSandbox({
       requestId: id, imageName: SANDBOX_IMAGE,
-      openCodePort, vitePort, apiKey: SANDBOX_API_KEY, provider: SANDBOX_PROVIDER,
+      openCodePort, vitePort, apiKey: sandboxApiKey, provider: SANDBOX_PROVIDER,
     });
     state.sandbox = sandbox;
     appendLog(id, `Sandbox: ${sandbox.containerName} (oc:${openCodePort} vite:${vitePort})`);
@@ -774,6 +794,11 @@ async function runPipeline(id) {
     if (fs.existsSync(DEFAULT_PRODUCT_REPO_ROOT)) {
       await copyFilesIn({ containerId: sandbox.containerId, sourceDir: DEFAULT_PRODUCT_REPO_ROOT });
       appendLog(id, 'Source synced into sandbox');
+    }
+    // Copy opencode auth for OAuth-based providers
+    if (fs.existsSync(OPENCODE_AUTH_PATH)) {
+      await execAsync(`docker exec "${sandbox.containerId}" mkdir -p /root/.local/share/opencode`, { timeout: 3000 }).catch(() => {});
+      await execAsync(`docker cp "${OPENCODE_AUTH_PATH}" "${sandbox.containerId}:/root/.local/share/opencode/auth.json"`, { timeout: 3000 }).catch(() => {});
     }
 
     updateRequest(id, { phase: 'starting_agent' });
@@ -821,8 +846,58 @@ async function runPipeline(id) {
       const ssPath = path.join(SCREENSHOTS_DIR, `${id}.png`);
       await extractFile({ containerId: sandbox.containerId, containerPath: '/workspace/results/screenshot.png', hostPath: ssPath }).catch(() => null);
       if (fs.existsSync(ssPath)) { updateRequest(id, { screenshotPath: ssPath }); appendLog(id, 'Screenshot captured'); }
-      updateRequest(id, { previewUrl: `http://127.0.0.1:${sandbox.vitePort}/` });
     } catch (error) { appendLog(id, 'Screenshot skipped'); }
+
+    // Start live preview in sandbox + diff viewer
+    try {
+      const pagePath = state.request?.pagePath || state.payload?.pagePath || '/';
+      const clientEnv = state.request?.client || state.payload?.client || 'tving';
+
+      appendLog(id, 'Installing dependencies for live preview...');
+      // Copy .npmrc for private registry auth
+      const npmrcPath = path.join(os.homedir(), '.npmrc');
+      if (fs.existsSync(npmrcPath)) {
+        await execAsync(`docker cp "${npmrcPath}" "${sandbox.containerId}:/root/.npmrc"`, { timeout: 5000 }).catch(() => {});
+      }
+      await execInContainer({
+        containerId: sandbox.containerId,
+        command: 'cd /workspace/msm-portal/js/msm-portal-web && pnpm install --frozen-lockfile 2>&1 | tail -3',
+        timeout: 180000,
+      });
+      appendLog(id, 'Starting live preview server...');
+      // Start vite in background
+      await execInContainer({
+        containerId: sandbox.containerId,
+        command: `cd /workspace/msm-portal/js/msm-portal-web && CLIENT=${clientEnv} nohup npx vite --mode test --host 0.0.0.0 --port 5173 > /tmp/vite.log 2>&1 &`,
+        timeout: 5000,
+      }).catch(() => null);
+      // Poll for vite readiness (up to 30s)
+      let viteReady = false;
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        const check = await execInContainer({
+          containerId: sandbox.containerId,
+          command: 'curl -s -o /dev/null -w "%{http_code}" http://localhost:5173/ 2>/dev/null || echo "000"',
+          timeout: 3000,
+        }).catch(() => ({ stdout: '000' }));
+        if (check.stdout.trim() === '200') { viteReady = true; break; }
+      }
+
+      // Always set both preview URLs — vite may still be starting
+      const livePreviewUrl = `http://127.0.0.1:${sandbox.vitePort}${pagePath}`;
+      const diffViewUrl = `http://127.0.0.1:${PORT}/api/diff-view/${id}`;
+      updateRequest(id, {
+        previewUrl: diffViewUrl,
+        livePreviewUrl: livePreviewUrl,
+      });
+      appendLog(id, viteReady ? 'Live preview ready' : 'Live preview starting (may need a moment to load)');
+    } catch (error) {
+      // Even on error, try to set live preview URL if sandbox has a vite port
+      const diffViewUrl = `http://127.0.0.1:${PORT}/api/diff-view/${id}`;
+      const fallbackLive = sandbox?.vitePort ? `http://127.0.0.1:${sandbox.vitePort}${state.request?.pagePath || '/'}` : null;
+      updateRequest(id, { previewUrl: diffViewUrl, livePreviewUrl: fallbackLive });
+      appendLog(id, 'Live preview setup error: ' + (error.message || '').slice(0, 200));
+    }
 
     updateRequest(id, { status: 'preview', phase: 'preview_ready' });
     appendAnalyticsEvent(state, 'preview_ready', { summary: 'Preview ready', previewUrl: state.previewUrl, screenshotUrl: state.screenshotPath ? `/api/screenshot/${state.id}` : null });
@@ -842,28 +917,45 @@ async function handleApprove(id) {
   try {
     state.analytics.approvalState = 'approved';
     updateRequest(id, { status: 'approved' });
-    updateRequest(id, { phase: 'applying_local_patch' });
-    appendLog(id, 'PM approved, applying patch to local workspace...');
+    updateRequest(id, { phase: 'creating_pr' });
+    appendLog(id, 'PM approved, creating GitHub PR...');
 
-    const diff = state.diff || '';
-    if (diff && fs.existsSync(DEFAULT_PRODUCT_REPO_ROOT)) {
-      const patchPath = path.join(SCREENSHOTS_DIR, `${id}.patch`);
-      fs.writeFileSync(patchPath, diff, 'utf-8');
-      try {
-        await execFileAsync('git', ['apply', '--whitespace=nowarn', patchPath], { cwd: DEFAULT_PRODUCT_REPO_ROOT, timeout: 120000 });
-        appendLog(id, 'Patch applied with direct apply');
-      } catch {
-        try {
-          await execFileAsync('git', ['apply', '--3way', patchPath], { cwd: DEFAULT_PRODUCT_REPO_ROOT, timeout: 120000 });
-          appendLog(id, 'Patch applied with 3-way merge');
-        } catch (e2) { appendLog(id, 'Patch failed: ' + e2.message); }
+    // Create PR from sandbox diff
+    try {
+      const branchName = `inspect/${state.id.slice(0,8)}`;
+      const title = state.payload?.userPrompt ? state.payload.userPrompt.slice(0, 70) : `Inspect change ${state.id.slice(0,8)}`;
+      const diff = state.diff || '';
+
+      if (diff && fs.existsSync(DEFAULT_PRODUCT_REPO_ROOT)) {
+        // Save diff to temp file for git apply
+        const patchPath = path.join(SCREENSHOTS_DIR, `${id}.patch`);
+        fs.writeFileSync(patchPath, diff, 'utf-8');
+
+        // Apply diff to a new branch and create PR
+        await execAsync(`cd "${DEFAULT_PRODUCT_REPO_ROOT}" && git checkout -b "${branchName}"`, { timeout: 10000 });
+        await execAsync(`cd "${DEFAULT_PRODUCT_REPO_ROOT}" && git apply --whitespace=nowarn "${patchPath}"`, { timeout: 10000 });
+        await execAsync(`cd "${DEFAULT_PRODUCT_REPO_ROOT}" && git add -A && git commit -m "feat: ${title.replace(/"/g, '\\"')}\n\nGenerated by Moloco Inspect Agent\nRequest: ${state.id}"`, { timeout: 10000 });
+
+        const prResult = await execAsync(`cd "${DEFAULT_PRODUCT_REPO_ROOT}" && gh pr create --title "${title.replace(/"/g, '\\"')}" --body "Generated by Moloco Inspect\nRequest ID: ${state.id}" --base main`, { timeout: 15000 });
+        state.prUrl = prResult.stdout.trim();
+        updateRequest(id, { prUrl: state.prUrl });
+        appendLog(id, `PR created: ${state.prUrl}`);
+
+        // Switch back to main
+        await execAsync(`cd "${DEFAULT_PRODUCT_REPO_ROOT}" && git checkout main`, { timeout: 5000 });
+
+        fs.rmSync(patchPath, { force: true });
       }
-      fs.rmSync(patchPath, { force: true });
+    } catch (prErr) {
+      appendLog(id, 'PR creation failed: ' + prErr.message);
+      // Attempt to switch back to main even on failure
+      try { await execAsync(`cd "${DEFAULT_PRODUCT_REPO_ROOT}" && git checkout main`, { timeout: 5000 }); } catch {}
     }
 
     await cleanup(id);
     appendAnalyticsEvent(state, 'request_approved', {
-      summary: 'PM approved and local apply completed',
+      summary: 'PM approved and PR created',
+      prUrl: state.prUrl || null,
     });
     return state;
   } catch (e) {
@@ -900,12 +992,131 @@ async function handleReject(id, feedback) {
 async function cleanup(id) {
   const state = requests.get(id);
   if (!state) return;
+  // No local patch to revert — preview is sandbox-only
   if (state.sandbox) {
     await removeSandbox({ containerId: state.sandbox.containerId });
     releasePort(state.sandbox.openCodePort);
     releasePort(state.sandbox.vitePort);
     state.sandbox = null;
   }
+}
+
+// ─── Diff Viewer HTML Builder ─────────────────────────────────────────
+
+function buildDiffViewerHtml({ requestId, diff, screenshotUrl, changedFiles, userPrompt, status, livePreviewUrl }) {
+  const escapedDiff = diff.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // Color-code diff lines
+  const coloredDiff = escapedDiff.split('\n').map(line => {
+    if (line.startsWith('+') && !line.startsWith('+++')) return `<span class="diff-add">${line}</span>`;
+    if (line.startsWith('-') && !line.startsWith('---')) return `<span class="diff-del">${line}</span>`;
+    if (line.startsWith('@@')) return `<span class="diff-hunk">${line}</span>`;
+    if (line.startsWith('diff --git')) return `<span class="diff-file">${line}</span>`;
+    return `<span>${line}</span>`;
+  }).join('\n');
+
+  const screenshotHtml = screenshotUrl
+    ? `<div class="section">
+        <h2>Screenshot Preview</h2>
+        <img src="${screenshotUrl}" alt="Preview" class="screenshot" />
+      </div>`
+    : '';
+
+  const fileListHtml = changedFiles.map(f => `<li><code>${f}</code></li>`).join('');
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Preview — ${requestId.slice(0,8)}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #f4f4f4; color: #161616; }
+  .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .badge { padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+  .badge-preview { background: #E3F2FD; color: #0f62fe; }
+  .badge-approved { background: #E8F5E9; color: #24a148; }
+  .prompt { padding: 16px; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 20px; font-size: 14px; line-height: 1.6; }
+  .section { margin-bottom: 24px; }
+  .section h2 { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #525252; margin-bottom: 12px; }
+  .file-list { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+  .file-list li code { padding: 4px 10px; background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 12px; }
+  .diff-viewer { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: auto; max-height: 600px; }
+  .diff-viewer pre { padding: 16px; font-family: 'JetBrains Mono', 'SF Mono', monospace; font-size: 12px; line-height: 1.6; white-space: pre; tab-size: 2; }
+  .diff-add { background: #e6ffec; color: #1a7f37; display: block; }
+  .diff-del { background: #ffebe9; color: #cf222e; display: block; }
+  .diff-hunk { background: #ddf4ff; color: #0550ae; display: block; font-weight: 600; }
+  .diff-file { background: #f6f8fa; color: #24292f; display: block; font-weight: 700; padding: 4px 0; border-top: 1px solid #e0e0e0; margin-top: 8px; }
+  .screenshot { max-width: 100%; border-radius: 8px; border: 1px solid #e0e0e0; }
+  .actions { display: flex; gap: 12px; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e0e0e0; }
+  .btn { padding: 10px 24px; border-radius: 6px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; font-family: inherit; }
+  .btn-approve { background: #24a148; color: #fff; }
+  .btn-approve:hover { background: #198038; }
+  .btn-reject { background: #fff; color: #da1e28; border: 1px solid #da1e28; }
+  .btn-reject:hover { background: #fff1f1; }
+  .btn-live { background: #0f62fe; color: #fff; text-decoration: none; }
+  .btn-live:hover { background: #0043ce; }
+  .btn-dashboard { background: #fff; color: #525252; border: 1px solid #e0e0e0; text-decoration: none; }
+  .btn-dashboard:hover { background: #f4f4f4; }
+  .stats { display: flex; gap: 16px; margin-bottom: 20px; }
+  .stat { padding: 12px 16px; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; text-align: center; }
+  .stat-value { font-size: 20px; font-weight: 700; }
+  .stat-label { font-size: 11px; color: #525252; text-transform: uppercase; margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Preview <code style="font-size:14px;opacity:0.6">${requestId.slice(0,8)}</code></h1>
+    <span class="badge badge-${status === 'preview' ? 'preview' : 'approved'}">${status}</span>
+  </div>
+
+  <div class="prompt">${userPrompt.replace(/</g, '&lt;') || 'No prompt'}</div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-value">${changedFiles.length}</div><div class="stat-label">Changed Files</div></div>
+    <div class="stat"><div class="stat-value">${diff.split('\\n').filter(l => l.startsWith('+')).length}</div><div class="stat-label">Lines Added</div></div>
+    <div class="stat"><div class="stat-value">${diff.split('\\n').filter(l => l.startsWith('-')).length}</div><div class="stat-label">Lines Removed</div></div>
+  </div>
+
+  ${changedFiles.length ? `<div class="section"><h2>Changed Files</h2><ul class="file-list">${fileListHtml}</ul></div>` : ''}
+
+  ${screenshotHtml}
+
+  <div class="section">
+    <h2>Code Changes</h2>
+    <div class="diff-viewer"><pre>${coloredDiff}</pre></div>
+  </div>
+
+  <div class="actions">
+    ${livePreviewUrl ? `<a class="btn btn-live" href="${livePreviewUrl}" target="_blank">Live Preview 열기 ↗</a>` : ''}
+    <button class="btn btn-approve" onclick="handleAction('approve')">Approve & Create PR</button>
+    <button class="btn btn-reject" onclick="handleAction('reject')">Reject</button>
+    <a class="btn btn-dashboard" href="http://127.0.0.1:${PORT}/requests/${requestId}" target="_blank">Dashboard</a>
+  </div>
+</div>
+<script>
+async function handleAction(action) {
+  const url = action === 'approve'
+    ? '/api/approve/${requestId}'
+    : '/api/reject/${requestId}';
+  try {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const data = await res.json();
+    if (data.ok !== false) {
+      document.querySelector('.actions').innerHTML = action === 'approve'
+        ? '<div style="color:#24a148;font-weight:600">Approved — PR will be created</div>'
+        : '<div style="color:#da1e28;font-weight:600">Rejected — changes discarded</div>';
+    } else {
+      alert('Error: ' + (data.error || 'Unknown'));
+    }
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+</script>
+</body>
+</html>`;
 }
 
 // ─── HTTP Server ──────────────────────────────────────────────────────
@@ -947,6 +1158,34 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Preview proxy — /preview/:requestId/* → sandbox vite
+  const previewMatch = pathname.match(/^\/preview\/([^/]+)(\/.*)?$/);
+  if (previewMatch) {
+    const [, reqId, subPath = '/'] = previewMatch;
+    const state = requests.get(reqId);
+    if (!state?.sandbox?.vitePort) {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end('<h3>Preview not available</h3><p>Sandbox not running for this request.</p>');
+      return;
+    }
+    const target = `http://127.0.0.1:${state.sandbox.vitePort}${subPath}${url.search}`;
+    try {
+      const proxyReq = http.request(target, { method: req.method, headers: { ...req.headers, host: `127.0.0.1:${state.sandbox.vitePort}` } }, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+        proxyRes.pipe(res);
+      });
+      proxyReq.on('error', () => {
+        res.writeHead(502, { 'Content-Type': 'text/html' });
+        res.end('<h3>Preview server not ready</h3><p>The sandbox vite server may still be starting.</p>');
+      });
+      req.pipe(proxyReq);
+    } catch {
+      res.writeHead(502);
+      res.end('Proxy error');
+    }
+    return;
+  }
+
   // Health check
   if (pathname === '/api/health') {
     return json(res, 200, {
@@ -956,8 +1195,25 @@ const server = http.createServer(async (req, res) => {
       repoRoot: DEFAULT_PRODUCT_REPO_ROOT,
       designSystemRoot: DESIGN_SYSTEM_ROOT,
       sandboxImage: SANDBOX_IMAGE,
-      model: SANDBOX_PROVIDER + '/' + SANDBOX_MODEL,
+      model: SANDBOX_MODEL.includes('/') ? SANDBOX_MODEL : SANDBOX_PROVIDER + '/' + SANDBOX_MODEL,
     });
+  }
+
+  // Active sandboxes
+  if (pathname === '/api/sandboxes') {
+    const sandboxes = [];
+    for (const [id, state] of requests) {
+      if (state.sandbox) {
+        sandboxes.push({
+          name: state.sandbox.containerName,
+          requestId: id,
+          status: 'running',
+          ports: `oc:${state.sandbox.openCodePort} vite:${state.sandbox.vitePort}`,
+          previewUrl: state.previewUrl || null,
+        });
+      }
+    }
+    return json(res, 200, { ok: true, sandboxes });
   }
 
   if (pathname === '/api/request-schema') {
@@ -978,7 +1234,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // AI-powered request analysis — generates a thoughtful plan using LLM
+  // AI-powered request analysis — generates a thoughtful plan
   if (pathname === '/api/analyze-request' && req.method === 'POST') {
     try {
       const payload = await parseBody(req);
@@ -988,50 +1244,150 @@ const server = http.createServer(async (req, res) => {
       const client = payload.client || 'msm-default';
       const testId = payload.testId || null;
       const language = payload.language || null;
+      const intent = payload.requestContract?.change_intent || 'layout_adjustment';
+      const selectedElements = payload.selectedElements || [];
 
-      const analysisPrompt = `You analyze UI change requests for PM/SA users. Respond ONLY with valid JSON (no markdown, no code fences, no newlines inside string values).
+      // Try LLM-based analysis first, fall back to smart template
+      let analysis = null;
 
-Context: ${client} client, route: ${pagePath}${language ? ', language: ' + language : ''}${component ? ', component: ' + component : ''}${testId ? ', testId: ' + testId : ''}
+      // Attempt LLM call if API key available
+      const analysisPrompt = `You are an expert UI/UX engineer. Analyze this change request and return ONLY valid JSON in Korean.
 
-User request: "${userPrompt}"
+Context: ${client}, route: ${pagePath}, component: ${component || testId || 'unknown'}${language ? ', lang: ' + language : ''}
+Selected elements: ${selectedElements.map(e => e.component || e.testId || '').filter(Boolean).join(', ') || 'none'}
+Request: "${userPrompt}"
 
-Return this exact JSON structure in Korean:
-{"understanding":"사용자 의도 한 문장 요약","analysis":"구현 방법 구체 설명 2-3문장","steps":["단계1","단계2","단계3"],"risks":"주의점 또는 null","verification":"검증 방법 한 문장"}`;
+Return JSON:
+{"understanding":"요청 의도 2-3문장","analysis":"기술적 구현 방법 3-4문장 (파일, 컴포넌트, API 등)","steps":["구체적 단계1 (파일명 포함)","단계2","단계3","단계4","검증 단계"],"risks":"위험 요소 또는 null","verification":"검증 방법"}`;
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': SANDBOX_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 600,
-          messages: [{ role: 'user', content: analysisPrompt }],
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Analysis API returned ${response.status}`);
-      }
-
-      const result = await response.json();
-      let text = (result.content?.[0]?.text || '').trim();
-      // Strip markdown code fences if present
-      text = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
-      let analysis;
       try {
-        analysis = JSON.parse(text);
-      } catch {
-        // Try to extract JSON from the text
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          try { analysis = JSON.parse(jsonMatch[0]); } catch { analysis = null; }
+        let text = '';
+        // Use the same provider as the sandbox agent
+        if (SANDBOX_PROVIDER === 'anthropic' && (SANDBOX_API_KEY || process.env.ANTHROPIC_API_KEY)) {
+          const apiKey = process.env.ANTHROPIC_API_KEY || SANDBOX_API_KEY;
+          const resp = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+            body: JSON.stringify({ model: SANDBOX_MODEL, max_tokens: 1500, messages: [{ role: 'user', content: analysisPrompt }] }),
+          });
+          if (resp.ok) {
+            const result = await resp.json();
+            text = (result.content?.[0]?.text || '').trim();
+          } else {
+            console.error(`[Analysis] Anthropic returned ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+          }
+        } else if (process.env.OPENAI_API_KEY) {
+          const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ model: 'gpt-4o', max_tokens: 800, messages: [{ role: 'user', content: analysisPrompt }] }),
+          });
+          if (resp.ok) {
+            const result = await resp.json();
+            text = (result.choices?.[0]?.message?.content || '').trim();
+          }
         }
-        if (!analysis) {
-          analysis = { understanding: text.slice(0, 300), analysis: '', steps: [], risks: null, verification: '' };
+        if (text) {
+          console.log('[Analysis] Raw text length:', text.length, 'starts:', text.slice(0, 80));
+          fs.writeFileSync('/tmp/analysis-raw.txt', text);
+          text = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            let raw = jsonMatch[0];
+            // Try parsing as-is first
+            try { analysis = JSON.parse(raw); console.log('[Analysis] Parsed OK'); }
+            catch {
+              // Fix truncated JSON: close open strings, arrays, objects
+              let fixed = raw;
+              // Count open braces/brackets
+              const opens = (fixed.match(/{/g) || []).length;
+              const closes = (fixed.match(/}/g) || []).length;
+              const openBrackets = (fixed.match(/\[/g) || []).length;
+              const closeBrackets = (fixed.match(/]/g) || []).length;
+              // If truncated mid-string, close the string
+              const quotes = (fixed.match(/"/g) || []).length;
+              if (quotes % 2 !== 0) fixed += '"';
+              // Close arrays and objects
+              for (let i = 0; i < openBrackets - closeBrackets; i++) fixed += ']';
+              for (let i = 0; i < opens - closes; i++) fixed += '}';
+              try {
+                analysis = JSON.parse(fixed);
+                console.log('[Analysis] Parsed OK (fixed truncation)');
+              } catch (parseErr) { console.error('[Analysis] JSON parse failed after fix:', parseErr.message); }
+            }
+          } else {
+            console.error('[Analysis] No JSON match in text:', text.slice(0, 100));
+          }
+        } else {
+          console.error('[Analysis] No text returned from LLM');
         }
+      } catch (llmErr) { console.error('[Analysis] LLM error:', llmErr.message || llmErr); }
+
+      // Smart template fallback — generates detailed plan from context
+      if (!analysis) {
+        const target = testId || component || '대상 요소';
+        const pageLabel = pagePath.replace(/^\/v1\/p\/[^/]+\//, '').replace(/\?.*$/, '') || 'page';
+        const elementInfo = selectedElements.length > 0
+          ? selectedElements.map(e => e.component || e.testId || e.semantics?.domTag || '').filter(Boolean).join(', ')
+          : target;
+
+        const intentMap = {
+          layout_adjustment: {
+            understanding: `${pageLabel} 페이지의 ${elementInfo} 요소에 대한 레이아웃/배치 변경을 요청하셨습니다. "${userPrompt}"`,
+            analysis: `${elementInfo} 컴포넌트의 현재 Flex/Grid 구조를 분석하고, 요청하신 방향으로 레이아웃을 조정합니다. 기존 디자인 시스템 토큰과 스타일을 유지하면서 최소한의 변경으로 구현합니다.`,
+            steps: [
+              `${client} 앱의 ${pageLabel} 관련 컴포넌트 파일 탐색 (src/apps/${client}/component/)`,
+              `${elementInfo}의 현재 레이아웃 구조 분석 (Flex/Grid, spacing, ordering)`,
+              `요청사항에 맞게 레이아웃 속성 수정 (CSS/스타일 조정)`,
+              `주변 요소와의 정렬 및 간격 확인`,
+              `TypeScript 타입체크 실행 및 시각적 검증`,
+            ],
+            risks: '레이아웃 변경이 반응형 디자인에 영향을 줄 수 있으므로 다양한 화면 크기에서 확인이 필요합니다.',
+            verification: `${pageLabel} 페이지에서 ${elementInfo}의 배치가 요청대로 변경되었는지 시각적으로 확인`,
+          },
+          state_handling: {
+            understanding: `${pageLabel} 페이지에서 ${elementInfo}의 동작/상태 처리를 변경하려는 요청입니다. "${userPrompt}"`,
+            analysis: `${elementInfo} 컴포넌트의 상태 관리 로직과 이벤트 핸들러를 분석합니다. 필요한 경우 새로운 상태를 추가하거나 기존 로직을 수정하여 요청된 동작을 구현합니다.`,
+            steps: [
+              `${elementInfo} 컴포넌트의 Container/Component 파일 분석`,
+              `현재 상태 관리 로직 파악 (hooks, reducers, context)`,
+              `요청된 동작에 필요한 상태/핸들러 구현`,
+              `API 연동이 필요한 경우 tRPC 엔드포인트 확인`,
+              `기능 동작 테스트 및 TypeScript 타입체크`,
+            ],
+            risks: '상태 변경이 다른 컴포넌트에 영향을 줄 수 있으며, API 호출이 필요한 경우 백엔드 수정이 동반될 수 있습니다.',
+            verification: `${elementInfo}에서 새로운 동작이 정상적으로 작동하는지 시나리오별로 확인`,
+          },
+          copy_update: {
+            understanding: `${pageLabel} 페이지의 ${elementInfo} 텍스트/문구를 변경하려는 요청입니다. "${userPrompt}"`,
+            analysis: `i18n 파일(locales)과 컴포넌트의 텍스트 렌더링 부분을 수정합니다. 한국어/영어 번역 파일을 함께 업데이트합니다.`,
+            steps: [
+              `해당 텍스트가 사용되는 i18n 키 탐색 (src/i18n/locales/)`,
+              `한국어(ko) 번역 파일 수정`,
+              `영어(en) 번역 파일 동시 수정`,
+              `컴포넌트에서 하드코딩된 텍스트가 있다면 i18n 키로 교체`,
+              `변경된 텍스트가 UI에 올바르게 표시되는지 확인`,
+            ],
+            risks: null,
+            verification: `${pageLabel} 페이지에서 변경된 텍스트가 올바르게 표시되는지 확인`,
+          },
+          component_swap: {
+            understanding: `${pageLabel} 페이지에서 ${elementInfo}를 다른 컴포넌트로 교체하거나 새 컴포넌트를 추가하려는 요청입니다. "${userPrompt}"`,
+            analysis: `기존 컴포넌트의 props와 데이터 흐름을 분석하고, 디자인 시스템의 적절한 컴포넌트로 교체합니다. FormikHarness, Provider 등 필요한 wrapper도 함께 설정합니다.`,
+            steps: [
+              `현재 ${elementInfo} 컴포넌트의 구조와 props 분석`,
+              `교체할 디자인 시스템 컴포넌트 선택 및 import 경로 확인`,
+              `새 컴포넌트로 교체하고 props 매핑`,
+              `필요한 Provider/Wrapper 설정`,
+              `TypeScript 타입체크 및 시각적 검증`,
+            ],
+            risks: '컴포넌트 교체 시 기존 props 인터페이스가 달라질 수 있어 타입 오류가 발생할 수 있습니다.',
+            verification: `새 컴포넌트가 기존과 동일한 기능을 수행하면서 요청된 변경사항이 반영되었는지 확인`,
+          },
+        };
+
+        const template = intentMap[intent] || intentMap.layout_adjustment;
+        analysis = { ...template };
       }
 
       return json(res, 200, { ok: true, analysis });
@@ -1162,6 +1518,31 @@ Return this exact JSON structure in Korean:
         if (clients.size === 0) sseClients.delete(id);
       }
     });
+    return;
+  }
+
+  // Diff viewer
+  const diffViewMatch = pathname.match(/^\/api\/diff-view\/([\w-]+)$/);
+  if (diffViewMatch) {
+    const state = requests.get(diffViewMatch[1]);
+    if (!state) {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end('<h3>Request not found</h3>');
+      return;
+    }
+
+    const diff = state.diff || 'No changes';
+    const screenshotUrl = state.screenshotPath ? `/api/screenshot/${state.id}` : null;
+    const changedFiles = state.changedFiles || [];
+    const requestId = state.id;
+    const userPrompt = state.payload?.userPrompt || '';
+    const status = state.status;
+    const livePreviewUrl = state.livePreviewUrl || null;
+
+    // Render a self-contained HTML diff viewer
+    const html = buildDiffViewerHtml({ requestId, diff, screenshotUrl, changedFiles, userPrompt, status, livePreviewUrl });
+    res.writeHead(200, { 'Content-Type': 'text/html', 'Access-Control-Allow-Origin': '*' });
+    res.end(html);
     return;
   }
 

@@ -1,0 +1,19 @@
+{
+  "name": "moloco-design-system-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for the Moloco Design System — gives AI coding assistants direct access to component specs, tokens, patterns, and UX writing rules.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

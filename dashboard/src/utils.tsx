@@ -9,7 +9,7 @@ import type {
   ValidationRunnerJson,
 } from './types';
 
-import validationRunnerJson from '@source-design-system/validation-runner.json';
+import validationRunnerJson from '@source-design-system-workflows/validation-runner.json';
 
 const validationRunnerData = validationRunnerJson as ValidationRunnerJson;
 

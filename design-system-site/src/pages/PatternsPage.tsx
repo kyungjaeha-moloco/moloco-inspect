@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import type { PatternLayerEntry, PatternsJson } from '../types';
+import type { PatternLayerEntry, PatternsJson, CodeExamplesJson } from '../types';
 import { CopyButton } from '../components/CopyButton';
+import { CodeBlock } from '../components/CodeBlock';
 
-type Props = { data: PatternsJson };
+type Props = { data: PatternsJson; codeExamples: CodeExamplesJson };
 
 type CategoryId = 'all' | 'page' | 'form' | 'architecture' | 'ui' | 'crosscutting';
 
@@ -96,7 +97,7 @@ function LayerDiagram({ layers }: { layers: Record<string, string | PatternLayer
   );
 }
 
-export function PatternsPage({ data }: Props) {
+export function PatternsPage({ data, codeExamples }: Props) {
   const [activeCategory, setActiveCategory] = useState<CategoryId>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const patterns = data.patterns ?? [];
@@ -258,6 +259,99 @@ export function PatternsPage({ data }: Props) {
           <div className="empty-state">No patterns in this category.</div>
         )}
       </div>
+
+      {/* Portal Code Examples */}
+      {codeExamples.examples && codeExamples.examples.length > 0 && (
+        <div className="section" style={{ marginTop: 48 }}>
+          <div className="section-header">
+            <h2 className="section-title">Portal Code Examples</h2>
+          </div>
+          <p className="card-desc" style={{ marginBottom: 16 }}>
+            {codeExamples.meta?.description ?? 'Real code examples from the MSM Portal codebase for reference and reuse.'}
+          </p>
+          <div className="pattern-list">
+            {codeExamples.examples.map((ex, i) => (
+              <PortalCodeExample key={`${ex.pattern}-${ex.entity}-${i}`} example={ex} />
+            ))}
+          </div>
+        </div>
+      )}
     </>
+  );
+}
+
+function PortalCodeExample({ example }: { example: import('../types').CodeExampleEntry }) {
+  const [expanded, setExpanded] = useState(false);
+  const snippetEntries = example.key_snippets ? Object.entries(example.key_snippets) : [];
+
+  return (
+    <div className={`pattern-card${expanded ? ' expanded' : ''}`}>
+      <div className="pattern-card-header" onClick={() => setExpanded(e => !e)}>
+        <div className="pattern-card-icon">{'</>'}</div>
+        <div className="pattern-card-main">
+          <div className="pattern-card-title">
+            {example.entity} — {example.pattern.replace(/_/g, ' ')}
+          </div>
+          <div className="pattern-card-desc">{example.description}</div>
+        </div>
+        <div className="pattern-card-meta">
+          {snippetEntries.length > 0 && (
+            <span className="badge badge-neutral">{snippetEntries.length} snippet{snippetEntries.length > 1 ? 's' : ''}</span>
+          )}
+          {example.key_hooks && example.key_hooks.length > 0 && (
+            <span className="badge badge-info">{example.key_hooks.length} hooks</span>
+          )}
+        </div>
+        <div className="pattern-card-chevron">{expanded ? '▴' : '▾'}</div>
+      </div>
+
+      {expanded && (
+        <div className="pattern-card-body">
+          {/* Notes */}
+          {example.notes && example.notes.length > 0 && (
+            <div className="section" style={{ marginBottom: 16 }}>
+              <h3 className="section-title">Notes</h3>
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                {example.notes.map((note, i) => (
+                  <li key={i} className="card-desc" style={{ marginBottom: 4 }}>{note}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Key hooks */}
+          {example.key_hooks && example.key_hooks.length > 0 && (
+            <div className="section" style={{ marginBottom: 16 }}>
+              <h3 className="section-title">Key Hooks</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {example.key_hooks.map((hook, i) => (
+                  <div key={i} className="checklist-item">
+                    <span className="checklist-icon">◆</span>
+                    <code className="mono" style={{ fontSize: 'var(--text-xs)' }}>{hook}</code>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Code snippets */}
+          {snippetEntries.map(([label, code]) => (
+            <div key={label} className="section" style={{ marginBottom: 16 }}>
+              <h3 className="section-title" style={{ textTransform: 'none', fontSize: 'var(--text-sm)' }}>{label}</h3>
+              <div className="code-block-header">TSX</div>
+              <CodeBlock code={code} />
+            </div>
+          ))}
+
+          {/* Key imports */}
+          {example.key_imports && example.key_imports.length > 0 && (
+            <div className="section">
+              <h3 className="section-title">Imports</h3>
+              <CodeBlock code={example.key_imports.join('\n')} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

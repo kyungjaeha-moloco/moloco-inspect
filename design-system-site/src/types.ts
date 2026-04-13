@@ -99,7 +99,13 @@ export type LiveComponentEntry = {
   donts?: string[];
   antiPatterns?: Array<{ scenario: string; reason: string; alternative: string }>;
   compositions?: { commonly_paired_with?: string[] };
-  accessibility?: any;
+  accessibility?: {
+    role?: string;
+    ariaLabel?: string;
+    keyboardInteraction?: Array<{ key: string; action: string }>;
+    screenReaderAnnouncement?: string;
+    notes?: string[];
+  };
   usage_stats?: { file_count?: number };
   structure?: {
     dimensions?: Record<string, string>;
@@ -202,4 +208,160 @@ export type PatternsJson = {
     validation_checklist?: string[];
     code?: string;
   }>;
+};
+
+export type ColorToken = {
+  name: string;
+  token: string;
+  hex: string;
+  tier: string;
+  status: string;
+  usage: string;
+  $description?: string;
+  do_not_use_for?: string;
+  components?: string[];
+  role?: string;
+  pairedWith?: string[];
+  states?: Record<string, { token: string; hex: string; $description?: string }>;
+};
+
+export type TokensJson = {
+  color?: {
+    text?: { tokens?: ColorToken[]; deprecated?: ColorToken[] };
+    background?: { tokens?: ColorToken[]; deprecated?: ColorToken[] };
+    border?: { tokens?: ColorToken[]; deprecated?: ColorToken[] };
+    icon?: { tokens?: ColorToken[]; deprecated?: ColorToken[] };
+  };
+  spacing?: {
+    baseUnit?: number;
+    usage?: string;
+    values?: Array<{ multiplier: number; px: number; usage: string; category?: string }>;
+    categories?: Record<string, { range: string; description: string }>;
+  };
+  typography?: {
+    usage?: string;
+    tokens?: Array<{
+      name: string;
+      token: string;
+      size: string;
+      weight: string;
+      lineHeight: string | null;
+      letterSpacing?: string;
+      usage: string;
+      category?: string;
+    }>;
+  };
+  borderRadius?: {
+    tokens?: Array<{ name: string; value: string; usage?: string }>;
+  };
+};
+
+export type StateMachinesJson = {
+  passive?: { components?: string[] };
+  formInputs?: Record<string, {
+    description?: string;
+    extends?: string;
+    states?: Record<string, {
+      visual?: string;
+      description?: string;
+      transitions?: Record<string, { target: string; trigger?: string }>;
+    }>;
+    additional_states?: Record<string, unknown>;
+    additional_transitions?: Record<string, unknown>;
+    override_transitions?: Record<string, unknown>;
+  }>;
+  interactive?: Record<string, {
+    states?: Record<string, {
+      visual?: string;
+      description?: string;
+      transitions?: Record<string, { target: string; trigger?: string }>;
+    }>;
+  }>;
+};
+
+export type ComponentBehaviorsJson = {
+  [category: string]: Record<string, {
+    extends?: string;
+    semantic_actions?: Array<{ action: string; triggers: string }>;
+    additional_actions?: Array<{ action: string; triggers: string }>;
+    override_actions?: Array<{ action: string; triggers: string }>;
+    data_flow?: { input: string; output: string; side_effects: string[] };
+  }>;
+};
+
+// --- Workflow JSON types ---
+
+export type CodeExampleSnippets = Record<string, string>;
+
+export type CodeExampleEntry = {
+  pattern: string;
+  entity: string;
+  description: string;
+  files?: Record<string, string | string[]>;
+  key_snippets?: CodeExampleSnippets;
+  key_imports?: string[];
+  key_hooks?: string[];
+  notes?: string[];
+};
+
+export type CodeExamplesJson = {
+  meta?: { description?: string; version?: string; lastUpdated?: string };
+  examples: CodeExampleEntry[];
+  common_patterns_across_entities?: Record<string, {
+    pattern?: string;
+    template?: string;
+    verified_in?: string[];
+    verified_examples?: string[];
+    convention?: string;
+    examples?: string[];
+  }>;
+  file_naming_verification?: Record<string, {
+    convention?: string;
+    examples?: string[];
+  }>;
+};
+
+export type ErrorPatternEntry = {
+  id: string;
+  error: string;
+  cause?: string;
+  detection?: string;
+  fix?: string;
+  fix_code?: string;
+  fix_strategies?: string[];
+  common_scenarios?: string[];
+  common_mistakes?: string[];
+  required_registrations?: string[];
+  affected_components?: string[];
+  severity: 'critical' | 'error' | 'warning';
+  category: string;
+  validation_ref?: string;
+  source?: string;
+};
+
+export type ErrorPatternsJson = {
+  meta?: { description?: string };
+  errors: ErrorPatternEntry[];
+  categories?: Record<string, string>;
+  severity_levels?: Record<string, string>;
+};
+
+export type UxCriterionEntry = {
+  id: string;
+  name: string;
+  question: string;
+  check_for?: string[];
+  pass?: string;
+  fail_example?: string;
+  weight: 'high' | 'medium' | 'low';
+};
+
+export type UxCriteriaJson = {
+  meta?: { description?: string };
+  criteria: Record<string, UxCriterionEntry[]>;
+  scoring?: {
+    method?: string;
+    weights?: Record<string, number>;
+    thresholds?: Record<string, string>;
+  };
 };

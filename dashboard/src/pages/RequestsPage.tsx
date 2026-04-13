@@ -1,45 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3847';
+import { AnalyticsRecord } from '../analytics/types';
+import { formatDuration, formatPercent, getStatusBadgeClass, truncate } from '../analytics/helpers';
+import { useAnalyticsDashboardData } from '../analytics/hooks';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
-
-type AnalyticsSummary = {
-  totalRequests: number;
-  statusCounts: Record<string, number>;
-  approvalRate: number;
-  noChangeNeededRate: number;
-  averageDurationMs: number | null;
-  topRoutes: Array<{ route: string; count: number }>;
-  topFiles: Array<{ file: string; count: number }>;
-  hourlyBuckets: Array<{
-    hour: string;
-    total: number;
-    approved: number;
-    noChangeNeeded: number;
-    averageDurationMs: number;
-  }>;
-};
-
-type AnalyticsRecord = {
-  id: string;
-  status: string;
-  approvalState?: string | null;
-  pagePath?: string | null;
-  client?: string | null;
-  language?: string | null;
-  requestedChange?: string | null;
-  changedFiles?: string[];
-  screenshotUrl?: string | null;
-  previewUrl?: string | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-  durationMs?: number | null;
-  iterationCount?: number | null;
-};
 
 type ViewMode = 'list' | 'pipeline';
 
@@ -47,87 +14,12 @@ type ViewMode = 'list' | 'pipeline';
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-function formatDuration(ms: number | null | undefined): string {
-  if (typeof ms !== 'number' || Number.isNaN(ms) || ms <= 0) return '\u2014';
-  if (ms < 1000) return `${ms}ms`;
-  const seconds = Math.round(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remain = seconds % 60;
-  return remain ? `${minutes}m ${remain}s` : `${minutes}m`;
-}
-
-function formatPercent(value: number | null | undefined): string {
-  if (typeof value !== 'number' || Number.isNaN(value)) return '\u2014';
-  return `${Math.round(value * 100)}%`;
-}
-
-function getStatusBadgeClass(status: string): string {
-  if (status === 'completed') return 'badge badge-success';
-  if (status === 'error' || status === 'failed') return 'badge badge-danger';
-  if (status === 'in-progress' || status === 'processing') return 'badge badge-info';
-  return 'badge badge-neutral';
-}
-
-function truncate(text: string, max: number): string {
-  if (text.length <= max) return text;
-  return text.slice(0, max - 1) + '\u2026';
-}
-
 /** Classify a raw status into a pipeline column key */
 function toPipelineColumn(status: string): 'pending' | 'processing' | 'completed' | 'error' {
   if (status === 'completed') return 'completed';
   if (status === 'error' || status === 'failed') return 'error';
   if (status === 'in-progress' || status === 'processing') return 'processing';
   return 'pending';
-}
-
-/* ------------------------------------------------------------------ */
-/*  Data hook                                                          */
-/* ------------------------------------------------------------------ */
-
-function useAnalyticsDashboardData() {
-  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
-  const [records, setRecords] = useState<AnalyticsRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [summaryRes, recordsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/analytics/summary`),
-        fetch(`${API_BASE}/api/analytics/requests?limit=500`),
-      ]);
-      if (!summaryRes.ok) throw new Error(`Summary returned ${summaryRes.status}`);
-      if (!recordsRes.ok) throw new Error(`Requests returned ${recordsRes.status}`);
-      const summaryJson = await summaryRes.json();
-      const recordsJson = await recordsRes.json();
-      setSummary(summaryJson.summary ?? null);
-      setRecords(recordsJson.records ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fetch failed');
-      setSummary(null);
-      setRecords([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!cancelled) void load();
-    const interval = setInterval(() => {
-      if (!cancelled) void load();
-    }, 30_000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [load]);
-
-  return { summary, records, loading, error, reload: load };
 }
 
 /* ------------------------------------------------------------------ */
@@ -278,6 +170,7 @@ export function RequestsPage() {
             className={`view-toggle-btn${view === 'list' ? ' active' : ''}`}
             onClick={() => setView('list')}
             type="button"
+            aria-pressed={view === 'list'}
           >
             List
           </button>
@@ -285,6 +178,7 @@ export function RequestsPage() {
             className={`view-toggle-btn${view === 'pipeline' ? ' active' : ''}`}
             onClick={() => setView('pipeline')}
             type="button"
+            aria-pressed={view === 'pipeline'}
           >
             Pipeline
           </button>
@@ -301,8 +195,9 @@ export function RequestsPage() {
                 : 'No requests match the current filters.'}
             </div>
           ) : (
-            <div className="data-table" style={{ gridTemplateColumns: '1fr 100px 80px 80px' }}>
+            <div className="data-table">
               <div className="data-table-head">
+                <span>ID</span>
                 <span>Request</span>
                 <span>Status</span>
                 <span>Duration</span>
@@ -314,6 +209,7 @@ export function RequestsPage() {
                   className="data-table-row link"
                   to={`/requests/${record.id}`}
                 >
+                  <span className="mono" style={{ fontSize: 11, opacity: 0.7 }}>{record.id.slice(0, 8)}</span>
                   <span className="truncate">
                     {record.requestedChange
                       ? truncate(record.requestedChange, 80)

@@ -207,7 +207,7 @@
         "ux-writing.json → surface_rules and examples for visible copy",
         "golden-example-states.json → understand the expected visible state",
         "components.json → check component-specific states and examples",
-        "visual-inspection.json → compare screenshot structure and hierarchy"
+        "../workflows/visual-inspection.json → compare screenshot structure and hierarchy"
       ],
       "start_with": "preview-verification.json",
       "critical_check": "Preview client, route, language, and change visibility must match the request before review"
@@ -220,7 +220,7 @@
         "patterns.json → identify which pattern the page currently uses (list-page, detail-page, create-page, edit-page)",
         "components.json → verify the target component's props, when_to_use, do_not_use before swapping or adding components",
         "tokens.json → if the change involves visual properties, verify correct token usage",
-        "validation-runner.json → run checks after modification to catch regressions"
+        "../workflows/validation-runner.json → run checks after modification to catch regressions"
       ],
       "start_with": "api-ui-contracts.json",
       "critical_check": "Read the existing Container and Component files BEFORE making changes. Identify which layer (Page/Container/Component) the change belongs to. Never add data fetching to a Component or UI logic to a Container.",
@@ -234,17 +234,17 @@
     "debugging_existing_page": {
       "description": "Diagnosing and fixing a bug in an existing page. The page renders incorrectly, throws errors, or behaves unexpectedly.",
       "load_order": [
-        "error-patterns.json → check if this is a known error pattern with a documented fix",
+        "../workflows/error-patterns.json → check if this is a known error pattern with a documented fix",
         "conventions.json → verify the code follows architecture constraints (most bugs come from constraint violations)",
         "component-dependencies.json → check if all required providers are present",
         "state-machines.json → verify the component is in a valid state and transitions are correct",
         "api-ui-contracts.json → if data-related, trace the field from proto → converter → model → UI"
       ],
-      "start_with": "error-patterns.json",
+      "start_with": "../workflows/error-patterns.json",
       "critical_check": "Before fixing: identify the 3-layer file set (Page/Container/Component). The bug might be in a different layer than where the symptom appears. A missing field in UI usually means the Converter is not mapping it, not that the Component is broken.",
       "decision_tree": {
-        "runtime_error": "Check error-patterns.json by error message → apply documented fix",
-        "build_error": "Check error-patterns.json build section → verify imports and type compatibility",
+        "runtime_error": "Check ../workflows/error-patterns.json by error message → apply documented fix",
+        "build_error": "Check ../workflows/error-patterns.json build section → verify imports and type compatibility",
         "wrong_data_displayed": "Trace through api-ui-contracts.json: proto field → converter → model field → component prop",
         "styling_issue": "Check tokens.json for correct token → verify no hardcoded colors (conventions.json constraint)",
         "state_issue": "Check state-machines.json for the component's valid states and transitions"
