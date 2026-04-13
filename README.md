@@ -1,106 +1,148 @@
 # Moloco Inspect
 
-Moloco Inspect는 라이브 페이지를 보며 요소를 선택하고, 자연어 또는 PRD 기반 요청을 보내고, 에이전트가 계획을 제안한 뒤 검증된 preview를 리뷰하고 로컬 코드에 적용할 수 있게 만드는 product-editing agent proposal workspace입니다.
+An AI-powered product editing agent that lets PMs and SAs modify live UI through natural language. Select an element, describe what you want to change, and the agent plans, codes, validates, and previews the result — all from your browser.
 
-## 현재 상태
+## How It Works
 
-이 repo는 proposal 전용 새 저장소로 막 생성된 상태입니다. 실제 구현 자산은 아직 아래 원본 workspace에 있습니다.
+```
+Select Element ──> Describe Change ──> AI Plans ──> Agent Codes ──> Preview ──> Approve ──> PR
+```
 
-- `/Users/kyungjae.ha/Documents/Agent-Design-System`
+1. Open a live product page (localhost)
+2. **Inspect** an element or **capture** a screen region (`Cmd+Shift+E`)
+3. Describe the change in natural language, or attach a PRD link
+4. The AI agent analyzes the request and proposes an execution plan
+5. Confirm the plan — the agent modifies code in a sandboxed container
+6. Review the **live preview** and **diff viewer** with syntax-highlighted changes
+7. **Approve** to create a GitHub PR, or **request changes** to iterate
 
-현재 이 원본 workspace에는 아래가 이미 구현되어 있습니다.
+## Architecture
 
-- 크롬 확장프로그램 기반 click-to-inspect flow
-- 로컬 orchestrator
-- preview bootstrap route
-- contract-first design system
-- UX writing rulebook + validation
-- 운영 analytics ledger + dashboard
-- PRD 링크 ingest 1차 MVP
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│ Chrome Extension │────>│   Orchestrator   │────>│  Docker Sandbox     │
+│  (Side Panel)    │<────│   (Node.js)      │<────│  (Agent + Vite)     │
+└─────────────────┘     └──────────────────┘     └─────────────────────┘
+        │                       │                          │
+   Element select          AI Analysis              Code modification
+   Natural language        Diff extraction          Typecheck + Validate
+   PRD ingest              Screenshot capture       Live preview server
+   Plan review             PR creation              Bootstrap auth
+        │                       │                          │
+        v                       v                          v
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│   Ops Hub        │     │  Design System   │     │  DS MCP Server      │
+│  (Dashboard)     │     │  Site (Carbon)   │     │  (9 tools)          │
+└─────────────────┘     └──────────────────┘     └─────────────────────┘
+```
 
-그리고 1차 이관으로 아래 자산은 이미 이 repo 안에 들어왔습니다.
+## Project Structure
 
-- `dashboard/`
-  - `design-system` 로컬 사본을 우선 읽는 proposal dashboard 이관본
-- `orchestrator/`
-  - source workspace를 참조하는 형태의 proposal orchestrator 이관본
-- `chrome-extension/`
-  - proposal repo 기준으로 로드 가능한 1차 extension 이관본
-- `design-system/`
-  - JSON source of truth와 검증/문서 생성 스크립트를 담은 1차 design system 이관본
+```
+moloco-inspect/
+├── chrome-extension/      # Browser extension (inspector, side panel, background)
+├── orchestrator/          # Node.js server — pipeline, sandbox, AI analysis, PR creation
+├── sandbox/               # Docker image + agent scripts for isolated code editing
+├── dashboard/             # Ops Hub — request tracking, analytics, settings
+├── design-system/         # JSON source of truth — components, tokens, patterns
+├── design-system-site/    # Design System documentation site (Carbon-style)
+├── design-system-mcp/     # MCP server exposing DS data to AI tools (9 endpoints)
+├── tooling/
+│   ├── sandbox-manager/   # Container lifecycle management
+│   └── preview-kit/       # Shared utilities (language normalization, etc.)
+├── docs/                  # Architecture docs, handoffs, contracts
+└── msm-portal -> ...      # Symlink to product repo
+```
 
-이 repo의 다음 목표는 위 자산들을 proposal 기준으로 정리하고, 점진적으로 `moloco-inspect` 안으로 이관하는 것입니다.
+## Getting Started
 
-## 핵심 경험
+### Prerequisites
 
-1. 사용자가 로컬 제품 페이지를 연다
-2. 요소를 inspect 하거나 영역을 캡처한다
-3. 자연어 또는 PRD 링크로 변경 요청을 만든다
-4. 에이전트가 실행 계획을 제안한다
-5. 사용자가 계획을 확인한다
-6. 에이전트가 코드 수정, validate, typecheck, preview screenshot, preview page를 만든다
-7. 사용자가 review 후 local apply 한다
-8. 요청 이력과 운영 지표는 dashboard에 남는다
+- **Node.js** 18+
+- **Docker Desktop** (for sandboxed agent execution)
+- **pnpm** (package manager)
+- **GitHub CLI** (`gh`) for PR creation
 
-## 현재 원본 자산 위치
-
-- Chrome extension: `/Users/kyungjae.ha/Documents/Agent-Design-System/chrome-extension`
-- Orchestrator: `/Users/kyungjae.ha/Documents/Agent-Design-System/orchestrator`
-- Design system: `/Users/kyungjae.ha/Documents/Agent-Design-System/design-system`
-- Dashboard + docs: `/Users/kyungjae.ha/Documents/Agent-Design-System/contract-first-program/dashboard`
-- Product target: `/Users/kyungjae.ha/Documents/Agent-Design-System/msm-portal`
-
-현재는 아래 자산이 이 repo 안에도 존재합니다.
-
-- `/Users/kyungjae.ha/Documents/moloco-inspect/dashboard`
-- `/Users/kyungjae.ha/Documents/moloco-inspect/orchestrator`
-- `/Users/kyungjae.ha/Documents/moloco-inspect/chrome-extension`
-- `/Users/kyungjae.ha/Documents/moloco-inspect/design-system`
-- `/Users/kyungjae.ha/Documents/moloco-inspect/tooling/preview-kit`
-- `/Users/kyungjae.ha/Documents/moloco-inspect/tooling/product-runner`
-- `/Users/kyungjae.ha/Documents/moloco-inspect/tooling/product-execution`
-
-또 proposal runtime 연결을 위해 아래 entry를 사용합니다.
-
-- `/Users/kyungjae.ha/Documents/moloco-inspect/msm-portal`
-  - source workspace product repo를 가리키는 연결점
-  - dashboard, design-system viewer, preview runtime alias가 이 entry를 기준으로 product code를 읽습니다
-
-현재 구조에서:
-
-- `sandbox/` — Docker container sandbox image + agent 정의 + 내부 스크립트
-- `tooling/sandbox-manager/` — container lifecycle 관리 + OpenCode HTTP 통신
-- `tooling/preview-kit/` — 공유 유틸리티 (language normalization 등)
-
-을 사용하여 격리된 container 안에서 agent 실행, 코드 수정, typecheck, preview, screenshot을 수행합니다.
-
-## 실행 방법
+### Quick Start
 
 ```bash
-# 1. Docker Desktop 시작
+# 1. Start Docker
 open -a Docker
 
-# 2. Sandbox image 빌드
+# 2. Build sandbox image
 cp /etc/ssl/cert.pem sandbox/host-ca.pem
 bash sandbox/build-image.sh
 
-# 3. Orchestrator 시작
-OPENAI_API_KEY="sk-..." node orchestrator/server.js
+# 3. Start the orchestrator
+cd orchestrator
+ANTHROPIC_API_KEY="sk-ant-..." SANDBOX_MODEL=claude-sonnet-4-6 node server.js
+# Runs on http://localhost:3847
 
-# 4. Chrome Extension 로드 (chrome://extensions → Load unpacked → chrome-extension/)
+# 4. Start Ops Hub dashboard
+cd dashboard && pnpm install && pnpm dev
+# Runs on http://localhost:4174
+
+# 5. Start Design System site (optional)
+cd design-system-site && pnpm install && pnpm dev
+# Runs on http://localhost:4176
+
+# 6. Load Chrome Extension
+# Go to chrome://extensions → Enable Developer Mode → Load Unpacked → select chrome-extension/
 ```
 
-## 문서
+## Key Features
+
+### Chrome Extension
+- **Element Inspector** — click any element to get React component info, file path, styles
+- **Region Capture** — drag to select a screen area for context
+- **AI Analysis** — Claude analyzes your request and proposes a step-by-step plan
+- **Plan Review** — approve, adjust, or provide structured requirements before execution
+- **PRD Ingest** — attach a PRD link for context-aware changes
+
+### Orchestrator
+- **Pipeline Engine** — setup, code, validate, screenshot, preview, review
+- **Sandboxed Execution** — Docker containers with isolated git + vite dev server
+- **AI Analysis** — Claude Sonnet generates execution plans with risk assessment
+- **Diff Viewer** — syntax-highlighted code review with approve/reject flow
+- **Live Preview** — proxied vite server with automatic auth bootstrap
+- **PR Creation** — one-click `gh pr create` from approved changes
+- **Provider Auto-detect** — Anthropic (primary), OpenAI (fallback)
+
+### Ops Hub (Dashboard)
+- **Overview** — success rate, daily requests, avg latency, error rate
+- **Request Tracking** — full request lifecycle with AI analysis, diff, screenshots
+- **Agent Performance** — per-agent metrics with stacked bar charts
+- **Settings** — server URL, connection mode, system info
+
+### Design System
+- **95 Components** — complete JSON contracts with props, tokens, accessibility
+- **Documentation Site** — Carbon-style with interactive previews, prop controls, anatomy diagrams
+- **MCP Server** — 9 tools for AI-assisted component lookup, token resolution, pattern search
+- **`llms.txt`** — AI-readable component index for LLM integrations
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Server health check |
+| `/api/request` | POST | Submit a new change request |
+| `/api/request/:id` | GET | Get request status and details |
+| `/api/requests` | GET | List all requests |
+| `/api/analyze-request` | POST | AI-powered request analysis |
+| `/api/approve/:id` | POST | Approve changes and create PR |
+| `/api/reject/:id` | POST | Reject and iterate with feedback |
+| `/api/diff-view/:id` | GET | HTML diff viewer with approve/reject |
+| `/api/screenshot/:id` | GET | Screenshot image |
+| `/api/sandboxes` | GET | List active sandboxes |
+| `/preview/:id/*` | GET | Live preview proxy with auth bypass |
+
+## Documentation
 
 - [Sandbox Architecture](./docs/SANDBOX_ARCHITECTURE.md)
-- [Bootstrap Plan](./docs/BOOTSTRAP_PLAN.md)
-- [Source Workspace Map](./docs/SOURCE_WORKSPACE_MAP.md)
-- [Initial Handoff](./docs/INITIAL_HANDOFF.md)
-- [Claude Code Handoff](./docs/CLAUDE_CODE_HANDOFF_2026-04-11.md)
-- [Product Integration Extraction Plan](./docs/PRODUCT_INTEGRATION_EXTRACTION_PLAN_2026-04-11.md)
-- [Product Adapter Contract](./docs/PRODUCT_ADAPTER_CONTRACT.md)
 - [Preview Bootstrap Contract](./docs/PREVIEW_BOOTSTRAP_CONTRACT.md)
+- [Product Adapter Contract](./docs/PRODUCT_ADAPTER_CONTRACT.md)
+- [Bootstrap Plan](./docs/BOOTSTRAP_PLAN.md)
 
-## 제안 설명용 한 문장
+## License
 
-Moloco Inspect는 PM/SA가 실제 화면을 보며 수정 요청을 만들면, 에이전트가 계획을 제안하고 코드 수정, 검증, preview, 적용까지 이어주는 로컬 product-editing agent proposal입니다.
+Internal use only — Moloco proprietary.
