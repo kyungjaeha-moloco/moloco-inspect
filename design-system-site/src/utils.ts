@@ -82,6 +82,7 @@ export function buildComponentsCatalog(
         commonlyPairedWith: component.compositions?.commonly_paired_with ?? [],
         accessibility: component.accessibility,
         usageFileCount: component.usage_stats?.file_count,
+        structure: component.structure,
       } as ComponentEntry;
     });
 

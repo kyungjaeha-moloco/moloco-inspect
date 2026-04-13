@@ -34,6 +34,14 @@ export type ComponentEntry = {
   recipeProviders?: string[];
   recipeCode?: string;
   goldenStates: Array<{ name: string; description: string }>;
+  structure?: {
+    dimensions?: Record<string, string>;
+    padding?: Record<string, string>;
+    spacing?: string;
+    border?: string;
+    background?: string;
+    notes?: string[];
+  };
 };
 
 export type ComponentCategory = {
@@ -93,6 +101,14 @@ export type LiveComponentEntry = {
   compositions?: { commonly_paired_with?: string[] };
   accessibility?: any;
   usage_stats?: { file_count?: number };
+  structure?: {
+    dimensions?: Record<string, string>;
+    padding?: Record<string, string>;
+    spacing?: string;
+    border?: string;
+    background?: string;
+    notes?: string[];
+  };
 };
 
 export type LiveComponentCategory = {

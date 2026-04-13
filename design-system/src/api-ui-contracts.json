@@ -729,6 +729,236 @@
         "pattern": "Uses <Navigate> for base route, <Outlet> for sub-routes"
       },
       "hooks": ["useCurrentUser", "useEntityParam"]
+    },
+
+    "AdAccountAndBrandManagement": {
+      "entityType": "settings",
+      "description": "Admin settings page for managing ad accounts and brands within a workplace, with tabbed sub-sections for ad account settings, ad account users, brands, and brand apps.",
+      "containers": {
+        "main": "src/apps/msm-default/container/ad-account-and-brand-management/MCAdAccountAndBrandManagementContainer.tsx",
+        "adAccount": "src/apps/msm-default/container/ad-account-and-brand-management/ad-account/",
+        "adAccountUsers": "src/apps/msm-default/container/ad-account-and-brand-management/ad-account-users/",
+        "brand": "src/apps/msm-default/container/ad-account-and-brand-management/brand/",
+        "brandApp": "src/apps/msm-default/container/ad-account-and-brand-management/brand-app/"
+      },
+      "key_components": ["MCContentLayout", "MCSettingBarTab", "Outlet", "Navigate"],
+      "data_source": {
+        "hooks": ["useEntityParam"],
+        "routing": "MERouteKey.OMS_AD_ACCOUNT_AND_BRAND_MANAGEMENT with sub-routes",
+        "defaultRedirect": "MERouteKey.OMS_AD_ACCOUNT_SETTING"
+      },
+      "routing": {
+        "base": "MERouteKey.OMS_AD_ACCOUNT_AND_BRAND_MANAGEMENT",
+        "pattern": "Uses <Navigate> for base route redirect, <Outlet> for sub-route rendering"
+      }
+    },
+
+    "CreativeReview": {
+      "entityType": "utility",
+      "description": "Workflow page for reviewing, approving, and rejecting creatives across workplaces, with tabs for order-specific and all creative reviews.",
+      "containers": {
+        "main": "src/apps/msm-default/container/creative-review/MCCreativeReviewContainer.tsx"
+      },
+      "key_components": ["MCContentLayout", "MCBarTabs", "MCCreativeReviewTable"],
+      "data_source": {
+        "hook": "useCreativeReviewsOfWorkplaces",
+        "returns": "{ query: { isFetching, error }, data: creativeWithReviews, functions: { approveCreative, rejectCreative, rollbackCreative, bulkApproveCreatives, bulkRejectCreatives } }"
+      },
+      "tabs": [
+        { "key": "order", "description": "Creatives included in orders only (filtered by referrerInfo.isUsingInOrder)" },
+        { "key": "all", "description": "All creatives across workplaces" }
+      ],
+      "actions": ["approveCreative", "rejectCreative", "rollbackCreative", "bulkApproveCreatives", "bulkRejectCreatives"],
+      "hooks": ["useCreativeReviewsOfWorkplaces", "useInAppAlert"]
+    },
+
+    "CustomTarget": {
+      "entityType": "utility",
+      "description": "Custom targeting rules management, rendered as an embedded MCP (Moloco Cloud Platform) iframe with token-based authentication and idle timeout refresh.",
+      "containers": {
+        "customTarget": "src/apps/msm-default/container/custom-target/MCCustomTargetAsMcpIframeContainer.tsx",
+        "publisherTarget": "src/apps/msm-default/container/custom-target/MCPublisherTargetAsMcpIframeContainer.tsx"
+      },
+      "key_components": ["MCContentLayout", "IdleTimerProvider", "iframe (SCMcpContentIframe)"],
+      "data_source": {
+        "type": "iframe",
+        "url": "VITE_MCP_URL + /v2/p/{workplaceId}/cm/a/{advertiserId}/assets/targets",
+        "params": ["embedded=true", "idToken={wpTokenForMcpWp}", "wpTokenForcedRefreshTimestampInMs"],
+        "authentication": "getWorkplaceToken() from useAuthContext"
+      },
+      "idleTimeout": "30 minutes — refreshes token on activity resume",
+      "hooks": ["useEntityParam", "useAuthContext"]
+    },
+
+    "CustomerSet": {
+      "entityType": "crud",
+      "description": "Customer segmentation management (user lists) with CRUD operations, supporting both publisher-level and ad-account-level customer sets with tabbed navigation.",
+      "containers": {
+        "main": "src/apps/msm-default/container/customer-set/list/MCCustomerSetMain.tsx",
+        "publisherList": "src/apps/msm-default/container/customer-set/list/MCPublisherCustomerSetListContainer.tsx",
+        "adAccountList": "src/apps/msm-default/container/customer-set/list/MCAdAccountCustomerSetListContainer.tsx",
+        "create": "src/apps/msm-default/container/customer-set/create/",
+        "detail": "src/apps/msm-default/container/customer-set/detail/",
+        "edit": "src/apps/msm-default/container/customer-set/edit/",
+        "delete": "src/apps/msm-default/container/customer-set/delete/"
+      },
+      "key_components": ["MCContentLayout", "MCCustomerSetBarTab", "MCButton2", "Outlet", "Navigate"],
+      "data_source": {
+        "hooks": ["useEntityParam"],
+        "routing": "MERouteKey.USER_LIST_MAIN with publisher and ad-account sub-routes"
+      },
+      "field_mappings": [
+        { "field": "id", "ui": "Internal identifier" },
+        { "field": "title", "ui": "List display name" },
+        { "field": "type", "ui": "Publisher vs Ad Account scope" },
+        { "field": "createdAt", "ui": "Creation timestamp" },
+        { "field": "updatedAt", "ui": "Last modification timestamp" }
+      ],
+      "routing": {
+        "base": "MERouteKey.USER_LIST_MAIN",
+        "defaultRedirect": "MERouteKey.PUBLISHER_USER_LIST_MAIN",
+        "createRoute": "MERouteKey.PUBLISHER_USER_LIST_CREATE"
+      }
+    },
+
+    "LookerDashboard": {
+      "entityType": "analytics",
+      "description": "Embedded Looker analytics dashboard with role-based views — AdOps users see a direct Looker iframe, while Media Rep users get a tabbed dashboard with sub-routes.",
+      "containers": {
+        "main": "src/apps/msm-default/container/looker-dashboard/MCLookerDashboardContainer.tsx",
+        "mediaRepBarTab": "src/apps/msm-default/container/looker-dashboard/MCMediaRepDashboardBarTab.tsx",
+        "mediaRepDashboard": "src/apps/msm-default/container/looker-dashboard/MCMediaRepDashboardContainer.tsx"
+      },
+      "key_components": ["MCContentLayout", "MCMediaRepDashboardBarTab", "iframe (SCMcpContentIframe)", "Outlet", "Navigate"],
+      "data_source": {
+        "type": "iframe",
+        "adOpsUrl": "https://moloco.looker.com/embed/dashboards/4414",
+        "mediaRepUrl": "Sub-routes via Outlet"
+      },
+      "routing": {
+        "base": "MERouteKey.OMS_LOOKER_DASHBOARD_MAIN",
+        "mediaRepRedirect": "MERouteKey.OMS_MEDIA_REP_OVERVIEW_DASHBOARD"
+      },
+      "hooks": ["useCurrentUser", "useEntityParam"]
+    },
+
+    "Publisher": {
+      "entityType": "crud",
+      "description": "Publisher management with list view (available/archived tabs), creation, and detail pages, allowing workplace operators to manage publisher entities.",
+      "containers": {
+        "list": "src/apps/msm-default/container/publisher/list/MCPublisherListContainer.tsx"
+      },
+      "key_components": ["MCContentLayout", "MCPublisherList", "MCButton2", "MCBarTabs"],
+      "data_source": {
+        "hooks": ["useEntityParam"],
+        "routing": "MERouteKey.PUBLISHER_CREATE, MERouteKey.PUBLISHER_DETAIL"
+      },
+      "tabs": [
+        { "key": "available", "description": "Active publishers" },
+        { "key": "archived", "description": "Archived publishers" }
+      ],
+      "field_mappings": [
+        { "field": "id", "ui": "Row click navigates to detail" },
+        { "field": "name", "ui": "Table column, sortable" },
+        { "field": "status", "ui": "Table column, sortable" },
+        { "field": "createdAt", "ui": "Table column, sortable" }
+      ],
+      "actions": ["create", "archive", "rowClick → detail"]
+    },
+
+    "PublisherCreativeReview": {
+      "entityType": "utility",
+      "description": "Publisher-side creative review page for reviewing video ad creatives, displaying review status, impression counts, and video asset details. Currently uses mock data (TODO: integrate real API).",
+      "containers": {
+        "main": "src/apps/msm-default/container/publisher-creative-review/MCPublisherCreativeReviewContainer.tsx"
+      },
+      "key_components": ["MCContentLayout", "MCPublisherCreativeReviewTable"],
+      "data_source": {
+        "hook": "MOCK_REVIEWS (static mock data — real hook TBD)",
+        "model": "PublisherCreativeReview",
+        "proto": "MEPublisherCreativeReviewStatus from @msm-portal/common/api/msm/proto/publisher-creative-review"
+      },
+      "field_mappings": [
+        { "field": "id", "ui": "Review identifier" },
+        { "field": "creativeId", "ui": "Associated creative ID" },
+        { "field": "adAccountTitle", "ui": "Ad account display name" },
+        { "field": "productTitle", "ui": "App/brand name" },
+        { "field": "reviewInfo.status", "ui": "APPROVED | DISAPPROVED badge" },
+        { "field": "videoAsset", "ui": "Video preview (url, dimensions, duration, size)" },
+        { "field": "impressionCount", "ui": "Impression count display" },
+        { "field": "clickThroughUrls", "ui": "Landing page URLs" }
+      ]
+    },
+
+    "TrackingLink": {
+      "entityType": "crud",
+      "description": "Tracking URL management with full CRUD operations, advertiser-scoped filtering, verification status tracking, and test history — used for attribution and conversion tracking.",
+      "containers": {
+        "list": "src/apps/msm-default/container/tracking-link/list/MCTrackingLinkListContainer.tsx",
+        "create": "src/apps/msm-default/container/tracking-link/create/",
+        "detail": "src/apps/msm-default/container/tracking-link/detail/",
+        "edit": "src/apps/msm-default/container/tracking-link/edit/",
+        "testHistory": "src/apps/msm-default/container/tracking-link/test-history/"
+      },
+      "key_components": ["MCContentLayout", "MCI18nTable", "MCTableActionBar", "MCAdvertiserSelector", "MCButton2"],
+      "data_source": {
+        "hooks": ["useTrackingLinks", "useDeleteTrackingLink", "useBrands", "useCurrentUser"],
+        "model": "TrackingLink",
+        "searchableFields": ["title", "id"]
+      },
+      "field_mappings": [
+        { "field": "id", "ui": "Searchable, subtitle display via getTitleWithSubTitleRenderer" },
+        { "field": "title", "ui": "Searchable, title column" },
+        { "field": "verificationStatus", "ui": "Status badge via getTrackingLinkVerificationStatusLabelMap" },
+        { "field": "advertiserId", "ui": "Advertiser selector filter (AdOps mode)" },
+        { "field": "createdAt", "ui": "Creation date column" }
+      ],
+      "tableFilters": ["INEXCLUDE_TEXT (title)", "INCLUDE_CHECKBOX (status, advertiser)"],
+      "actions": ["create", "edit", "delete", "testHistory"],
+      "hooks": ["useTrackingLinks", "useDeleteTrackingLink", "useBrands", "useCurrentUser", "useEntityParam", "useInAppAlert"]
+    },
+
+    "WorkplacePresets": {
+      "entityType": "settings",
+      "description": "Workspace configuration presets management with tabbed sections for key-value pairs, advertisers, custom presets, and other settings — configures default values and options for the workplace.",
+      "containers": {
+        "main": "src/apps/msm-default/container/workplace-presets/MCWorkplacePresetsContainer.tsx",
+        "kvp": "src/apps/msm-default/container/workplace-presets/MCWorkplaceKeyValuePairsPresetContainer.tsx",
+        "advertisers": "src/apps/msm-default/container/workplace-presets/MCWorkplaceAdvertisersPresetContainer.tsx",
+        "custom": "src/apps/msm-default/container/workplace-presets/MCWorkplaceCustomPresetsContainer.tsx",
+        "other": "src/apps/msm-default/container/workplace-presets/MCWorkplaceOtherPresetContainer.tsx",
+        "mcpIframe": "src/apps/msm-default/container/workplace-presets/MCWorkplacePresetsAsMcpIframeContainer.tsx"
+      },
+      "key_components": ["MCContentLayout", "MCSettingBarTab", "Outlet", "Navigate"],
+      "data_source": {
+        "hooks": ["useEntityParam"],
+        "routing": "MERouteKey.OMS_WORKPLACE_PRESETS with sub-routes for each preset type"
+      },
+      "routing": {
+        "base": "MERouteKey.OMS_WORKPLACE_PRESETS",
+        "defaultRedirect": "MERouteKey.OMS_WORKPLACE_PRESETS_KVP",
+        "pattern": "Uses <Navigate> for base route redirect, <Outlet> for sub-route rendering"
+      }
+    },
+
+    "WorkplaceSetting": {
+      "entityType": "settings",
+      "description": "Workspace-level settings management with tabbed sections for workplace user management and API access configuration.",
+      "containers": {
+        "main": "src/apps/msm-default/container/workplace-setting/MCWorkplaceSettingContainer.tsx",
+        "users": "src/apps/msm-default/container/workplace-setting/workplace-users/",
+        "apiAccess": "src/apps/msm-default/container/workplace-setting/workplace-api-access/"
+      },
+      "key_components": ["MCContentLayout", "MCSettingBarTab", "Outlet", "Navigate"],
+      "data_source": {
+        "hooks": ["useEntityParam"],
+        "routing": "MERouteKey.OMS_WORKPLACE_SETTING with sub-routes"
+      },
+      "routing": {
+        "base": "MERouteKey.OMS_WORKPLACE_SETTING",
+        "defaultRedirect": "MERouteKey.OMS_WORKPLACE_SETTING_USER",
+        "pattern": "Uses <Navigate> for base route redirect, <Outlet> for sub-route rendering"
+      }
     }
   },
 

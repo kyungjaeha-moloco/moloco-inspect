@@ -163,7 +163,7 @@ function goldenStateDotColor(stateName: string): string {
 
 /* ---- Tabs ---- */
 
-const TABS = ['Usage', 'Code', 'States', 'Behavior', 'Accessibility', 'Notes'] as const;
+const TABS = ['Usage', 'Code', 'Style', 'States', 'Behavior', 'Accessibility', 'Notes'] as const;
 type Tab = (typeof TABS)[number];
 
 export function ComponentDetailPage({ catalog, stateMachines, behaviors }: Props) {
@@ -243,6 +243,7 @@ export function ComponentDetailPage({ catalog, stateMachines, behaviors }: Props
       {/* Tab content */}
       {activeTab === 'Usage' && <UsageTab comp={comp} />}
       {activeTab === 'Code' && <CodeTab comp={comp} />}
+      {activeTab === 'Style' && <StyleTab comp={comp} />}
       {activeTab === 'States' && <StatesTab comp={comp} smData={smData} />}
       {activeTab === 'Behavior' && <BehaviorTab data={behaviorData} />}
       {activeTab === 'Accessibility' && <AccessibilityTab comp={comp} />}
@@ -397,6 +398,121 @@ function CodeTab({ comp }: { comp: ComponentEntry }) {
 
       {!comp.example && !comp.recipeCode && (
         <div className="empty-state">No code examples available for this component.</div>
+      )}
+    </>
+  );
+}
+
+/* ========== Style Tab ========== */
+
+function StyleTab({ comp }: { comp: ComponentEntry }) {
+  if (!comp.structure) {
+    return <div className="empty-state">No style specifications available for this component.</div>;
+  }
+
+  const { dimensions, padding, spacing, border, background, notes } = comp.structure;
+
+  const hasRecordSections = (dimensions && Object.keys(dimensions).length > 0) || (padding && Object.keys(padding).length > 0);
+  const hasStringSections = spacing || border || background;
+
+  return (
+    <>
+      {dimensions && Object.keys(dimensions).length > 0 && (
+        <div className="section">
+          <div className="section-header">
+            <h2 className="section-title">Dimensions</h2>
+          </div>
+          <table className="props-table">
+            <thead>
+              <tr>
+                <th>Property</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(dimensions).map(([prop, value]) => (
+                <tr key={prop}>
+                  <td><code>{prop}</code></td>
+                  <td><code>{value}</code></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {padding && Object.keys(padding).length > 0 && (
+        <div className="section">
+          <div className="section-header">
+            <h2 className="section-title">Padding</h2>
+          </div>
+          <table className="props-table">
+            <thead>
+              <tr>
+                <th>Property</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(padding).map(([prop, value]) => (
+                <tr key={prop}>
+                  <td><code>{prop}</code></td>
+                  <td><code>{value}</code></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {spacing && (
+        <div className="section">
+          <div className="section-header">
+            <h2 className="section-title">Spacing</h2>
+          </div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
+            <code>{spacing}</code>
+          </div>
+        </div>
+      )}
+
+      {border && (
+        <div className="section">
+          <div className="section-header">
+            <h2 className="section-title">Border</h2>
+          </div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
+            <code>{border}</code>
+          </div>
+        </div>
+      )}
+
+      {background && (
+        <div className="section">
+          <div className="section-header">
+            <h2 className="section-title">Background</h2>
+          </div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
+            <code>{background}</code>
+          </div>
+        </div>
+      )}
+
+      {notes && notes.length > 0 && (
+        <div className="section">
+          <div className="section-header">
+            <h2 className="section-title">Layout Notes</h2>
+          </div>
+          <ul style={{ paddingLeft: 20, color: 'var(--text-secondary)' }}>
+            {notes.map((note, i) => (
+              <li key={i} style={{ marginBottom: 4 }}>{note}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {!hasRecordSections && !hasStringSections && (
+        <div className="empty-state">No dimensional specifications available.</div>
       )}
     </>
   );
