@@ -4,7 +4,7 @@
     "description": "Agent loading guide for the MSM Portal Design System. Tells AI agents which files and sections to read for each task type.",
     "version": "1.0.0",
     "lastUpdated": "2026-04-11",
-    "totalFiles": 11
+    "totalFiles": 13
   },
 
   "files": {
@@ -67,6 +67,20 @@
       "size_hint": "small",
       "sections": ["components"],
       "agent_value": "Defines what good looks like for major components. Helps both humans and agents review default, error, disabled, loading, and active states consistently."
+    },
+    "architecture.md": {
+      "description": "Component architecture: 3-layer structure (Library → Wrapper → App), Formik wrapping pattern, Provider stack, getTheme() utility, MEFormFieldWidth enum, MCFormLayout anatomy.",
+      "size_hint": "medium",
+      "location": "../docs/architecture.md",
+      "sections": ["Layer 구조", "Layer 1 — React Library", "Layer 2 — Portal Wrapper 패턴", "Provider Stack", "주의사항"],
+      "agent_value": "Essential context for understanding where components live. Prevents using Layer 1 primitives directly in forms (must use Layer 2 wrappers). Documents the onChange signature difference (event vs value) that causes runtime errors."
+    },
+    "migration-status.md": {
+      "description": "Component migration status: MCButton→MCButton2 transition (88% done, 15 files remaining), deprecated component conversion (MCModal 18 files remaining), brand color correction (#346bea not #6360DC).",
+      "size_hint": "small",
+      "location": "../docs/migration-status.md",
+      "sections": ["MCButton → MCButton2 전환", "Deprecated 컴포넌트 전환", "Brand Color 정정", "DS 문서 보완 목록"],
+      "agent_value": "Prevents using deprecated components in new code. When generating button code, always use MCButton2 (variant=basic, color=error) not MCButton (variant=contained, color=danger)."
     },
     "ux-writing.json": {
       "description": "UX writing guidance for labels, placeholders, dialogs, errors, empty states, and toasts. Includes tone rules, examples, and machine-readable checks for wording consistency.",
@@ -285,7 +299,7 @@
       "non_formik_text": { "component": "MCSingleTextInput (not MCFormTextInput)", "ref": "components.json#Form Inputs (v1)#do_not_use" }
     },
     "user_action": {
-      "primary_submit": { "component": "MCButton2 variant=contained type=submit", "ref": "components.json#Buttons" },
+      "primary_submit": { "component": "MCButton2 variant=basic type=submit", "ref": "components.json#Buttons" },
       "secondary_cancel": { "component": "MCButton2 (default variant)", "ref": "components.json#Buttons" },
       "destructive_delete": { "component": "MCButton2 + MCCommonDialog", "pattern": "patterns.json#delete-confirm-dialog" },
       "row_level_actions": { "component": "MCMoreActionsButton", "pattern": "patterns.json#action-button" },
