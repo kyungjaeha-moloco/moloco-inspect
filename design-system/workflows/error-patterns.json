@@ -209,7 +209,7 @@
       "error": "Submit button not disabled during form submission",
       "cause": "Form submit button does not have disabled={isSubmitting}, allowing double submission",
       "detection": "MCButton2 with type=\"submit\" but no disabled={isSubmitting}",
-      "fix": "Add disabled={isSubmitting} to the submit button: <MCButton2 variant=\"contained\" type=\"submit\" disabled={isSubmitting}>",
+      "fix": "Add disabled={isSubmitting} to the submit button: <MCButton2 variant=\"basic\" type=\"submit\" disabled={isSubmitting}>",
       "severity": "error",
       "category": "runtime",
       "validation_ref": "state-submit-disabled"

@@ -197,8 +197,8 @@
           "detection": "Submit MCButton2 without disabled={isSubmitting}",
           "fix": "Add disabled={isSubmitting} to the submit button to prevent double submission.",
           "example": {
-            "before": "<MCButton2 variant=\"contained\" type=\"submit\">",
-            "after": "<MCButton2 variant=\"contained\" type=\"submit\" disabled={isSubmitting}>"
+            "before": "<MCButton2 variant=\"basic\" type=\"submit\">",
+            "after": "<MCButton2 variant=\"basic\" type=\"submit\" disabled={isSubmitting}>"
           }
         },
         "missing-success-feedback": {

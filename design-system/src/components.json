@@ -53,9 +53,9 @@
             "Readonly text display within a form context"
           ],
           "do_not_use": [
-            "Outside <Formik> context \u2014 use MCSingleTextInput instead",
-            "For multi-line text \u2014 use MCFormTextArea",
-            "For numeric input \u2014 use MCFormNumberInput"
+            "Outside <Formik> context — use MCSingleTextInput instead",
+            "For multi-line text — use MCFormTextArea",
+            "For numeric input — use MCFormNumberInput"
           ],
           "antiPatterns": [
             {
@@ -175,20 +175,20 @@
           "semantic_actions": [
             {
               "action": "User types text into the input",
-              "triggers": "onChange \u2192 formik.handleChange(name)"
+              "triggers": "onChange → formik.handleChange(name)"
             },
             {
               "action": "User leaves the field triggering validation",
-              "triggers": "onBlur \u2192 formik.handleBlur(name) \u2192 Yup validation \u2192 error display"
+              "triggers": "onBlur → formik.handleBlur(name) → Yup validation → error display"
             },
             {
               "action": "User clears the input via form reset",
-              "triggers": "resetForm() \u2192 formik.values[name] = ''"
+              "triggers": "resetForm() → formik.values[name] = ''"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 string value from Formik context",
-            "output": "formik.handleChange \u2014 updates Formik field value; optional onChange prop callback",
+            "input": "formik.values[name] — string value from Formik context",
+            "output": "formik.handleChange — updates Formik field value; optional onChange prop callback",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -202,7 +202,7 @@
               "Type: Edit text value",
               "Shift+Tab: Move focus to previous element"
             ],
-            "screenReaderAnnouncement": "Announces: {fieldLabel}, edit text. Error linked via aria-describedby \u2014 screen reader announces error inline.",
+            "screenReaderAnnouncement": "Announces: {fieldLabel}, edit text. Error linked via aria-describedby — screen reader announces error inline.",
             "notes": [
               "Error message rendered by MCFormFieldError is linked via aria-describedby automatically",
               "readonly mode renders MCTextEllipsis which should carry aria-readonly=true"
@@ -246,8 +246,8 @@
             "Use tooltip for additional context on info icon"
           ],
           "donts": [
-            "Don't hardcode placeholder text \u2014 use i18n",
-            "Don't use MCSingleTextInput directly in forms \u2014 use this wrapper",
+            "Don't hardcode placeholder text — use i18n",
+            "Don't use MCSingleTextInput directly in forms — use this wrapper",
             "Don't set required=true without Yup validation schema"
           ],
           "example": "import MCFormTextInput from '@msm-portal/common/component/form/v1/input/MCFormTextInput';\n\n<MCFormTextInput\n  name=\"title\"\n  fieldLabel=\"Campaign Title\"\n  required\n  tooltip=\"Max 100 characters\"\n  hint=\"Used as the display name\"\n/>",
@@ -292,9 +292,9 @@
             "Text fields requiring more than one line of input"
           ],
           "do_not_use": [
-            "Outside <Formik> context \u2014 use MCSingleTextArea instead",
-            "For single-line inputs \u2014 use MCFormTextInput",
-            "For rich text editing \u2014 this is plain text only"
+            "Outside <Formik> context — use MCSingleTextArea instead",
+            "For single-line inputs — use MCFormTextInput",
+            "For rich text editing — this is plain text only"
           ],
           "antiPatterns": [
             {
@@ -362,20 +362,20 @@
           "semantic_actions": [
             {
               "action": "User types multi-line text into the textarea",
-              "triggers": "onChange \u2192 formik.handleChange(name)"
+              "triggers": "onChange → formik.handleChange(name)"
             },
             {
               "action": "User leaves the field triggering validation",
-              "triggers": "onBlur \u2192 formik.handleBlur(name) \u2192 Yup validation \u2192 error display"
+              "triggers": "onBlur → formik.handleBlur(name) → Yup validation → error display"
             },
             {
               "action": "User clears the textarea via form reset",
-              "triggers": "resetForm() \u2192 formik.values[name] = ''"
+              "triggers": "resetForm() → formik.values[name] = ''"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 string value from Formik context",
-            "output": "formik.handleChange \u2014 updates Formik field value",
+            "input": "formik.values[name] — string value from Formik context",
+            "output": "formik.handleChange — updates Formik field value",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -421,7 +421,7 @@
             "Set rows prop for initial height"
           ],
           "donts": [
-            "Don't use for single-line inputs \u2014 use MCFormTextInput"
+            "Don't use for single-line inputs — use MCFormTextInput"
           ],
           "example": "<MCFormTextArea name=\"description\" fieldLabel=\"Description\" required />",
           "tier": 1
@@ -446,8 +446,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For phone numbers or zip codes \u2014 use MCFormTextInput (these are string-formatted)",
-            "For frequency caps with optional toggle \u2014 use MCFormOptionalFrequencyInput"
+            "For phone numbers or zip codes — use MCFormTextInput (these are string-formatted)",
+            "For frequency caps with optional toggle — use MCFormOptionalFrequencyInput"
           ],
           "antiPatterns": [
             {
@@ -507,20 +507,20 @@
           "semantic_actions": [
             {
               "action": "User types a numeric value",
-              "triggers": "onChange \u2192 parseFloat \u2192 formik.handleChange(name)"
+              "triggers": "onChange → parseFloat → formik.handleChange(name)"
             },
             {
               "action": "User leaves the field triggering validation",
-              "triggers": "onBlur \u2192 formik.handleBlur(name) \u2192 Yup validation \u2192 error display"
+              "triggers": "onBlur → formik.handleBlur(name) → Yup validation → error display"
             },
             {
               "action": "User clears the input via form reset",
-              "triggers": "resetForm() \u2192 formik.values[name] = undefined"
+              "triggers": "resetForm() → formik.values[name] = undefined"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 number value from Formik context",
-            "output": "formik.handleChange \u2014 updates Formik field value as number; optional onChange prop callback",
+            "input": "formik.values[name] — number value from Formik context",
+            "output": "formik.handleChange — updates Formik field value as number; optional onChange prop callback",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -565,7 +565,7 @@
             "Use for numeric values (budget, count, percentage)"
           ],
           "donts": [
-            "Don't use for phone numbers or zip codes \u2014 use MCFormTextInput"
+            "Don't use for phone numbers or zip codes — use MCFormTextInput"
           ],
           "example": "<MCFormNumberInput name=\"budget\" fieldLabel=\"Daily Budget\" required />",
           "tier": 1
@@ -590,8 +590,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For mutually exclusive options \u2014 use MCFormRadioGroup",
-            "For immediate toggle actions \u2014 use MCFormSwitchInput"
+            "For mutually exclusive options — use MCFormRadioGroup",
+            "For immediate toggle actions — use MCFormSwitchInput"
           ],
           "antiPatterns": [
             {
@@ -659,20 +659,20 @@
           "semantic_actions": [
             {
               "action": "User clicks or presses Space to toggle checkbox",
-              "triggers": "onChange \u2192 formik.setFieldValue(name, !currentValue)"
+              "triggers": "onChange → formik.setFieldValue(name, !currentValue)"
             },
             {
               "action": "User leaves the field triggering validation",
-              "triggers": "onBlur \u2192 formik.handleBlur(name) \u2192 Yup validation \u2192 error display"
+              "triggers": "onBlur → formik.handleBlur(name) → Yup validation → error display"
             },
             {
               "action": "User clears the form resetting checkbox",
-              "triggers": "resetForm() \u2192 formik.values[name] = false"
+              "triggers": "resetForm() → formik.values[name] = false"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 boolean value from Formik context",
-            "output": "formik.setFieldValue \u2014 updates Formik field boolean value",
+            "input": "formik.values[name] — boolean value from Formik context",
+            "output": "formik.setFieldValue — updates Formik field boolean value",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -714,7 +714,7 @@
             "screenReaderAnnouncement": "Announces: {fieldLabel}, checkbox, checked/unchecked. State change announced immediately on Space.",
             "notes": [
               "Error state should be linked via aria-describedby",
-              "Do not use for mutually exclusive options \u2014 role=radio is more appropriate"
+              "Do not use for mutually exclusive options — role=radio is more appropriate"
             ]
           },
           "dos": [
@@ -722,7 +722,7 @@
             "Use for multi-select from a small set"
           ],
           "donts": [
-            "Don't use for mutually exclusive options \u2014 use MCFormRadioGroup"
+            "Don't use for mutually exclusive options — use MCFormRadioGroup"
           ],
           "example": "<MCFormCheckBox name=\"agreeToTerms\" fieldLabel=\"I agree to terms\" required />",
           "tier": 1
@@ -746,8 +746,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "Inside form submission flows where checked state matters \u2014 use MCFormCheckBox instead",
-            "For multi-option selection \u2014 use MCFormCheckBox or MCFormMultiRichSelect"
+            "Inside form submission flows where checked state matters — use MCFormCheckBox instead",
+            "For multi-option selection — use MCFormCheckBox or MCFormMultiRichSelect"
           ],
           "antiPatterns": [
             {
@@ -793,16 +793,16 @@
           "semantic_actions": [
             {
               "action": "User clicks or presses Space to toggle switch on/off",
-              "triggers": "onChange \u2192 formik.setFieldValue(name, !currentValue)"
+              "triggers": "onChange → formik.setFieldValue(name, !currentValue)"
             },
             {
               "action": "User clears the form resetting switch state",
-              "triggers": "resetForm() \u2192 formik.values[name] = false"
+              "triggers": "resetForm() → formik.values[name] = false"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 boolean value from Formik context",
-            "output": "formik.setFieldValue \u2014 updates Formik field boolean value",
+            "input": "formik.values[name] — boolean value from Formik context",
+            "output": "formik.setFieldValue — updates Formik field boolean value",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -840,14 +840,14 @@
             "screenReaderAnnouncement": "Announces: {fieldLabel}, switch, on/off. State change announced immediately on Space.",
             "notes": [
               "aria-checked=true when on, aria-checked=false when off",
-              "Distinct from checkbox role \u2014 use switch for immediate binary state changes"
+              "Distinct from checkbox role — use switch for immediate binary state changes"
             ]
           },
           "dos": [
             "Use for immediate toggle actions (enable/disable feature)"
           ],
           "donts": [
-            "Don't use inside form submission flow \u2014 use MCFormCheckBox instead"
+            "Don't use inside form submission flow — use MCFormCheckBox instead"
           ],
           "example": "<MCFormSwitchInput name=\"isEnabled\" fieldLabel=\"Enable feature\" />",
           "tier": 1
@@ -872,8 +872,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For more than 5 options \u2014 use MCFormSingleRichSelect",
-            "For non-exclusive choices \u2014 use MCFormCheckBox"
+            "For more than 5 options — use MCFormSingleRichSelect",
+            "For non-exclusive choices — use MCFormCheckBox"
           ],
           "antiPatterns": [
             {
@@ -943,20 +943,20 @@
           "semantic_actions": [
             {
               "action": "User selects a radio option by click or Space/Arrow key",
-              "triggers": "onChange \u2192 formik.setFieldValue(name, value)"
+              "triggers": "onChange → formik.setFieldValue(name, value)"
             },
             {
               "action": "User leaves the group triggering validation",
-              "triggers": "onBlur \u2192 formik.handleBlur(name) \u2192 Yup validation \u2192 error display"
+              "triggers": "onBlur → formik.handleBlur(name) → Yup validation → error display"
             },
             {
               "action": "User clears the form resetting selection",
-              "triggers": "resetForm() \u2192 formik.values[name] = ''"
+              "triggers": "resetForm() → formik.values[name] = ''"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 string value from Formik context",
-            "output": "formik.setFieldValue \u2014 updates Formik field with selected option value; optional onChange prop callback",
+            "input": "formik.values[name] — string value from Formik context",
+            "output": "formik.setFieldValue — updates Formik field with selected option value; optional onChange prop callback",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -1008,8 +1008,8 @@
             "Use for mutually exclusive choices from 2-5 options"
           ],
           "donts": [
-            "Don't use for more than 5 options \u2014 use MCFormSingleRichSelect",
-            "Don't use for non-exclusive choices \u2014 use MCFormCheckBox"
+            "Don't use for more than 5 options — use MCFormSingleRichSelect",
+            "Don't use for non-exclusive choices — use MCFormCheckBox"
           ],
           "example": "<MCFormRadioGroup\n  name=\"paymentType\"\n  fieldLabel=\"Payment Type\"\n  direction=\"row\"\n  options={[\n    { label: 'CPC', value: 'cpc' },\n    { label: 'CPM', value: 'cpm' },\n  ]}\n/>",
           "tier": 1
@@ -1034,8 +1034,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For 2-3 options \u2014 use MCFormRadioGroup for better visibility",
-            "For multiple selection \u2014 use MCFormMultiRichSelect"
+            "For 2-3 options — use MCFormRadioGroup for better visibility",
+            "For multiple selection — use MCFormMultiRichSelect"
           ],
           "antiPatterns": [
             {
@@ -1076,7 +1076,7 @@
             ]
           },
           "formikRequired": true,
-          "generic": "T \u2014 the value type",
+          "generic": "T — the value type",
           "props": [
             {
               "name": "name",
@@ -1118,24 +1118,24 @@
           "semantic_actions": [
             {
               "action": "User opens the dropdown by clicking or pressing Enter/Space",
-              "triggers": "onClick/onKeyDown \u2192 dropdown open state = true"
+              "triggers": "onClick/onKeyDown → dropdown open state = true"
             },
             {
               "action": "User selects an option from the dropdown",
-              "triggers": "onSelect \u2192 formik.setFieldValue(name, value); optional onChange callback"
+              "triggers": "onSelect → formik.setFieldValue(name, value); optional onChange callback"
             },
             {
               "action": "User clears the selection",
-              "triggers": "onClear \u2192 formik.setFieldValue(name, null/undefined)"
+              "triggers": "onClear → formik.setFieldValue(name, null/undefined)"
             },
             {
               "action": "User dismisses the dropdown without selecting",
-              "triggers": "onBlur/Escape \u2192 dropdown open state = false"
+              "triggers": "onBlur/Escape → dropdown open state = false"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 T value from Formik context; options array from props",
-            "output": "formik.setFieldValue \u2014 updates Formik field with selected option value T; optional onChange prop callback",
+            "input": "formik.values[name] — T value from Formik context; options array from props",
+            "output": "formik.setFieldValue — updates Formik field with selected option value T; optional onChange prop callback",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -1188,7 +1188,7 @@
             "Provide clear option labels"
           ],
           "donts": [
-            "Don't use for 2-3 options \u2014 use MCFormRadioGroup"
+            "Don't use for 2-3 options — use MCFormRadioGroup"
           ],
           "example": "<MCFormSingleRichSelect<string>\n  name=\"status\"\n  fieldLabel=\"Status\"\n  required\n  options={statusOptions}\n/>",
           "tier": 1
@@ -1213,8 +1213,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For single selection \u2014 use MCFormSingleRichSelect",
-            "For inline chip display with fewer options \u2014 use MCFormInlineChipRichSelect"
+            "For single selection — use MCFormSingleRichSelect",
+            "For inline chip display with fewer options — use MCFormInlineChipRichSelect"
           ],
           "antiPatterns": [
             {
@@ -1245,7 +1245,7 @@
             ]
           },
           "formikRequired": true,
-          "generic": "T \u2014 the value type",
+          "generic": "T — the value type",
           "props": [
             {
               "name": "name",
@@ -1275,24 +1275,24 @@
           "semantic_actions": [
             {
               "action": "User opens the dropdown by clicking or pressing Enter/Space",
-              "triggers": "onClick/onKeyDown \u2192 dropdown open state = true"
+              "triggers": "onClick/onKeyDown → dropdown open state = true"
             },
             {
               "action": "User selects or deselects an option",
-              "triggers": "onToggle \u2192 formik.setFieldValue(name, updatedArray); optional onChange callback"
+              "triggers": "onToggle → formik.setFieldValue(name, updatedArray); optional onChange callback"
             },
             {
               "action": "User clears all selections",
-              "triggers": "onClear \u2192 formik.setFieldValue(name, [])"
+              "triggers": "onClear → formik.setFieldValue(name, [])"
             },
             {
               "action": "User dismisses the dropdown without selecting",
-              "triggers": "onBlur/Escape \u2192 dropdown open state = false"
+              "triggers": "onBlur/Escape → dropdown open state = false"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 T[] array from Formik context; options array from props",
-            "output": "formik.setFieldValue \u2014 updates Formik field with selected values array T[]; optional onChange prop callback",
+            "input": "formik.values[name] — T[] array from Formik context; options array from props",
+            "output": "formik.setFieldValue — updates Formik field with selected values array T[]; optional onChange prop callback",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -1344,7 +1344,7 @@
             "Use for multiple selection from a large set"
           ],
           "donts": [
-            "Don't use for single selection \u2014 use MCFormSingleRichSelect"
+            "Don't use for single selection — use MCFormSingleRichSelect"
           ],
           "example": "<MCFormMultiRichSelect<string>\n  name=\"tags\"\n  fieldLabel=\"Tags\"\n  options={tagOptions}\n/>",
           "tier": 1
@@ -1370,8 +1370,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For simple text-only options \u2014 use MCFormRadioGroup",
-            "For more than 6 options \u2014 use MCFormSingleRichSelect dropdown"
+            "For simple text-only options — use MCFormRadioGroup",
+            "For more than 6 options — use MCFormSingleRichSelect dropdown"
           ],
           "antiPatterns": [
             {
@@ -1424,20 +1424,20 @@
           "semantic_actions": [
             {
               "action": "User clicks or presses Enter/Space to select a card",
-              "triggers": "onChange \u2192 formik.setFieldValue(name, value)"
+              "triggers": "onChange → formik.setFieldValue(name, value)"
             },
             {
               "action": "User navigates between cards with Arrow keys",
-              "triggers": "onKeyDown Arrow \u2192 focus moves to next/previous card"
+              "triggers": "onKeyDown Arrow → focus moves to next/previous card"
             },
             {
               "action": "User clears the form resetting selection",
-              "triggers": "resetForm() \u2192 formik.values[name] = ''"
+              "triggers": "resetForm() → formik.values[name] = ''"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 string value from Formik context; options array from props",
-            "output": "formik.setFieldValue \u2014 updates Formik field with selected card value",
+            "input": "formik.values[name] — string value from Formik context; options array from props",
+            "output": "formik.setFieldValue — updates Formik field with selected card value",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -1479,7 +1479,7 @@
             "Use for visual selection with descriptions (plan type, template selection)"
           ],
           "donts": [
-            "Don't use for simple text-only options \u2014 use MCFormRadioGroup"
+            "Don't use for simple text-only options — use MCFormRadioGroup"
           ],
           "example": "<MCFormCardSelect\n  name=\"planType\"\n  fieldLabel=\"Plan Type\"\n  options={[\n    { label: 'Basic', value: 'basic', description: 'Entry level plan' },\n  ]}\n/>",
           "tier": 1
@@ -1504,8 +1504,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For single selection \u2014 use MCFormSingleRichSelect",
-            "For more than 10 options \u2014 use MCFormMultiRichSelect with dropdown"
+            "For single selection — use MCFormSingleRichSelect",
+            "For more than 10 options — use MCFormMultiRichSelect with dropdown"
           ],
           "antiPatterns": [
             {
@@ -1536,7 +1536,7 @@
             ]
           },
           "formikRequired": true,
-          "generic": "T \u2014 the value type",
+          "generic": "T — the value type",
           "props": [
             {
               "name": "name",
@@ -1578,20 +1578,20 @@
           "semantic_actions": [
             {
               "action": "User selects an option from the list, adding it as a chip",
-              "triggers": "onSelect \u2192 formik.setFieldValue(name, [...current, value]); optional onChange callback"
+              "triggers": "onSelect → formik.setFieldValue(name, [...current, value]); optional onChange callback"
             },
             {
               "action": "User removes a chip by clicking its remove button or pressing Delete/Backspace",
-              "triggers": "onRemove \u2192 formik.setFieldValue(name, current.filter(v => v !== value))"
+              "triggers": "onRemove → formik.setFieldValue(name, current.filter(v => v !== value))"
             },
             {
               "action": "User clears all chips via form reset",
-              "triggers": "resetForm() \u2192 formik.values[name] = []"
+              "triggers": "resetForm() → formik.values[name] = []"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 T[] array from Formik context; options array from props",
-            "output": "formik.setFieldValue \u2014 updates Formik field with updated values array T[]; optional onChange prop callback",
+            "input": "formik.values[name] — T[] array from Formik context; options array from props",
+            "output": "formik.setFieldValue — updates Formik field with updated values array T[]; optional onChange prop callback",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -1641,8 +1641,8 @@
             "Use when space is limited and a dropdown would be too heavy"
           ],
           "donts": [
-            "Don't use for single selection \u2014 use MCFormSingleRichSelect",
-            "Don't use if more than 10 options \u2014 use MCFormMultiRichSelect with dropdown"
+            "Don't use for single selection — use MCFormSingleRichSelect",
+            "Don't use if more than 10 options — use MCFormMultiRichSelect with dropdown"
           ],
           "example": "<MCFormInlineChipRichSelect<string>\n  name=\"targetCountries\"\n  fieldLabel=\"Target Countries\"\n  required\n  options={countryOptions}\n/>",
           "tier": 1
@@ -1667,8 +1667,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For date + time ranges \u2014 use MCFormDateTimeRangePicker",
-            "For single date selection \u2014 check if a single date picker exists"
+            "For date + time ranges — use MCFormDateTimeRangePicker",
+            "For single date selection — check if a single date picker exists"
           ],
           "antiPatterns": [
             {
@@ -1728,24 +1728,24 @@
           "semantic_actions": [
             {
               "action": "User opens the calendar popup by clicking the date input",
-              "triggers": "onClick \u2192 calendar popup open state = true"
+              "triggers": "onClick → calendar popup open state = true"
             },
             {
               "action": "User selects a start date from the calendar",
-              "triggers": "onStartDateSelect \u2192 formik.setFieldValue(name, { ...current, start: date })"
+              "triggers": "onStartDateSelect → formik.setFieldValue(name, { ...current, start: date })"
             },
             {
               "action": "User selects an end date from the calendar",
-              "triggers": "onEndDateSelect \u2192 formik.setFieldValue(name, { ...current, end: date })"
+              "triggers": "onEndDateSelect → formik.setFieldValue(name, { ...current, end: date })"
             },
             {
               "action": "User dismisses the calendar without selecting",
-              "triggers": "Escape/onBlur \u2192 calendar popup open state = false"
+              "triggers": "Escape/onBlur → calendar popup open state = false"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 { start: Date, end: Date } object from Formik context",
-            "output": "formik.setFieldValue \u2014 updates Formik field with selected date range object",
+            "input": "formik.values[name] — { start: Date, end: Date } object from Formik context",
+            "output": "formik.setFieldValue — updates Formik field with selected date range object",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -1792,7 +1792,7 @@
             "Use for date range selection (campaign periods, report ranges)"
           ],
           "donts": [
-            "Don't use for single date \u2014 check if single date picker exists"
+            "Don't use for single date — check if single date picker exists"
           ],
           "example": "<MCFormDateRangePicker name=\"campaignPeriod\" fieldLabel=\"Campaign Period\" required />",
           "tier": 1
@@ -1817,8 +1817,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For date-only ranges \u2014 use MCFormDateRangePicker",
-            "For single datetime selection \u2014 check if a single datetime picker exists"
+            "For date-only ranges — use MCFormDateRangePicker",
+            "For single datetime selection — check if a single datetime picker exists"
           ],
           "antiPatterns": [
             {
@@ -1886,24 +1886,24 @@
           "semantic_actions": [
             {
               "action": "User opens the date picker popup for start or end date",
-              "triggers": "onClick \u2192 calendar popup open state = true"
+              "triggers": "onClick → calendar popup open state = true"
             },
             {
               "action": "User selects a start or end date from the calendar",
-              "triggers": "onDateSelect \u2192 formik.setFieldValue(name, { ...current, startDate/endDate: date })"
+              "triggers": "onDateSelect → formik.setFieldValue(name, { ...current, startDate/endDate: date })"
             },
             {
               "action": "User selects a start or end time",
-              "triggers": "onTimeSelect \u2192 formik.setFieldValue(name, { ...current, startTime/endTime: time })"
+              "triggers": "onTimeSelect → formik.setFieldValue(name, { ...current, startTime/endTime: time })"
             },
             {
               "action": "User dismisses the picker without selecting",
-              "triggers": "Escape/onBlur \u2192 picker popup open state = false"
+              "triggers": "Escape/onBlur → picker popup open state = false"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 { startDate: Date, startTime: string, endDate: Date, endTime: string } from Formik context",
-            "output": "formik.setFieldValue \u2014 updates Formik field with selected date-time range object",
+            "input": "formik.values[name] — { startDate: Date, startTime: string, endDate: Date, endTime: string } from Formik context",
+            "output": "formik.setFieldValue — updates Formik field with selected date-time range object",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -1951,8 +1951,8 @@
             "Pair with Yup date validation for start < end"
           ],
           "donts": [
-            "Don't use for date-only ranges \u2014 use MCFormDateRangePicker",
-            "Don't use for single datetime \u2014 check if single picker exists"
+            "Don't use for date-only ranges — use MCFormDateRangePicker",
+            "Don't use for single datetime — check if single picker exists"
           ],
           "example": "<MCFormDateTimeRangePicker name=\"schedulePeriod\" fieldLabel=\"Schedule Period\" required />",
           "tier": 1
@@ -1976,8 +1976,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For predefined color selection from a list \u2014 use MCFormSingleRichSelect with color swatches",
-            "For non-color text input \u2014 use MCFormTextInput"
+            "For predefined color selection from a list — use MCFormSingleRichSelect with color swatches",
+            "For non-color text input — use MCFormTextInput"
           ],
           "antiPatterns": [
             {
@@ -2037,20 +2037,20 @@
           "semantic_actions": [
             {
               "action": "User types a hex color code into the text input",
-              "triggers": "onChange \u2192 formik.handleChange(name) \u2192 color swatch preview updates"
+              "triggers": "onChange → formik.handleChange(name) → color swatch preview updates"
             },
             {
               "action": "User confirms color entry on Enter",
-              "triggers": "onKeyDown Enter \u2192 formik.setFieldValue(name, hexValue)"
+              "triggers": "onKeyDown Enter → formik.setFieldValue(name, hexValue)"
             },
             {
               "action": "User leaves the field triggering validation",
-              "triggers": "onBlur \u2192 formik.handleBlur(name) \u2192 Yup hex validation \u2192 error display"
+              "triggers": "onBlur → formik.handleBlur(name) → Yup hex validation → error display"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 hex color string (e.g. #FF0000) from Formik context",
-            "output": "formik.handleChange \u2014 updates Formik field with hex color string",
+            "input": "formik.values[name] — hex color string (e.g. #FF0000) from Formik context",
+            "output": "formik.handleChange — updates Formik field with hex color string",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -2088,7 +2088,7 @@
             ],
             "screenReaderAnnouncement": "Announces: {fieldLabel}, edit text. Color swatch preview is aria-hidden as it conveys information visually only.",
             "notes": [
-              "Color must not be the only way to convey the selected value \u2014 the hex value in the text input provides a text alternative",
+              "Color must not be the only way to convey the selected value — the hex value in the text input provides a text alternative",
               "Color picker popup (if any) should trap focus and be dismissible via Escape"
             ]
           },
@@ -2097,7 +2097,7 @@
             "Validate hex format with Yup: matches(/^#[0-9A-Fa-f]{6}$/)"
           ],
           "donts": [
-            "Don't use for predefined color selection \u2014 use MCFormSingleRichSelect with color swatches"
+            "Don't use for predefined color selection — use MCFormSingleRichSelect with color swatches"
           ],
           "example": "<MCFormColorInput name=\"brandColor\" fieldLabel=\"Brand Color\" required />",
           "tier": 1
@@ -2123,8 +2123,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For predefined option selection \u2014 use MCFormMultiRichSelect",
-            "For single string values \u2014 use MCFormTextInput"
+            "For predefined option selection — use MCFormMultiRichSelect",
+            "For single string values — use MCFormTextInput"
           ],
           "antiPatterns": [
             {
@@ -2197,24 +2197,24 @@
           "semantic_actions": [
             {
               "action": "User types text and presses Enter or comma to add a chip",
-              "triggers": "onKeyDown Enter/comma \u2192 formik.setFieldValue(name, [...current, newValue])"
+              "triggers": "onKeyDown Enter/comma → formik.setFieldValue(name, [...current, newValue])"
             },
             {
               "action": "User removes a chip by clicking its remove button",
-              "triggers": "onRemove \u2192 formik.setFieldValue(name, current.filter(v => v !== chip))"
+              "triggers": "onRemove → formik.setFieldValue(name, current.filter(v => v !== chip))"
             },
             {
               "action": "User presses Backspace when input is empty to remove last chip",
-              "triggers": "onKeyDown Backspace \u2192 formik.setFieldValue(name, current.slice(0, -1))"
+              "triggers": "onKeyDown Backspace → formik.setFieldValue(name, current.slice(0, -1))"
             },
             {
               "action": "User clears all chips via form reset",
-              "triggers": "resetForm() \u2192 formik.values[name] = []"
+              "triggers": "resetForm() → formik.values[name] = []"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 string[] array from Formik context",
-            "output": "formik.setFieldValue \u2014 updates Formik field with updated string array",
+            "input": "formik.values[name] — string[] array from Formik context",
+            "output": "formik.setFieldValue — updates Formik field with updated string array",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -2263,8 +2263,8 @@
             "Show hint explaining the delimiter (Enter or comma)"
           ],
           "donts": [
-            "Don't use for predefined option selection \u2014 use MCFormMultiRichSelect",
-            "Don't use for single values \u2014 use MCFormTextInput"
+            "Don't use for predefined option selection — use MCFormMultiRichSelect",
+            "Don't use for single values — use MCFormTextInput"
           ],
           "example": "<MCFormChipInput\n  name=\"keywords\"\n  fieldLabel=\"Keywords\"\n  hint=\"Press Enter or comma to add\"\n  placeholder=\"Type a keyword...\"\n/>",
           "tier": 1
@@ -2272,7 +2272,7 @@
         {
           "name": "MCFormWeeklyTimeTablePicker",
           "path": "form/v1/input/MCFormWeeklyTimeTablePicker.tsx",
-          "description": "Grid-based weekly schedule picker (day \u00d7 hour slots). Formik integrated. Click or drag to select time slots.",
+          "description": "Grid-based weekly schedule picker (day × hour slots). Formik integrated. Click or drag to select time slots.",
           "shortDescription": "Weekly schedule picker with Formik binding",
           "functional_category": "input",
           "status": "stable",
@@ -2289,8 +2289,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For single time slot selection \u2014 use a time picker",
-            "For date-specific scheduling \u2014 use MCFormDateTimeRangePicker"
+            "For single time slot selection — use a time picker",
+            "For date-specific scheduling — use MCFormDateTimeRangePicker"
           ],
           "antiPatterns": [
             {
@@ -2349,28 +2349,28 @@
           "semantic_actions": [
             {
               "action": "User clicks a time slot cell to toggle its selection",
-              "triggers": "onClick cell \u2192 formik.setFieldValue(name, toggledMatrix)"
+              "triggers": "onClick cell → formik.setFieldValue(name, toggledMatrix)"
             },
             {
               "action": "User drags across multiple cells to select a range",
-              "triggers": "onMouseDown \u2192 onMouseMove \u2192 onMouseUp \u2192 formik.setFieldValue(name, rangeSelectedMatrix)"
+              "triggers": "onMouseDown → onMouseMove → onMouseUp → formik.setFieldValue(name, rangeSelectedMatrix)"
             },
             {
               "action": "User uses Space/Enter to toggle a focused cell via keyboard",
-              "triggers": "onKeyDown Space/Enter \u2192 formik.setFieldValue(name, toggledMatrix)"
+              "triggers": "onKeyDown Space/Enter → formik.setFieldValue(name, toggledMatrix)"
             },
             {
               "action": "User uses Shift+Arrow to extend keyboard selection",
-              "triggers": "onKeyDown Shift+Arrow \u2192 formik.setFieldValue(name, extendedMatrix)"
+              "triggers": "onKeyDown Shift+Arrow → formik.setFieldValue(name, extendedMatrix)"
             },
             {
               "action": "User clears all slots via form reset",
-              "triggers": "resetForm() \u2192 formik.values[name] = emptyMatrix"
+              "triggers": "resetForm() → formik.values[name] = emptyMatrix"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 2D boolean matrix (7 days \u00d7 24 hours) from Formik context",
-            "output": "formik.setFieldValue \u2014 updates Formik field with updated schedule matrix",
+            "input": "formik.values[name] — 2D boolean matrix (7 days × 24 hours) from Formik context",
+            "output": "formik.setFieldValue — updates Formik field with updated schedule matrix",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -2405,8 +2405,8 @@
             ],
             "screenReaderAnnouncement": "Announces: {day} {hour}, selected/unselected. Grid navigation announced by row and column headers.",
             "notes": [
-              "Day labels (Mon\u2013Sun) should be row headers (role=rowheader)",
-              "Hour labels (0\u201323) should be column headers (role=columnheader)",
+              "Day labels (Mon–Sun) should be row headers (role=rowheader)",
+              "Hour labels (0–23) should be column headers (role=columnheader)",
               "Selected cells should carry aria-selected=true",
               "Mouse drag selection must also be achievable via keyboard (Shift+Arrow)"
             ]
@@ -2416,8 +2416,8 @@
             "Provide clear visual feedback for selected vs unselected slots"
           ],
           "donts": [
-            "Don't use for single time slot \u2014 use a time picker",
-            "Don't use for date-specific scheduling \u2014 use MCFormDateTimeRangePicker"
+            "Don't use for single time slot — use a time picker",
+            "Don't use for date-specific scheduling — use MCFormDateTimeRangePicker"
           ],
           "example": "<MCFormWeeklyTimeTablePicker\n  name=\"adSchedule\"\n  fieldLabel=\"Ad Schedule\"\n  tooltip=\"Select hours when ads should run\"\n/>",
           "tier": 3
@@ -2442,8 +2442,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For required numeric input without toggle \u2014 use MCFormNumberInput",
-            "For simple boolean toggle without numeric value \u2014 use MCFormSwitchInput"
+            "For required numeric input without toggle — use MCFormNumberInput",
+            "For simple boolean toggle without numeric value — use MCFormSwitchInput"
           ],
           "antiPatterns": [
             {
@@ -2502,24 +2502,24 @@
           "semantic_actions": [
             {
               "action": "User toggles the switch to enable frequency cap",
-              "triggers": "onToggle \u2192 formik.setFieldValue(name, { enabled: true, value: defaultValue })"
+              "triggers": "onToggle → formik.setFieldValue(name, { enabled: true, value: defaultValue })"
             },
             {
               "action": "User toggles the switch to disable frequency cap",
-              "triggers": "onToggle \u2192 formik.setFieldValue(name, { enabled: false, value: null })"
+              "triggers": "onToggle → formik.setFieldValue(name, { enabled: false, value: null })"
             },
             {
               "action": "User enters a numeric frequency value when toggle is enabled",
-              "triggers": "onChange \u2192 formik.setFieldValue(name, { ...current, value: number })"
+              "triggers": "onChange → formik.setFieldValue(name, { ...current, value: number })"
             },
             {
               "action": "User clears the form resetting the frequency cap",
-              "triggers": "resetForm() \u2192 formik.values[name] = { enabled: false, value: null }"
+              "triggers": "resetForm() → formik.values[name] = { enabled: false, value: null }"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 { enabled: boolean, value: number | null } from Formik context",
-            "output": "formik.setFieldValue \u2014 updates Formik field with enabled state and numeric value",
+            "input": "formik.values[name] — { enabled: boolean, value: number | null } from Formik context",
+            "output": "formik.setFieldValue — updates Formik field with enabled state and numeric value",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -2563,7 +2563,7 @@
             "Set sensible default when toggle is enabled"
           ],
           "donts": [
-            "Don't use for required numeric input \u2014 use MCFormNumberInput"
+            "Don't use for required numeric input — use MCFormNumberInput"
           ],
           "example": "<MCFormOptionalFrequencyInput\n  name=\"frequencyCap\"\n  fieldLabel=\"Frequency Cap\"\n  tooltip=\"Limit impressions per user per day\"\n/>",
           "tier": 3
@@ -2588,8 +2588,8 @@
           ],
           "do_not_use": [
             "Outside <Formik> context",
-            "For non-video URLs \u2014 use MCFormTextInput",
-            "For video upload \u2014 this is URL-only, not a file upload component"
+            "For non-video URLs — use MCFormTextInput",
+            "For video upload — this is URL-only, not a file upload component"
           ],
           "antiPatterns": [
             {
@@ -2649,20 +2649,20 @@
           "semantic_actions": [
             {
               "action": "User types a video URL into the text input",
-              "triggers": "onChange \u2192 formik.setFieldValue(name, { ...current, url: value })"
+              "triggers": "onChange → formik.setFieldValue(name, { ...current, url: value })"
             },
             {
               "action": "User toggles the skippable switch on/off",
-              "triggers": "onToggle \u2192 formik.setFieldValue(name, { ...current, skippable: !current.skippable })"
+              "triggers": "onToggle → formik.setFieldValue(name, { ...current, skippable: !current.skippable })"
             },
             {
               "action": "User leaves the URL field triggering validation",
-              "triggers": "onBlur \u2192 formik.handleBlur(name) \u2192 Yup URL validation \u2192 error display"
+              "triggers": "onBlur → formik.handleBlur(name) → Yup URL validation → error display"
             }
           ],
           "data_flow": {
-            "input": "formik.values[name] \u2014 { url: string, skippable: boolean } from Formik context",
-            "output": "formik.setFieldValue \u2014 updates Formik field with url and skippable state",
+            "input": "formik.values[name] — { url: string, skippable: boolean } from Formik context",
+            "output": "formik.setFieldValue — updates Formik field with url and skippable state",
             "side_effects": [
               "form dirty state",
               "validation trigger"
@@ -2710,7 +2710,7 @@
             "Validate URL format with Yup"
           ],
           "donts": [
-            "Don't use for non-video URLs \u2014 use MCFormTextInput"
+            "Don't use for non-video URLs — use MCFormTextInput"
           ],
           "example": "<MCFormSkippableVideoInput\n  name=\"videoCreative\"\n  fieldLabel=\"Video Creative URL\"\n  required\n/>",
           "tier": 3
@@ -2740,9 +2740,9 @@
             "When a field needs label, tooltip, and inline error composition without Formik"
           ],
           "do_not_use": [
-            "Inside <Formik> forms \u2014 use MCFormRadioGroup",
-            "For multi-select choices \u2014 use checkbox-based components",
-            "For long option lists \u2014 use a select or rich select"
+            "Inside <Formik> forms — use MCFormRadioGroup",
+            "For multi-select choices — use checkbox-based components",
+            "For long option lists — use a select or rich select"
           ],
           "antiPatterns": [
             {
@@ -2834,7 +2834,7 @@
           "semantic_actions": [
             {
               "action": "User selects a radio option",
-              "triggers": "onChange(event) \u2192 onChange(value)"
+              "triggers": "onChange(event) → onChange(value)"
             }
           ],
           "data_flow": {
@@ -2878,7 +2878,7 @@
             "Use when a controlled screen needs MC-style radio layout without Formik"
           ],
           "donts": [
-            "Don't duplicate this inside Formik wrappers \u2014 use MCFormRadioGroup instead"
+            "Don't duplicate this inside Formik wrappers — use MCFormRadioGroup instead"
           ],
           "example": "<MCRadioGroup\n  value={selectedStatus}\n  options={[{ label: 'Active', value: 'active' }, { label: 'Paused', value: 'paused' }]}\n  onChange={setSelectedStatus}\n  label=\"Status\"\n/>",
           "tier": 1
@@ -2902,9 +2902,9 @@
             "Settings UIs that open a lightweight picker popover instead of a full dialog"
           ],
           "do_not_use": [
-            "Inside standard Formik fields \u2014 use MCFormColorInput when possible",
-            "For fixed palette choices \u2014 use a finite select/grid instead of free color picking",
-            "For read-only status color display \u2014 render a swatch or label without picker affordance"
+            "Inside standard Formik fields — use MCFormColorInput when possible",
+            "For fixed palette choices — use a finite select/grid instead of free color picking",
+            "For read-only status color display — render a swatch or label without picker affordance"
           ],
           "antiPatterns": [
             {
@@ -2977,15 +2977,15 @@
           "semantic_actions": [
             {
               "action": "User opens the color picker popover",
-              "triggers": "click trigger \u2192 internal open state = true"
+              "triggers": "click trigger → internal open state = true"
             },
             {
               "action": "User changes the selected color",
-              "triggers": "react-color onChange \u2192 onChange(color.rgb)"
+              "triggers": "react-color onChange → onChange(color.rgb)"
             },
             {
               "action": "User closes the picker",
-              "triggers": "onClose or close button click \u2192 internal open state = false"
+              "triggers": "onClose or close button click → internal open state = false"
             }
           ],
           "data_flow": {
@@ -3027,7 +3027,7 @@
             ],
             "screenReaderAnnouncement": "Should announce the current color value and whether the control opens a picker.",
             "notes": [
-              "Do not rely on the swatch color alone \u2014 keep the text value visible",
+              "Do not rely on the swatch color alone — keep the text value visible",
               "Readonly and disabled states should remain visually distinct"
             ]
           },
@@ -3059,7 +3059,7 @@
             "Feature settings where a reusable weekly timetable control should follow the Portal i18n contract"
           ],
           "do_not_use": [
-            "When the schedule must be bound directly to Formik field helpers \u2014 wrap it in a dedicated Formik adapter first",
+            "When the schedule must be bound directly to Formik field helpers — wrap it in a dedicated Formik adapter first",
             "When a simple date or date-range picker is sufficient",
             "When translation should intentionally be bypassed for a raw low-level experiment"
           ],
@@ -3170,7 +3170,7 @@
           ],
           "do_not_use": [
             "Outside form context",
-            "For non-form content grouping \u2014 use a plain styled div"
+            "For non-form content grouping — use a plain styled div"
           ],
           "antiPatterns": [
             {
@@ -3411,7 +3411,7 @@
             "Top-level form page title"
           ],
           "do_not_use": [
-            "For panel-level titles \u2014 use MCFormPanelTitle"
+            "For panel-level titles — use MCFormPanelTitle"
           ],
           "antiPatterns": [
             {
@@ -3546,7 +3546,7 @@
             "Display Formik validation error messages below a field"
           ],
           "do_not_use": [
-            "For non-validation messages \u2014 use MCFormHint"
+            "For non-validation messages — use MCFormHint"
           ],
           "antiPatterns": [
             {
@@ -3590,7 +3590,7 @@
             "Provide supplementary guidance text below a form field"
           ],
           "do_not_use": [
-            "For error messages \u2014 use MCFormFieldError"
+            "For error messages — use MCFormFieldError"
           ],
           "antiPatterns": [
             {
@@ -3631,8 +3631,8 @@
             "Display informational or instructional text within a form section"
           ],
           "do_not_use": [
-            "For field-level hints \u2014 use MCFormHint",
-            "For error messages \u2014 use MCFormFieldError"
+            "For field-level hints — use MCFormHint",
+            "For error messages — use MCFormFieldError"
           ],
           "antiPatterns": [
             {
@@ -3678,8 +3678,8 @@
             "Add extended description below a field label"
           ],
           "do_not_use": [
-            "For error messages \u2014 use MCFormFieldError",
-            "For simple hints \u2014 use MCFormHint"
+            "For error messages — use MCFormFieldError",
+            "For simple hints — use MCFormHint"
           ],
           "antiPatterns": [
             {
@@ -3726,8 +3726,8 @@
             "Full-screen or overlay form experiences that must mount into root layout containers"
           ],
           "do_not_use": [
-            "For regular in-flow form layout \u2014 use MCFormLayout",
-            "For general-purpose modal dialogs \u2014 use MCCommonDialog",
+            "For regular in-flow form layout — use MCFormLayout",
+            "For general-purpose modal dialogs — use MCCommonDialog",
             "Outside the main/root layout provider tree"
           ],
           "antiPatterns": [
@@ -3832,9 +3832,9 @@
             "Entity creation and editing pages (campaigns, ad groups, creatives)"
           ],
           "do_not_use": [
-            "For list or detail pages \u2014 use MCContentLayout instead",
-            "For inline forms within a page section \u2014 use MCFormPanel directly",
-            "For dialogs \u2014 use MCCommonDialog"
+            "For list or detail pages — use MCContentLayout instead",
+            "For inline forms within a page section — use MCFormPanel directly",
+            "For dialogs — use MCCommonDialog"
           ],
           "antiPatterns": [
             {
@@ -3941,7 +3941,7 @@
             "Use footerContent for action buttons (Save/Cancel)"
           ],
           "donts": [
-            "Don't use for list or detail pages \u2014 use MCContentLayout",
+            "Don't use for list or detail pages — use MCContentLayout",
             "Don't place content outside the Form body area"
           ],
           "structure": {
@@ -3998,9 +3998,9 @@
             "Any clickable action that is not a link"
           ],
           "do_not_use": [
-            "For contextual action menus \u2014 use MCMoreActionsButton",
-            "For link-style navigation \u2014 use React Router Link or anchor",
-            "For icon-only actions without label \u2014 ensure aria-label is set"
+            "For contextual action menus — use MCMoreActionsButton",
+            "For link-style navigation — use React Router Link or anchor",
+            "For icon-only actions without label — ensure aria-label is set"
           ],
           "antiPatterns": [
             {
@@ -4124,7 +4124,7 @@
           ],
           "data_flow": {
             "input": "props (label via children, icon via leftIcon/rightIcon, disabled, loading)",
-            "output": "onClick callback \u2014 triggers navigation, mutation, or dialog open",
+            "output": "onClick callback — triggers navigation, mutation, or dialog open",
             "side_effects": [
               "navigation",
               "mutation trigger",
@@ -4228,7 +4228,7 @@
           "donts": [
             "Don't use more than one primary-colored button in a button group",
             "Don't use inline styles to customize button colors",
-            "Don't use text variant for destructive actions \u2014 use color='error' with variant='basic'"
+            "Don't use text variant for destructive actions — use color='error' with variant='basic'"
           ],
           "structure": {
             "border": "border-radius: 4px",
@@ -4256,7 +4256,8 @@
               "Icon and label separated by spacing(0.5) = 4px gap"
             ]
           },
-          "tier": 1
+          "tier": 1,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-button2--docs"
         },
         {
           "name": "MCMoreActionsButton",
@@ -4277,9 +4278,9 @@
             "Three-dot menu (ellipsis) pattern for entity actions (edit, delete, duplicate)"
           ],
           "do_not_use": [
-            "For primary actions \u2014 use MCButton2 directly",
-            "For grouped action categories \u2014 use MCMoreActionGroupsButton",
-            "For navigation \u2014 use routing or links"
+            "For primary actions — use MCButton2 directly",
+            "For grouped action categories — use MCMoreActionGroupsButton",
+            "For navigation — use routing or links"
           ],
           "antiPatterns": [
             {
@@ -4326,7 +4327,7 @@
           "semantic_actions": [
             {
               "action": "User clicks the trigger button or presses Enter/Space to open the menu",
-              "triggers": "onClick \u2192 popover open state = true"
+              "triggers": "onClick → popover open state = true"
             },
             {
               "action": "User clicks a menu item or presses Enter/Space on it",
@@ -4334,7 +4335,7 @@
             },
             {
               "action": "User dismisses the menu by pressing Escape or clicking outside",
-              "triggers": "onClose \u2192 popover open state = false"
+              "triggers": "onClose → popover open state = false"
             }
           ],
           "data_flow": {
@@ -4386,7 +4387,7 @@
             "Use MCIcon 'more' as trigger"
           ],
           "donts": [
-            "Don't use for primary actions \u2014 use MCButton2 directly"
+            "Don't use for primary actions — use MCButton2 directly"
           ],
           "example": "<MCMoreActionsButton\n  variant=\"text\"\n  noPadding\n  moreActionItems={[\n    { label: 'Edit', icon: 'edit', onClick: handleEdit },\n    { label: 'Delete', icon: 'delete', onClick: handleDelete },\n  ]}\n>\n  <MCIcon icon=\"more\" width={16} height={16} />\n</MCMoreActionsButton>",
           "structure": {
@@ -4424,9 +4425,9 @@
             "Complex contextual menus requiring visual separation between action types"
           ],
           "do_not_use": [
-            "For flat action lists without grouping \u2014 use MCMoreActionsButton",
-            "For primary actions \u2014 use MCButton2 directly",
-            "For fewer than 3 actions \u2014 use MCMoreActionsButton"
+            "For flat action lists without grouping — use MCMoreActionsButton",
+            "For primary actions — use MCButton2 directly",
+            "For fewer than 3 actions — use MCMoreActionsButton"
           ],
           "antiPatterns": [
             {
@@ -4473,7 +4474,7 @@
           "semantic_actions": [
             {
               "action": "User clicks the trigger button or presses Enter/Space to open the grouped menu",
-              "triggers": "onClick \u2192 popover open state = true"
+              "triggers": "onClick → popover open state = true"
             },
             {
               "action": "User clicks a menu item in any group",
@@ -4481,7 +4482,7 @@
             },
             {
               "action": "User dismisses the menu by pressing Escape or clicking outside",
-              "triggers": "onClose \u2192 popover open state = false"
+              "triggers": "onClose → popover open state = false"
             }
           ],
           "data_flow": {
@@ -4520,9 +4521,9 @@
             "Top-level route navigation with section grouping"
           ],
           "do_not_use": [
-            "Inside MCContentLayout or MCFormLayout \u2014 it sits alongside them at the app root",
-            "For secondary in-page navigation \u2014 use MCBarTabs",
-            "For breadcrumb navigation \u2014 use MCContentLayout with showBreadcrumb"
+            "Inside MCContentLayout or MCFormLayout — it sits alongside them at the app root",
+            "For secondary in-page navigation — use MCBarTabs",
+            "For breadcrumb navigation — use MCContentLayout with showBreadcrumb"
           ],
           "antiPatterns": [
             {
@@ -4651,9 +4652,9 @@
             "Main sidebar menu items with icons and active state highlighting"
           ],
           "do_not_use": [
-            "Outside MCCollapsibleNavbar \u2014 it depends on navbar context",
-            "For in-page tab navigation \u2014 use MCBarTabs",
-            "For breadcrumb links \u2014 use MCContentLayout breadcrumb"
+            "Outside MCCollapsibleNavbar — it depends on navbar context",
+            "For in-page tab navigation — use MCBarTabs",
+            "For breadcrumb links — use MCContentLayout breadcrumb"
           ],
           "antiPatterns": [
             {
@@ -4691,12 +4692,12 @@
           "semantic_actions": [
             {
               "action": "User clicks or presses Enter/Space on a nav item to navigate",
-              "triggers": "onClick \u2192 navigate(route) via React Router"
+              "triggers": "onClick → navigate(route) via React Router"
             }
           ],
           "data_flow": {
             "input": "props (sections array with route definitions); current route from React Router",
-            "output": "navigate(MERouteKey) \u2014 triggers page navigation via React Router",
+            "output": "navigate(MERouteKey) — triggers page navigation via React Router",
             "side_effects": [
               "URL change",
               "active nav item highlight update"
@@ -4709,7 +4710,7 @@
             },
             {
               "name": "active",
-              "description": "Current route matches item \u2014 highlighted with brand color"
+              "description": "Current route matches item — highlighted with brand color"
             },
             {
               "name": "hover",
@@ -4890,7 +4891,7 @@
             "Cases where the current workplace should stay visible while still being searchable"
           ],
           "do_not_use": [
-            "For login-time workplace selection \u2014 use MCWorkplaceSelector",
+            "For login-time workplace selection — use MCWorkplaceSelector",
             "When the option list is not workplace data",
             "When a plain static label is enough and no switching is needed"
           ],
@@ -4946,7 +4947,7 @@
             },
             {
               "action": "User chooses a workplace option",
-              "triggers": "onChange(option) \u2192 onSelectWorkplace(option.value.id)"
+              "triggers": "onChange(option) → onSelectWorkplace(option.value.id)"
             }
           ],
           "data_flow": {
@@ -5009,7 +5010,7 @@
             "Selection flows where the option count may be large enough to benefit from windowed rendering"
           ],
           "do_not_use": [
-            "Inside the app header for lightweight switching \u2014 use MCWorkplaceSelectorPopper",
+            "Inside the app header for lightweight switching — use MCWorkplaceSelectorPopper",
             "When the option list is tiny and search adds unnecessary complexity",
             "For selecting non-workplace entities"
           ],
@@ -5134,8 +5135,8 @@
             "Content-heavy dialogs with custom body and action buttons"
           ],
           "do_not_use": [
-            "For full-page content or forms \u2014 use MCFormLayout",
-            "For destructive action confirmations \u2014 use MCConfirmDialog (alertdialog role)",
+            "For full-page content or forms — use MCFormLayout",
+            "For destructive action confirmations — use MCConfirmDialog (alertdialog role)",
             "For nested dialogs more than 2 levels deep"
           ],
           "antiPatterns": [
@@ -5214,20 +5215,20 @@
           "semantic_actions": [
             {
               "action": "User confirms the dialog action by clicking the confirm/primary button",
-              "triggers": "confirmButtonOptions.onClick \u2192 mutation or state change; onClose() called after"
+              "triggers": "confirmButtonOptions.onClick → mutation or state change; onClose() called after"
             },
             {
               "action": "User cancels by clicking the cancel button or pressing Escape",
-              "triggers": "cancelButtonOptions.onClick or Escape key \u2192 onClose() \u2192 open = false"
+              "triggers": "cancelButtonOptions.onClick or Escape key → onClose() → open = false"
             },
             {
               "action": "User dismisses the dialog by clicking the backdrop or X button",
-              "triggers": "onClose() \u2192 open = false"
+              "triggers": "onClose() → open = false"
             }
           ],
           "data_flow": {
             "input": "props (open boolean, title, actions ReactNode)",
-            "output": "onClose callback \u2014 caller sets open = false; action buttons provide their own callbacks",
+            "output": "onClose callback — caller sets open = false; action buttons provide their own callbacks",
             "side_effects": [
               "background content aria-hidden=true while open",
               "focus trapped inside dialog"
@@ -5268,7 +5269,7 @@
             "Use showDivider for content-heavy dialogs"
           ],
           "donts": [
-            "Don't use for full-page content \u2014 use MCFormLayout",
+            "Don't use for full-page content — use MCFormLayout",
             "Don't nest dialogs more than 2 levels deep"
           ],
           "structure": {
@@ -5318,9 +5319,9 @@
             "Custom dropdown content that is not a standard select"
           ],
           "do_not_use": [
-            "For complex forms or heavy content \u2014 use MCCommonDialog",
-            "For simple action menus \u2014 use MCMoreActionsButton which wraps popover internally",
-            "For permanent/persistent content \u2014 popover is transient by design"
+            "For complex forms or heavy content — use MCCommonDialog",
+            "For simple action menus — use MCMoreActionsButton which wraps popover internally",
+            "For permanent/persistent content — popover is transient by design"
           ],
           "antiPatterns": [
             {
@@ -5385,12 +5386,12 @@
             },
             {
               "action": "User clicks outside the popover or presses Escape to close it",
-              "triggers": "onClose callback \u2192 caller sets open = false; anchorEl = null"
+              "triggers": "onClose callback → caller sets open = false; anchorEl = null"
             }
           ],
           "data_flow": {
             "input": "props (open boolean, anchorEl HTMLElement for positioning)",
-            "output": "onClose callback \u2014 caller sets open = false and anchorEl = null",
+            "output": "onClose callback — caller sets open = false and anchorEl = null",
             "side_effects": [
               "focus management when popover contains interactive elements"
             ]
@@ -5424,16 +5425,17 @@
             "Set anchorOrigin and transformOrigin for correct positioning"
           ],
           "donts": [
-            "Don't use for complex forms \u2014 use MCCommonDialog",
+            "Don't use for complex forms — use MCCommonDialog",
             "Don't leave popovers open without user interaction to dismiss"
           ],
-          "tier": 1
+          "tier": 1,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-popover--docs"
         },
         {
           "name": "MCLoader",
           "path": "loader/",
           "description": "Loading spinner. Use while async data is being fetched.",
-          "shortDescription": "DEPRECATED \u2014 use MCCircularLoader",
+          "shortDescription": "DEPRECATED — use MCCircularLoader",
           "functional_category": "feedback",
           "status": "deprecated",
           "usage_stats": {
@@ -5447,8 +5449,8 @@
             "When a specific section of a page is loading independently"
           ],
           "do_not_use": [
-            "For full-page loading \u2014 use MCCircularLoader with fillParent",
-            "For less than 300ms loading times \u2014 use debounced loading state to avoid flicker"
+            "For full-page loading — use MCCircularLoader with fillParent",
+            "For less than 300ms loading times — use debounced loading state to avoid flicker"
           ],
           "antiPatterns": [
             {
@@ -5476,7 +5478,7 @@
             "Use MCLoader for inline/section loading"
           ],
           "donts": [
-            "Don't show loader for less than 300ms \u2014 use debounced loading state"
+            "Don't show loader for less than 300ms — use debounced loading state"
           ],
           "example": "if (isLoading) return <MCLoader />;",
           "tier": 1,
@@ -5495,7 +5497,7 @@
         {
           "name": "MCAccordion",
           "path": "accordion/MCAccordion.tsx",
-          "description": "Collapsible section with animated expand/collapse. Toggle icon: angle-down (rotates 180\u00b0 when expanded).",
+          "description": "Collapsible section with animated expand/collapse. Toggle icon: angle-down (rotates 180° when expanded).",
           "shortDescription": "Expandable/collapsible content section",
           "functional_category": "display",
           "status": "stable",
@@ -5511,9 +5513,9 @@
             "When page content should be organized into expandable sections"
           ],
           "do_not_use": [
-            "For tab-based content switching \u2014 use MCBarTabs",
-            "For nested accordions inside accordions \u2014 keep hierarchy flat",
-            "For always-visible content \u2014 just render it directly"
+            "For tab-based content switching — use MCBarTabs",
+            "For nested accordions inside accordions — keep hierarchy flat",
+            "For always-visible content — just render it directly"
           ],
           "antiPatterns": [
             {
@@ -5557,7 +5559,7 @@
           "semantic_actions": [
             {
               "action": "User clicks the accordion header or presses Enter/Space to toggle expand/collapse",
-              "triggers": "onClick/onKeyDown \u2192 internal expanded state toggle \u2192 panel visibility changes"
+              "triggers": "onClick/onKeyDown → internal expanded state toggle → panel visibility changes"
             }
           ],
           "data_flow": {
@@ -5641,9 +5643,9 @@
             "Tab navigation that persists active tab in URL search params"
           ],
           "do_not_use": [
-            "For navigation between different pages/routes \u2014 use routing",
-            "For more than 6 tabs \u2014 consider a different navigation pattern",
-            "For collapsible sections \u2014 use MCAccordion"
+            "For navigation between different pages/routes — use routing",
+            "For more than 6 tabs — consider a different navigation pattern",
+            "For collapsible sections — use MCAccordion"
           ],
           "antiPatterns": [
             {
@@ -5680,12 +5682,12 @@
           "semantic_actions": [
             {
               "action": "User clicks a tab or presses Enter/Space on it to switch active content",
-              "triggers": "tabs[n].onClick \u2192 caller updates activeTab state; URL search param optionally updated"
+              "triggers": "tabs[n].onClick → caller updates activeTab state; URL search param optionally updated"
             }
           ],
           "data_flow": {
             "input": "props (tabs array with active boolean and onClick callbacks)",
-            "output": "tabs[n].onClick callback \u2014 caller updates activeTab state",
+            "output": "tabs[n].onClick callback — caller updates activeTab state",
             "side_effects": [
               "active tab state update",
               "URL search params update (if useSearchParams used)"
@@ -5722,7 +5724,7 @@
             "Use useSearchParams to persist active tab in URL"
           ],
           "donts": [
-            "Don't use for navigation between pages \u2014 use routing",
+            "Don't use for navigation between pages — use routing",
             "Don't use more than 6 tabs"
           ],
           "structure": {
@@ -5766,8 +5768,8 @@
             "Vertical dividers between inline elements using direction='column'"
           ],
           "do_not_use": [
-            "For purely decorative spacing \u2014 use margin/padding instead",
-            "For form section breaks \u2014 use MCFormDivider (form-specific variant)"
+            "For purely decorative spacing — use margin/padding instead",
+            "For form section breaks — use MCFormDivider (form-specific variant)"
           ],
           "antiPatterns": [
             {
@@ -5838,7 +5840,7 @@
             "Set $margin={0} to remove default margin"
           ],
           "donts": [
-            "Don't use for decorative purposes \u2014 only for semantic separation"
+            "Don't use for decorative purposes — only for semantic separation"
           ],
           "example": "<MCDivider />\n<MCDivider $margin={0} />\n<MCDivider direction=\"column\" />",
           "structure": {
@@ -5878,9 +5880,9 @@
             "Detail page headers showing current entity state"
           ],
           "do_not_use": [
-            "For custom status colors or icons \u2014 use predefined variants only",
-            "For progress indicators \u2014 use MCStepper",
-            "For boolean on/off state \u2014 use MCFormSwitchInput"
+            "For custom status colors or icons — use predefined variants only",
+            "For progress indicators — use MCStepper",
+            "For boolean on/off state — use MCFormSwitchInput"
           ],
           "antiPatterns": [
             {
@@ -5976,9 +5978,9 @@
             "role": "status",
             "ariaLabel": "Status text is visible; no additional aria-label needed if label text is descriptive",
             "keyboardInteraction": [],
-            "screenReaderAnnouncement": "Announces status text automatically when role=status. Color and icon are supplemental \u2014 status label text is the primary accessible name.",
+            "screenReaderAnnouncement": "Announces status text automatically when role=status. Color and icon are supplemental — status label text is the primary accessible name.",
             "notes": [
-              "Color alone must not convey status \u2014 the text label is required",
+              "Color alone must not convey status — the text label is required",
               "Icon is decorative (aria-hidden=true) since the label carries the meaning",
               "Use aria-live='polite' if status changes dynamically without page reload"
             ]
@@ -5987,7 +5989,7 @@
             "Use for entity lifecycle status display"
           ],
           "donts": [
-            "Don't create custom status colors \u2014 use predefined variants"
+            "Don't create custom status colors — use predefined variants"
           ],
           "example": "<MCStatus status=\"active\" />",
           "structure": {
@@ -6030,7 +6032,7 @@
             "Table cells, cards, or inline summaries that need a small lifecycle pill"
           ],
           "do_not_use": [
-            "When you want the standard icon + label lifecycle treatment \u2014 use MCStatus",
+            "When you want the standard icon + label lifecycle treatment — use MCStatus",
             "For arbitrary decorative tags unrelated to semantic status",
             "When status meaning is conveyed only by color and not by visible text"
           ],
@@ -6154,7 +6156,7 @@
             "When a custom renderer is needed via decorator but the countdown state should stay reusable"
           ],
           "do_not_use": [
-            "For clock/date formatting \u2014 use a dedicated date/time formatter",
+            "For clock/date formatting — use a dedicated date/time formatter",
             "For high-precision timer use cases where browser interval drift is unacceptable",
             "When the countdown state must pause, resume, or reset from the outside without remounting"
           ],
@@ -6255,9 +6257,9 @@
             "When users need to see which step they are on and what comes next"
           ],
           "do_not_use": [
-            "For more than 6 steps \u2014 simplify the flow",
-            "For non-sequential navigation \u2014 use MCBarTabs",
-            "For status display \u2014 use MCStatus"
+            "For more than 6 steps — simplify the flow",
+            "For non-sequential navigation — use MCBarTabs",
+            "For status display — use MCStatus"
           ],
           "antiPatterns": [
             {
@@ -6306,7 +6308,7 @@
           "subComponents": [
             {
               "name": "MCStepper.Step",
-              "description": "Individual step within MCStepper. Renders as null \u2014 MCStepper reads its props.",
+              "description": "Individual step within MCStepper. Renders as null — MCStepper reads its props.",
               "props": [
                 {
                   "name": "title",
@@ -6343,7 +6345,7 @@
           ],
           "data_flow": {
             "input": "props (activeStep index, children Step elements with titles)",
-            "output": "onActiveStepChange callback \u2014 caller updates activeStep state",
+            "output": "onActiveStepChange callback — caller updates activeStep state",
             "side_effects": [
               "active step highlight update"
             ]
@@ -6383,14 +6385,15 @@
           "dos": [
             "Use for multi-step flows (wizards, onboarding)",
             "Show step count clearly",
-            "Use MCStepper.Step children \u2014 do NOT pass steps as a string array"
+            "Use MCStepper.Step children — do NOT pass steps as a string array"
           ],
           "donts": [
             "Don't use for more than 6 steps",
-            "Don't pass steps: string[] prop \u2014 it does not exist; use MCStepper.Step children instead"
+            "Don't pass steps: string[] prop — it does not exist; use MCStepper.Step children instead"
           ],
           "example": "<MCStepper activeStep={currentStep} onActiveStepChange={setCurrentStep}>\n  <MCStepper.Step title=\"Basic Info\" />\n  <MCStepper.Step title=\"Targeting\" />\n  <MCStepper.Step title=\"Creative\" />\n  <MCStepper.Step title=\"Review\" />\n</MCStepper>",
-          "tier": 1
+          "tier": 1,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-stepper--docs"
         }
       ]
     },
@@ -6417,8 +6420,8 @@
             "When a label needs H_5 font weight without being a heading element"
           ],
           "do_not_use": [
-            "For form field labels \u2014 use MCFormFieldLabel",
-            "For section titles \u2014 use MCFormPanelTitle or MCFormTitle"
+            "For form field labels — use MCFormFieldLabel",
+            "For section titles — use MCFormPanelTitle or MCFormTitle"
           ],
           "antiPatterns": [
             {
@@ -6463,9 +6466,9 @@
             "When a text element needs to be clickable without being a full button"
           ],
           "do_not_use": [
-            "For primary actions \u2014 use MCButton2",
-            "For navigation links \u2014 use React Router Link",
-            "For text button variants \u2014 use MCButton2 variant='text'"
+            "For primary actions — use MCButton2",
+            "For navigation links — use React Router Link",
+            "For text button variants — use MCButton2 variant='text'"
           ],
           "antiPatterns": [
             {
@@ -6529,8 +6532,8 @@
             "Empty state hero icons and inline decorative icons"
           ],
           "do_not_use": [
-            "For custom SVG icons not in the MTIcon catalog \u2014 create a custom component",
-            "As the sole interactive element \u2014 wrap in a button with aria-label"
+            "For custom SVG icons not in the MTIcon catalog — create a custom component",
+            "As the sole interactive element — wrap in a button with aria-label"
           ],
           "antiPatterns": [
             {
@@ -7031,7 +7034,8 @@
             }
           },
           "tier": 1,
-          "shortDescription": "SVG icon from Moloco icon set"
+          "shortDescription": "SVG icon from Moloco icon set",
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-icons--docs"
         },
         {
           "name": "MCStack",
@@ -7049,7 +7053,7 @@
             "Empty state layouts, inline element grouping, spacing between elements"
           ],
           "do_not_use": [
-            "For complex page layouts \u2014 use MCContentLayout or MCFormLayout",
+            "For complex page layouts — use MCContentLayout or MCFormLayout",
             "When styled-components with explicit flex is clearer for the use case"
           ],
           "antiPatterns": [
@@ -7080,7 +7084,8 @@
             "side_effects": []
           },
           "tier": 4,
-          "shortDescription": "Flex-based horizontal/vertical layout"
+          "shortDescription": "Flex-based horizontal/vertical layout",
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-stack--docs"
         },
         {
           "name": "MCSingleTextInput",
@@ -7098,8 +7103,8 @@
             "Building custom controlled inputs not tied to form state"
           ],
           "do_not_use": [
-            "Inside Formik forms \u2014 use MCFormTextInput which wraps this with Formik integration",
-            "For multi-line text \u2014 use MCSingleTextArea"
+            "Inside Formik forms — use MCFormTextInput which wraps this with Formik integration",
+            "For multi-line text — use MCSingleTextArea"
           ],
           "antiPatterns": [
             {
@@ -7126,11 +7131,12 @@
           ],
           "data_flow": {
             "input": "props (value, onChange)",
-            "output": "onChange callback \u2014 caller updates controlled value",
+            "output": "onChange callback — caller updates controlled value",
             "side_effects": []
           },
           "tier": 1,
-          "shortDescription": "Raw text input without Formik"
+          "shortDescription": "Raw text input without Formik",
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-input--docs"
         },
         {
           "name": "MCSingleTextArea",
@@ -7148,8 +7154,8 @@
             "Building custom controlled textareas not tied to form state"
           ],
           "do_not_use": [
-            "Inside Formik forms \u2014 use MCFormTextArea which wraps this with Formik integration",
-            "For single-line text \u2014 use MCSingleTextInput"
+            "Inside Formik forms — use MCFormTextArea which wraps this with Formik integration",
+            "For single-line text — use MCSingleTextInput"
           ],
           "antiPatterns": [
             {
@@ -7176,11 +7182,12 @@
           ],
           "data_flow": {
             "input": "props (value, onChange)",
-            "output": "onChange callback \u2014 caller updates controlled value",
+            "output": "onChange callback — caller updates controlled value",
             "side_effects": []
           },
           "tier": 1,
-          "shortDescription": "Raw textarea without Formik"
+          "shortDescription": "Raw textarea without Formik",
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-input--docs"
         },
         {
           "name": "MCTextEllipsis",
@@ -7198,7 +7205,7 @@
             "Table cells, card titles, or any element where text overflow needs to be handled"
           ],
           "do_not_use": [
-            "For multi-line text clamping \u2014 use CSS -webkit-line-clamp",
+            "For multi-line text clamping — use CSS -webkit-line-clamp",
             "When full text must always be visible"
           ],
           "antiPatterns": [
@@ -7228,7 +7235,8 @@
             "side_effects": []
           },
           "tier": 4,
-          "shortDescription": "Text with ellipsis overflow"
+          "shortDescription": "Text with ellipsis overflow",
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-textellipsis--docs"
         },
         {
           "name": "MCMarkdownTooltip",
@@ -7246,8 +7254,8 @@
             "Standalone tooltips outside form context"
           ],
           "do_not_use": [
-            "Inside form fields \u2014 use the tooltip prop on form components or MCFormTooltip",
-            "For interactive popover content \u2014 use MCPopover"
+            "Inside form fields — use the tooltip prop on form components or MCFormTooltip",
+            "For interactive popover content — use MCPopover"
           ],
           "antiPatterns": [
             {
@@ -7275,7 +7283,8 @@
             "side_effects": []
           },
           "tier": 4,
-          "shortDescription": "Tooltip with Markdown content"
+          "shortDescription": "Tooltip with Markdown content",
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-tooltip--docs"
         },
         {
           "name": "MCBarTab",
@@ -7292,8 +7301,8 @@
             "Building custom tab bars when MCBarTabs does not fit the use case"
           ],
           "do_not_use": [
-            "For standard tab navigation \u2014 use MCBarTabs which composes this internally",
-            "For page-level navigation \u2014 use routing"
+            "For standard tab navigation — use MCBarTabs which composes this internally",
+            "For page-level navigation — use routing"
           ],
           "antiPatterns": [
             {
@@ -7322,11 +7331,12 @@
           ],
           "data_flow": {
             "input": "props (label, active boolean, onClick)",
-            "output": "onClick callback \u2014 caller updates active tab state",
+            "output": "onClick callback — caller updates active tab state",
             "side_effects": []
           },
           "tier": 4,
-          "shortDescription": "DEPRECATED \u2014 internal tab sub-component"
+          "shortDescription": "DEPRECATED — internal tab sub-component",
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-tab--docs"
         },
         {
           "name": "MCBarTabIndicator",
@@ -7343,7 +7353,7 @@
             "Custom tab indicator positioning when building custom tab bars with MCBarTab"
           ],
           "do_not_use": [
-            "For standard tab navigation \u2014 use MCBarTabs which handles the indicator internally"
+            "For standard tab navigation — use MCBarTabs which handles the indicator internally"
           ],
           "antiPatterns": [
             {
@@ -7366,7 +7376,7 @@
             "side_effects": []
           },
           "tier": 4,
-          "shortDescription": "DEPRECATED \u2014 internal tab indicator"
+          "shortDescription": "DEPRECATED — internal tab indicator"
         }
       ]
     },
@@ -7393,9 +7403,9 @@
             "Tabular data display with typed cell renderers for money, dates, percentages"
           ],
           "do_not_use": [
-            "For fewer than 3 rows \u2014 use a simple list or card layout",
-            "For non-tabular data \u2014 use MCStack or custom layouts",
-            "For form data entry in table format \u2014 use MCFormFieldGroup"
+            "For fewer than 3 rows — use a simple list or card layout",
+            "For non-tabular data — use MCStack or custom layouts",
+            "For form data entry in table format — use MCFormFieldGroup"
           ],
           "antiPatterns": [
             {
@@ -7424,7 +7434,7 @@
               "MCLoader"
             ]
           },
-          "generic": "T \u2014 the row data type",
+          "generic": "T — the row data type",
           "props": [
             {
               "name": "data",
@@ -7492,24 +7502,24 @@
           "semantic_actions": [
             {
               "action": "User clicks a sortable column header to sort the table",
-              "triggers": "column.sortHandler \u2192 internal sort state update \u2192 data re-rendered in sorted order"
+              "triggers": "column.sortHandler → internal sort state update → data re-rendered in sorted order"
             },
             {
               "action": "User clicks a row to navigate to the detail page",
-              "triggers": "onRowClick(row) prop callback \u2192 navigate to detail route"
+              "triggers": "onRowClick(row) prop callback → navigate to detail route"
             },
             {
               "action": "User clicks pagination controls to change the page",
-              "triggers": "onPageChange \u2192 internal page state update \u2192 data slice changes"
+              "triggers": "onPageChange → internal page state update → data slice changes"
             },
             {
               "action": "User searches or filters data (if filter UI present)",
-              "triggers": "filter state update \u2192 data re-filtered \u2192 table re-renders"
+              "triggers": "filter state update → data re-filtered → table re-renders"
             }
           ],
           "data_flow": {
             "input": "data array T[] from props; columns definitions from props; sort/page state managed internally",
-            "output": "onRowClick callback with row T \u2014 triggers navigation; sort/filter state updates URL query params",
+            "output": "onRowClick callback with row T — triggers navigation; sort/filter state updates URL query params",
             "side_effects": [
               "URL query params update",
               "table state update"
@@ -7526,7 +7536,7 @@
             },
             {
               "name": "empty",
-              "description": "No data \u2014 shows emptyMessage"
+              "description": "No data — shows emptyMessage"
             },
             {
               "name": "sorted",
@@ -7559,8 +7569,8 @@
           ],
           "donts": [
             "Don't create custom cell renderers if a standard one exists",
-            "Don't hardcode column widths \u2014 let the table auto-size",
-            "Don't use for fewer than 3 rows \u2014 use a simple list instead"
+            "Don't hardcode column widths — let the table auto-size",
+            "Don't use for fewer than 3 rows — use a simple list instead"
           ],
           "structure": {
             "headerRow": {
@@ -7606,8 +7616,8 @@
             "Any table where the standard empty, pagination, and page-indicator copy should be localized automatically"
           ],
           "do_not_use": [
-            "When page developers need the full report-table contract \u2014 use MCReportTable",
-            "When custom label text must be overridden per screen \u2014 use raw MCTable carefully"
+            "When page developers need the full report-table contract — use MCReportTable",
+            "When custom label text must be overridden per screen — use raw MCTable carefully"
           ],
           "antiPatterns": [
             {
@@ -7713,7 +7723,7 @@
             "Shared list-page headers that belong to the table region rather than the page title area"
           ],
           "do_not_use": [
-            "For page-level hero actions \u2014 use MCContentLayout rightAccessory",
+            "For page-level hero actions — use MCContentLayout rightAccessory",
             "For single inline button rows that do not need two-sided alignment"
           ],
           "antiPatterns": [
@@ -7881,9 +7891,9 @@
             "Standard page shell for non-form content"
           ],
           "do_not_use": [
-            "For form/create/edit pages \u2014 use MCFormLayout instead",
-            "Nested inside MCFormLayout \u2014 they are mutually exclusive page shells",
-            "For dialog content \u2014 use MCCommonDialog"
+            "For form/create/edit pages — use MCFormLayout instead",
+            "Nested inside MCFormLayout — they are mutually exclusive page shells",
+            "For dialog content — use MCCommonDialog"
           ],
           "antiPatterns": [
             {
@@ -7976,7 +7986,7 @@
             "Use rightAccessory for page-level primary action (Create button)"
           ],
           "donts": [
-            "Don't use for form pages \u2014 use MCFormLayout instead",
+            "Don't use for form pages — use MCFormLayout instead",
             "Don't nest MCContentLayout inside MCFormLayout"
           ],
           "structure": {
@@ -8022,8 +8032,8 @@
             "Initial page load or route transition loading"
           ],
           "do_not_use": [
-            "For inline/section loading \u2014 use MCLoader instead",
-            "For less than 300ms loading times \u2014 use debounced loading state"
+            "For inline/section loading — use MCLoader instead",
+            "For less than 300ms loading times — use debounced loading state"
           ],
           "antiPatterns": [
             {
@@ -8062,10 +8072,11 @@
             "Use MCCircularLoader with fillParent for full-page loading"
           ],
           "donts": [
-            "Don't show loader for less than 300ms \u2014 use debounced loading state"
+            "Don't show loader for less than 300ms — use debounced loading state"
           ],
           "example": "import { MCCircularLoader } from '@moloco/moloco-cloud-react-ui';\n\n// Full page loading\nif (isLoading) return <MCCircularLoader fillParent />;\n\n// Conditional rendering\nreturn isFetching || !data\n  ? <MCCircularLoader fillParent />\n  : <EntityDetail entity={data} />;",
-          "tier": 2
+          "tier": 2,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-loader--docs"
         },
         {
           "name": "MCConfirmDialog",
@@ -8086,9 +8097,9 @@
             "Alert-style dialogs requiring immediate user attention"
           ],
           "do_not_use": [
-            "For non-destructive confirmations \u2014 use MCCommonDialog",
-            "For complex forms inside a dialog \u2014 use MCCommonDialog with form content",
-            "For informational messages \u2014 use toast/snackbar notifications"
+            "For non-destructive confirmations — use MCCommonDialog",
+            "For complex forms inside a dialog — use MCCommonDialog with form content",
+            "For informational messages — use toast/snackbar notifications"
           ],
           "antiPatterns": [
             {
@@ -8155,20 +8166,20 @@
           "semantic_actions": [
             {
               "action": "User confirms the destructive action by clicking the confirm button",
-              "triggers": "confirmButtonOptions.onClick callback \u2192 mutation executes; onClose() called"
+              "triggers": "confirmButtonOptions.onClick callback → mutation executes; onClose() called"
             },
             {
               "action": "User cancels by clicking the cancel button",
-              "triggers": "cancelButtonOptions.onClick callback \u2192 onClose() \u2192 isOpen = false"
+              "triggers": "cancelButtonOptions.onClick callback → onClose() → isOpen = false"
             },
             {
               "action": "User dismisses by pressing Escape or clicking the X button",
-              "triggers": "onClose() \u2192 isOpen = false"
+              "triggers": "onClose() → isOpen = false"
             }
           ],
           "data_flow": {
             "input": "props (isOpen boolean, title, cancelButtonOptions, confirmButtonOptions)",
-            "output": "confirmButtonOptions.onClick callback \u2014 mutation trigger; cancelButtonOptions.onClick + onClose \u2014 close dialog",
+            "output": "confirmButtonOptions.onClick callback — mutation trigger; cancelButtonOptions.onClick + onClose — close dialog",
             "side_effects": [
               "background content aria-hidden=true while open",
               "focus trapped inside dialog"
@@ -8195,7 +8206,7 @@
             ],
             "screenReaderAnnouncement": "On open immediately announces: {title}, alert dialog. Body message also announced. Focus moves to first button.",
             "notes": [
-              "alertdialog role causes immediate announcement unlike dialog \u2014 appropriate for destructive confirmations",
+              "alertdialog role causes immediate announcement unlike dialog — appropriate for destructive confirmations",
               "Focus must be trapped inside and return to trigger on close",
               "Cancel button should be focused first (safe default action)"
             ]
@@ -8210,7 +8221,8 @@
             "Don't make the destructive action the default/highlighted button"
           ],
           "example": "<MCConfirmDialog\n  isOpen={confirmOpen}\n  title={t('dialog.title')}\n  cancelButtonOptions={{\n    label: t('dialog.cancel'),\n    leftIcon: <MCIcon icon=\"delete\" inheritColor />,\n    onClick: handleDiscard,\n  }}\n  confirmButtonOptions={{\n    label: t('dialog.confirm'),\n    color: 'primary',\n    leftIcon: <MCIcon icon=\"check\" inheritColor />,\n    onClick: handleConfirm,\n  }}\n  onClose={() => setConfirmOpen(false)}\n>\n  {t('dialog.message')}\n</MCConfirmDialog>",
-          "tier": 1
+          "tier": 1,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-dialog--docs"
         }
       ]
     },
@@ -8239,7 +8251,7 @@
           "do_not_use": [
             "For generic credentials forms outside authentication",
             "When you need a non-Formik login input stack",
-            "For two-factor verification \u2014 use MCTFAForm"
+            "For two-factor verification — use MCTFAForm"
           ],
           "antiPatterns": [
             {
@@ -8285,7 +8297,7 @@
           "semantic_actions": [
             {
               "action": "User submits email and password",
-              "triggers": "Formik validation passes \u2192 onSubmit(values)"
+              "triggers": "Formik validation passes → onSubmit(values)"
             },
             {
               "action": "User opens forgot-password flow",
@@ -8355,7 +8367,7 @@
             "Portal auth screens that should match the standard TFA layout"
           ],
           "do_not_use": [
-            "For primary sign-in \u2014 use MCSignInForm",
+            "For primary sign-in — use MCSignInForm",
             "For arbitrary OTP collection unrelated to account verification",
             "When verification length differs from the six-digit contract"
           ],
@@ -8392,7 +8404,7 @@
           "semantic_actions": [
             {
               "action": "User submits the verification code",
-              "triggers": "Formik validation passes \u2192 onSubmit(code)"
+              "triggers": "Formik validation passes → onSubmit(code)"
             },
             {
               "action": "User chooses another account",
@@ -8464,7 +8476,7 @@
           "do_not_use": [
             "For general email capture forms",
             "When a password reset request is not part of the auth flow",
-            "For the post-submit confirmation state \u2014 use MCPostForgotPassword"
+            "For the post-submit confirmation state — use MCPostForgotPassword"
           ],
           "antiPatterns": [
             {
@@ -8504,7 +8516,7 @@
           "semantic_actions": [
             {
               "action": "User submits the reset request",
-              "triggers": "Formik validation passes \u2192 onSubmit({ email })"
+              "triggers": "Formik validation passes → onSubmit({ email })"
             },
             {
               "action": "User returns to sign-in",
@@ -8685,7 +8697,7 @@
           ],
           "do_not_use": [
             "Outside the ad pacing dashboard domain",
-            "For generic report filter bars \u2014 compose a domain-neutral bar instead",
+            "For generic report filter bars — compose a domain-neutral bar instead",
             "When the screen does not expose date range or column customization"
           ],
           "antiPatterns": [
@@ -8921,7 +8933,7 @@
             "Pacing pages that support inline priority changes and order-title navigation"
           ],
           "do_not_use": [
-            "For generic report pages \u2014 use MCReportTable directly",
+            "For generic report pages — use MCReportTable directly",
             "When filtering/export behavior is not tied to ad pacing semantics"
           ],
           "antiPatterns": [
@@ -9074,14 +9086,14 @@
         {
           "name": "EmptyState",
           "description": "Composition pattern for empty data views. Combine MCStack + MCIcon + text + MCButton2.",
-          "shortDescription": "DEPRECATED \u2014 use MCEmptyState",
+          "shortDescription": "DEPRECATED — use MCEmptyState",
           "functional_category": "feedback",
           "status": "deprecated",
           "usage_stats": {
             "file_count": 0,
             "last_scanned": "2026-04-08"
           },
-          "importPath": "N/A (composition pattern \u2014 no single import)",
+          "importPath": "N/A (composition pattern — no single import)",
           "importStatement": "// Composition pattern: import MCStack, MCIcon, MCButton2 from '@moloco/moloco-cloud-react-ui'; plus styled-components for wrappers",
           "when_to_use": [
             "When a list, table, or section has zero data to display",
@@ -9089,9 +9101,9 @@
             "Filtered results that return zero matches"
           ],
           "do_not_use": [
-            "When data exists but is loading \u2014 use MCLoader or MCCircularLoader",
-            "For error states \u2014 use an error message pattern instead",
-            "When the empty state is temporary (< 300ms) \u2014 show loader instead"
+            "When data exists but is loading — use MCLoader or MCCircularLoader",
+            "For error states — use an error message pattern instead",
+            "When the empty state is temporary (< 300ms) — show loader instead"
           ],
           "antiPatterns": [
             {
@@ -9165,11 +9177,11 @@
           "importStatement": "import { MCButton } from '@moloco/moloco-cloud-react-ui';",
           "when_to_use": [
             "Only when maintaining existing code that already uses MCButton",
-            "Legacy compatibility \u2014 all new code should use MCButton2"
+            "Legacy compatibility — all new code should use MCButton2"
           ],
           "do_not_use": [
-            "For any new UI development \u2014 use MCButton2 instead",
-            "When refactoring legacy code \u2014 migrate to MCButton2"
+            "For any new UI development — use MCButton2 instead",
+            "When refactoring legacy code — migrate to MCButton2"
           ],
           "antiPatterns": [
             {
@@ -9243,7 +9255,8 @@
               "description": "Test ID"
             }
           ],
-          "tier": 4
+          "tier": 4,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-button--docs"
         },
         {
           "name": "MCBanner",
@@ -9263,9 +9276,9 @@
             "System-wide announcements or deprecation notices"
           ],
           "do_not_use": [
-            "For inline field-level errors \u2014 use form error components",
-            "For transient toast notifications \u2014 use snackbar/toast pattern",
-            "For dialog-based alerts \u2014 use MCConfirmDialog"
+            "For inline field-level errors — use form error components",
+            "For transient toast notifications — use snackbar/toast pattern",
+            "For dialog-based alerts — use MCConfirmDialog"
           ],
           "antiPatterns": [
             {
@@ -9328,7 +9341,8 @@
             }
           ],
           "example": "<MCBanner variant=\"warning\" onClose={handleDismiss}>\n  This campaign has limited budget remaining.\n</MCBanner>",
-          "tier": 1
+          "tier": 1,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-banner--docs"
         },
         {
           "name": "MCSearchBar",
@@ -9348,8 +9362,8 @@
             "When search needs debounced input handling"
           ],
           "do_not_use": [
-            "Inside Formik forms \u2014 use MCFormTextInput with search icon",
-            "For complex filter UIs \u2014 use MCFilter component"
+            "Inside Formik forms — use MCFormTextInput with search icon",
+            "For complex filter UIs — use MCFilter component"
           ],
           "antiPatterns": [
             {
@@ -9438,7 +9452,8 @@
             }
           ],
           "example": "const [searchWord, setSearchWord] = useState('');\n\n<MCSearchBar\n  searchWord={searchWord}\n  setSearchWord={setSearchWord}\n  placeholder=\"Search campaigns...\"\n  border\n  debounceTimeout={300}\n/>",
-          "tier": 1
+          "tier": 1,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-searchbar--docs"
         },
         {
           "name": "MCTag",
@@ -9458,8 +9473,8 @@
             "Visually marking items with a category label"
           ],
           "do_not_use": [
-            "For entity lifecycle status \u2014 use MCStatus",
-            "For removable chip selections \u2014 use MCChip"
+            "For entity lifecycle status — use MCStatus",
+            "For removable chip selections — use MCChip"
           ],
           "antiPatterns": [
             {
@@ -9530,7 +9545,8 @@
             }
           ],
           "example": "<MCTag backgroundColor=\"#E3F2FD\" fontColor=\"#1565C0\" fontSize=\"12px\" borderRadius=\"4px\" padding=\"2px 8px\">\n  Beta\n</MCTag>",
-          "tier": 1
+          "tier": 1,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-tag--docs"
         },
         {
           "name": "MCBoxTab",
@@ -9549,8 +9565,8 @@
             "When MCBarTabs is too minimal and a boxed tab style is needed"
           ],
           "do_not_use": [
-            "For standard bar-style tabs \u2014 use MCBarTabs",
-            "For page-level navigation \u2014 use routing"
+            "For standard bar-style tabs — use MCBarTabs",
+            "For page-level navigation — use routing"
           ],
           "antiPatterns": [
             {
@@ -9603,7 +9619,8 @@
             }
           ],
           "example": "<MCBoxTabsWrapper $underline>\n  <MCBoxTabs>\n    <MCBoxTab $active={activeTab === 0} onClick={() => setActiveTab(0)}>Tab 1</MCBoxTab>\n    <MCBoxTab $active={activeTab === 1} onClick={() => setActiveTab(1)}>Tab 2</MCBoxTab>\n  </MCBoxTabs>\n  <MCBoxTabIndicator />\n</MCBoxTabsWrapper>",
-          "tier": 1
+          "tier": 1,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-tab--docs"
         },
         {
           "name": "MCCollapse",
@@ -9622,8 +9639,8 @@
             "When MCAccordion is too opinionated and you need raw collapse animation"
           ],
           "do_not_use": [
-            "For accordion pattern with header \u2014 use MCAccordion instead",
-            "For dialog/modal animations \u2014 use MCCommonDialog"
+            "For accordion pattern with header — use MCAccordion instead",
+            "For dialog/modal animations — use MCCommonDialog"
           ],
           "antiPatterns": [
             {
@@ -9685,8 +9702,8 @@
             "Help text, documentation, or user-authored content with markdown formatting"
           ],
           "do_not_use": [
-            "For plain text display \u2014 use styled-components directly",
-            "For rich text editing \u2014 this is display-only"
+            "For plain text display — use styled-components directly",
+            "For rich text editing — this is display-only"
           ],
           "antiPatterns": [
             {
@@ -9715,7 +9732,8 @@
             }
           ],
           "example": "<MCMarkdown markdownText=\"**Bold** and _italic_ text with [links](https://example.com)\" />",
-          "tier": 1
+          "tier": 1,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-markdown--docs"
         },
         {
           "name": "MCChip",
@@ -9735,8 +9753,8 @@
             "Building custom chip-based select inputs"
           ],
           "do_not_use": [
-            "For non-removable labels \u2014 use MCTag",
-            "For status badges \u2014 use MCStatus"
+            "For non-removable labels — use MCTag",
+            "For status badges — use MCStatus"
           ],
           "antiPatterns": [
             {
@@ -9750,7 +9768,7 @@
               "alternative": "MCStatus"
             }
           ],
-          "generic": "OptionType \u2014 the option data type",
+          "generic": "OptionType — the option data type",
           "props": [
             {
               "name": "option",
@@ -9802,7 +9820,8 @@
             }
           ],
           "example": "<MCChip\n  option={{ value: 'us', label: 'United States', key: 'us' }}\n  onRemove={(opt) => handleRemove(opt)}\n/>",
-          "tier": 1
+          "tier": 1,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-chip--docs"
         },
         {
           "name": "MCDataTable",
@@ -9822,8 +9841,8 @@
             "When MCReportTable does not provide enough customization"
           ],
           "do_not_use": [
-            "For standard list pages \u2014 use MCReportTable (higher-level API)",
-            "For simple data display \u2014 use a basic HTML table or MCReportTable"
+            "For standard list pages — use MCReportTable (higher-level API)",
+            "For simple data display — use a basic HTML table or MCReportTable"
           ],
           "antiPatterns": [
             {
@@ -9960,12 +9979,13 @@
               "description": "Custom data cell renderer"
             }
           ],
-          "tier": 2
+          "tier": 2,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-datatable--docs"
         },
         {
           "name": "MCSelect",
           "description": "Standalone select dropdown (not Formik-integrated). Built on react-select.",
-          "shortDescription": "DEPRECATED \u2014 use MCFormSingleRichSelect",
+          "shortDescription": "DEPRECATED — use MCFormSingleRichSelect",
           "functional_category": "primitive",
           "status": "deprecated",
           "usage_stats": {
@@ -9979,8 +9999,8 @@
             "Filter dropdowns, toolbar selects, and other non-form selects"
           ],
           "do_not_use": [
-            "Inside Formik forms \u2014 use MCFormSingleRichSelect or MCFormMultiRichSelect",
-            "For fewer than 3 options \u2014 use radio buttons"
+            "Inside Formik forms — use MCFormSingleRichSelect or MCFormMultiRichSelect",
+            "For fewer than 3 options — use radio buttons"
           ],
           "antiPatterns": [
             {
@@ -10079,12 +10099,13 @@
             "reason": "Superseded by MCFormSingleRichSelect",
             "replacement": "MCFormSingleRichSelect",
             "since": "3.0.0"
-          }
+          },
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-select--docs"
         },
         {
           "name": "MCDatePicker",
           "description": "Standalone date picker input. Not Formik-integrated.",
-          "shortDescription": "DEPRECATED \u2014 use MCFormDateRangePicker",
+          "shortDescription": "DEPRECATED — use MCFormDateRangePicker",
           "functional_category": "primitive",
           "status": "deprecated",
           "usage_stats": {
@@ -10098,8 +10119,8 @@
             "Filter bars, toolbar date selectors"
           ],
           "do_not_use": [
-            "Inside Formik forms \u2014 use MCFormDateRangePicker or MCFormDateTimeRangePicker",
-            "For date+time selection \u2014 use MCTimePicker alongside or a datetime component"
+            "Inside Formik forms — use MCFormDateRangePicker or MCFormDateTimeRangePicker",
+            "For date+time selection — use MCTimePicker alongside or a datetime component"
           ],
           "antiPatterns": [
             {
@@ -10193,7 +10214,8 @@
             "reason": "Superseded by MCFormDateRangePicker",
             "replacement": "MCFormDateRangePicker",
             "since": "3.0.0"
-          }
+          },
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-datepicker--docs"
         },
         {
           "name": "MCTimePicker",
@@ -10212,7 +10234,7 @@
             "Paired with MCDatePicker for date+time selection"
           ],
           "do_not_use": [
-            "Inside Formik forms \u2014 use MCFormDateTimeRangePicker"
+            "Inside Formik forms — use MCFormDateTimeRangePicker"
           ],
           "antiPatterns": [
             {
@@ -10278,7 +10300,8 @@
             }
           ],
           "example": "<MCTimePicker\n  value={selectedTime}\n  onChange={setSelectedTime}\n  placeholder=\"Select time\"\n/>",
-          "tier": 1
+          "tier": 1,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-datepicker--docs"
         },
         {
           "name": "MCDynamicDropdown",
@@ -10298,8 +10321,8 @@
             "Async search-as-you-type select inputs"
           ],
           "do_not_use": [
-            "For static option lists \u2014 use MCSelect or MCFormSingleRichSelect",
-            "Inside Formik forms with static options \u2014 use MCFormMultiRichSelect"
+            "For static option lists — use MCSelect or MCFormSingleRichSelect",
+            "Inside Formik forms with static options — use MCFormMultiRichSelect"
           ],
           "antiPatterns": [
             {
@@ -10313,7 +10336,7 @@
               "alternative": "MCFormMultiRichSelect"
             }
           ],
-          "generic": "ValueType \u2014 the option value type (default: string)",
+          "generic": "ValueType — the option value type (default: string)",
           "props": [
             {
               "name": "loadOptions",
@@ -10401,7 +10424,8 @@
             }
           ],
           "example": "<MCDynamicDropdown<string>\n  loadOptions={async ({ cursor, searchText, limit }) => {\n    const result = await fetchOptions({ cursor, searchText, limit });\n    return { options: result.items, cursor: result.nextCursor, totalCount: result.total };\n  }}\n  value={selectedOptions}\n  onChange={setSelectedOptions}\n  selectPlaceholder=\"Select items...\"\n/>",
-          "tier": 2
+          "tier": 2,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-dropdown--docs"
         },
         {
           "name": "MCFilter",
@@ -10421,8 +10445,8 @@
             "Data explorer-style filtering UIs"
           ],
           "do_not_use": [
-            "For simple single-field search \u2014 use MCSearchBar",
-            "For form-based filtering \u2014 use Formik form with MCFormSingleRichSelect"
+            "For simple single-field search — use MCSearchBar",
+            "For form-based filtering — use Formik form with MCFormSingleRichSelect"
           ],
           "antiPatterns": [
             {
@@ -10539,12 +10563,13 @@
             "MTFilter": "MTFilterForNumber | MTFilterForString | MTFilterForOption | MTFilterForSingleOption",
             "MTFilterOption": "{ displayName: string; value: string }"
           },
-          "tier": 2
+          "tier": 2,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-filter--docs"
         },
         {
           "name": "MCModal",
           "description": "Low-level modal wrapper. Re-exports react-modal. For most use cases, prefer MCCommonDialog or MCConfirmDialog.",
-          "shortDescription": "DEPRECATED \u2014 use MCCommonDialog",
+          "shortDescription": "DEPRECATED — use MCCommonDialog",
           "functional_category": "primitive",
           "status": "deprecated",
           "usage_stats": {
@@ -10558,9 +10583,9 @@
             "When full control over modal content, styling, and behavior is needed"
           ],
           "do_not_use": [
-            "For standard dialogs \u2014 use MCCommonDialog",
-            "For confirmation dialogs \u2014 use MCConfirmDialog",
-            "For simple overlays \u2014 use MCPopover"
+            "For standard dialogs — use MCCommonDialog",
+            "For confirmation dialogs — use MCConfirmDialog",
+            "For simple overlays — use MCPopover"
           ],
           "antiPatterns": [
             {
@@ -10613,7 +10638,8 @@
             "reason": "Superseded by MCCommonDialog",
             "replacement": "MCCommonDialog",
             "since": "3.0.0"
-          }
+          },
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-modal--docs"
         },
         {
           "name": "MCPopper",
@@ -10632,8 +10658,8 @@
             "When MCPopover does not provide enough positioning control"
           ],
           "do_not_use": [
-            "For standard popover/menu \u2014 use MCPopover or MCMoreActionsButton",
-            "For modal dialogs \u2014 use MCCommonDialog"
+            "For standard popover/menu — use MCPopover or MCMoreActionsButton",
+            "For modal dialogs — use MCCommonDialog"
           ],
           "antiPatterns": [
             {
@@ -10680,7 +10706,7 @@
         },
         {
           "name": "MCStateIcon",
-          "description": "State-specific icon component for entity lifecycle states. Different from MCIcon \u2014 renders state-specific colored icons.",
+          "description": "State-specific icon component for entity lifecycle states. Different from MCIcon — renders state-specific colored icons.",
           "shortDescription": "State-dependent icon display",
           "functional_category": "primitive",
           "status": "candidate-for-removal",
@@ -10695,8 +10721,8 @@
             "Paired with MCStatus or used standalone in table cells"
           ],
           "do_not_use": [
-            "For general-purpose icons \u2014 use MCIcon",
-            "For full status badge with label \u2014 use MCStatus"
+            "For general-purpose icons — use MCIcon",
+            "For full status badge with label — use MCStatus"
           ],
           "antiPatterns": [
             {
@@ -10744,7 +10770,8 @@
             }
           ],
           "example": "<MCStateIcon icon=\"active\" width={16} height={16} />",
-          "tier": 3
+          "tier": 3,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-icons--docs"
         },
         {
           "name": "MCSingleNumberInput",
@@ -10764,7 +10791,7 @@
             "Number inputs with inline error/warning/guide messages"
           ],
           "do_not_use": [
-            "Inside Formik forms \u2014 use MCFormNumberInput"
+            "Inside Formik forms — use MCFormNumberInput"
           ],
           "antiPatterns": [
             {
@@ -10902,7 +10929,8 @@
             }
           ],
           "example": "<MCSingleNumberInput\n  value={budget}\n  onValueChange={({ floatValue }) => setBudget(floatValue)}\n  prefix=\"$\"\n  placeholder=\"Enter budget\"\n/>",
-          "tier": 1
+          "tier": 1,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-input--docs"
         },
         {
           "name": "MCDebounceInput",
@@ -10921,8 +10949,8 @@
             "When you need to delay onChange callbacks to reduce API calls"
           ],
           "do_not_use": [
-            "For search \u2014 use MCSearchBar which has built-in debounce",
-            "When immediate feedback is needed \u2014 debounce adds delay"
+            "For search — use MCSearchBar which has built-in debounce",
+            "When immediate feedback is needed — debounce adds delay"
           ],
           "antiPatterns": [
             {
@@ -10965,7 +10993,737 @@
           "notes": [
             "Also accepts all standard input/textarea HTML attributes"
           ],
-          "tier": 4
+          "tier": 4,
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-input--docs"
+        },
+        {
+          "name": "MCDateRangePicker",
+          "description": "Standalone date range picker for selecting start and end dates. Not Formik-integrated.",
+          "shortDescription": "Date range selection input",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCDateRangePicker } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Standalone date range selection outside Formik context",
+            "Filter bars, toolbar date range selectors",
+            "When users need to select both a start and end date in one interaction"
+          ],
+          "do_not_use": [
+            "Inside Formik forms — use MCFormDateRangePicker",
+            "For single date selection — use MCDatePicker"
+          ],
+          "props": [
+            {
+              "name": "startDate",
+              "type": "Date",
+              "required": false,
+              "description": "Currently selected start date"
+            },
+            {
+              "name": "endDate",
+              "type": "Date",
+              "required": false,
+              "description": "Currently selected end date"
+            },
+            {
+              "name": "placeholder",
+              "type": "string",
+              "required": false,
+              "description": "Input placeholder text"
+            },
+            {
+              "name": "onChangeDates",
+              "type": "(start: Date, end: Date) => void",
+              "required": false,
+              "description": "Callback when dates change"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCDialog",
+          "description": "Generic low-level dialog container. Wraps react-modal with Moloco styling. Use MCCommonDialog or MCConfirmDialog for standard use cases.",
+          "shortDescription": "Generic dialog container primitive",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCDialog } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Building fully custom dialog layouts not covered by MCCommonDialog",
+            "When full control over dialog content, dimensions, and behavior is needed"
+          ],
+          "do_not_use": [
+            "For standard dialogs — use MCCommonDialog",
+            "For confirmation prompts — use MCConfirmDialog"
+          ],
+          "props": [
+            {
+              "name": "isOpen",
+              "type": "boolean",
+              "required": true,
+              "description": "Controls dialog visibility"
+            },
+            {
+              "name": "onRequestClose",
+              "type": "() => void",
+              "required": true,
+              "description": "Close request handler (Escape key or overlay click)"
+            },
+            {
+              "name": "children",
+              "type": "ReactNode",
+              "required": false,
+              "description": "Dialog content"
+            },
+            {
+              "name": "style",
+              "type": "object",
+              "required": false,
+              "description": "Custom overlay and content style overrides"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCFilterWithApplyButton",
+          "description": "Multi-dimension filter component that holds filter state locally until the user explicitly clicks Apply. Use when filter changes should not immediately trigger data fetching.",
+          "shortDescription": "Filter with explicit apply action",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCFilterWithApplyButton } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Table/list filtering where changes should only apply on explicit user confirmation",
+            "When filter evaluation is expensive and should not run on every keystroke",
+            "Multi-dimension filter UIs requiring batch apply semantics"
+          ],
+          "do_not_use": [
+            "When real-time filtering is desired — use MCFilter with onChange",
+            "For simple single-field search — use MCSearchBar"
+          ],
+          "props": [
+            {
+              "name": "dimensions",
+              "type": "MTDimension[]",
+              "required": true,
+              "description": "Available filter dimensions"
+            },
+            {
+              "name": "initialFilters",
+              "type": "MTFilter[]",
+              "required": false,
+              "description": "Initial filter state"
+            },
+            {
+              "name": "singleFilterPerDimension",
+              "type": "boolean",
+              "required": false,
+              "description": "Allow only one filter per dimension"
+            }
+          ],
+          "tier": 2
+        },
+        {
+          "name": "MCCheckBoxInput",
+          "description": "Raw standalone checkbox input without Formik integration. Provides direct controlled checkbox behavior.",
+          "shortDescription": "Raw checkbox without Formik",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCCheckBoxInput } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Standalone checkbox controls outside Formik context",
+            "Select-all row checkboxes in tables",
+            "Interactive list items with boolean toggle state"
+          ],
+          "do_not_use": [
+            "Inside Formik forms — use MCFormCheckBox",
+            "When Formik field validation and error display is needed"
+          ],
+          "props": [
+            {
+              "name": "label",
+              "type": "string",
+              "required": false,
+              "description": "Checkbox label text"
+            },
+            {
+              "name": "checked",
+              "type": "boolean",
+              "required": false,
+              "description": "Controlled checked state"
+            },
+            {
+              "name": "onChange",
+              "type": "(event: React.ChangeEvent<HTMLInputElement>) => void",
+              "required": false,
+              "description": "Change handler"
+            },
+            {
+              "name": "disabled",
+              "type": "boolean",
+              "required": false,
+              "description": "Disabled state"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCChipInput",
+          "description": "Multi-value chip/tag input allowing users to enter and remove multiple values as chips.",
+          "shortDescription": "Multi-value chip input",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCChipInput } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Free-form multi-value tag/keyword entry",
+            "Email or label list inputs outside Formik context"
+          ],
+          "do_not_use": [
+            "Inside Formik forms — use the Formik-integrated chip input variant",
+            "For predefined option selection — use MCInlineChipRichSelect or MCMultiRichSelect"
+          ],
+          "props": [
+            {
+              "name": "value",
+              "type": "string[]",
+              "required": false,
+              "description": "Array of current chip values"
+            },
+            {
+              "name": "onChange",
+              "type": "(values: string[]) => void",
+              "required": false,
+              "description": "Change handler called with updated values array"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCRadioInput",
+          "description": "Raw standalone radio button input without Formik integration. Use directly for controlled radio groups outside forms.",
+          "shortDescription": "Raw radio button without Formik",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCRadioInput } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Standalone radio groups outside Formik context",
+            "Single-choice selection in non-form UI (e.g., toolbar, filter panel)"
+          ],
+          "do_not_use": [
+            "Inside Formik forms — use MCFormRadioGroup",
+            "When more than 5 options exist — use a select dropdown instead"
+          ],
+          "props": [
+            {
+              "name": "label",
+              "type": "string",
+              "required": false,
+              "description": "Radio button label"
+            },
+            {
+              "name": "checked",
+              "type": "boolean",
+              "required": false,
+              "description": "Controlled checked state"
+            },
+            {
+              "name": "onChange",
+              "type": "(event: React.ChangeEvent<HTMLInputElement>) => void",
+              "required": false,
+              "description": "Change handler"
+            },
+            {
+              "name": "name",
+              "type": "string",
+              "required": false,
+              "description": "Input name attribute for grouping radio buttons"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCCardSelect",
+          "description": "Grid-based card selection component. Renders options as clickable cards in a configurable grid layout.",
+          "shortDescription": "Grid card selection input",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCCardSelect } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Visually prominent single-choice selection (e.g., plan selection, mode selection)",
+            "When options need icons or rich content and radio buttons are too plain"
+          ],
+          "do_not_use": [
+            "For many options (6+) — use a select dropdown instead",
+            "For simple boolean toggles — use MCSwitch or MCCheckBoxInput"
+          ],
+          "props": [
+            {
+              "name": "options",
+              "type": "Array<{ key: string; value: any; label: string; disabled?: boolean }>",
+              "required": false,
+              "description": "Card options to render"
+            },
+            {
+              "name": "onChange",
+              "type": "(value: any) => void",
+              "required": false,
+              "description": "Selection change handler"
+            },
+            {
+              "name": "cardsPerRow",
+              "type": "number",
+              "required": false,
+              "description": "Number of cards per grid row"
+            },
+            {
+              "name": "value",
+              "type": "any",
+              "required": false,
+              "description": "Currently selected value"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCCustomRichSelect",
+          "description": "Highly customizable rich select dropdown with support for custom option and selected-option renderers, search, and sort configuration.",
+          "shortDescription": "Custom-rendered rich select",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCCustomRichSelect } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "When option rows need fully custom rendering (icons, descriptions, metadata)",
+            "Standalone selects outside Formik with non-standard option display"
+          ],
+          "do_not_use": [
+            "Inside Formik forms — use MCFormSingleRichSelect with custom option renderers",
+            "For standard option lists — use MCSingleRichSelect or MCMultiRichSelect"
+          ],
+          "props": [
+            {
+              "name": "options",
+              "type": "array",
+              "required": false,
+              "description": "Select options array"
+            },
+            {
+              "name": "value",
+              "type": "any",
+              "required": false,
+              "description": "Currently selected value"
+            },
+            {
+              "name": "onChange",
+              "type": "(value: any) => void",
+              "required": false,
+              "description": "Change handler"
+            },
+            {
+              "name": "searchable",
+              "type": "boolean",
+              "required": false,
+              "description": "Enable search/filter within options"
+            },
+            {
+              "name": "components",
+              "type": "{ option?: ComponentType; selectedOption?: ComponentType }",
+              "required": false,
+              "description": "Custom render components for option rows and selected display"
+            },
+            {
+              "name": "sortProps",
+              "type": "object",
+              "required": false,
+              "description": "Sort configuration for options"
+            }
+          ],
+          "tier": 2
+        },
+        {
+          "name": "MCInlineChipRichSelect",
+          "description": "Multi-select dropdown that displays selected values as inline chips within the input trigger. Supports search and select-all.",
+          "shortDescription": "Multi-select with inline chips",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCInlineChipRichSelect } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Multi-select inputs where selected values should be visible inline as chips",
+            "Tag/label assignment UIs outside Formik context"
+          ],
+          "do_not_use": [
+            "Inside Formik forms — use the corresponding MCForm* multi-select wrapper",
+            "When selected items list is expected to be long — use MCMultiRichSelect"
+          ],
+          "props": [
+            {
+              "name": "options",
+              "type": "Array<{ key: string; label: string; value: any }>",
+              "required": false,
+              "description": "Select options"
+            },
+            {
+              "name": "values",
+              "type": "any[]",
+              "required": false,
+              "description": "Currently selected values"
+            },
+            {
+              "name": "onChange",
+              "type": "(values: any[]) => void",
+              "required": false,
+              "description": "Change handler"
+            },
+            {
+              "name": "searchable",
+              "type": "boolean",
+              "required": false,
+              "description": "Enable search within options"
+            },
+            {
+              "name": "selectAll",
+              "type": "boolean",
+              "required": false,
+              "description": "Show select-all option"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCMultiRichSelect",
+          "description": "Multi-select dropdown with optional search, OK button for batch confirmation, and left footer content slot.",
+          "shortDescription": "Multi-select with optional OK button",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCMultiRichSelect } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Multi-value selection outside Formik context",
+            "When selection should be confirmed with an OK button before applying",
+            "Filter panels, toolbar multi-selects"
+          ],
+          "do_not_use": [
+            "Inside Formik forms — use MCFormMultiRichSelect",
+            "When inline chip display is preferred — use MCInlineChipRichSelect"
+          ],
+          "props": [
+            {
+              "name": "options",
+              "type": "array",
+              "required": false,
+              "description": "Select options array"
+            },
+            {
+              "name": "onChange",
+              "type": "(values: any[]) => void",
+              "required": false,
+              "description": "Change handler"
+            },
+            {
+              "name": "value",
+              "type": "any[]",
+              "required": false,
+              "description": "Currently selected values"
+            },
+            {
+              "name": "searchable",
+              "type": "boolean",
+              "required": false,
+              "description": "Enable search within options"
+            },
+            {
+              "name": "enableOkButton",
+              "type": "boolean",
+              "required": false,
+              "description": "Show OK button to batch-confirm selections"
+            },
+            {
+              "name": "leftFooterContent",
+              "type": "ReactNode",
+              "required": false,
+              "description": "Custom content in the left footer slot"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCSingleRichSelect",
+          "description": "Single-value select dropdown with optional search. Standalone version without Formik integration.",
+          "shortDescription": "Single select with search",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCSingleRichSelect } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Standalone single-value dropdowns outside Formik context",
+            "Filter bars, toolbar selects, and inline select controls"
+          ],
+          "do_not_use": [
+            "Inside Formik forms — use MCFormSingleRichSelect",
+            "For fewer than 3 options — use radio buttons (MCRadioInput)"
+          ],
+          "props": [
+            {
+              "name": "options",
+              "type": "Array<{ label: string; value: any }>",
+              "required": false,
+              "description": "Select options"
+            },
+            {
+              "name": "onChange",
+              "type": "(value: any) => void",
+              "required": false,
+              "description": "Change handler"
+            },
+            {
+              "name": "value",
+              "type": "any",
+              "required": false,
+              "description": "Currently selected value"
+            },
+            {
+              "name": "searchable",
+              "type": "boolean",
+              "required": false,
+              "description": "Enable search/filter within options"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCSwitch",
+          "description": "Toggle switch for binary on/off states. Not Formik-integrated.",
+          "shortDescription": "Toggle switch",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCSwitch } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Binary enable/disable toggles outside Formik context",
+            "Feature flags, settings panels, row-level enable/disable in tables"
+          ],
+          "do_not_use": [
+            "Inside Formik forms — use the Formik-integrated switch variant",
+            "For multiple exclusive options — use radio buttons instead"
+          ],
+          "props": [
+            {
+              "name": "checked",
+              "type": "boolean",
+              "required": true,
+              "description": "Controlled checked/on state"
+            },
+            {
+              "name": "onChange",
+              "type": "(checked: boolean) => void",
+              "required": true,
+              "description": "Toggle change handler"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCTable",
+          "description": "Data table built on react-table. Supports selectable rows, click-to-select, and row-level disable conditions.",
+          "shortDescription": "Data table with react-table",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCTable } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Tabular data display with selection, sorting, and custom cell rendering",
+            "When MCDataTable (virtualized) is too heavy and row count is manageable"
+          ],
+          "do_not_use": [
+            "For large datasets (500+ rows) — use MCDataTable for virtualized rendering",
+            "For read-only structured data without interaction — consider a plain HTML table"
+          ],
+          "props": [
+            {
+              "name": "columns",
+              "type": "MTTableColumn[]",
+              "required": false,
+              "description": "Column definitions using react-table column spec"
+            },
+            {
+              "name": "data",
+              "type": "array",
+              "required": false,
+              "description": "Row data array"
+            },
+            {
+              "name": "selectableRow",
+              "type": "boolean",
+              "required": false,
+              "description": "Enable row selection checkboxes"
+            },
+            {
+              "name": "clickRowToSelect",
+              "type": "boolean",
+              "required": false,
+              "description": "Allow clicking a row to select it"
+            },
+            {
+              "name": "rowDisabledCondition",
+              "type": "(row: any) => boolean",
+              "required": false,
+              "description": "Function to determine if a row should be disabled/non-selectable"
+            }
+          ],
+          "tier": 2
+        },
+        {
+          "name": "MCBetaTag",
+          "description": "Beta label tag for marking features or components in beta. Supports outline and filled display variants.",
+          "shortDescription": "Beta label tag",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCBetaTag } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Labeling UI sections, features, or components that are in beta",
+            "Alongside feature names in navigation or page headers"
+          ],
+          "do_not_use": [
+            "For general status labels — use MCStatus",
+            "As an interactive element — this is a display-only tag"
+          ],
+          "props": [
+            {
+              "name": "outline",
+              "type": "boolean",
+              "required": false,
+              "description": "Render tag with outline style"
+            },
+            {
+              "name": "filled",
+              "type": "boolean",
+              "required": false,
+              "description": "Render tag with filled background style"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCTooltip",
+          "description": "Hover tooltip that wraps any element. Displays a title on hover with configurable placement.",
+          "shortDescription": "Hover tooltip",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCTooltip } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Adding hover-triggered explanatory text to any UI element",
+            "Icon buttons that need accessible labels on hover",
+            "Truncated text cells in tables requiring full content on hover"
+          ],
+          "do_not_use": [
+            "For rich interactive content on hover — use MCPopover",
+            "For persistent visible hints — use inline helper text instead"
+          ],
+          "props": [
+            {
+              "name": "title",
+              "type": "ReactNode",
+              "required": true,
+              "description": "Tooltip content shown on hover"
+            },
+            {
+              "name": "children",
+              "type": "ReactNode",
+              "required": true,
+              "description": "Trigger element wrapped by the tooltip"
+            },
+            {
+              "name": "placement",
+              "type": "string",
+              "required": false,
+              "description": "Tooltip placement relative to trigger (e.g. top, bottom, left, right)"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCActionTitleTooltip",
+          "description": "Tooltip variant that combines a title with an action trigger. Shows tooltip content linked to a title string.",
+          "shortDescription": "Action-triggered tooltip with title",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCActionTitleTooltip } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Displaying a descriptive tooltip on action labels or titles",
+            "When a clickable label needs an accompanying tooltip explanation"
+          ],
+          "do_not_use": [
+            "For general hover tooltips — use MCTooltip",
+            "For rich interactive popovers — use MCPopover"
+          ],
+          "props": [
+            {
+              "name": "children",
+              "type": "string",
+              "required": false,
+              "description": "Trigger text or label"
+            },
+            {
+              "name": "title",
+              "type": "string",
+              "required": false,
+              "description": "Tooltip title text shown in the overlay"
+            }
+          ],
+          "tier": 1
+        },
+        {
+          "name": "MCWeeklyTimeTablePicker",
+          "description": "Weekly schedule picker for selecting time slots across a 7-day grid. Supports 12-hour and 24-hour clock modes and custom slot labels.",
+          "shortDescription": "Weekly schedule time slot picker",
+          "functional_category": "primitive",
+          "status": "stable",
+          "importPath": "@moloco/moloco-cloud-react-ui",
+          "importStatement": "import { MCWeeklyTimeTablePicker } from '@moloco/moloco-cloud-react-ui';",
+          "when_to_use": [
+            "Ad scheduling — selecting active hours across days of the week",
+            "Campaign or notification delivery schedule configuration"
+          ],
+          "do_not_use": [
+            "For single time slot selection — use MCTimePicker",
+            "For date range selection — use MCDateRangePicker"
+          ],
+          "props": [
+            {
+              "name": "events",
+              "type": "array",
+              "required": false,
+              "description": "Array of currently selected time slot events"
+            },
+            {
+              "name": "onChange",
+              "type": "(events: array) => void",
+              "required": false,
+              "description": "Change handler called with updated events"
+            },
+            {
+              "name": "customLabel",
+              "type": "object",
+              "required": false,
+              "description": "Custom label overrides for days and time slots"
+            },
+            {
+              "name": "clockTime",
+              "type": "'12hour' | '24hour'",
+              "required": false,
+              "description": "Clock format: 12-hour or 24-hour display"
+            }
+          ],
+          "tier": 2
         }
       ]
     }
@@ -10974,7 +11732,7 @@
     "description": "Defines what belongs in the design system and tracks components outside it.",
     "inclusion_criteria": {
       "minimum_usage": "Imported in 3+ independent files",
-      "reusability": "Not domain-specific \u2014 usable across any feature",
+      "reusability": "Not domain-specific — usable across any feature",
       "decision_required": "Agent needs to choose this component (not just scaffolding)"
     },
     "known_outside_ds": [
@@ -11127,9 +11885,9 @@
       }
     ],
     "assessment_values": {
-      "promote": "Candidate for next DS update \u2014 meets inclusion criteria",
-      "covered": "Already has a DS wrapper \u2014 raw primitive usage is a deviation",
-      "watch": "Usage trending \u2014 monitor for future inclusion",
+      "promote": "Candidate for next DS update — meets inclusion criteria",
+      "covered": "Already has a DS wrapper — raw primitive usage is a deviation",
+      "watch": "Usage trending — monitor for future inclusion",
       "domain_specific": "Domain-specific, not a DS candidate"
     }
   }

@@ -327,7 +327,7 @@
           "name": "Button visual hierarchy",
           "what_to_check": "Only ONE primary (contained, bg #346bea) button per view. Others should be default/outlined or text variant.",
           "expected": {
-            "primary_action": "MCButton2 variant='contained' — single per view, bg #346bea, text #FFFFFF",
+            "primary_action": "MCButton2 variant='basic' — single per view, bg #346bea, text #FFFFFF",
             "secondary_action": "MCButton2 variant='default' or variant='outlined' — neutral styling",
             "tertiary_action": "MCButton2 variant='text' — text-only, no background",
             "destructive_action": "MCButton2 variant='destructive' — bg #dd1f11, text #FFFFFF"

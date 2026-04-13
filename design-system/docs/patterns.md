@@ -39,7 +39,7 @@ export default function MyForm() {
           </MCFormPanel>
           <MCFormActions>
             <MCButton2 onClick={handleCancel}>Cancel</MCButton2>
-            <MCButton2 variant="contained" type="submit" disabled={isSubmitting}>Save</MCButton2>
+            <MCButton2 variant="basic" type="submit" disabled={isSubmitting}>Save</MCButton2>
           </MCFormActions>
         </Form>
       )}
@@ -69,7 +69,7 @@ export default function CreatePage() {
       footerContent={
         <MCFormActions>
           <MCButton2 onClick={() => navigate(-1)}>Cancel</MCButton2>
-          <MCButton2 variant="contained" type="submit">Create</MCButton2>
+          <MCButton2 variant="basic" type="submit">Create</MCButton2>
         </MCFormActions>
       }
     >
@@ -159,7 +159,7 @@ const [deleteOpen, setDeleteOpen] = useState(false);
   actions={
     <>
       <MCButton2 onClick={() => setDeleteOpen(false)}>Cancel</MCButton2>
-      <MCButton2 variant="contained" onClick={handleDelete}>Delete</MCButton2>
+      <MCButton2 variant="basic" onClick={handleDelete}>Delete</MCButton2>
     </>
   }
 >

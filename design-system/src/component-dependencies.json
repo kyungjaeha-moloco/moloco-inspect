@@ -449,7 +449,7 @@
     "standalone_button": {
       "description": "Minimal setup to render an MCButton2",
       "providers": ["ThemeProvider"],
-      "code": "import { ThemeProvider } from 'styled-components';\nimport { createTheme, MCButton2 } from '@moloco/moloco-cloud-react-ui';\n\nconst theme = createTheme(undefined);\n\n<ThemeProvider theme={theme}>\n  <MCButton2 variant=\"contained\" color=\"primary\">Click Me</MCButton2>\n</ThemeProvider>"
+      "code": "import { ThemeProvider } from 'styled-components';\nimport { createTheme, MCButton2 } from '@moloco/moloco-cloud-react-ui';\n\nconst theme = createTheme(undefined);\n\n<ThemeProvider theme={theme}>\n  <MCButton2 variant=\"basic\" color=\"primary\">Click Me</MCButton2>\n</ThemeProvider>"
     },
     "form_input_preview": {
       "description": "Minimal setup to render a form input with Formik",

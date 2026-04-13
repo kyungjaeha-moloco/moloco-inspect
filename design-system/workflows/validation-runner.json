@@ -297,7 +297,7 @@
         "severity": "error",
         "check": "Submit button in forms has disabled={isSubmitting} to prevent double submission. Pattern from patterns.json → form-basic.",
         "regex_indicators": ["disabled=\\{isSubmitting\\}", "disabled=\\{.*isSubmitting"],
-        "fix": "Add disabled={isSubmitting} to the submit MCButton2: <MCButton2 variant=\"contained\" type=\"submit\" disabled={isSubmitting}>"
+        "fix": "Add disabled={isSubmitting} to the submit MCButton2: <MCButton2 variant=\"basic\" type=\"submit\" disabled={isSubmitting}>"
       },
       {
         "id": "state-success-feedback",

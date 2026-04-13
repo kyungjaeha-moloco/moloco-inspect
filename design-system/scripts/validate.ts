@@ -896,7 +896,7 @@ function checkSubmitDisabled(
           file: filePath,
           line: submitLine,
           detail: "Submit button lacks disabled={isSubmitting}",
-          fix: 'Add disabled={isSubmitting} to the submit button: <MCButton2 variant="contained" type="submit" disabled={isSubmitting}>',
+          fix: 'Add disabled={isSubmitting} to the submit button: <MCButton2 variant="basic" type="submit" disabled={isSubmitting}>',
         },
       ],
       passed: false,

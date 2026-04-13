@@ -25,7 +25,7 @@
         "name": "Visual hierarchy matches importance",
         "question": "Are primary actions visually prominent? Are secondary elements subdued?",
         "check_for": [
-          "Primary action uses MCButton2 variant='contained'",
+          "Primary action uses MCButton2 variant='basic'",
           "Only ONE primary (contained) action per view",
           "Secondary actions use default or text variant",
           "MCContentLayout.rightAccessory for page-level primary action (e.g., Create button)"
