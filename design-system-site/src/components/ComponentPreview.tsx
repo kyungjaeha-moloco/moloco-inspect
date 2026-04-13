@@ -1,46 +1,97 @@
 import React, { useState } from 'react';
 import type { ComponentEntry } from '../types';
+import type { PropValues } from './PropControls';
 
 /* ------------------------------------------------------------------ */
 /*  Interactive preview sub-components                                 */
 /* ------------------------------------------------------------------ */
 
-function ButtonPreview() {
+function ButtonPreview({ propValues }: { propValues?: PropValues }) {
   const [clicked, setClicked] = useState<string | null>(null);
+  const variant = String(propValues?.variant || 'contained');
+  const size = String(propValues?.size || 'medium');
+  const disabled = Boolean(propValues?.disabled);
+  const loading = Boolean(propValues?.loading);
+
+  const sizeStyles: Record<string, React.CSSProperties> = {
+    small: { padding: '4px 12px', fontSize: 12 },
+    medium: { padding: '8px 16px', fontSize: 13 },
+    large: { padding: '12px 24px', fontSize: 15 },
+  };
+
+  const variantClass = variant === 'contained' ? 'primary' : variant === 'outlined' ? 'secondary' : 'ghost';
+
   return (
     <div className="preview-button-row">
-      {['Create campaign', 'Cancel', 'More'].map((label, i) => {
-        const variant = i === 0 ? 'primary' : i === 1 ? 'secondary' : 'ghost';
-        return (
-          <div
-            key={label}
-            className={`preview-button ${variant}${clicked === label ? ' preview-button-pressed' : ''}`}
-            onClick={() => { setClicked(label); setTimeout(() => setClicked(null), 300); }}
-            style={{ cursor: 'pointer', userSelect: 'none' }}
-          >
-            {clicked === label ? '✓ Clicked' : label}
-          </div>
-        );
-      })}
+      <div
+        className={`preview-button ${variantClass}${clicked ? ' preview-button-pressed' : ''}`}
+        onClick={() => {
+          if (disabled || loading) return;
+          setClicked('yes'); setTimeout(() => setClicked(null), 300);
+        }}
+        style={{
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          userSelect: 'none',
+          opacity: disabled ? 0.4 : 1,
+          ...sizeStyles[size],
+        }}
+      >
+        {loading ? 'Loading...' : clicked ? '✓ Clicked' : 'Create campaign'}
+      </div>
+      <div
+        className="preview-button secondary"
+        style={{
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          userSelect: 'none',
+          opacity: disabled ? 0.4 : 1,
+          ...sizeStyles[size],
+        }}
+      >
+        Cancel
+      </div>
     </div>
   );
 }
 
-function TextInputPreview() {
+function TextInputPreview({ propValues }: { propValues?: PropValues }) {
   const [value, setValue] = useState('Brand awareness launch');
   const [focused, setFocused] = useState(false);
+  const state = String(propValues?.state || 'default');
+  const required = Boolean(propValues?.required);
+
+  const isDisabled = state === 'disabled';
+  const isReadonly = state === 'readonly';
+  const isError = state === 'error';
+  const isFocused = state === 'focused' || focused;
+
+  const borderColor = isError ? '#da1e28' : isFocused ? '#0f62fe' : '#c6c6c6';
+
   return (
     <div className="preview-input-shell">
-      <div className="preview-input-label">Campaign title</div>
+      <div className="preview-input-label">
+        Campaign title{required && <span style={{ color: '#da1e28', marginLeft: 2 }}>*</span>}
+      </div>
       <input
-        className={`preview-input-live${focused ? ' focused' : ''}`}
+        className={`preview-input-live${isFocused ? ' focused' : ''}`}
         value={value}
-        onChange={e => setValue(e.target.value)}
+        onChange={e => { if (!isDisabled && !isReadonly) setValue(e.target.value); }}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder="Enter campaign title"
+        disabled={isDisabled}
+        readOnly={isReadonly}
+        style={{
+          borderColor,
+          background: isDisabled ? '#f4f4f4' : isReadonly ? '#f9f9f9' : '#fff',
+          color: isDisabled ? '#8d8d8d' : '#161616',
+          cursor: isDisabled ? 'not-allowed' : isReadonly ? 'default' : 'text',
+        }}
       />
-      <div className="preview-input-hint">Used as the internal display name</div>
+      {isError ? (
+        <div className="preview-input-hint" style={{ color: '#da1e28' }}>This field is required</div>
+      ) : (
+        <div className="preview-input-hint">Used as the internal display name</div>
+      )}
     </div>
   );
 }
@@ -82,20 +133,30 @@ function NumberInputPreview() {
   );
 }
 
-function CheckBoxPreview() {
+function CheckBoxPreview({ propValues }: { propValues?: PropValues }) {
+  const controlledChecked = propValues?.checked !== undefined ? Boolean(propValues.checked) : undefined;
+  const disabled = Boolean(propValues?.disabled);
   const [checks, setChecks] = useState([true, false]);
   const labels = ['Include remarketing users', 'Exclude existing customers'];
+
+  const effectiveChecks = controlledChecked !== undefined ? [controlledChecked, controlledChecked] : checks;
+
   return (
     <div className="preview-checkbox-shell">
       {labels.map((label, i) => (
         <div
           key={label}
           className="preview-checkbox-option"
-          onClick={() => { const next = [...checks]; next[i] = !next[i]; setChecks(next); }}
-          style={{ cursor: 'pointer', userSelect: 'none' }}
+          onClick={() => {
+            if (disabled) return;
+            if (controlledChecked === undefined) {
+              const next = [...checks]; next[i] = !next[i]; setChecks(next);
+            }
+          }}
+          style={{ cursor: disabled ? 'not-allowed' : 'pointer', userSelect: 'none', opacity: disabled ? 0.4 : 1 }}
         >
-          <div className={`preview-checkbox-box${checks[i] ? ' checked' : ''}`}>
-            {checks[i] ? '✓' : ''}
+          <div className={`preview-checkbox-box${effectiveChecks[i] ? ' checked' : ''}`}>
+            {effectiveChecks[i] ? '✓' : ''}
           </div>
           <span>{label}</span>
         </div>
@@ -104,15 +165,19 @@ function CheckBoxPreview() {
   );
 }
 
-function SwitchPreview() {
+function SwitchPreview({ propValues }: { propValues?: PropValues }) {
+  const controlledOn = propValues?.on !== undefined ? Boolean(propValues.on) : undefined;
+  const disabled = Boolean(propValues?.disabled);
   const [on, setOn] = useState(true);
+  const isOn = controlledOn !== undefined ? controlledOn : on;
+
   return (
     <div className="preview-inline-row">
       <span className="preview-input-label">Live delivery enabled</span>
       <div
-        className={`preview-switch${on ? ' on' : ''}`}
-        onClick={() => setOn(!on)}
-        style={{ cursor: 'pointer' }}
+        className={`preview-switch${isOn ? ' on' : ''}`}
+        onClick={() => { if (!disabled && controlledOn === undefined) setOn(!on); }}
+        style={{ cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1 }}
       >
         <div className="preview-switch-knob" />
       </div>
@@ -120,7 +185,8 @@ function SwitchPreview() {
   );
 }
 
-function RadioPreview() {
+function RadioPreview({ propValues }: { propValues?: PropValues }) {
+  const disabled = Boolean(propValues?.disabled);
   const [selected, setSelected] = useState(0);
   const options = ['CPC', 'CPM', 'CPA'];
   return (
@@ -129,8 +195,8 @@ function RadioPreview() {
         <div
           key={opt}
           className="preview-radio-option"
-          onClick={() => setSelected(i)}
-          style={{ cursor: 'pointer', userSelect: 'none' }}
+          onClick={() => { if (!disabled) setSelected(i); }}
+          style={{ cursor: disabled ? 'not-allowed' : 'pointer', userSelect: 'none', opacity: disabled ? 0.4 : 1 }}
         >
           <div className={`preview-radio-dot${selected === i ? ' active' : ''}`} />
           <span>{opt}</span>
@@ -140,18 +206,24 @@ function RadioPreview() {
   );
 }
 
-function TabsPreview() {
+function TabsPreview({ propValues }: { propValues?: PropValues }) {
   const [active, setActive] = useState(0);
+  const variant = String(propValues?.variant || 'default');
   const tabs = ['Overview', 'Creative', 'Settings'];
+  const isContained = variant === 'contained';
   return (
     <div>
-      <div className="preview-tabs-mock">
+      <div className="preview-tabs-mock" style={isContained ? { background: '#f4f4f4', borderRadius: 8, padding: 4, border: 'none' } : undefined}>
         {tabs.map((tab, i) => (
           <div
             key={tab}
             className={`preview-tab-mock${active === i ? ' active' : ''}`}
             onClick={() => setActive(i)}
-            style={{ cursor: 'pointer', userSelect: 'none' }}
+            style={{
+              cursor: 'pointer', userSelect: 'none',
+              ...(isContained && active === i ? { background: '#fff', borderRadius: 6, borderBottom: 'none', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' } : {}),
+              ...(isContained && active !== i ? { borderBottom: 'none' } : {}),
+            }}
           >
             {tab}
           </div>
@@ -183,8 +255,11 @@ function AccordionPreview() {
   );
 }
 
-function DialogPreview() {
+function DialogPreview({ propValues }: { propValues?: PropValues }) {
   const [open, setOpen] = useState(true);
+  const variant = String(propValues?.variant || 'default');
+  const isDestructive = variant === 'destructive';
+
   if (!open) {
     return (
       <div
@@ -198,8 +273,8 @@ function DialogPreview() {
   }
   return (
     <div className="preview-dialog-shell">
-      <div className="preview-dialog-title">Delete creative</div>
-      <div className="preview-dialog-copy">This action cannot be undone.</div>
+      <div className="preview-dialog-title">{isDestructive ? 'Delete creative' : 'Confirm action'}</div>
+      <div className="preview-dialog-copy">{isDestructive ? 'This action cannot be undone.' : 'Are you sure you want to proceed?'}</div>
       <div className="preview-button-row">
         <div
           className="preview-button secondary"
@@ -211,9 +286,9 @@ function DialogPreview() {
         <div
           className="preview-button primary"
           onClick={() => setOpen(false)}
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: 'pointer', background: isDestructive ? '#da1e28' : undefined }}
         >
-          Delete
+          {isDestructive ? 'Delete' : 'Confirm'}
         </div>
       </div>
     </div>
@@ -274,17 +349,59 @@ function SearchBarPreview() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Prop-controlled preview sub-components (formerly static)           */
+/* ------------------------------------------------------------------ */
+
+function StatusPreview({ propValues }: { propValues?: PropValues }) {
+  const variant = String(propValues?.variant || 'positive');
+  const variantMap: Record<string, { className: string; label: string }> = {
+    positive: { className: 'active', label: 'Healthy' },
+    warning: { className: 'warning', label: 'Pending' },
+    negative: { className: 'error', label: 'Rejected' },
+    neutral: { className: 'muted', label: 'Inactive' },
+  };
+  const current = variantMap[variant] || variantMap.positive;
+  return (
+    <div className="preview-status-row">
+      <div className={`preview-pill ${current.className}`}>{current.label}</div>
+    </div>
+  );
+}
+
+function BannerPreview({ propValues }: { propValues?: PropValues }) {
+  const variant = String(propValues?.variant || 'info');
+  const variantMap: Record<string, { bg: string; border: string; icon: string; text: string }> = {
+    info: { bg: '#E1F5FE', border: '#0288D1', icon: '\u2139', text: 'Your campaign is under review.' },
+    success: { bg: '#E8F5E9', border: '#24a148', icon: '\u2713', text: 'Campaign published successfully.' },
+    warning: { bg: '#FFF8E1', border: '#f1c21b', icon: '\u26A0', text: 'Budget is running low.' },
+    error: { bg: '#FFEBEE', border: '#da1e28', icon: '\u2717', text: 'Campaign delivery failed.' },
+  };
+  const current = variantMap[variant] || variantMap.info;
+  return (
+    <div style={{ padding: '12px 16px', background: current.bg, borderLeft: `3px solid ${current.border}`, borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8, minWidth: 300 }}>
+      <span style={{ fontSize: 14 }}>{current.icon}</span>
+      <span style={{ fontSize: 13, color: '#161616' }}>{current.text}</span>
+    </div>
+  );
+}
+
+function LoaderPreview({ propValues }: { propValues?: PropValues }) {
+  const size = String(propValues?.size || 'medium');
+  const sizeMap: Record<string, number> = { small: 20, medium: 32, large: 48 };
+  const px = sizeMap[size] || 32;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+      <div className="preview-spinner" style={{ width: px, height: px }} />
+      <span style={{ fontSize: 12, color: '#8d8d8d' }}>Loading...</span>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Static previews (for components that don't need interaction)       */
 /* ------------------------------------------------------------------ */
 
 const STATIC_PREVIEWS: Record<string, React.ReactNode> = {
-  MCStatus: (
-    <div className="preview-status-row">
-      <div className="preview-pill active">Healthy</div>
-      <div className="preview-pill warning">Pending</div>
-      <div className="preview-pill error">Rejected</div>
-    </div>
-  ),
   MCStatusBadge: (
     <div className="preview-status-row">
       <div className="preview-pill active">Active</div>
@@ -384,12 +501,6 @@ const STATIC_PREVIEWS: Record<string, React.ReactNode> = {
       </div>
     </div>
   ),
-  MCLoader: (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-      <div className="preview-spinner" />
-      <span style={{ fontSize: 12, color: '#8d8d8d' }}>Loading...</span>
-    </div>
-  ),
   MCDivider: (
     <div style={{ width: '100%', maxWidth: 300 }}>
       <div style={{ fontSize: 13, color: '#161616', marginBottom: 8 }}>Section A content</div>
@@ -420,12 +531,6 @@ const STATIC_PREVIEWS: Record<string, React.ReactNode> = {
       <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 10, background: '#E3F2FD', color: '#0f62fe', fontWeight: 500 }}>Active</span>
       <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 10, background: '#E8F5E9', color: '#24a148', fontWeight: 500 }}>Approved</span>
       <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 10, background: '#e0e0e0', color: '#525252', fontWeight: 500 }}>Draft</span>
-    </div>
-  ),
-  MCBanner: (
-    <div style={{ padding: '12px 16px', background: '#E1F5FE', borderLeft: '3px solid #0288D1', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8, minWidth: 300 }}>
-      <span style={{ fontSize: 14 }}>ℹ</span>
-      <span style={{ fontSize: 13, color: '#161616' }}>Your campaign is under review.</span>
     </div>
   ),
   MCEmpty: (
@@ -460,7 +565,7 @@ const STATIC_PREVIEWS: Record<string, React.ReactNode> = {
 /*  Interactive preview map (component name → React component)         */
 /* ------------------------------------------------------------------ */
 
-const INTERACTIVE_PREVIEWS: Record<string, React.FC> = {
+const INTERACTIVE_PREVIEWS: Record<string, React.FC<{ propValues?: PropValues }>> = {
   MCButton2: ButtonPreview,
   MCFormTextInput: TextInputPreview,
   MCFormTextArea: TextAreaPreview,
@@ -474,19 +579,22 @@ const INTERACTIVE_PREVIEWS: Record<string, React.FC> = {
   MCCommonDialog: DialogPreview,
   MCFormSingleRichSelect: SelectPreview,
   MCSearchBar: SearchBarPreview,
+  MCStatus: StatusPreview,
+  MCBanner: BannerPreview,
+  MCLoader: LoaderPreview,
 };
 
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 
-export function ComponentPreview({ component }: { component: ComponentEntry }) {
+export function ComponentPreview({ component, propValues }: { component: ComponentEntry; propValues?: PropValues }) {
   const name = component.name;
   const category = component.functionalCategory;
 
   // 1. Try interactive preview
   const Interactive = INTERACTIVE_PREVIEWS[name];
-  if (Interactive) return <div className="preview-frame"><Interactive /></div>;
+  if (Interactive) return <div className="preview-frame"><Interactive propValues={propValues} /></div>;
 
   // 2. Try static named preview
   if (STATIC_PREVIEWS[name]) return <div className="preview-frame">{STATIC_PREVIEWS[name]}</div>;

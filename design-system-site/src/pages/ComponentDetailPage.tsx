@@ -3,7 +3,9 @@ import { Link, useParams } from 'react-router-dom';
 import type { ComponentsCatalog, ComponentEntry } from '../types';
 import { slugify } from '../utils';
 import { ComponentPreview } from '../components/ComponentPreview';
+import { useComponentControls, PropControlsPanel } from '../components/PropControls';
 import { CopyButton } from '../components/CopyButton';
+import { ComponentAnatomyDiagram, getAnatomyTree } from '../components/ComponentAnatomy';
 
 type Props = {
   catalog: ComponentsCatalog;
@@ -181,6 +183,7 @@ export function ComponentDetailPage({ catalog, stateMachines, behaviors }: Props
 
   const smData = getStateMachineData(stateMachines, comp.name);
   const behaviorData = getBehaviorData(behaviors, comp.name);
+  const { controls, values, setValue } = useComponentControls(comp.name);
 
   return (
     <>
@@ -195,8 +198,13 @@ export function ComponentDetailPage({ catalog, stateMachines, behaviors }: Props
         <p className="page-subtitle">{comp.description}</p>
       </div>
 
-      {/* Live Preview */}
-      <ComponentPreview component={comp} />
+      {/* Live Preview with Controls */}
+      <div className="preview-with-controls">
+        {controls.length > 0 && (
+          <PropControlsPanel controls={controls} values={values} setValue={setValue} />
+        )}
+        <ComponentPreview component={comp} propValues={values} />
+      </div>
 
       <div className="stat-row">
         {comp.status && (
@@ -332,6 +340,15 @@ function UsageTab({ comp }: { comp: ComponentEntry }) {
           ))}
         </div>
       ) : null}
+
+      {getAnatomyTree(comp.name) && (
+        <div className="section">
+          <div className="section-header">
+            <h2 className="section-title">Component Anatomy</h2>
+          </div>
+          <ComponentAnatomyDiagram componentName={comp.name} />
+        </div>
+      )}
 
       {(comp.requiredProviders.length > 0 || comp.mustBeInside.length > 0) && (
         <div className="section">
