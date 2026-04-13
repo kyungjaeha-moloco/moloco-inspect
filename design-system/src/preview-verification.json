@@ -124,6 +124,296 @@
         "table, [role=\"table\"], canvas, svg"
       ],
       "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    },
+    {
+      "id": "order-list",
+      "description": "Order list page showing available and archived orders with tab navigation",
+      "path_pattern": "/v1/p/:publisherId/oms/order",
+      "page_type": "list",
+      "route_pattern": "^/v1/p/[^/]+/oms/order(?:\\?|$)",
+      "required_texts": {
+        "ko": ["주문", "이용 가능", "보관", "생성"],
+        "en": ["Order", "Available", "Archived", "Create"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1",
+        "table, [role=\"table\"]",
+        "[role=\"tab\"], [data-testid=\"tab-available\"], [data-testid=\"tab-archived\"]",
+        "button[data-testid=\"createButton\"], a[href*=\"create\"]",
+        "input[placeholder*=\"검색\"], input[placeholder*=\"search\" i]"
+      ],
+      "expected_elements": [
+        { "description": "Page title showing order list heading", "selector": "[data-testid=\"pageTitle\"], h1", "required": true },
+        { "description": "Data table listing orders", "selector": "table, [role=\"table\"]", "required": true },
+        { "description": "Tab navigation for Available/Archived", "selector": "[role=\"tab\"], [role=\"tablist\"]", "required": true },
+        { "description": "Create order button", "selector": "button[data-testid=\"createButton\"], a[href*=\"create\"]", "required": false },
+        { "description": "Search input for filtering orders", "selector": "input[placeholder*=\"검색\"], input[placeholder*=\"search\" i]", "required": false }
+      ],
+      "expected_texts": {
+        "ko": ["주문", "이용 가능", "보관", "생성"],
+        "en": ["Order", "Available", "Archived", "Create"]
+      },
+      "validates_entity": "Order",
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    },
+    {
+      "id": "order-detail",
+      "description": "Order detail page showing order info panels, status badge, and breadcrumb",
+      "path_pattern": "/v1/p/:publisherId/oms/order/:orderId",
+      "page_type": "detail",
+      "route_pattern": "^/v1/p/[^/]+/oms/order/[^/]+(?:\\?|$)",
+      "required_texts": {
+        "ko": ["주문 상세", "상태", "기간", "예산"],
+        "en": ["Order Detail", "Status", "Period", "Budget"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1",
+        "[data-testid=\"statusBadge\"], .MuiChip-root, [class*=\"StatusBadge\"]",
+        "nav[aria-label=\"breadcrumb\"], [data-testid=\"breadcrumb\"], ol.MuiBreadcrumbs-ol"
+      ],
+      "expected_elements": [
+        { "description": "Page title or order name heading", "selector": "[data-testid=\"pageTitle\"], h1", "required": true },
+        { "description": "Status badge showing order state", "selector": "[data-testid=\"statusBadge\"], .MuiChip-root, [class*=\"StatusBadge\"]", "required": true },
+        { "description": "Breadcrumb navigation back to order list", "selector": "nav[aria-label=\"breadcrumb\"], ol.MuiBreadcrumbs-ol", "required": true },
+        { "description": "Detail info panels with order metadata", "selector": "[data-testid=\"detailPanel\"], [class*=\"DetailSection\"], .MuiPaper-root", "required": false },
+        { "description": "Action buttons (edit, archive, etc.)", "selector": "button[data-testid=\"editButton\"], button[data-testid=\"actionMenu\"]", "required": false }
+      ],
+      "expected_texts": {
+        "ko": ["주문 상세", "상태", "기간", "예산"],
+        "en": ["Order Detail", "Status", "Period", "Budget"]
+      },
+      "validates_entity": "Order",
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    },
+    {
+      "id": "line-item-list",
+      "description": "Line item list page with inventory type, price, and status columns",
+      "path_pattern": "/v1/p/:publisherId/oms/line-item",
+      "page_type": "list",
+      "route_pattern": "^/v1/p/[^/]+/oms/line-item(?:\\?|$)",
+      "required_texts": {
+        "ko": ["라인아이템", "인벤토리 유형", "가격", "상태"],
+        "en": ["Line Item", "Inventory Type", "Price", "Status"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1",
+        "table, [role=\"table\"]",
+        "input[placeholder*=\"검색\"], input[placeholder*=\"search\" i]"
+      ],
+      "expected_elements": [
+        { "description": "Page title for line item list", "selector": "[data-testid=\"pageTitle\"], h1", "required": true },
+        { "description": "Data table listing line items", "selector": "table, [role=\"table\"]", "required": true },
+        { "description": "Search or filter input", "selector": "input[placeholder*=\"검색\"], input[placeholder*=\"search\" i]", "required": false },
+        { "description": "Column header for inventory type", "selector": "th, [role=\"columnheader\"]", "required": true },
+        { "description": "Create line item button", "selector": "button[data-testid=\"createButton\"], a[href*=\"create\"]", "required": false }
+      ],
+      "expected_texts": {
+        "ko": ["라인아이템", "인벤토리 유형", "가격", "상태"],
+        "en": ["Line Item", "Inventory Type", "Price", "Status"]
+      },
+      "validates_entity": "LineItem",
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    },
+    {
+      "id": "line-item-create",
+      "description": "Line item creation form with pricing fields and submit button",
+      "path_pattern": "/v1/p/:publisherId/oms/line-item/create",
+      "page_type": "create",
+      "route_pattern": "^/v1/p/[^/]+/oms/line-item/create(?:\\?|$)",
+      "required_texts": {
+        "ko": ["라인아이템 생성", "인벤토리 유형", "가격", "저장"],
+        "en": ["Create Line Item", "Inventory Type", "Price", "Save"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1",
+        "form, [data-testid=\"lineItemForm\"]",
+        "button[type=\"submit\"], button[data-testid=\"submitButton\"]"
+      ],
+      "expected_elements": [
+        { "description": "Page title for create line item form", "selector": "[data-testid=\"pageTitle\"], h1", "required": true },
+        { "description": "Form container for line item fields", "selector": "form, [data-testid=\"lineItemForm\"]", "required": true },
+        { "description": "Pricing input fields", "selector": "input[name*=\"price\"], input[name*=\"budget\"], [data-testid*=\"price\"]", "required": true },
+        { "description": "Submit / Save button", "selector": "button[type=\"submit\"], button[data-testid=\"submitButton\"]", "required": true },
+        { "description": "Cancel button to go back", "selector": "button[data-testid=\"cancelButton\"], a[href*=\"line-item\"]", "required": false }
+      ],
+      "expected_texts": {
+        "ko": ["라인아이템 생성", "인벤토리 유형", "가격", "저장"],
+        "en": ["Create Line Item", "Inventory Type", "Price", "Save"]
+      },
+      "validates_entity": "LineItem",
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    },
+    {
+      "id": "creative-list",
+      "description": "Creative list page showing creatives with status filter",
+      "path_pattern": "/v1/p/:publisherId/oms/creative",
+      "page_type": "list",
+      "route_pattern": "^/v1/p/[^/]+/oms/creative(?:\\?|$)",
+      "required_texts": {
+        "ko": ["크리에이티브", "상태", "생성"],
+        "en": ["Creative", "Status", "Create"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1",
+        "table, [role=\"table\"], [data-testid=\"creativeGrid\"]",
+        "button[data-testid=\"createButton\"], a[href*=\"create\"]"
+      ],
+      "expected_elements": [
+        { "description": "Page title for creative list", "selector": "[data-testid=\"pageTitle\"], h1", "required": true },
+        { "description": "Table or grid of creatives", "selector": "table, [role=\"table\"], [data-testid=\"creativeGrid\"]", "required": true },
+        { "description": "Status filter dropdown or chips", "selector": "[data-testid=\"statusFilter\"], .MuiSelect-root, [role=\"combobox\"]", "required": false },
+        { "description": "Create creative button", "selector": "button[data-testid=\"createButton\"], a[href*=\"create\"]", "required": false },
+        { "description": "Search input for filtering creatives", "selector": "input[placeholder*=\"검색\"], input[placeholder*=\"search\" i]", "required": false }
+      ],
+      "expected_texts": {
+        "ko": ["크리에이티브", "상태", "생성"],
+        "en": ["Creative", "Status", "Create"]
+      },
+      "validates_entity": "Creative",
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    },
+    {
+      "id": "targeting-list",
+      "description": "Targeting list page with tab navigation between audience and publisher targets",
+      "path_pattern": "/v1/p/:publisherId/oms/targeting",
+      "page_type": "list",
+      "route_pattern": "^/v1/p/[^/]+/oms/targeting(?:\\?|$)",
+      "required_texts": {
+        "ko": ["타겟팅", "퍼블리셔 타겟", "오디언스 타겟"],
+        "en": ["Targeting", "Publisher Target", "Audience Target"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1",
+        "[role=\"tab\"], [role=\"tablist\"], [data-testid*=\"targetTab\"]",
+        "table, [role=\"table\"]"
+      ],
+      "expected_elements": [
+        { "description": "Page title for targeting", "selector": "[data-testid=\"pageTitle\"], h1", "required": true },
+        { "description": "Tab navigation between publisher and audience targets", "selector": "[role=\"tab\"], [role=\"tablist\"]", "required": true },
+        { "description": "Data table listing targets", "selector": "table, [role=\"table\"]", "required": true },
+        { "description": "Create target button", "selector": "button[data-testid=\"createButton\"], a[href*=\"create\"]", "required": false }
+      ],
+      "expected_texts": {
+        "ko": ["타겟팅", "퍼블리셔 타겟", "오디언스 타겟"],
+        "en": ["Targeting", "Publisher Target", "Audience Target"]
+      },
+      "validates_entity": "Targeting",
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    },
+    {
+      "id": "report-historical",
+      "description": "Historical report page with date range filter, dimension filters, report table, and CSV export",
+      "path_pattern": "/v1/p/:publisherId/oms/report",
+      "page_type": "dashboard",
+      "route_pattern": "^/v1/p/[^/]+/oms/report(?:\\?|$)",
+      "required_texts": {
+        "ko": ["리포트", "기간", "다운로드"],
+        "en": ["Report", "Period", "Download"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1",
+        "table, [role=\"table\"]",
+        "[data-testid=\"dateRangePicker\"], input[type=\"date\"], [class*=\"DateRange\"]",
+        "button[data-testid=\"exportCsv\"], button[data-testid=\"downloadButton\"], [aria-label*=\"download\" i]"
+      ],
+      "expected_elements": [
+        { "description": "Page title for report", "selector": "[data-testid=\"pageTitle\"], h1", "required": true },
+        { "description": "Report data table", "selector": "table, [role=\"table\"]", "required": true },
+        { "description": "Date range picker for filtering", "selector": "[data-testid=\"dateRangePicker\"], input[type=\"date\"], [class*=\"DateRange\"]", "required": true },
+        { "description": "Dimension filter controls", "selector": "[data-testid=\"dimensionFilter\"], .MuiSelect-root, [role=\"combobox\"]", "required": false },
+        { "description": "CSV export / download button", "selector": "button[data-testid=\"exportCsv\"], button[data-testid=\"downloadButton\"], [aria-label*=\"download\" i]", "required": false }
+      ],
+      "expected_texts": {
+        "ko": ["리포트", "기간", "다운로드"],
+        "en": ["Report", "Period", "Download"]
+      },
+      "validates_entity": "Report",
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    },
+    {
+      "id": "ad-pacing-dashboard",
+      "description": "Ad pacing dashboard with configurator panel, pacing table, and auto-refresh indicator",
+      "path_pattern": "/v1/p/:publisherId/oms/ad-pacing-dashboard",
+      "page_type": "dashboard",
+      "route_pattern": "^/v1/p/[^/]+/oms/ad-pacing-dashboard(?:\\?|$)",
+      "required_texts": {
+        "ko": ["AD Pacing", "자동 새로고침"],
+        "en": ["AD Pacing", "Auto Refresh"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1, h2",
+        "table, [role=\"table\"]",
+        "[data-testid=\"configuratorPanel\"], [class*=\"Configurator\"], .MuiPaper-root"
+      ],
+      "expected_elements": [
+        { "description": "Page title for ad pacing dashboard", "selector": "[data-testid=\"pageTitle\"], h1, h2", "required": true },
+        { "description": "Pacing data table", "selector": "table, [role=\"table\"]", "required": true },
+        { "description": "Configurator panel for pacing settings", "selector": "[data-testid=\"configuratorPanel\"], [class*=\"Configurator\"], .MuiPaper-root", "required": false },
+        { "description": "Auto-refresh toggle or indicator", "selector": "[data-testid=\"autoRefresh\"], [class*=\"autoRefresh\"], input[type=\"checkbox\"]", "required": false }
+      ],
+      "expected_texts": {
+        "ko": ["AD Pacing", "자동 새로고침"],
+        "en": ["AD Pacing", "Auto Refresh"]
+      },
+      "validates_entity": "AdPacing",
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    },
+    {
+      "id": "user-setting",
+      "description": "User settings page with tab bar for My Info, MFA, and API Access",
+      "path_pattern": "/v1/p/:publisherId/oms/setting/user",
+      "page_type": "settings",
+      "route_pattern": "^/v1/p/[^/]+/oms/setting/user(?:\\?|$)",
+      "required_texts": {
+        "ko": ["설정", "내 정보", "2단계 인증", "API 접근"],
+        "en": ["Settings", "My Info", "MFA", "API Access"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1",
+        "[role=\"tab\"], [role=\"tablist\"]",
+        "[data-testid=\"userInfoSection\"], [class*=\"UserInfo\"], .MuiPaper-root"
+      ],
+      "expected_elements": [
+        { "description": "Page title or settings heading", "selector": "[data-testid=\"pageTitle\"], h1", "required": true },
+        { "description": "Tab bar with My Info / MFA / API Access tabs", "selector": "[role=\"tab\"], [role=\"tablist\"]", "required": true },
+        { "description": "User info section with account details", "selector": "[data-testid=\"userInfoSection\"], [class*=\"UserInfo\"], .MuiPaper-root", "required": true },
+        { "description": "Edit profile button", "selector": "button[data-testid=\"editButton\"], a[href*=\"edit\"]", "required": false }
+      ],
+      "expected_texts": {
+        "ko": ["설정", "내 정보", "2단계 인증", "API 접근"],
+        "en": ["Settings", "My Info", "MFA", "API Access"]
+      },
+      "validates_entity": "UserSetting",
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
+    },
+    {
+      "id": "advertiser-list",
+      "description": "Advertiser management page with table of advertisers, search, and status filter",
+      "path_pattern": "/v1/p/:publisherId/oms/setting/advertisers",
+      "page_type": "list",
+      "route_pattern": "^/v1/p/[^/]+/oms/setting/advertiser(?:s)?(?:\\?|$)",
+      "required_texts": {
+        "ko": ["광고주", "검색", "상태"],
+        "en": ["Advertiser", "Search", "Status"]
+      },
+      "required_selectors": [
+        "[data-testid=\"pageTitle\"], h1",
+        "table, [role=\"table\"]",
+        "input[placeholder*=\"검색\"], input[placeholder*=\"search\" i]"
+      ],
+      "expected_elements": [
+        { "description": "Page title for advertiser management", "selector": "[data-testid=\"pageTitle\"], h1", "required": true },
+        { "description": "Data table listing advertisers", "selector": "table, [role=\"table\"]", "required": true },
+        { "description": "Search input for filtering advertisers", "selector": "input[placeholder*=\"검색\"], input[placeholder*=\"search\" i]", "required": true },
+        { "description": "Status filter dropdown", "selector": "[data-testid=\"statusFilter\"], .MuiSelect-root, [role=\"combobox\"]", "required": false },
+        { "description": "Create advertiser button", "selector": "button[data-testid=\"createButton\"], a[href*=\"create\"]", "required": false }
+      ],
+      "expected_texts": {
+        "ko": ["광고주", "검색", "상태"],
+        "en": ["Advertiser", "Search", "Status"]
+      },
+      "validates_entity": "Advertiser",
+      "forbidden_path_substrings": ["/sign-in", "/workplace", "/__codex/preview-bootstrap"]
     }
   ],
   "verification_order": [

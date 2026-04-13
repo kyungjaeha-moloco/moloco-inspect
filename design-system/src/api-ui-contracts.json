@@ -318,6 +318,417 @@
         "edit": "src/apps/msm-default/container/targeting/publisher-target/edit/",
         "detail": "src/apps/msm-default/container/targeting/publisher-target/detail/"
       }
+    },
+
+    "LineItem": {
+      "proto": {
+        "type": "MILineItemProto",
+        "file": "src/common/api/msm/proto/line-item/lineItem.ts",
+        "userViewProto": "MILineItemUserViewProto (src/common/api/msm/proto/line-item/lineItemUserView.ts)",
+        "apiEndpoints": {
+          "list": "GET /line-items (useListLineItems)",
+          "listUserViews": "GET /line-item-user-views (useListLineItemUserViews)",
+          "read": "GET /line-items/{line_item_id} (useReadLineItem)",
+          "readUserView": "GET /line-item-user-views/{line_item_id} (useReadLineItemUserView)",
+          "create": "POST /line-items (useCreateLineItem)",
+          "update": "PUT /line-items/{line_item_id} (useUpdateLineItem)"
+        }
+      },
+      "converter": {
+        "modelConverter": {
+          "file": "src/apps/msm-default/model/line-item/converter.ts",
+          "functions": {
+            "backward": "lineItemConverter.backward (MILineItemProto → LineItem)",
+            "forward": "lineItemConverter.forward (LineItem → MILineItemProto)",
+            "userViewBackward": "lineItemUserViewConverter.backward (MILineItemUserViewProto → LineItemUserView)"
+          },
+          "utilities": [
+            "convertInventoryBackward / convertInventoryForward — inventory type conversion",
+            "convertPackageInformationBackward / convertPackageInformationForward — package info",
+            "convertPublisherTargetSettingBackward / convertPublisherTargetSettingForward — target settings with surcharge",
+            "getMicroToNormalValue — divides micros by 1,000,000",
+            "translateRemoteInt64 — string Int64Proto to number"
+          ]
+        },
+        "formConverter": {
+          "file": "src/apps/msm-default/component/line-item/form/converter.ts",
+          "functions": {
+            "backward": "lineItemFormValuesConverter.backward (MILineItemProto → MTLineItemFormValues)",
+            "forward": "lineItemFormValuesConverter.forward (MTLineItemFormValues → MILineItemProto)"
+          }
+        }
+      },
+      "model": {
+        "type": "LineItem",
+        "file": "src/apps/msm-default/model/line-item/lineItem.ts",
+        "userViewType": "LineItemUserView",
+        "formValuesType": "MTLineItemFormValues (src/apps/msm-default/component/line-item/form/useLineItemFormConfig.ts)"
+      },
+      "fieldMappings": [
+        { "proto": "id", "model": "id", "ui": "Table: title subtitle, searchable", "renderer": "getTitleWithSubTitleRenderer" },
+        { "proto": "title", "model": "title", "ui": "Table: title column (searchable), Form: MCFormTextInput (max 80)", "renderer": "getTitleWithSubTitleRenderer" },
+        { "proto": "inventory.type", "model": "inventoryType", "ui": "Table: inventory column, Form: MCFormSingleRichSelect", "renderer": "getLineItemInventoryTypeRenderer" },
+        { "proto": "inventory.skippable", "model": "skippable", "ui": "Table: inventory subtitle (skippable offset), Form: MCFormSkippableVideoInput", "renderer": "getLineItemInventoryTypeRenderer (combined)" },
+        { "proto": "campaign_type", "model": "campaignType", "ui": "Table: lineItemType column, Form: MCFormRadioGroup", "renderer": "lineItemTypeLabelMap" },
+        { "proto": "cost_rate_type", "model": "costRateType", "ui": "Table: rateType column", "renderer": "rateTypeLabelMap" },
+        { "proto": "price_micros", "model": "price", "ui": "Table: price column, Form: MCFormNumberInput", "renderer": "getLineItemPriceCellRenderer" },
+        { "proto": "is_billable", "model": "isBillable", "ui": "Table: isBillable column, Form: MCFormSwitchInput", "renderer": "text (billable/nonBillable label)" },
+        { "proto": "packaged / non_packaged", "model": "packageInfo", "ui": "Table: packageType column", "renderer": "text (packaged/nonPackaged label)" },
+        { "proto": "packaged.price_per_package_micros", "model": "packageInfo.pricePerPackage", "ui": "Table: pricePerPackage column, Form: MCFormNumberInput", "renderer": "getMoneyRenderer(currency, { showExactValue: true })" },
+        { "proto": "packaged.max_packages", "model": "packageInfo.maxPackage", "ui": "Table: maxLineItems column, Form: MCFormNumberInput", "renderer": "getNumberRenderer({ numberType: integer })" },
+        { "proto": "packaged.max_packages_per_brand", "model": "packageInfo.maxPackagePerBrand", "ui": "Table: maxLineItemsPerBrand column, Form: MCFormNumberInput", "renderer": "getNumberRenderer({ numberType: integer })" },
+        { "proto": "available_time_range", "model": "availablePeriod", "ui": "Table: availableSchedule column, Form: MCFormDateTimeRangePicker", "renderer": "getTimeIntervalRenderer({ timezone })" },
+        { "proto": "effective_time_range", "model": "effectivePeriod", "ui": "Table: effectiveSchedule column, Form: MCFormDateTimeRangePicker", "renderer": "getTimeIntervalRenderer({ timezone })" },
+        { "proto": "min_duration_days", "model": "minDurationDays", "ui": "Table: minDuration column, Form: MCFormNumberInput", "renderer": "getNumberRenderer({ numberType: integer })" },
+        { "proto": "publisher_target_settings", "model": "publisherTargetSettings", "ui": "Table: targets column (count), Form: MCTargetSurchargeForm", "renderer": "getLineItemTargetRenderer" },
+        { "proto": "— (computed FE)", "model": "surchargeSum", "ui": "Table: surchargePrice column", "renderer": "getMoneyRenderer(currency, { showExactValue: true })" },
+        { "proto": "— (from order referrers)", "model": "usedBy", "ui": "Table: usedBy column (order count + dialog)", "renderer": "getNumberRenderer with onClick → MCLineItemUsedByDialog" },
+        { "proto": "enabled", "model": "enabled", "ui": "Table: enabled column (toggle), Form: MCFormSwitchInput", "renderer": "getSwitchRenderer" },
+        { "proto": "frequency_cap.imp_interval", "model": "frequencyCap.impInterval", "ui": "Form: MCFormOptionalFrequencyInput / MCImpIntervalForm", "renderer": "—" },
+        { "proto": "frequency_cap.lifetime", "model": "frequencyCap.lifetime", "ui": "Form: MCFormOptionalFrequencyInput", "renderer": "—" },
+        { "proto": "frequency_cap.daily", "model": "frequencyCap.daily", "ui": "Form: MCFormOptionalFrequencyInput", "renderer": "—" },
+        { "proto": "ad_position_targeting", "model": "adPodTargeting", "ui": "Form: MCFormRadioGroup", "renderer": "—" },
+        { "proto": "priority", "model": "priority", "ui": "Form: MCFormNumberInput", "renderer": "—" },
+        { "proto": "view_duration_seconds", "model": "viewDuration", "ui": "Form: MCFormNumberInput (conditional on inventory type)", "renderer": "—" },
+        { "proto": "currency", "model": "currency", "ui": "Internal: used for money rendering", "renderer": "—" },
+        { "proto": "created_at", "model": "createdAt", "ui": "Internal tracking", "renderer": "—" },
+        { "proto": "updated_at", "model": "updatedAt", "ui": "Internal tracking", "renderer": "—" }
+      ],
+      "tableColumns": [
+        { "id": "title", "header": "table.title", "accessor": "title", "filter": "INEXCLUDE_TEXT", "sort": "caseInsensitive" },
+        { "id": "inventory", "header": "table.inventory", "accessor": "inventoryType (via label map)", "filter": "INCLUDE_CHECKBOX", "sort": "none" },
+        { "id": "rateType", "header": "table.rateType", "accessor": "costRateType (via label map)", "filter": "INCLUDE_CHECKBOX", "sort": "none" },
+        { "id": "lineItemType", "header": "table.lineItemType", "accessor": "campaignType (via label map)", "filter": "INCLUDE_CHECKBOX", "sort": "none" },
+        { "id": "price", "header": "table.price", "accessor": "price", "filter": "NUMBER", "sort": "number" },
+        { "id": "isBillable", "header": "table.isBillable", "accessor": "isBillable (label)", "filter": "INCLUDE_CHECKBOX", "sort": "none" },
+        { "id": "packageType", "header": "table.packageType", "accessor": "packageInfo presence (label)", "filter": "INCLUDE_CHECKBOX", "sort": "none" },
+        { "id": "pricePerPackage", "header": "table.pricePerPackage", "accessor": "packageInfo.pricePerPackage", "filter": "NUMBER", "sort": "number" },
+        { "id": "maxLineItems", "header": "table.maxLineItems", "accessor": "packageInfo.maxPackage", "filter": "NUMBER", "sort": "number" },
+        { "id": "maxLineItemsPerBrand", "header": "table.maxLineItemsPerBrand", "accessor": "packageInfo.maxPackagePerBrand", "filter": "NUMBER", "sort": "number" },
+        { "id": "availableSchedule", "header": "table.availableSchedule", "accessor": "availablePeriod", "sort": "none" },
+        { "id": "effectiveSchedule", "header": "table.effectiveSchedule", "accessor": "effectivePeriod", "sort": "none" },
+        { "id": "availableStartDate", "header": "(hidden filter)", "accessor": "availablePeriod.start", "filter": "DATE", "condition": "MCT_545_LINE_ITEM_SCHEDULE_FILTER feature flag" },
+        { "id": "availableEndDate", "header": "(hidden filter)", "accessor": "availablePeriod.end", "filter": "DATE", "condition": "MCT_545_LINE_ITEM_SCHEDULE_FILTER feature flag" },
+        { "id": "effectiveStartDate", "header": "(hidden filter)", "accessor": "effectivePeriod.start", "filter": "DATE", "condition": "MCT_545_LINE_ITEM_SCHEDULE_FILTER feature flag" },
+        { "id": "effectiveEndDate", "header": "(hidden filter)", "accessor": "effectivePeriod.end", "filter": "DATE", "condition": "MCT_545_LINE_ITEM_SCHEDULE_FILTER feature flag" },
+        { "id": "minDuration", "header": "table.minDuration", "accessor": "minDurationDays", "filter": "NUMBER", "sort": "number" },
+        { "id": "targets", "header": "table.targets", "accessor": "publisherTargetSettings.length", "filter": "NUMBER", "sort": "number" },
+        { "id": "surchargePrice", "header": "table.surchargePrice", "accessor": "surchargeSum", "filter": "NUMBER", "sort": "number" },
+        { "id": "usedBy", "header": "table.usedBy", "accessor": "usedBy.length", "filter": "NUMBER", "sort": "number" },
+        { "id": "enabled", "header": "table.enabled", "accessor": "enabled", "sort": "none" },
+        { "id": "action", "header": "table.action", "actions": ["EDIT", "COPY"] }
+      ],
+      "searchableFields": ["title", "id"],
+      "containers": {
+        "list": "src/apps/msm-default/container/line-item/list/MCLineItemListContainer.tsx",
+        "detail": "src/apps/msm-default/container/line-item/detail/MCLineItemDetailContainer.tsx",
+        "create": "src/apps/msm-default/container/line-item/create/MCLineItemCreateContainer.tsx",
+        "edit": "src/apps/msm-default/container/line-item/edit/MCLineItemEditContainer.tsx"
+      },
+      "components": {
+        "form": "src/apps/msm-default/component/line-item/form/MCLIneItemForm.tsx",
+        "detail": "src/apps/msm-default/component/line-item/detail/MCLineItemDetail.tsx",
+        "cellRenderer": "src/apps/msm-default/component/line-item/list/cellRenderer.tsx"
+      },
+      "hooks": ["useLineItems", "useLineItemFunc", "usePublisherCurrency", "usePublisherTimezone"]
+    },
+
+    "AudienceTarget": {
+      "proto": {
+        "type": "MIAudienceTargetProto",
+        "file": "src/common/api/msm/proto/targeting/audience-target/index.ts",
+        "apiEndpoints": {
+          "list": "GET /audience-targets (useListAudienceTargets)",
+          "read": "GET /audience-targets/{audience_target_id} (useReadAudienceTarget)",
+          "create": "POST /audience-targets (useCreateAudienceTarget)",
+          "update": "PUT /audience-targets/{audience_target_id} (useUpdateAudienceTarget)",
+          "delete": "DELETE /audience-targets/{audience_target_id} (useDeleteAudienceTarget)"
+        }
+      },
+      "converter": {
+        "modelConverter": {
+          "file": "src/apps/msm-default/model/targeting/audience-target/converter.ts",
+          "functions": {
+            "backward": "audienceTargetConverter.backward (MIAudienceTargetProto → AudienceTarget)",
+            "forward": "audienceTargetConverter.forward (AudienceTarget → MIAudienceTargetProto)"
+          }
+        },
+        "formConverter": {
+          "file": "src/apps/msm-default/component/targeting/audience-target/form/converter.ts",
+          "functions": {
+            "backward": "audienceTargetFormValuesConverter.backward (MIAudienceTargetProto → MTAudienceTargetFormValues)",
+            "forward": "audienceTargetFormValuesConverter.forward (MTAudienceTargetFormValues → MIAudienceTargetProto)"
+          },
+          "note": "backward requires { defaultOrderKindVisibility } context param"
+        },
+        "utilities": [
+          "targetingConditionConverter — converts targeting_condition proto ↔ TargetingCondition model",
+          "getOrderKindsFromOrderKindVisibility / getOrderKindVisibilityFromOrderKinds — order kind enum mapping"
+        ]
+      },
+      "model": {
+        "type": "AudienceTarget",
+        "file": "src/apps/msm-default/model/targeting/audience-target/audienceTarget.ts",
+        "formValuesType": "MTAudienceTargetFormValues (src/apps/msm-default/component/targeting/audience-target/form/useAudienceTargetFormConfig.ts)"
+      },
+      "fieldMappings": [
+        { "proto": "id", "model": "id", "ui": "Table: title subtitle, searchable", "renderer": "getTargetingRenderer (subTitleAccessor)" },
+        { "proto": "title", "model": "title", "ui": "Table: title column (searchable), Form: text input", "renderer": "getTargetingRenderer" },
+        { "proto": "targeting_condition", "model": "condition", "ui": "Table: settings column (chip display), Form: targeting condition fields", "renderer": "getTargetSettingsRenderer(targetSettingLabelMap)" },
+        { "proto": "targeting_condition.publisher_custom_targeting_key_values_pairs", "model": "condition.customTargets", "ui": "Table: settings chip 'customTargets'", "renderer": "getTargetSettingsRenderer" },
+        { "proto": "targeting_condition.custom_audience_set", "model": "condition.customAudienceSet", "ui": "Table: settings chip 'audience'", "renderer": "getTargetSettingsRenderer" },
+        { "proto": "publisher_properties.allowed_order_kinds", "model": "publisherProperties.allowedOrderKinds", "ui": "Table: orderKindVisibility column, Form: radio/select", "renderer": "orderKindVisibilityLabelMap" },
+        { "proto": "publisher_target_id", "model": "publisherTargetId", "ui": "Read-only reference", "renderer": "—" },
+        { "proto": "auto_delete_at", "model": "autoDeleteAt", "ui": "Not displayed in list", "renderer": "—" },
+        { "proto": "created_at", "model": "createdAt", "ui": "Internal tracking", "renderer": "—" },
+        { "proto": "updated_at", "model": "updatedAt", "ui": "Table: updatedAt column", "renderer": "getDateStringRenderer({ timezone })" }
+      ],
+      "tableColumns": [
+        { "id": "title", "header": "common.table.title", "accessor": "title", "filter": "INEXCLUDE_TEXT", "sort": "caseInsensitive" },
+        { "id": "settings", "header": "common.table.settings", "accessor": "getTargetSettings(condition)", "filter": "INCLUDE_CHECKBOX (customTargets, audience)", "sort": "none" },
+        { "id": "orderKindVisibility", "header": "common.table.orderKindVisibility", "accessor": "orderKindVisibilityLabelMap[getOrderKindVisibilityFromOrderKinds(...)]", "filter": "INCLUDE_CHECKBOX" },
+        { "id": "updatedAt", "header": "common.table.updatedAt", "accessor": "updatedAt" },
+        { "id": "action", "header": "common.table.action", "actions": ["EDIT", "DELETE"] }
+      ],
+      "searchableFields": ["title", "id"],
+      "containers": {
+        "list": "src/apps/msm-default/container/targeting/audience-target/list/MCAudienceTargetListContainer.tsx",
+        "detail": "src/apps/msm-default/container/targeting/audience-target/detail/MCAudienceTargetDetailContainer.tsx",
+        "create": "src/apps/msm-default/container/targeting/audience-target/create/MCAudienceTargetCreateContainer.tsx",
+        "edit": "src/apps/msm-default/container/targeting/audience-target/edit/MCAudienceTargetEditContainer.tsx"
+      },
+      "components": {
+        "form": "src/apps/msm-default/component/targeting/audience-target/form/MCAudienceTargetForm.tsx",
+        "detail": "src/apps/msm-default/component/targeting/audience-target/detail/MCAudienceTargetDetail.tsx"
+      },
+      "hooks": ["useAudienceTargets", "useAudienceTarget", "useAdAccountCustomerSets", "usePublisherTimezone", "useCurrentUser"],
+      "notes": {
+        "adOpsFlow": "AdOps users select an ad account via MCAdvertiserSelector before seeing audience targets. The adAccountId is passed as a URL search param.",
+        "deletionDialog": "MCAudienceTargetDeletionDialog is rendered in the list container for delete confirmation."
+      }
+    },
+
+    "Report": {
+      "entityType": "analytics",
+      "description": "Data visualization/analytics page with historical and reach report types. Not a CRUD entity — consumes analytics API and renders configurable tables/charts.",
+      "dataSources": {
+        "primary": {
+          "hook": "useAnalyticsDetail",
+          "protoTypes": ["MIAnalyticsDetailDimensionFilter", "MIAnalyticsDetailOrderByFilter"],
+          "protoFile": "src/common/api/msm/proto/analyticsDetail.ts",
+          "responseType": "MTAnalyticsDetailRow[]"
+        }
+      },
+      "clientTypes": {
+        "type": "MTClientType",
+        "values": ["publisher", "media-rep", "advertiser"],
+        "determination": "Derived from user role: AdOps/MolocoStaff → publisher, AD_ACCOUNT_OWNER → media-rep, AD_ACCOUNT_VIEWER → advertiser"
+      },
+      "reportTypes": {
+        "type": "MTReportType",
+        "values": ["historical", "reach"],
+        "default": "historical"
+      },
+      "configuration": {
+        "historicalReport": {
+          "configType": "MTHistoricalReportTableConfig<MEHistoricalReportTableColumnKey>",
+          "dateRange": {
+            "initialPreset": "thisWeek",
+            "maxDayRange": 180,
+            "component": "MCDateRangePicker"
+          },
+          "dimensions": "MEAnalyticsDetailDimension[] — breakdown dimensions (basic, notDirect, time, disabled)",
+          "metrics": "MEAnalyticsDetailMetric[] — selected metric columns",
+          "maxRows": 10000,
+          "significantFigures": 2,
+          "caching": "localStorage keyed by workplaceId + userId + reportType"
+        },
+        "configurator": {
+          "component": "MCHistoricalReportConfigurator",
+          "ref": "MTReportConfiguratorRef (MTFilterRef & { initializeForm })"
+        }
+      },
+      "tableConfiguration": {
+        "component": "MCReportTable",
+        "columnKeyType": "MEHistoricalReportTableColumnKey",
+        "columnMetaData": "MTReportTableColumnMetaData — { columnType: 'breakdown' | 'metric', sortable?: true }",
+        "sorting": "Server-side via MIAnalyticsDetailOrderByFilter, mapped by HistoricalReportColumnToOrderByFilter",
+        "csvExport": "downloadCSV(fileName) via MTReportTableContainerRef"
+      },
+      "filterConfiguration": {
+        "type": "MTReportFilter",
+        "dimensionFilters": "MIAnalyticsDetailDimensionFilter[] with MEAnalyticsDimensionFilterOperator",
+        "hiddenDimensionFilters": "Applied automatically based on clientType/adAccountIds",
+        "component": "MCHistoricalReportFilterViewContainer"
+      },
+      "views": {
+        "main": "src/apps/msm-default/container/report/MCReportContainer.tsx",
+        "router": "src/apps/msm-default/container/report/MCReport.tsx",
+        "historical": "src/apps/msm-default/container/report/historical/MCHistoricalReportContainer.tsx",
+        "historicalTable": "src/apps/msm-default/container/report/historical/MCHistoricalReportTableContainer.tsx",
+        "reach": "src/apps/msm-default/container/report/reach/MCReachReportContainer.tsx",
+        "reportTypeButton": "src/apps/msm-default/component/report/MCReportTypeButton.tsx"
+      },
+      "hooks": ["useAnalyticsDetail", "useCurrentUser", "usePublisherTimezone", "usePublisherCurrency", "useAuthContext", "useLocalStorageState"],
+      "utilities": [
+        "getHistoricalReportCellRenderer — cell renderer by column key",
+        "getHistoricalReportColumnForReportColumnKey — column definition by key",
+        "getHistoricalReportColumnKeysForDimensionKey — dimension → column key mapping",
+        "getHistoricalReportColumnKeysForMetricKey — metric → column key mapping",
+        "getAllRequiredDimensionsFromHistoricalReportConfig — extract dimensions from config",
+        "getAllRequiredMetricsFromHistoricalReportConfig — extract metrics from config",
+        "getHistoricalReportFilterParams — build filter params from config",
+        "generateCSVStringForHistoricalReport — CSV export string builder",
+        "summarizeAnalyticsDetailRow — row summarization",
+        "getReportCacheKey — cache key generation"
+      ]
+    },
+
+    "AdPacingDashboard": {
+      "entityType": "dashboard",
+      "description": "Real-time ad pacing monitoring dashboard. Displays campaign spend vs budget pacing with auto-refresh. Not a CRUD entity — consumes analytics data and campaign/order info.",
+      "dataSources": {
+        "primary": {
+          "hook": "useAdPacingData",
+          "queryKey": "AD_PACING_DATA_QUERY_KEY",
+          "parameters": {
+            "timezone": "from usePublisherTimezone",
+            "dateRange": "{ start: Date, end: Date } from configuration state",
+            "dimensions": ["AD_ACCOUNT_ID", "APP_OR_BRAND_ID", "CAMPAIGN_ID"],
+            "metrics": ["SPEND"]
+          },
+          "responseType": "MTAdPacingData[]"
+        },
+        "mutations": {
+          "updateCampaignPriority": "useUpdateCampaignPriority — inline priority editing"
+        }
+      },
+      "configuration": {
+        "type": "MTAdPacingDashboardConfiguration",
+        "fields": {
+          "dateRange": "{ start: Date, end: Date }",
+          "columnKeys": "MTAdPacingDashboardColumnKey[]"
+        },
+        "columnKeys": ["CAMPAIGN", "AD_ACCOUNT", "ORDER_KIND", "ORDER", "CAMPAIGN_STATUS", "TOTAL_BUDGET", "TODAY_BUDGET", "SPEND", "REMAINING_DAYS", "CAMPAIGN_PRIORITY", "TARGETING_KEY_VALUES"],
+        "exportColumnKeys": ["CAMPAIGN", "AD_ACCOUNT", "ORDER_KIND", "ORDER", "CAMPAIGN_STATUS", "TOTAL_BUDGET", "TODAY_BUDGET", "SPEND", "REMAINING_DAYS", "CAMPAIGN_PRIORITY", "TARGETING_KEY_VALUES", "CAMPAIGN_ID", "AD_ACCOUNT_ID", "ORDER_ID"],
+        "dimensions": ["MEAnalyticsDetailDimension.AD_ACCOUNT_ID", "MEAnalyticsDetailDimension.APP_OR_BRAND_ID", "MEAnalyticsDetailDimension.CAMPAIGN_ID"],
+        "metrics": ["MEAnalyticsDetailMetric.SPEND"]
+      },
+      "polling": {
+        "enabled": true,
+        "intervalSeconds": 60,
+        "hook": "usePolling"
+      },
+      "labelMaps": {
+        "keyLabelMap": "MTAdPacingLabelMap — maps publisherCustomTargetingKeyValues keyId → keyName",
+        "keyValueLabelMap": "MTAdPacingKeyValueLabelMap — maps keyId → (valueId → valueName)"
+      },
+      "components": {
+        "configurator": "MCAdPacingDashboardConfigurator — date range and filter settings",
+        "columnConfigurator": "MCAdPacingDashboardColumnConfigurator — column visibility toggle",
+        "table": "MCAdPacingDashboardTable — main data table with pacing info",
+        "layout": "MCContentLayout — page wrapper with title and breadcrumb"
+      },
+      "views": {
+        "main": "src/apps/msm-default/container/ad-pacing-dashboard/MCAdPacingDashboardContainer.tsx",
+        "sharedComponents": "src/common/component/ad-pacing-dashboard/"
+      },
+      "hooks": ["useAdPacingData", "useUpdateCampaignPriority", "usePolling", "usePublisherTimezone", "usePublisherCurrency", "useMsmConfiguration", "useInAppAlert"],
+      "navigation": {
+        "campaignLink": "Navigates to campaign detail via generatePathForRoute(MERouteKey.*, params)",
+        "entityParams": "useEntityParam() for route context"
+      }
+    },
+
+    "UserSetting": {
+      "entityType": "settings",
+      "description": "User settings page with tabbed sub-sections: My Info (detail/edit), MFA (2FA TOTP setup), and API Access (key management). Not a standard CRUD entity — manages current user's own profile and security settings.",
+      "subSections": {
+        "userInfo": {
+          "description": "View and edit current user profile (email, name)",
+          "routes": {
+            "detail": "MERouteKey.OMS_USER_SETTING_MY_INFO",
+            "edit": "MERouteKey.OMS_USER_SETTING_MY_INFO_EDIT"
+          },
+          "containers": {
+            "router": "src/apps/msm-default/container/user-setting/user-info/MCUserInfoContainer.tsx",
+            "detail": "src/apps/msm-default/container/user-setting/user-info/MCUserDetailContainer.tsx",
+            "edit": "src/apps/msm-default/container/user-setting/user-info/MCUserEditContainer.tsx"
+          },
+          "detailFields": [
+            { "field": "email", "source": "currentUser.email", "ui": "Read-only text display", "component": "SCUserInfo.Section" },
+            { "field": "name", "source": "getUserDisplayName(currentUser)", "ui": "Read-only text display", "component": "SCUserInfo.Section" }
+          ],
+          "editForm": {
+            "type": "MTUserEditFormData",
+            "fields": [
+              { "name": "email", "source": "user.user.email", "editable": false },
+              { "name": "firstName", "source": "user.user.name", "editable": true },
+              { "name": "lastName", "source": "user.user.lastName", "editable": true }
+            ],
+            "component": "MCUserEditForm",
+            "onSubmit": "useCurrentUserFunc().updateName(userId, data)"
+          },
+          "actions": [
+            { "action": "changePassword", "navigatesTo": "MERouteKey.AUTH_FORGOT_PASSWORD with email param", "component": "MCButton2" },
+            { "action": "edit", "navigatesTo": "MERouteKey.OMS_USER_SETTING_MY_INFO_EDIT", "component": "MCButton2" }
+          ],
+          "hooks": ["useCurrentUser", "useCurrentUserFunc", "useUserDisplayName"]
+        },
+        "mfa": {
+          "description": "Two-factor authentication (TOTP) setup and management",
+          "container": "src/apps/msm-default/container/user-setting/mfa/MCTFASettingContainer.tsx",
+          "apiEndpoints": {
+            "listFactors": "useListUserAuthFactors({ user_id, kind: TOTP })",
+            "sendSetupEmail": "useSendUserAuthFactorSettingMail({ user_id })",
+            "deleteFactor": "useDeleteUserAuthFactor({ user_id, authentication_factor_id })"
+          },
+          "protoTypes": {
+            "kind": "MEAuthenticationFactorKind.TOTP"
+          },
+          "states": {
+            "isTFASetup": "Boolean — derived from activated authentication_factors",
+            "authFactorId": "First activated factor ID (only one allowed)"
+          },
+          "actions": [
+            { "action": "setup", "description": "Sends TOTP setup email to user", "mutation": "useSendUserAuthFactorSettingMail" },
+            { "action": "disable", "description": "Deletes activated auth factor", "mutation": "useDeleteUserAuthFactor", "confirmation": "MCTFADisableConfirmDialog" }
+          ],
+          "hooks": ["useListUserAuthFactors", "useSendUserAuthFactorSettingMail", "useDeleteUserAuthFactor", "useCurrentUser"]
+        },
+        "apiAccess": {
+          "description": "API key generation, viewing, resetting, and deactivation",
+          "container": "src/apps/msm-default/container/user-setting/api-access/MCAPIAccessContainer.tsx",
+          "apiEndpoints": {
+            "listKeys": "msmAPI.query.useListAPIKeys({})",
+            "createKey": "msmAPI.query.useCreateAPIKey() → { original_key }",
+            "deleteKey": "msmAPI.query.useDeleteAPIKey({ api_key_id })"
+          },
+          "states": {
+            "APIKeyId": "Matched by user_id from listAPIKeys response",
+            "createdAt": "Formatted via DateFunc.format(created_at, timezone, SHORT_DATE_FORMAT)",
+            "isAPIKeyCreated": "Boolean — whether user has an active API key",
+            "APIkey": "Transient — shown only after create/reset, not persisted in UI state"
+          },
+          "actions": [
+            { "action": "create", "description": "Creates new API key, displays original_key", "mutation": "useCreateAPIKey" },
+            { "action": "reset", "description": "Deletes existing + creates new key", "mutations": ["useDeleteAPIKey", "useCreateAPIKey"], "confirmation": "MCAPIKeyResetConfirmDialog" },
+            { "action": "deactivate", "description": "Deletes API key", "mutation": "useDeleteAPIKey", "confirmation": "MCAPIKeyDeactivationConfirmDialog" },
+            { "action": "copy", "description": "Copies API key to clipboard", "utility": "copyToClipboard" }
+          ],
+          "hooks": ["useListAPIKeys", "useCreateAPIKey", "useDeleteAPIKey", "useCurrentUser", "usePublisherTimezone"]
+        }
+      },
+      "views": {
+        "main": "src/apps/msm-default/container/user-setting/MCUserSettingContainer.tsx",
+        "tabBar": "src/apps/msm-default/component/setting/bar-tab/MCSettingBarTab.tsx"
+      },
+      "routing": {
+        "base": "MERouteKey.OMS_USER_SETTING",
+        "defaultRedirect": "MERouteKey.OMS_USER_SETTING_MY_INFO",
+        "pattern": "Uses <Navigate> for base route, <Outlet> for sub-routes"
+      },
+      "hooks": ["useCurrentUser", "useEntityParam"]
     }
   },
 

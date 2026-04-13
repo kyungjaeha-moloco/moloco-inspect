@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "meta": {
     "description": "Structured request contract for PM/SA driven UI improvements. Used to turn free-form product requests into machine-readable work items for background agents.",
-    "version": "1.0.0",
-    "lastUpdated": "2026-04-11"
+    "version": "1.1.0",
+    "lastUpdated": "2026-04-12"
   },
   "schema": {
     "title": "MSM Portal UI Improvement Request",
@@ -61,8 +61,80 @@
           "component_swap",
           "layout_adjustment",
           "state_handling",
-          "accessibility_improvement"
+          "accessibility_improvement",
+          "new_page",
+          "new_feature",
+          "data_display_change",
+          "form_field_addition",
+          "bulk_operation"
         ]
+      },
+      "intent_details": {
+        "type": "object",
+        "description": "Intent-specific structured details. Required shape depends on change_intent value.",
+        "additionalProperties": true,
+        "properties": {
+          "target_entity": {
+            "type": "string",
+            "description": "The data entity or domain object this intent operates on (e.g. 'Campaign', 'AdGroup', 'Creative')."
+          },
+          "page_type": {
+            "type": "string",
+            "enum": ["list", "detail", "create", "edit"],
+            "description": "For new_page: the kind of page being created."
+          },
+          "route_path": {
+            "type": "string",
+            "description": "For new_page: the intended route path (e.g. '/campaigns/:id/creatives')."
+          },
+          "target_page": {
+            "type": "string",
+            "description": "For new_feature: the existing page or route being extended."
+          },
+          "feature_description": {
+            "type": "string",
+            "description": "For new_feature: what the new feature does."
+          },
+          "placement": {
+            "type": "string",
+            "description": "For new_feature: where on the page the feature should appear (e.g. 'new tab', 'right panel', 'below filters')."
+          },
+          "fields_affected": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "For data_display_change: list of field names whose display is changing."
+          },
+          "display_format": {
+            "type": "string",
+            "description": "For data_display_change: the desired output format (e.g. 'bar chart', 'currency with 2 decimals', 'relative time')."
+          },
+          "field_name": {
+            "type": "string",
+            "description": "For form_field_addition: the name/key of the new field."
+          },
+          "field_type": {
+            "type": "string",
+            "enum": ["text", "number", "select", "multi-select", "date", "date-range", "toggle", "checkbox", "textarea", "file-upload"],
+            "description": "For form_field_addition: the input type of the new field."
+          },
+          "target_form": {
+            "type": "string",
+            "description": "For form_field_addition: the form or entity the field is being added to."
+          },
+          "validation_rules": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "For form_field_addition: validation constraints (e.g. 'required', 'max-length:255', 'positive-number')."
+          },
+          "action_type": {
+            "type": "string",
+            "description": "For bulk_operation: the batch action label (e.g. 'delete', 'activate', 'assign tag')."
+          },
+          "confirmation_required": {
+            "type": "boolean",
+            "description": "For bulk_operation: whether a confirmation dialog must precede the action."
+          }
+        }
       },
       "requested_change": {
         "type": "string",
@@ -88,7 +160,11 @@
             "preview_screenshot",
             "language_match",
             "copy_visible_on_route",
-            "spacing_visible_on_route"
+            "spacing_visible_on_route",
+            "route_reachable",
+            "form_submittable",
+            "data_renders_on_route",
+            "bulk_action_triggers"
           ]
         }
       },
@@ -101,7 +177,7 @@
           "properties": {
             "type": {
               "type": "string",
-              "enum": ["selected_screenshot", "full_page_screenshot", "figma_reference", "copy_doc"]
+              "enum": ["selected_screenshot", "full_page_screenshot", "figma_reference", "copy_doc", "wireframe", "field_spec_doc"]
             },
             "description": { "type": "string" }
           }
@@ -161,6 +237,92 @@
         "preview_screenshot",
         "language_match",
         "copy_visible_on_route"
+      ]
+    },
+    {
+      "goal": "크리에이티브 목록 페이지를 새로 만든다.",
+      "target": {
+        "client": "msm-default",
+        "route_or_page": "/campaigns/:id/creatives"
+      },
+      "change_intent": "new_page",
+      "intent_details": {
+        "target_entity": "Creative",
+        "page_type": "list",
+        "route_path": "/campaigns/:id/creatives"
+      },
+      "requested_change": "캠페인 상세 하위에 크리에이티브 목록 페이지를 새로 추가한다. 이름, 상태, 포맷, 생성일 컬럼을 포함한다.",
+      "constraints": [
+        "기존 캠페인 상세 페이지의 레이아웃과 네비게이션을 변경하지 않는다."
+      ],
+      "success_criteria": [
+        "/campaigns/:id/creatives 라우트가 정상적으로 렌더링된다.",
+        "크리에이티브 목록이 테이블로 표시된다."
+      ],
+      "validation_expectations": [
+        "route_reachable",
+        "data_renders_on_route",
+        "typecheck",
+        "preview_screenshot"
+      ]
+    },
+    {
+      "goal": "광고 그룹 생성 폼에 예산 한도 필드를 추가한다.",
+      "target": {
+        "client": "msm-default",
+        "route_or_page": "/ad-groups/create",
+        "component_name": "AdGroupCreateForm"
+      },
+      "change_intent": "form_field_addition",
+      "intent_details": {
+        "target_form": "AdGroupCreateForm",
+        "target_entity": "AdGroup",
+        "field_name": "budgetCap",
+        "field_type": "number",
+        "validation_rules": ["required", "positive-number", "max:1000000"]
+      },
+      "requested_change": "광고 그룹 생성 폼에 '일 예산 한도' 숫자 입력 필드를 추가한다.",
+      "constraints": [
+        "기존 필드 순서와 레이아웃을 유지한다."
+      ],
+      "success_criteria": [
+        "budgetCap 필드가 폼에 표시된다.",
+        "음수 값 입력 시 유효성 오류가 표시된다.",
+        "폼 제출 시 budgetCap 값이 페이로드에 포함된다."
+      ],
+      "validation_expectations": [
+        "form_submittable",
+        "typecheck",
+        "preview_screenshot"
+      ]
+    },
+    {
+      "goal": "캠페인 목록에서 여러 캠페인을 한 번에 일시정지할 수 있게 한다.",
+      "target": {
+        "client": "msm-default",
+        "route_or_page": "/campaigns",
+        "component_name": "CampaignListPage"
+      },
+      "change_intent": "bulk_operation",
+      "intent_details": {
+        "target_entity": "Campaign",
+        "action_type": "pause",
+        "confirmation_required": true
+      },
+      "requested_change": "캠페인 목록에 멀티 셀렉트와 '선택 항목 일시정지' 배치 액션을 추가한다.",
+      "constraints": [
+        "단일 행 액션 메뉴는 변경하지 않는다.",
+        "기존 테이블 컬럼 순서를 유지한다."
+      ],
+      "success_criteria": [
+        "체크박스로 여러 캠페인을 선택할 수 있다.",
+        "배치 액션 실행 전 확인 다이얼로그가 표시된다.",
+        "일시정지 후 목록이 갱신된다."
+      ],
+      "validation_expectations": [
+        "bulk_action_triggers",
+        "typecheck",
+        "preview_screenshot"
       ]
     }
   ]

@@ -211,6 +211,61 @@
       ],
       "start_with": "preview-verification.json",
       "critical_check": "Preview client, route, language, and change visibility must match the request before review"
+    },
+    "modifying_existing_page": {
+      "description": "Changing behavior, layout, or data display on an existing page. Not building from scratch.",
+      "load_order": [
+        "api-ui-contracts.json → find the entity contract to understand existing field mappings, converters, and container paths",
+        "conventions.json → architecture rules and constraints — verify the current code follows them before changing",
+        "patterns.json → identify which pattern the page currently uses (list-page, detail-page, create-page, edit-page)",
+        "components.json → verify the target component's props, when_to_use, do_not_use before swapping or adding components",
+        "tokens.json → if the change involves visual properties, verify correct token usage",
+        "validation-runner.json → run checks after modification to catch regressions"
+      ],
+      "start_with": "api-ui-contracts.json",
+      "critical_check": "Read the existing Container and Component files BEFORE making changes. Identify which layer (Page/Container/Component) the change belongs to. Never add data fetching to a Component or UI logic to a Container.",
+      "decision_tree": {
+        "change_is_data_or_api": "Start with api-ui-contracts.json → find converter file → trace field from proto to model to UI component",
+        "change_is_layout_or_styling": "Start with tokens.json → verify token names → check component props for layout variants",
+        "change_is_adding_component": "Start with components.json → check when_to_use and do_not_use → check component-dependencies.json for required providers",
+        "change_is_form_field": "Start with components.json → find the input component → check formikRequired flag → read the Container to find the Yup schema"
+      }
+    },
+    "debugging_existing_page": {
+      "description": "Diagnosing and fixing a bug in an existing page. The page renders incorrectly, throws errors, or behaves unexpectedly.",
+      "load_order": [
+        "error-patterns.json → check if this is a known error pattern with a documented fix",
+        "conventions.json → verify the code follows architecture constraints (most bugs come from constraint violations)",
+        "component-dependencies.json → check if all required providers are present",
+        "state-machines.json → verify the component is in a valid state and transitions are correct",
+        "api-ui-contracts.json → if data-related, trace the field from proto → converter → model → UI"
+      ],
+      "start_with": "error-patterns.json",
+      "critical_check": "Before fixing: identify the 3-layer file set (Page/Container/Component). The bug might be in a different layer than where the symptom appears. A missing field in UI usually means the Converter is not mapping it, not that the Component is broken.",
+      "decision_tree": {
+        "runtime_error": "Check error-patterns.json by error message → apply documented fix",
+        "build_error": "Check error-patterns.json build section → verify imports and type compatibility",
+        "wrong_data_displayed": "Trace through api-ui-contracts.json: proto field → converter → model field → component prop",
+        "styling_issue": "Check tokens.json for correct token → verify no hardcoded colors (conventions.json constraint)",
+        "state_issue": "Check state-machines.json for the component's valid states and transitions"
+      }
+    },
+    "understanding_existing_code": {
+      "description": "Given a file path or feature name, understand how the code is structured, what data it uses, and how it relates to the design system.",
+      "load_order": [
+        "conventions.json → understand the Page/Container/Component architecture and naming conventions",
+        "api-ui-contracts.json → find which entity this code belongs to and trace the data pipeline",
+        "patterns.json → identify which pattern this code implements",
+        "component-dependencies.json → understand what providers and contexts are needed",
+        "components.json → look up any MC-prefixed components used in the code"
+      ],
+      "start_with": "conventions.json",
+      "critical_check": "MSM Portal follows a strict 3-layer architecture: Page (route + layout), Container (data fetching + business logic), Component (pure UI). Given a file path, first determine which layer it belongs to by checking the path pattern: */container/* = Container layer, */component/* = Component layer, pages/routes = Page layer.",
+      "decision_tree": {
+        "given_file_path": "Determine layer from path → read the file → identify imports to find related Container/Component files → check api-ui-contracts.json for entity context",
+        "given_feature_name": "Search api-ui-contracts.json for the entity → find container paths → read Container to find Component imports → read Component for UI structure",
+        "given_component_name": "Look up in components.json → check component-dependencies.json → find which Containers import this component"
+      }
     }
   },
 

@@ -102,14 +102,58 @@
         "Never hardcode color, spacing, or typography values",
         "Never use inline styles"
       ],
-      "code": "import styled from 'styled-components';\n\n// ✅ Correct\nconst SCContainer = styled.div<{ $isActive: boolean }>`\n  padding: ${(props) => props.theme.mcui.spacing(2)};\n  background: ${\n    (props) => props.$isActive\n      ? props.theme.mcui.palette.background.tertiary\n      : props.theme.mcui.palette.background.primary\n  };\n  color: ${(props) => props.theme.mcui.palette.content.primary};\n`;\n\n// ❌ Wrong\nconst SCContainer = styled.div`\n  padding: 16px;\n  background: #ffffff;\n`;\n\n// ❌ Wrong\n<div style={{ padding: 16 }} />"
+      "code": "import styled from 'styled-components';\n\n// ✅ Correct\nconst SCContainer = styled.div<{ $isActive: boolean }>`\n  padding: ${(props) => props.theme.mcui.spacing(2)};\n  background: ${\n    (props) => props.$isActive\n      ? props.theme.mcui.palette.background.tertiary\n      : props.theme.mcui.palette.background.primary\n  };\n  color: ${(props) => props.theme.mcui.palette.content.primary};\n`;\n\n// ❌ Wrong\nconst SCContainer = styled.div`\n  padding: 16px;\n  background: #ffffff;\n`;\n\n// ❌ Wrong\n<div style={{ padding: 16 }} />",
+      "layer_structure": {
+        "component": {
+          "location": "src/apps/{client}/component/{entity}/**/*.tsx (any component file using styled-components)",
+          "responsibility": "Defines SC-prefixed styled components with theme tokens for spacing, color, and typography",
+          "imports": ["styled-components", "theme via props.theme.mcui"]
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/component/{entity}/**/*.tsx (the component file containing styled-component definitions)"
+      ],
+      "validation_checklist": [
+        "All styled components use SC prefix (e.g., SCContainer, SCWrapper)",
+        "No hardcoded color values — use props.theme.mcui.palette.*",
+        "No hardcoded spacing values — use props.theme.mcui.spacing(n)",
+        "No hardcoded typography — use props.theme.mcui.typography.*",
+        "Props that should not forward to DOM use $ prefix (transient props, e.g., $isActive)",
+        "No inline styles (style={{}}) — use styled-components instead",
+        "Component file does not import raw CSS or SCSS files"
+      ]
     },
     {
       "id": "action-button",
       "name": "Action Button Pattern",
       "description": "Per-row actions in tables and lists using MCMoreActionsButton.",
       "when": "Table rows or list items need contextual actions",
-      "code": "import MCMoreActionsButton from '@msm-portal/common/component/button/MCMoreActionsButton';\nimport { MCIcon } from '@moloco/moloco-cloud-react-ui';\n\nconst actions = [\n  { label: 'Edit',   icon: 'edit'  as MTIcon, onClick: () => navigate(`/edit/${id}`) },\n  { label: 'Delete', icon: 'trash' as MTIcon, onClick: () => setDeleteOpen(true) },\n];\n\n<MCMoreActionsButton variant=\"text\" noPadding moreActionItems={actions}>\n  <MCIcon icon=\"ellipsis-v\" width={16} height={16} />\n</MCMoreActionsButton>"
+      "code": "import MCMoreActionsButton from '@msm-portal/common/component/button/MCMoreActionsButton';\nimport { MCIcon } from '@moloco/moloco-cloud-react-ui';\n\nconst actions = [\n  { label: 'Edit',   icon: 'edit'  as MTIcon, onClick: () => navigate(`/edit/${id}`) },\n  { label: 'Delete', icon: 'trash' as MTIcon, onClick: () => setDeleteOpen(true) },\n];\n\n<MCMoreActionsButton variant=\"text\" noPadding moreActionItems={actions}>\n  <MCIcon icon=\"ellipsis-v\" width={16} height={16} />\n</MCMoreActionsButton>",
+      "layer_structure": {
+        "container": {
+          "location": "src/apps/{client}/container/{entity}/list/MC{Entity}ListTableContainer.tsx or detail container",
+          "responsibility": "Defines action items array with labels, icons, and onClick handlers (navigation, dialog open, mutations)",
+          "imports": ["useNavigate", "useTranslation", "useState (for dialog state)", "MCMoreActionsButton"]
+        },
+        "component": {
+          "location": "src/apps/{client}/component/{entity}/table/cellRenderers.tsx (for table row actions)",
+          "responsibility": "Renders MCMoreActionsButton with action items passed via props. Pure UI.",
+          "imports": ["MCMoreActionsButton", "MCIcon"]
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/container/{entity}/list/MC{Entity}ListTableContainer.tsx (action definitions)",
+        "src/apps/{client}/component/{entity}/table/cellRenderers.tsx (action button rendering in table rows)"
+      ],
+      "validation_checklist": [
+        "MCMoreActionsButton used with moreActionItems prop — not custom dropdown",
+        "Each action item has label, icon, and onClick defined",
+        "Action labels use t() from useTranslation for i18n",
+        "Destructive actions (delete) open a confirmation dialog — not immediate mutation",
+        "Button has accessible label via aria-label or visible text",
+        "Keyboard accessible — menu opens with Enter/Space, items navigable with arrow keys",
+        "Icons are consistent with design system conventions (edit, trash, copy, etc.)"
+      ]
     },
     {
       "id": "delete-confirm-dialog",
@@ -151,19 +195,92 @@
       "id": "field-layout",
       "name": "Field Layout Pattern",
       "description": "Control field width and group direction.",
-      "code": "import { MCFormFieldGroup, MCFormField, MEFormFieldWidth } from '@msm-portal/common/component/form/shared';\n\n// Vertical stack (default)\n<MCFormFieldGroup>\n  <MCFormTextInput name=\"firstName\" fieldLabel=\"First Name\" required />\n  <MCFormTextInput name=\"lastName\" fieldLabel=\"Last Name\" required />\n</MCFormFieldGroup>\n\n// Horizontal row\n<MCFormFieldGroup $direction=\"row\">\n  <MCFormTextInput name=\"startDate\" fieldLabel=\"Start Date\" required />\n  <MCFormTextInput name=\"endDate\" fieldLabel=\"End Date\" />\n</MCFormFieldGroup>\n\n// Reduced width field\n<MCFormField $width={MEFormFieldWidth.MEDIUM}>\n  <MCFormTextInput name=\"code\" fieldLabel=\"Promo Code\" />\n</MCFormField>"
+      "code": "import { MCFormFieldGroup, MCFormField, MEFormFieldWidth } from '@msm-portal/common/component/form/shared';\n\n// Vertical stack (default)\n<MCFormFieldGroup>\n  <MCFormTextInput name=\"firstName\" fieldLabel=\"First Name\" required />\n  <MCFormTextInput name=\"lastName\" fieldLabel=\"Last Name\" required />\n</MCFormFieldGroup>\n\n// Horizontal row\n<MCFormFieldGroup $direction=\"row\">\n  <MCFormTextInput name=\"startDate\" fieldLabel=\"Start Date\" required />\n  <MCFormTextInput name=\"endDate\" fieldLabel=\"End Date\" />\n</MCFormFieldGroup>\n\n// Reduced width field\n<MCFormField $width={MEFormFieldWidth.MEDIUM}>\n  <MCFormTextInput name=\"code\" fieldLabel=\"Promo Code\" />\n</MCFormField>",
+      "layer_structure": {
+        "component": {
+          "location": "src/apps/{client}/component/{entity}/form/MC{Entity}Form.tsx",
+          "responsibility": "Renders form fields using MCFormFieldGroup for grouping, MCFormField for width control, and fieldLabel prop on each input",
+          "imports": ["MCFormFieldGroup", "MCFormField", "MEFormFieldWidth", "MCFormTextInput", "MCFormSelectInput", "etc."]
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/component/{entity}/form/MC{Entity}Form.tsx (form component containing field layouts)"
+      ],
+      "validation_checklist": [
+        "Every form input has a fieldLabel prop for accessible labeling",
+        "MCFormFieldGroup wraps related fields — $direction='row' for horizontal layout",
+        "MCFormField with $width={MEFormFieldWidth.MEDIUM|SMALL} used for reduced-width fields",
+        "Required fields have required prop set — renders asterisk via MCFormFieldLabel",
+        "Error messages display automatically via Formik meta.error and meta.touched",
+        "Field groups are inside MCFormPanelBody, which is inside MCFormPanel"
+      ]
     },
     {
       "id": "tab-navigation",
       "name": "Tab Navigation Pattern",
       "description": "Tab-based content switching within a page.",
-      "code": "import MCBarTabs from '@msm-portal/common/component/tab/bar-tab/MCBarTabs';\n\nconst [activeTab, setActiveTab] = useState('overview');\n\n<MCBarTabs\n  tabs={[\n    { label: 'Overview', active: activeTab === 'overview', onClick: () => setActiveTab('overview') },\n    { label: 'Analytics', active: activeTab === 'analytics', onClick: () => setActiveTab('analytics') },\n  ]}\n/>\n\n{activeTab === 'overview' && <OverviewPanel />}\n{activeTab === 'analytics' && <AnalyticsPanel />}"
+      "code": "import MCBarTabs from '@msm-portal/common/component/tab/bar-tab/MCBarTabs';\n\nconst [activeTab, setActiveTab] = useState('overview');\n\n<MCBarTabs\n  tabs={[\n    { label: 'Overview', active: activeTab === 'overview', onClick: () => setActiveTab('overview') },\n    { label: 'Analytics', active: activeTab === 'analytics', onClick: () => setActiveTab('analytics') },\n  ]}\n/>\n\n{activeTab === 'overview' && <OverviewPanel />}\n{activeTab === 'analytics' && <AnalyticsPanel />}",
+      "layer_structure": {
+        "page": {
+          "location": "src/apps/{client}/page/{entity}/{Entity}List.tsx or {Entity}Detail.tsx",
+          "responsibility": "Thin wrapper that renders the container owning the tab state"
+        },
+        "container": {
+          "location": "src/apps/{client}/container/{entity}/list/MC{Entity}ListContainer.tsx",
+          "responsibility": "Manages active tab state via useState or useSearchParams, defines tab array with labels and onClick handlers, conditionally renders tab content panels",
+          "imports": ["MCBarTabs", "MTBarTab", "useSearchParams or useState", "useTranslation", "sub-containers for each tab"]
+        },
+        "component": {
+          "location": "src/apps/{client}/container/{entity}/list/MC{Available|Archived}{Entity}ListContainer.tsx (tab content panels)",
+          "responsibility": "Each tab content panel fetches its own data and renders its own UI"
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/container/{entity}/list/MC{Entity}ListContainer.tsx (tab definitions and switching logic)",
+        "src/apps/{client}/container/{entity}/list/MCAvailable{Entity}ListContainer.tsx (tab content)",
+        "src/apps/{client}/container/{entity}/list/MCArchived{Entity}ListContainer.tsx (tab content)",
+        "src/i18n/locales/en/container.{entity}.list.json (tab.available, tab.archived keys)"
+      ],
+      "validation_checklist": [
+        "MCBarTabs component used for tab rendering — not custom tab implementation",
+        "Tab state synced to URL via useSearchParams for shareable URLs",
+        "Default tab selected when no tab query param present (e.g., ?? 'available')",
+        "Tab labels use t() from useTranslation for i18n",
+        "Each tab panel is a separate sub-container with independent data fetching",
+        "Inactive tab panels are not rendered (conditional rendering, not hidden via CSS)",
+        "tabs array memoized with useMemo to prevent unnecessary re-renders"
+      ]
     },
     {
       "id": "trpc-data-fetching",
       "name": "tRPC Data Fetching Pattern",
       "description": "Type-safe data fetching with tRPC and TanStack React Query.",
-      "code": "import { trpc } from '@msm-portal/common/trpc/trpc';\n\n// Query\nconst { data, isLoading } = trpc.campaign.list.useQuery({ status: 'active' });\nif (isLoading) return <MCLoader />;\n\n// Mutation\nconst createCampaign = trpc.campaign.create.useMutation({\n  onSuccess: () => {\n    queryClient.invalidateQueries(['campaign.list']);\n    navigate('/campaigns');\n  },\n});\nawait createCampaign.mutateAsync({ name: 'My Campaign' });"
+      "code": "import { trpc } from '@msm-portal/common/trpc/trpc';\n\n// Query\nconst { data, isLoading } = trpc.campaign.list.useQuery({ status: 'active' });\nif (isLoading) return <MCLoader />;\n\n// Mutation\nconst createCampaign = trpc.campaign.create.useMutation({\n  onSuccess: () => {\n    queryClient.invalidateQueries(['campaign.list']);\n    navigate('/campaigns');\n  },\n});\nawait createCampaign.mutateAsync({ name: 'My Campaign' });",
+      "layer_structure": {
+        "container": {
+          "location": "src/apps/{client}/container/{entity}/**/*Container.tsx",
+          "responsibility": "Calls tRPC useQuery/useMutation hooks, manages loading/error states, passes fetched data to Component as props",
+          "imports": ["trpc from @msm-portal/common/trpc/trpc", "MCCircularLoader", "useInAppAlert", "useEffect"]
+        },
+        "component": {
+          "location": "src/apps/{client}/component/{entity}/**/*.tsx",
+          "responsibility": "Receives data via props from Container. Pure UI rendering — no tRPC calls, no useQuery, no useMutation.",
+          "imports": ["MC* UI components only — no trpc import"]
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/container/{entity}/**/*Container.tsx (tRPC query/mutation calls)",
+        "src/apps/{client}/component/{entity}/**/*.tsx (receives data as props)"
+      ],
+      "validation_checklist": [
+        "All tRPC useQuery/useMutation calls are in Container layer — never in Component",
+        "Loading state handled: isLoading check renders MCCircularLoader or MCLoader",
+        "Error state handled: useEffect watching query.error calls fireCollapsibleError",
+        "Mutation onSuccess invalidates relevant queries via queryClient.invalidateQueries",
+        "Mutation errors caught in try/catch with fireCollapsibleError",
+        "Data passed to Component as typed props — Component never imports trpc",
+        "useQuery options (enabled, refetchInterval, etc.) configured appropriately"
+      ]
     },
     {
       "id": "provider-stack",
@@ -181,6 +298,27 @@
         "MCGlobalStyle",
         "MCInAppAlertProvider",
         "MCRootLayout"
+      ],
+      "code": "import { QueryClient, QueryClientProvider } from '@tanstack/react-query';\nimport { ThemeProvider } from 'styled-components';\nimport { I18nextProvider } from 'react-i18next';\nimport { BrowserRouter } from 'react-router-dom';\n\nimport MCTRPCProvider from '@msm-portal/common/trpc/MCTRPCProvider';\nimport MCInAppAlertProvider from '@msm-portal/common/alert/MCInAppAlertProvider';\nimport MCGlobalStyle from '@msm-portal/common/style/MCGlobalStyle';\nimport MCRootLayout from '@msm-portal/common/component/layout/MCRootLayout';\nimport { FeatureGuardProvider } from '@msm-portal/common/feature-guard';\nimport { AuthProvider } from '@msm-portal/common/auth';\nimport { AppConfigProvider } from '@msm-portal/common/config';\nimport { theme } from '@msm-portal/common/style/theme';\nimport i18n from '@msm-portal/i18n';\n\nconst queryClient = new QueryClient();\n\nconst App = () => (\n  <QueryClientProvider client={queryClient}>\n    <FeatureGuardProvider>\n      <AuthProvider>\n        <MCTRPCProvider>\n          <AppConfigProvider>\n            <I18nextProvider i18n={i18n}>\n              <ThemeProvider theme={theme}>\n                <MCGlobalStyle />\n                <MCInAppAlertProvider>\n                  <BrowserRouter>\n                    <MCRootLayout />\n                  </BrowserRouter>\n                </MCInAppAlertProvider>\n              </ThemeProvider>\n            </I18nextProvider>\n          </AppConfigProvider>\n        </MCTRPCProvider>\n      </AuthProvider>\n    </FeatureGuardProvider>\n  </QueryClientProvider>\n);",
+      "layer_structure": {
+        "root": {
+          "location": "src/apps/{client}/App.tsx or src/app-builder/MCApp.tsx",
+          "responsibility": "Composes all providers in the correct nesting order. This is the application entry point that wraps the entire component tree.",
+          "imports": ["QueryClientProvider", "ThemeProvider", "I18nextProvider", "BrowserRouter", "MCTRPCProvider", "MCInAppAlertProvider", "MCGlobalStyle", "MCRootLayout", "FeatureGuardProvider", "AuthProvider", "AppConfigProvider"]
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/App.tsx (app entry point with provider composition)",
+        "src/app-builder/MCApp.tsx (shared app builder if using app-builder pattern)"
+      ],
+      "validation_checklist": [
+        "All required providers present: QueryClientProvider, FeatureGuardProvider, AuthProvider, MCTRPCProvider, AppConfigProvider, I18nextProvider, ThemeProvider, MCInAppAlertProvider",
+        "Nesting order matches the documented order — QueryClientProvider outermost, MCRootLayout innermost",
+        "MCGlobalStyle rendered inside ThemeProvider (needs theme context)",
+        "MCInAppAlertProvider wraps router so alerts persist across navigation",
+        "BrowserRouter wraps MCRootLayout so routes have router context",
+        "QueryClient instantiated outside component or in useMemo to prevent re-creation on re-render",
+        "No provider is duplicated in the tree"
       ]
     },
     {
@@ -325,7 +463,41 @@
         "Container: All hooks (data fetching, navigation, i18n, alerts). Computes props for Component.",
         "Component: Pure UI. Receives all data via props. No data fetching. No navigation."
       ],
-      "code": "// ─── Page (src/apps/msm-default/page/auction-order/AuctionOrderList.tsx) ───\nimport MCAuctionOrderListContainer from '@msm-portal/msm-default/container/auction-order/list/MCAuctionOrderListContainer';\n\nconst AuctionOrderList = () => <MCAuctionOrderListContainer />;\nexport default AuctionOrderList;\n\n// ─── Container (src/apps/msm-default/container/auction-order/list/MCAuctionOrderListContainer.tsx) ───\n// All hooks, data fetching, state, callbacks here\nconst MCAuctionOrderListContainer = () => {\n  const { data } = useAuctionOrders();\n  const { t } = useTranslation('container.auctionOrder.list');\n  // ... business logic\n  return <MCContentLayout ...><MCBarTabs .../>{content}</MCContentLayout>;\n};\n\n// ─── Component (src/apps/msm-default/component/auction-order/detail/MCAuctionOrderDetail.tsx) ───\n// Pure UI, all data via props\ntype MTProps = { auctionOrder: MTAuctionOrder };\nconst MCAuctionOrderDetail = ({ auctionOrder }: MTProps) => {\n  return (\n    <MCFormPanel>...</MCFormPanel>\n  );\n};"
+      "code": "// ─── Page (src/apps/msm-default/page/auction-order/AuctionOrderList.tsx) ───\nimport MCAuctionOrderListContainer from '@msm-portal/msm-default/container/auction-order/list/MCAuctionOrderListContainer';\n\nconst AuctionOrderList = () => <MCAuctionOrderListContainer />;\nexport default AuctionOrderList;\n\n// ─── Container (src/apps/msm-default/container/auction-order/list/MCAuctionOrderListContainer.tsx) ───\n// All hooks, data fetching, state, callbacks here\nconst MCAuctionOrderListContainer = () => {\n  const { data } = useAuctionOrders();\n  const { t } = useTranslation('container.auctionOrder.list');\n  // ... business logic\n  return <MCContentLayout ...><MCBarTabs .../>{content}</MCContentLayout>;\n};\n\n// ─── Component (src/apps/msm-default/component/auction-order/detail/MCAuctionOrderDetail.tsx) ───\n// Pure UI, all data via props\ntype MTProps = { auctionOrder: MTAuctionOrder };\nconst MCAuctionOrderDetail = ({ auctionOrder }: MTProps) => {\n  return (\n    <MCFormPanel>...</MCFormPanel>\n  );\n};",
+      "layer_structure": {
+        "page": {
+          "location": "src/apps/{client}/page/{entity}/{Entity}{Action}.tsx",
+          "responsibility": "Thin wrapper file. Only imports and renders the Container. No hooks, no logic, no props, no state. Exists solely as the route entry point.",
+          "imports": ["MC{Entity}{Action}Container"]
+        },
+        "container": {
+          "location": "src/apps/{client}/container/{entity}/{action}/MC{Entity}{Action}Container.tsx",
+          "responsibility": "All data fetching (tRPC, msmAPI, custom hooks), all React hooks (useState, useEffect, useCallback, useMemo), navigation (useNavigate), i18n (useTranslation), alerts (useInAppAlert), error handling. Computes and passes props to Component.",
+          "imports": ["react hooks", "useTranslation", "useNavigate", "useEntityParam", "useInAppAlert", "tRPC/msmAPI", "MCContentLayout or MCFormLayout", "Component(s)"]
+        },
+        "component": {
+          "location": "src/apps/{client}/component/{entity}/{feature}/MC{Entity}{Feature}.tsx",
+          "responsibility": "Pure UI rendering. Receives ALL data via props. No useQuery, no useNavigate, no useTranslation (unless for local UI labels). No side effects. Must be testable in isolation with mock props.",
+          "imports": ["MC* UI components from design system", "styled-components", "prop types"]
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/page/{entity}/{Entity}{Action}.tsx (route entry — thin wrapper)",
+        "src/apps/{client}/container/{entity}/{action}/MC{Entity}{Action}Container.tsx (data + logic)",
+        "src/apps/{client}/component/{entity}/{feature}/MC{Entity}{Feature}.tsx (pure UI)",
+        "src/apps/{client}/component/{entity}/{feature}/MC{Entity}{Feature}.type.ts (prop types)"
+      ],
+      "validation_checklist": [
+        "Page file contains ONLY an import and a render of the Container — no hooks, no logic, no props",
+        "Container owns ALL hooks: data fetching, navigation, i18n, alerts, state management",
+        "Container does NOT render raw HTML or styled-components for main content — delegates to Component",
+        "Component receives ALL data via typed props — no useQuery, no useMutation, no useNavigate inside",
+        "Component is testable in isolation by passing mock props — no implicit dependencies",
+        "No data fetching (tRPC, msmAPI, fetch) in Component layer",
+        "No UI layout logic (MCFormPanel, styled-components) in Container layer beyond layout wrappers (MCContentLayout, MCFormLayout)",
+        "Type definitions for Component props live in a separate .type.ts file",
+        "Callbacks from Container to Component are passed as props (e.g., onEdit, onDelete, onSubmit)"
+      ]
     },
     {
       "id": "edit-page",
@@ -388,14 +560,61 @@
       "name": "Error Handling Pattern",
       "description": "Standard error handling with useInAppAlert for both query errors and mutation errors.",
       "when": "Any container that fetches data or performs mutations",
-      "code": "import useInAppAlert from '@msm-portal/common/alert/useInAppAlert';\n\nconst { fireSuccess, fireCollapsibleError } = useInAppAlert();\n\n// ── Query error (navigate away) ──\nuseEffect(() => {\n  if (fetchError) {\n    fireCollapsibleError({\n      summary: t('message.read.error'),\n      error: fetchError,\n    });\n    handleClose();\n  }\n}, [fetchError, fireCollapsibleError, handleClose, t]);\n\n// ── Mutation success ──\nfireSuccess(t('message.create.success'));\n\n// ── Mutation error (stay on page) ──\ntry {\n  await mutateAsync(data);\n} catch (error) {\n  fireCollapsibleError({ summary: t('message.create.error'), error });\n}"
+      "code": "import useInAppAlert from '@msm-portal/common/alert/useInAppAlert';\n\nconst { fireSuccess, fireCollapsibleError } = useInAppAlert();\n\n// ── Query error (navigate away) ──\nuseEffect(() => {\n  if (fetchError) {\n    fireCollapsibleError({\n      summary: t('message.read.error'),\n      error: fetchError,\n    });\n    handleClose();\n  }\n}, [fetchError, fireCollapsibleError, handleClose, t]);\n\n// ── Mutation success ──\nfireSuccess(t('message.create.success'));\n\n// ── Mutation error (stay on page) ──\ntry {\n  await mutateAsync(data);\n} catch (error) {\n  fireCollapsibleError({ summary: t('message.create.error'), error });\n}",
+      "layer_structure": {
+        "container": {
+          "location": "src/apps/{client}/container/{entity}/**/*Container.tsx",
+          "responsibility": "Handles all error states: useEffect for query errors (fireCollapsibleError + navigate away), try/catch for mutation errors (fireCollapsibleError + stay on page), fireSuccess for mutation success",
+          "imports": ["useInAppAlert", "useEffect", "useTranslation", "useNavigate"]
+        },
+        "component": {
+          "location": "src/apps/{client}/component/{entity}/**/*.tsx",
+          "responsibility": "Renders error UI only when explicitly passed error state via props. Does not catch or handle errors independently.",
+          "imports": ["MC* UI components"]
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/container/{entity}/**/*Container.tsx (error handling logic with useInAppAlert)"
+      ],
+      "validation_checklist": [
+        "useInAppAlert imported and destructured: { fireSuccess, fireCollapsibleError }",
+        "Query errors handled via useEffect watching query.error — calls fireCollapsibleError and navigates away",
+        "Mutation errors handled via try/catch in handleSubmit — calls fireCollapsibleError and stays on page",
+        "Mutation success calls fireSuccess with i18n message before navigation",
+        "Error summary strings use t() from useTranslation — not hardcoded English",
+        "fireCollapsibleError receives both summary (string) and error (object) for expandable details",
+        "useEffect dependency array includes error, fireCollapsibleError, handleClose, and t"
+      ]
     },
     {
       "id": "loading-state",
       "name": "Loading State Pattern",
       "description": "Standard loading indicators for different contexts.",
       "when": "Any async data fetching",
-      "code": "import { MCCircularLoader } from '@moloco/moloco-cloud-react-ui';\nimport MCLoader from '@msm-portal/common/component/loader/MCLoader';\n\n// Full-page loading (containers)\nif (isLoading) return <MCCircularLoader fillParent />;\n\n// Inline loading (within a section)\nif (isLoading) return <MCLoader />;\n\n// Conditional rendering pattern\nreturn isFetching || !data\n  ? <MCCircularLoader fillParent />\n  : <MC{Entity}Detail {entity}={data} />;"
+      "code": "import { MCCircularLoader } from '@moloco/moloco-cloud-react-ui';\nimport MCLoader from '@msm-portal/common/component/loader/MCLoader';\n\n// Full-page loading (containers)\nif (isLoading) return <MCCircularLoader fillParent />;\n\n// Inline loading (within a section)\nif (isLoading) return <MCLoader />;\n\n// Conditional rendering pattern\nreturn isFetching || !data\n  ? <MCCircularLoader fillParent />\n  : <MC{Entity}Detail {entity}={data} />;",
+      "layer_structure": {
+        "container": {
+          "location": "src/apps/{client}/container/{entity}/**/*Container.tsx",
+          "responsibility": "Checks isLoading/isFetching from useQuery and renders MCCircularLoader (full-page) or MCLoader (inline) before passing data to Component",
+          "imports": ["MCCircularLoader from @moloco/moloco-cloud-react-ui", "MCLoader from @msm-portal/common/component/loader/MCLoader"]
+        },
+        "component": {
+          "location": "src/apps/{client}/component/{entity}/**/*.tsx",
+          "responsibility": "Receives fully loaded data via props — never sees loading state. Component assumes data is available.",
+          "imports": ["MC* UI components"]
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/container/{entity}/**/*Container.tsx (loading state check before rendering Component)"
+      ],
+      "validation_checklist": [
+        "MCCircularLoader with fillParent used for full-page loading (containers that own the entire view)",
+        "MCLoader used for inline/section loading (sub-containers within a page)",
+        "No custom spinner or loading text — use MCCircularLoader or MCLoader from design system",
+        "Pattern: isFetching || !data ? <MCCircularLoader fillParent /> : <Component data={data} />",
+        "Loading state does not flash — avoid showing loader for cached data refetches (use isFetching vs isLoading appropriately)",
+        "Submit buttons show disabled={isSubmitting} during mutation — not a separate loader"
+      ]
     },
     {
       "id": "route-registration",
@@ -407,7 +626,42 @@
         "Step 2: Add route entry in src/app-builder/route/template/routeTemplate.tsx with path and handle (breadcrumb)",
         "Step 3: Map component in src/apps/{client}/config/route.tsx with allowedRoles"
       ],
-      "code": "// ─── Step 1: src/route/types.ts ───\nexport enum MERouteKey {\n  // ... existing keys\n  {ENTITY}_MAIN = '{ENTITY}_MAIN',\n  {ENTITY}_CREATE = '{ENTITY}_CREATE',\n  {ENTITY}_DETAIL = '{ENTITY}_DETAIL',\n  {ENTITY}_EDIT = '{ENTITY}_EDIT',\n}\n\n// ─── Step 2: src/app-builder/route/template/routeTemplate.tsx ───\n// Add route with path and breadcrumb handle\n{\n  path: '{entity}',\n  key: MERouteKey.{ENTITY}_MAIN,\n  handle: { crumb: '{entity}.list' },\n  children: [\n    { path: 'create', key: MERouteKey.{ENTITY}_CREATE, handle: { crumb: '{entity}.create' } },\n    { path: ':entityId', key: MERouteKey.{ENTITY}_DETAIL, handle: { crumb: '{entity}.detail' } },\n    { path: ':entityId/edit', key: MERouteKey.{ENTITY}_EDIT, handle: { crumb: '{entity}.edit' } },\n  ],\n}\n\n// ─── Step 3: src/apps/msm-default/config/route.tsx ───\nimport {Entity}List from '@msm-portal/msm-default/page/{entity}/{Entity}List';\nimport {Entity}Create from '@msm-portal/msm-default/page/{entity}/{Entity}Create';\nimport {Entity}Detail from '@msm-portal/msm-default/page/{entity}/{Entity}Detail';\nimport {Entity}Edit from '@msm-portal/msm-default/page/{entity}/{Entity}Edit';\n\n// In the route map:\n{ key: MERouteKey.{ENTITY}_MAIN, element: <{Entity}List />, allowedRoles: [MEUserRoleType.AD_OPS] },\n{ key: MERouteKey.{ENTITY}_CREATE, element: <{Entity}Create />, allowedRoles: [MEUserRoleType.AD_OPS] },\n{ key: MERouteKey.{ENTITY}_DETAIL, element: <{Entity}Detail />, allowedRoles: [MEUserRoleType.AD_OPS] },\n{ key: MERouteKey.{ENTITY}_EDIT, element: <{Entity}Edit />, allowedRoles: [MEUserRoleType.AD_OPS] },"
+      "code": "// ─── Step 1: src/route/types.ts ───\nexport enum MERouteKey {\n  // ... existing keys\n  {ENTITY}_MAIN = '{ENTITY}_MAIN',\n  {ENTITY}_CREATE = '{ENTITY}_CREATE',\n  {ENTITY}_DETAIL = '{ENTITY}_DETAIL',\n  {ENTITY}_EDIT = '{ENTITY}_EDIT',\n}\n\n// ─── Step 2: src/app-builder/route/template/routeTemplate.tsx ───\n// Add route with path and breadcrumb handle\n{\n  path: '{entity}',\n  key: MERouteKey.{ENTITY}_MAIN,\n  handle: { crumb: '{entity}.list' },\n  children: [\n    { path: 'create', key: MERouteKey.{ENTITY}_CREATE, handle: { crumb: '{entity}.create' } },\n    { path: ':entityId', key: MERouteKey.{ENTITY}_DETAIL, handle: { crumb: '{entity}.detail' } },\n    { path: ':entityId/edit', key: MERouteKey.{ENTITY}_EDIT, handle: { crumb: '{entity}.edit' } },\n  ],\n}\n\n// ─── Step 3: src/apps/msm-default/config/route.tsx ───\nimport {Entity}List from '@msm-portal/msm-default/page/{entity}/{Entity}List';\nimport {Entity}Create from '@msm-portal/msm-default/page/{entity}/{Entity}Create';\nimport {Entity}Detail from '@msm-portal/msm-default/page/{entity}/{Entity}Detail';\nimport {Entity}Edit from '@msm-portal/msm-default/page/{entity}/{Entity}Edit';\n\n// In the route map:\n{ key: MERouteKey.{ENTITY}_MAIN, element: <{Entity}List />, allowedRoles: [MEUserRoleType.AD_OPS] },\n{ key: MERouteKey.{ENTITY}_CREATE, element: <{Entity}Create />, allowedRoles: [MEUserRoleType.AD_OPS] },\n{ key: MERouteKey.{ENTITY}_DETAIL, element: <{Entity}Detail />, allowedRoles: [MEUserRoleType.AD_OPS] },\n{ key: MERouteKey.{ENTITY}_EDIT, element: <{Entity}Edit />, allowedRoles: [MEUserRoleType.AD_OPS] },",
+      "layer_structure": {
+        "route_config": {
+          "location": "src/app-builder/route/template/routeTemplate.tsx",
+          "responsibility": "Defines route path structure, nesting, and breadcrumb handle for each route key"
+        },
+        "route_enum": {
+          "location": "src/route/types.ts",
+          "responsibility": "Declares MERouteKey enum values for each route (e.g., {ENTITY}_MAIN, {ENTITY}_CREATE, {ENTITY}_DETAIL, {ENTITY}_EDIT)"
+        },
+        "route_mapping": {
+          "location": "src/apps/{client}/config/route.tsx",
+          "responsibility": "Maps MERouteKey to page component and allowedRoles. Uses lazy imports for code splitting.",
+          "imports": ["Page components (lazy imported)", "MERouteKey", "MEUserRoleType"]
+        },
+        "page": {
+          "location": "src/apps/{client}/page/{entity}/{Entity}{Action}.tsx",
+          "responsibility": "The page component rendered by the route — thin wrapper importing Container"
+        }
+      },
+      "file_checklist": [
+        "src/route/types.ts (add MERouteKey enum values: {ENTITY}_MAIN, {ENTITY}_CREATE, {ENTITY}_DETAIL, {ENTITY}_EDIT)",
+        "src/app-builder/route/template/routeTemplate.tsx (add route path, children, and handle with breadcrumb crumb)",
+        "src/apps/{client}/config/route.tsx (map route key to page component with allowedRoles)",
+        "src/apps/{client}/page/{entity}/{Entity}{Action}.tsx (page components for each route)"
+      ],
+      "validation_checklist": [
+        "All three files updated together — missing any one causes runtime errors",
+        "MERouteKey enum values follow SCREAMING_SNAKE convention (e.g., AUCTION_ORDER_MAIN)",
+        "Route path follows kebab-case convention (e.g., 'auction-order')",
+        "Detail and edit routes use :entityId param (e.g., ':entityId', ':entityId/edit')",
+        "Breadcrumb handle.crumb matches i18n key in route.breadcrumb namespace",
+        "Page components lazy imported in route.tsx for code splitting",
+        "allowedRoles correctly set based on feature requirements",
+        "Child routes nested under parent route for correct breadcrumb hierarchy"
+      ]
     },
     {
       "id": "i18n-usage",
@@ -421,7 +675,33 @@
         "Use t() for simple strings, <Trans> for JSX interpolation",
         "Breadcrumb i18n key: route.breadcrumb.{crumb}"
       ],
-      "code": "import { useTranslation } from 'react-i18next';\nimport { Trans } from 'react-i18next';\n\n// Basic usage\nconst { t } = useTranslation('container.auctionOrder.list');\n<h1>{t('title')}</h1>\n<MCButton2>{t('create')}</MCButton2>\n\n// With interpolation\n{t('message.deleteConfirm', { name: entity.name })}\n\n// JSX interpolation\n<Trans i18nKey=\"container.entity.richText\" t={t}>\n  Click <SCClickableText>here</SCClickableText> to continue.\n</Trans>\n\n// Resource file structure (sot-resource.json):\n// {\n//   \"container\": {\n//     \"auctionOrder\": {\n//       \"list\": {\n//         \"title\": \"Auction Orders\",\n//         \"create\": \"Create Auction Order\",\n//         \"tab\": { \"available\": \"Available\", \"draft\": \"Draft\", \"archived\": \"Archived\" }\n//       }\n//     }\n//   }\n// }"
+      "code": "import { useTranslation } from 'react-i18next';\nimport { Trans } from 'react-i18next';\n\n// Basic usage\nconst { t } = useTranslation('container.auctionOrder.list');\n<h1>{t('title')}</h1>\n<MCButton2>{t('create')}</MCButton2>\n\n// With interpolation\n{t('message.deleteConfirm', { name: entity.name })}\n\n// JSX interpolation\n<Trans i18nKey=\"container.entity.richText\" t={t}>\n  Click <SCClickableText>here</SCClickableText> to continue.\n</Trans>\n\n// Resource file structure (sot-resource.json):\n// {\n//   \"container\": {\n//     \"auctionOrder\": {\n//       \"list\": {\n//         \"title\": \"Auction Orders\",\n//         \"create\": \"Create Auction Order\",\n//         \"tab\": { \"available\": \"Available\", \"draft\": \"Draft\", \"archived\": \"Archived\" }\n//       }\n//     }\n//   }\n// }",
+      "layer_structure": {
+        "component": {
+          "location": "src/apps/{client}/container/{entity}/**/*Container.tsx and src/apps/{client}/component/{entity}/**/*.tsx",
+          "responsibility": "Uses useTranslation hook with correct namespace. All user-facing strings rendered via t() function. Uses <Trans> for JSX interpolation.",
+          "imports": ["useTranslation from react-i18next", "Trans from react-i18next (for JSX interpolation)"]
+        },
+        "resource": {
+          "location": "src/i18n/assets/{lang}/sot-resource.json",
+          "responsibility": "Contains all translation key-value pairs organized by namespace (container.{entity}.{action}, form.{entity}, route.breadcrumb.*)"
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/container/{entity}/**/*Container.tsx (useTranslation with namespace)",
+        "src/apps/{client}/component/{entity}/**/*.tsx (t() calls for UI labels)",
+        "src/i18n/assets/en/sot-resource.json (English translation keys)",
+        "src/i18n/locales/en/container.{entity}.{action}.json (namespace-specific resource file)"
+      ],
+      "validation_checklist": [
+        "No hardcoded user-facing strings — all text uses t() from useTranslation",
+        "useTranslation namespace follows convention: 'container.{entity}.{action}' for containers, 'form.{entity}' for forms",
+        "Dynamic values use interpolation: t('message.deleteConfirm', { name: entity.name })",
+        "Plural forms use i18next plural syntax: t('items', { count: items.length })",
+        "JSX interpolation uses <Trans> component — not string concatenation",
+        "Breadcrumb labels use route.breadcrumb.{crumb} namespace",
+        "All new i18n keys added to sot-resource.json under the correct namespace path"
+      ]
     },
     {
       "id": "accessibility",
@@ -440,14 +720,65 @@
         "All images and icons must have alt text or aria-hidden if decorative",
         "Touch targets must be at least 44×44px (WCAG 2.5.8)"
       ],
-      "code": "// ── Focus Management in Dialogs ──\nimport { useRef, useEffect } from 'react';\n\nconst dialogRef = useRef<HTMLDivElement>(null);\nconst triggerRef = useRef<HTMLButtonElement>(null);\n\n// Trap focus inside dialog\nuseEffect(() => {\n  if (open && dialogRef.current) {\n    const focusable = dialogRef.current.querySelectorAll(\n      'button, [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])'\n    );\n    if (focusable.length) (focusable[0] as HTMLElement).focus();\n  }\n  // Return focus on close\n  return () => {\n    if (!open && triggerRef.current) triggerRef.current.focus();\n  };\n}, [open]);\n\n// ── Error announcement ──\n<MCFormField>\n  <MCFormTextInput\n    name=\"email\"\n    fieldLabel=\"Email\"\n    required\n    // Error linked via aria-describedby automatically by MCFormFieldError\n  />\n  {/* MCFormFieldError renders with role='alert' for screen reader announcement */}\n</MCFormField>\n\n// ── Skip link ──\n<a href=\"#main-content\" className=\"sr-only focus:not-sr-only\">\n  Skip to main content\n</a>"
+      "code": "// ── Focus Management in Dialogs ──\nimport { useRef, useEffect } from 'react';\n\nconst dialogRef = useRef<HTMLDivElement>(null);\nconst triggerRef = useRef<HTMLButtonElement>(null);\n\n// Trap focus inside dialog\nuseEffect(() => {\n  if (open && dialogRef.current) {\n    const focusable = dialogRef.current.querySelectorAll(\n      'button, [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])'\n    );\n    if (focusable.length) (focusable[0] as HTMLElement).focus();\n  }\n  // Return focus on close\n  return () => {\n    if (!open && triggerRef.current) triggerRef.current.focus();\n  };\n}, [open]);\n\n// ── Error announcement ──\n<MCFormField>\n  <MCFormTextInput\n    name=\"email\"\n    fieldLabel=\"Email\"\n    required\n    // Error linked via aria-describedby automatically by MCFormFieldError\n  />\n  {/* MCFormFieldError renders with role='alert' for screen reader announcement */}\n</MCFormField>\n\n// ── Skip link ──\n<a href=\"#main-content\" className=\"sr-only focus:not-sr-only\">\n  Skip to main content\n</a>",
+      "layer_structure": {
+        "component": {
+          "location": "src/apps/{client}/component/{entity}/**/*.tsx",
+          "responsibility": "Applies ARIA attributes, semantic HTML elements, keyboard event handlers, and focus management. Ensures all interactive elements are accessible.",
+          "imports": ["React refs (useRef)", "React effects (useEffect for focus management)", "ARIA attribute types"]
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/component/{entity}/**/*.tsx (component files with interactive elements)"
+      ],
+      "validation_checklist": [
+        "All interactive elements (buttons, links, inputs) reachable via Tab key",
+        "Custom interactive elements have role attribute (e.g., role='button', role='tab', role='dialog')",
+        "All actionable elements have aria-label or visible text label",
+        "Form fields linked to error messages via aria-describedby",
+        "Dialogs trap focus inside and return focus to trigger element on close",
+        "Keyboard handlers: Enter/Space for buttons, Escape for dialogs, Arrow keys for lists/tabs",
+        "Dynamic content updates use aria-live='polite' or role='alert' for screen reader announcement",
+        "Color is not the sole indicator of state — icons or text accompany color changes",
+        "Decorative icons have aria-hidden='true', functional icons have aria-label",
+        "Touch targets are at least 44x44px per WCAG 2.5.8"
+      ]
     },
     {
       "id": "navigation",
       "name": "Navigation Pattern",
       "description": "Route navigation using generatePathForRoute and useEntityParam.",
       "when": "Navigating between pages",
-      "code": "import { useNavigate } from 'react-router-dom';\nimport { MERouteKey } from '@msm-portal/route/types';\nimport useEntityParam from '@msm-portal/route/useEntityParam';\nimport { generatePathForRoute } from '@msm-portal/route/utils';\n\nconst navigate = useNavigate();\nconst params = useEntityParam();\n\n// Navigate to a route\nconst path = generatePathForRoute(MERouteKey.{ENTITY}_DETAIL, {\n  ...params,\n  entityId: entity.id,\n});\nnavigate(path);\n\n// Navigate back\nnavigate(-1);\n\n// Navigate with query params\nconst listPath = generatePathForRoute(MERouteKey.{ENTITY}_MAIN, params);\nnavigate(`${listPath}?tab=draft`);"
+      "code": "import { useNavigate } from 'react-router-dom';\nimport { MERouteKey } from '@msm-portal/route/types';\nimport useEntityParam from '@msm-portal/route/useEntityParam';\nimport { generatePathForRoute } from '@msm-portal/route/utils';\n\nconst navigate = useNavigate();\nconst params = useEntityParam();\n\n// Navigate to a route\nconst path = generatePathForRoute(MERouteKey.{ENTITY}_DETAIL, {\n  ...params,\n  entityId: entity.id,\n});\nnavigate(path);\n\n// Navigate back\nnavigate(-1);\n\n// Navigate with query params\nconst listPath = generatePathForRoute(MERouteKey.{ENTITY}_MAIN, params);\nnavigate(`${listPath}?tab=draft`);",
+      "layer_structure": {
+        "page": {
+          "location": "src/apps/{client}/page/{entity}/{Entity}{Action}.tsx",
+          "responsibility": "Route entry point — registered in route config and rendered by React Router"
+        },
+        "container": {
+          "location": "src/apps/{client}/container/{entity}/**/*Container.tsx",
+          "responsibility": "Owns all navigation logic: useNavigate for programmatic navigation, useEntityParam for route params, generatePathForRoute for type-safe path generation",
+          "imports": ["useNavigate", "useEntityParam", "generatePathForRoute", "MERouteKey"]
+        },
+        "component": {
+          "location": "src/apps/{client}/component/{entity}/**/*.tsx",
+          "responsibility": "Receives navigation callbacks as props (e.g., onEdit, onClose, onRowClick). Does not call useNavigate directly.",
+          "imports": ["MC* UI components — no react-router imports"]
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/container/{entity}/**/*Container.tsx (navigation logic with useNavigate and generatePathForRoute)",
+        "src/route/types.ts (MERouteKey enum for type-safe route references)"
+      ],
+      "validation_checklist": [
+        "useNavigate used for programmatic navigation — never window.location or window.history",
+        "generatePathForRoute(MERouteKey.{ENTITY}_{ACTION}, params) used for type-safe path building",
+        "useEntityParam() used to extract current route params for path generation",
+        "Navigation callbacks passed to Components as props — Components do not import useNavigate",
+        "navigate(-1) used for back/close navigation — not hardcoded paths",
+        "Query params preserved or set explicitly when navigating (e.g., ?tab=draft)",
+        "Breadcrumbs configured via route handle.crumb in routeTemplate.tsx"
+      ]
     }
   ],
   "page_blueprints": {
