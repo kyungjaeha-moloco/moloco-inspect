@@ -121,8 +121,8 @@ export function PatternsPage({ data, codeExamples }: Props) {
       <div className="page-header">
         <h1 className="page-title">Patterns</h1>
         <p className="page-subtitle">
-          페이지, 폼, 데이터 페칭 등 MSM Portal의 반복되는 구조를 정리한 조합 패턴입니다.
-          각 패턴에는 레이어 구조, 파일 체크리스트, 코드 예시가 포함됩니다.
+          Composition patterns for recurring structures in MSM Portal — pages, forms, data fetching, and more.
+          Each pattern includes a layer structure, file checklist, and code examples.
         </p>
       </div>
 

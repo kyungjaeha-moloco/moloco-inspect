@@ -257,35 +257,39 @@ a.card:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
 
 /* ---------- Code Block ---------- */
 .code-block {
-  position: relative; background: var(--bg-code); color: #f4f4f4;
-  font-family: var(--font-mono); font-size: var(--text-xs);
+  position: relative; background: var(--bg-code-highlighted); color: var(--text-primary);
+  font-family: var(--font-mono); font-size: 13px;
   padding: 16px 20px; border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
   overflow-x: auto; line-height: 1.6; white-space: pre;
   margin-bottom: 16px;
 }
 .code-block-header {
-  font-size: var(--text-xs); color: var(--text-muted);
-  padding: 8px 20px; background: var(--bg-secondary);
+  font-size: 12px; color: var(--text-muted); font-weight: 500;
+  padding: 6px 16px; background: var(--bg-secondary);
   border-radius: var(--radius-md) var(--radius-md) 0 0;
-  border-bottom: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-subtle);
+  border-bottom: none;
+  letter-spacing: 0.5px; text-transform: uppercase;
 }
 .code-block-header + .code-block { border-radius: 0 0 var(--radius-md) var(--radius-md); }
+.code-block-header + .code-block-wrapper .code-block-highlighted pre { border-radius: 0 0 var(--radius-md) var(--radius-md); }
 
 .copy-btn {
   position: absolute; top: 8px; right: 8px;
-  background: var(--surface-secondary, #f4f4f4);
-  border: 1px solid var(--border, #e0e0e0);
-  color: var(--text-secondary, #525252);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
   padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;
   font-family: var(--font-sans);
   font-weight: 500;
   z-index: 2;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
   opacity: 0;
 }
 .code-block-wrapper:hover .copy-btn { opacity: 1; }
-.copy-btn:hover { background: var(--brand, #0f62fe); color: #fff; border-color: var(--brand, #0f62fe); }
-.copy-btn.copied { background: rgba(36,161,72,0.15); color: #24a148; border-color: #24a148; opacity: 1; }
+.copy-btn:hover { background: var(--brand, #346bea); color: #fff; border-color: var(--brand, #346bea); }
+.copy-btn.copied { background: rgba(36,161,72,0.1); color: #24a148; border-color: #24a148; opacity: 1; }
 
 .copy-btn-light {
   background: var(--bg-secondary);
@@ -1139,19 +1143,21 @@ code {
 /* ---------- Shiki Syntax Highlighted Code Blocks ---------- */
 .code-block-wrapper {
   position: relative;
+  margin-bottom: 16px;
 }
 .code-block-highlighted pre {
   margin: 0;
-  padding: 16px;
-  background: var(--bg-code-highlighted);
+  padding: 20px;
+  background: var(--bg-code-highlighted) !important;
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   overflow-x: auto;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.7;
 }
 .code-block-highlighted code {
   font-family: var(--font-mono);
+  font-size: 13px;
 }
 
 /* Command Search */

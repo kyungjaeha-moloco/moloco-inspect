@@ -59,7 +59,7 @@ export function TokensPage({ colorsData, tokensData }: Props) {
       <div className="page-header">
         <h1 className="page-title">Design Tokens</h1>
         <p className="page-subtitle">
-          시멘틱 토큰 시스템. 모든 토큰은 theme.mcui.* 경로로 접근합니다.
+          Semantic token system. All tokens are accessed via the <code>theme.mcui.*</code> path.
         </p>
       </div>
 
@@ -264,8 +264,8 @@ function SemanticColorsTab({ tokensData }: { tokensData: TokensJson }) {
   return (
     <>
       <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 24 }}>
-        각 Role은 text, background, border, icon 토큰 세트를 포함합니다.
-        하나의 Role을 선택하면 그 맥락에 필요한 전체 색상을 알 수 있습니다.
+        Each role includes a set of text, background, border, and icon tokens.
+        Select a role to see the full color set needed for that context.
       </p>
 
       <div className="role-card-grid">
