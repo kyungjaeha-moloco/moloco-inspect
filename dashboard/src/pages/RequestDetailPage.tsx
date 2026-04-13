@@ -161,7 +161,7 @@ export function RequestDetailPage() {
         <div className="detail-card">
           <h3 className="detail-card-title">Artifacts</h3>
           <div className="detail-field">
-            <div className="detail-field-label">변경사항 확인</div>
+            <div className="detail-field-label">Review Changes</div>
             <div className="detail-field-value" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {(req as any)?.livePreviewUrl && (
                 <a className="link" href={(req as any).livePreviewUrl} target="_blank" rel="noreferrer"
@@ -180,17 +180,17 @@ export function RequestDetailPage() {
             </div>
           </div>
           <div className="detail-field">
-            <div className="detail-field-label">수정된 화면</div>
+            <div className="detail-field-label">Modified Screen</div>
             <div className="detail-field-value">
               {req?.screenshotUrl ? (
                 <img
-                  alt="수정된 화면 미리보기"
+                  alt="Modified screen preview"
                   src={`${API_BASE}${req.screenshotUrl}`}
                   style={{ maxWidth: '100%', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer' }}
                   onClick={() => window.open(`${API_BASE}${req.screenshotUrl}`, '_blank')}
                 />
               ) : (
-                <span style={{ color: 'var(--text-muted)' }}>스크린샷이 아직 없습니다</span>
+                <span style={{ color: 'var(--text-muted)' }}>No screenshot available yet</span>
               )}
             </div>
           </div>

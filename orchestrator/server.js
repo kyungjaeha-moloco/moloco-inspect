@@ -125,7 +125,7 @@ function summarizePrdText(rawText) {
     .filter(Boolean)
     .filter((line) => !/^[-*]\s*$/.test(line));
 
-  if (!blocks.length) return '문서에서 현재 페이지와 직접 연결할 핵심 요구사항을 아직 찾지 못했습니다.';
+  if (!blocks.length) return 'No key requirements directly linked to the current page were found in the document yet.';
 
   return blocks.slice(0, 3).join(' ');
 }
@@ -139,7 +139,7 @@ function buildPrdChangeCandidates(rawText, pagePath) {
 
   const keywords = [
     'must', 'should', 'need', 'change', 'update', 'add', 'remove', 'rename',
-    '수정', '변경', '추가', '삭제', '탭', '버튼', '문구', '레이블', '정렬', '필터', '리스트',
+    'modify', 'change', 'add', 'delete', 'tab', 'button', 'copy', 'label', 'align', 'filter', 'list',
   ];
 
   const scored = lines
@@ -162,15 +162,15 @@ function buildPrdOpenQuestions(rawText, pagePath) {
   const text = String(rawText || '');
 
   if (!pagePath) {
-    questions.push('이 PRD 중 지금 보고 있는 화면에 먼저 반영할 범위를 한 번 더 확인하는 것이 좋습니다.');
+    questions.push('It would be good to confirm which parts of this PRD should be applied first to the screen you are currently viewing.');
   }
 
   if (!/(success criteria|success|완료 기준|성공 기준)/i.test(text)) {
-    questions.push('완료 기준이 문서에 분명하지 않아 preview에서 무엇을 확인해야 할지 추가 확인이 필요할 수 있습니다.');
+    questions.push('Success criteria are not clearly defined in the document, so additional confirmation may be needed on what to verify in the preview.');
   }
 
   if (!/(do not|out of scope|제외|범위 밖|하지 않는다)/i.test(text)) {
-    questions.push('이번 작업에서 건드리면 안 되는 범위가 문서에 분명하지 않아 계획 카드에서 제약을 다시 확인하는 것이 좋습니다.');
+    questions.push('The out-of-scope boundaries are not clearly defined in the document, so it would be good to re-check constraints in the plan card.');
   }
 
   return questions.slice(0, 3);
@@ -196,7 +196,7 @@ async function ingestPrdPayload(payload) {
     });
 
     if (!response.ok) {
-      throw new Error(`PRD 링크를 읽지 못했습니다 (${response.status}). 링크 접근 권한이나 문서 공개 여부를 확인해주세요.`);
+      throw new Error(`Failed to fetch the PRD link (${response.status}). Please check link access permissions or whether the document is publicly shared.`);
     }
 
     html = await response.text();
@@ -204,7 +204,7 @@ async function ingestPrdPayload(payload) {
   }
 
   if (!rawText) {
-    throw new Error('PRD 링크나 핵심 요구사항 텍스트가 필요합니다.');
+    throw new Error('A PRD link or key requirements text is required.');
   }
 
   return {
@@ -323,12 +323,12 @@ function toRepoRelativePath(filePath) {
 }
 
 function defaultSuccessCriteria(changeIntent, payload) {
-  const criteria = ['preview에서 요청한 변경이 현재 페이지에 보인다.'];
+  const criteria = ['The requested change is visible on the current page in the preview.'];
   if (changeIntent === 'copy_update') {
-    criteria.push('현재 route에서 변경된 문구가 실제로 보인다.');
+    criteria.push('The updated copy is actually visible on the current route.');
   }
   if (payload?.language) {
-    criteria.push(`preview와 screenshot이 ${payload.language} 언어를 유지한다.`);
+    criteria.push(`The preview and screenshot retain the ${payload.language} language.`);
   }
   return criteria;
 }
@@ -1456,14 +1456,14 @@ const server = http.createServer(async (req, res) => {
       let analysis = null;
 
       // Attempt LLM call if API key available
-      const analysisPrompt = `You are an expert UI/UX engineer. Analyze this change request and return ONLY valid JSON in Korean.
+      const analysisPrompt = `You are an expert UI/UX engineer. Analyze this change request and return ONLY valid JSON in English.
 
 Context: ${client}, route: ${pagePath}, component: ${component || testId || 'unknown'}${language ? ', lang: ' + language : ''}
 Selected elements: ${selectedElements.map(e => e.component || e.testId || '').filter(Boolean).join(', ') || 'none'}
 Request: "${userPrompt}"
 
 Return JSON:
-{"understanding":"요청 의도 2-3문장","analysis":"기술적 구현 방법 3-4문장 (파일, 컴포넌트, API 등)","steps":["구체적 단계1 (파일명 포함)","단계2","단계3","단계4","검증 단계"],"risks":"위험 요소 또는 null","verification":"검증 방법"}`;
+{"understanding":"2-3 sentence summary of the request intent","analysis":"3-4 sentence technical approach (files, components, APIs)","steps":["specific step 1 (include file names)","step 2","step 3","step 4","verification step"],"risks":"risk factors or null","verification":"how to verify the changes"}`;
 
       try {
         let text = '';
@@ -1530,7 +1530,7 @@ Return JSON:
 
       // Smart template fallback — generates detailed plan from context
       if (!analysis) {
-        const target = testId || component || '대상 요소';
+        const target = testId || component || 'target element';
         const pageLabel = pagePath.replace(/^\/v1\/p\/[^/]+\//, '').replace(/\?.*$/, '') || 'page';
         const elementInfo = selectedElements.length > 0
           ? selectedElements.map(e => e.component || e.testId || e.semantics?.domTag || '').filter(Boolean).join(', ')
@@ -1538,56 +1538,56 @@ Return JSON:
 
         const intentMap = {
           layout_adjustment: {
-            understanding: `${pageLabel} 페이지의 ${elementInfo} 요소에 대한 레이아웃/배치 변경을 요청하셨습니다. "${userPrompt}"`,
-            analysis: `${elementInfo} 컴포넌트의 현재 Flex/Grid 구조를 분석하고, 요청하신 방향으로 레이아웃을 조정합니다. 기존 디자인 시스템 토큰과 스타일을 유지하면서 최소한의 변경으로 구현합니다.`,
+            understanding: `You requested a layout/placement change for the ${elementInfo} element on the ${pageLabel} page. "${userPrompt}"`,
+            analysis: `Analyzing the current Flex/Grid structure of the ${elementInfo} component and adjusting the layout as requested. Implementing with minimal changes while preserving existing design system tokens and styles.`,
             steps: [
-              `${client} 앱의 ${pageLabel} 관련 컴포넌트 파일 탐색 (src/apps/${client}/component/)`,
-              `${elementInfo}의 현재 레이아웃 구조 분석 (Flex/Grid, spacing, ordering)`,
-              `요청사항에 맞게 레이아웃 속성 수정 (CSS/스타일 조정)`,
-              `주변 요소와의 정렬 및 간격 확인`,
-              `TypeScript 타입체크 실행 및 시각적 검증`,
+              `Locate component files related to ${pageLabel} in the ${client} app (src/apps/${client}/component/)`,
+              `Analyze the current layout structure of ${elementInfo} (Flex/Grid, spacing, ordering)`,
+              `Modify layout properties to match the request (CSS/style adjustments)`,
+              `Verify alignment and spacing with surrounding elements`,
+              `Run TypeScript type-check and visual verification`,
             ],
-            risks: '레이아웃 변경이 반응형 디자인에 영향을 줄 수 있으므로 다양한 화면 크기에서 확인이 필요합니다.',
-            verification: `${pageLabel} 페이지에서 ${elementInfo}의 배치가 요청대로 변경되었는지 시각적으로 확인`,
+            risks: 'Layout changes may affect responsive design, so verification across various screen sizes is recommended.',
+            verification: `Visually verify that the placement of ${elementInfo} on the ${pageLabel} page has been changed as requested`,
           },
           state_handling: {
-            understanding: `${pageLabel} 페이지에서 ${elementInfo}의 동작/상태 처리를 변경하려는 요청입니다. "${userPrompt}"`,
-            analysis: `${elementInfo} 컴포넌트의 상태 관리 로직과 이벤트 핸들러를 분석합니다. 필요한 경우 새로운 상태를 추가하거나 기존 로직을 수정하여 요청된 동작을 구현합니다.`,
+            understanding: `You requested a change to the behavior/state handling of ${elementInfo} on the ${pageLabel} page. "${userPrompt}"`,
+            analysis: `Analyzing the state management logic and event handlers of the ${elementInfo} component. Adding new state or modifying existing logic as needed to implement the requested behavior.`,
             steps: [
-              `${elementInfo} 컴포넌트의 Container/Component 파일 분석`,
-              `현재 상태 관리 로직 파악 (hooks, reducers, context)`,
-              `요청된 동작에 필요한 상태/핸들러 구현`,
-              `API 연동이 필요한 경우 tRPC 엔드포인트 확인`,
-              `기능 동작 테스트 및 TypeScript 타입체크`,
+              `Analyze the Container/Component files for ${elementInfo}`,
+              `Identify the current state management logic (hooks, reducers, context)`,
+              `Implement the state/handlers required for the requested behavior`,
+              `Check tRPC endpoints if API integration is needed`,
+              `Test functionality and run TypeScript type-check`,
             ],
-            risks: '상태 변경이 다른 컴포넌트에 영향을 줄 수 있으며, API 호출이 필요한 경우 백엔드 수정이 동반될 수 있습니다.',
-            verification: `${elementInfo}에서 새로운 동작이 정상적으로 작동하는지 시나리오별로 확인`,
+            risks: 'State changes may affect other components, and backend modifications may be required if API calls are involved.',
+            verification: `Verify that the new behavior works correctly in ${elementInfo} across different scenarios`,
           },
           copy_update: {
-            understanding: `${pageLabel} 페이지의 ${elementInfo} 텍스트/문구를 변경하려는 요청입니다. "${userPrompt}"`,
-            analysis: `i18n 파일(locales)과 컴포넌트의 텍스트 렌더링 부분을 수정합니다. 한국어/영어 번역 파일을 함께 업데이트합니다.`,
+            understanding: `You requested a text/copy change for ${elementInfo} on the ${pageLabel} page. "${userPrompt}"`,
+            analysis: `Modifying the i18n files (locales) and the text rendering portion of the component. Updating both Korean and English translation files together.`,
             steps: [
-              `해당 텍스트가 사용되는 i18n 키 탐색 (src/i18n/locales/)`,
-              `한국어(ko) 번역 파일 수정`,
-              `영어(en) 번역 파일 동시 수정`,
-              `컴포넌트에서 하드코딩된 텍스트가 있다면 i18n 키로 교체`,
-              `변경된 텍스트가 UI에 올바르게 표시되는지 확인`,
+              `Search for the i18n key where the text is used (src/i18n/locales/)`,
+              `Update the Korean (ko) translation file`,
+              `Update the English (en) translation file`,
+              `Replace any hardcoded text in the component with an i18n key`,
+              `Verify the updated text displays correctly in the UI`,
             ],
             risks: null,
-            verification: `${pageLabel} 페이지에서 변경된 텍스트가 올바르게 표시되는지 확인`,
+            verification: `Verify the updated text displays correctly on the ${pageLabel} page`,
           },
           component_swap: {
-            understanding: `${pageLabel} 페이지에서 ${elementInfo}를 다른 컴포넌트로 교체하거나 새 컴포넌트를 추가하려는 요청입니다. "${userPrompt}"`,
-            analysis: `기존 컴포넌트의 props와 데이터 흐름을 분석하고, 디자인 시스템의 적절한 컴포넌트로 교체합니다. FormikHarness, Provider 등 필요한 wrapper도 함께 설정합니다.`,
+            understanding: `You requested to swap ${elementInfo} with a different component or add a new component on the ${pageLabel} page. "${userPrompt}"`,
+            analysis: `Analyzing the existing component's props and data flow, then replacing it with the appropriate design system component. Also configuring any required wrappers such as FormikHarness and Provider.`,
             steps: [
-              `현재 ${elementInfo} 컴포넌트의 구조와 props 분석`,
-              `교체할 디자인 시스템 컴포넌트 선택 및 import 경로 확인`,
-              `새 컴포넌트로 교체하고 props 매핑`,
-              `필요한 Provider/Wrapper 설정`,
-              `TypeScript 타입체크 및 시각적 검증`,
+              `Analyze the current structure and props of the ${elementInfo} component`,
+              `Select the replacement design system component and verify its import path`,
+              `Swap in the new component and map props accordingly`,
+              `Configure required Provider/Wrapper setup`,
+              `Run TypeScript type-check and visual verification`,
             ],
-            risks: '컴포넌트 교체 시 기존 props 인터페이스가 달라질 수 있어 타입 오류가 발생할 수 있습니다.',
-            verification: `새 컴포넌트가 기존과 동일한 기능을 수행하면서 요청된 변경사항이 반영되었는지 확인`,
+            risks: 'Swapping components may change the existing props interface, which could cause type errors.',
+            verification: `Verify the new component performs the same functionality as before and the requested changes are reflected`,
           },
         };
 

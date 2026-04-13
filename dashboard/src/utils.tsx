@@ -37,27 +37,27 @@ export const sectionMeta: Record<string, { title: string; badge: string; descrip
   text: {
     title: 'Label',
     badge: 'Foreground',
-    description: '텍스트와 전경 요소에 쓰는 색상입니다. 계층, 강조, 상태 표현을 위한 기본 토큰이 이 그룹에 들어갑니다.',
+    description: 'Colors for text and foreground elements. Base tokens for hierarchy, emphasis, and status belong here.',
   },
   background: {
     title: 'Background',
     badge: 'Surface',
-    description: '패널, 입력창, 카드, 상태 배경처럼 뒤쪽 면을 구성하는 색상입니다.',
+    description: 'Colors for background surfaces such as panels, inputs, cards, and status backgrounds.',
   },
   border: {
     title: 'Line - Normal',
     badge: 'Divider',
-    description: '구분선과 기본 보더처럼 요소 간 경계를 나눌 때 사용하는 라인 계열 색상입니다.',
+    description: 'Line-style colors for dividers and default borders that separate elements.',
   },
   border_semantic: {
     title: 'Line - Semantic',
     badge: 'State Border',
-    description: '포커스, 에러, 성공처럼 상태 의미를 직접 전달하는 보더 색상입니다.',
+    description: 'Border colors that directly convey status meaning such as focus, error, and success.',
   },
   icon: {
     title: 'Icon',
     badge: 'Symbol',
-    description: '아이콘, 액션 심볼, 상태 심볼처럼 시각적 보조 요소에 사용되는 색상입니다.',
+    description: 'Colors for visual aids such as icons, action symbols, and status symbols.',
   },
 };
 
