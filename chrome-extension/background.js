@@ -171,7 +171,7 @@ async function openPreviewUrlWithBootstrap(url) {
   }
 
   const tab = await chrome.tabs.create({ url });
-  if (!tab?.id || !isInspectableUrl(url) || isAuthPreviewPath(url) || /\/api\/screenshot\//.test(url)) {
+  if (!tab?.id || !isInspectableUrl(url) || isAuthPreviewPath(url) || /\/api\/(screenshot|diff-view)\//.test(url) || /:\d+\/api\//.test(url)) {
     return { ok: true, tabId: tab?.id || null };
   }
 

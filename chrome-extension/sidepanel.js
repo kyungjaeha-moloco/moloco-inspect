@@ -107,17 +107,17 @@
   function humanizeError(rawError) {
     const text = String(rawError || '').trim();
     const map = [
-      [/ECONNREFUSED|Failed to fetch|fetch failed/i, '서버에 연결할 수 없습니다. Orchestrator가 실행 중인지 확인해주세요.'],
-      [/timeout|timed out|aborted due to timeout/i, '작업 시간이 초과되었습니다. 요청을 다시 보내거나 더 구체적으로 작성해보세요.'],
-      [/Pipeline error/i, '작업 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.'],
-      [/Agent error|Agent:/i, 'AI 에이전트가 요청을 처리하지 못했습니다. 요청을 더 구체적으로 작성해보세요.'],
-      [/credit balance|quota/i, 'API 사용 한도에 도달했습니다. 관리자에게 문의해주세요.'],
-      [/Extension context invalidated/i, '확장 프로그램이 업데이트되었습니다. 페이지를 새로고침해주세요.'],
+      [/ECONNREFUSED|Failed to fetch|fetch failed/i, 'Cannot connect to the server. Please check if the Orchestrator is running.'],
+      [/timeout|timed out|aborted due to timeout/i, 'The operation timed out. Try sending the request again or be more specific.'],
+      [/Pipeline error/i, 'Something went wrong during processing. Please try again shortly.'],
+      [/Agent error|Agent:/i, 'The AI agent could not process the request. Try being more specific.'],
+      [/credit balance|quota/i, 'API usage limit reached. Please contact your administrator.'],
+      [/Extension context invalidated/i, 'The extension has been updated. Please refresh the page.'],
     ];
     for (const [pattern, message] of map) {
       if (pattern.test(text)) return message;
     }
-    return `오류가 발생했습니다: ${text.slice(0, 100)}`;
+    return `An error occurred: ${text.slice(0, 100)}`;
   }
 
   // ─── Progress Stepper State ────────────────────────────────────────
@@ -139,7 +139,7 @@
     pipeline_error: -1,
   };
 
-  const STEP_LABELS = ['준비', '코드 수정', '검증', '완료'];
+  const STEP_LABELS = ['Setup', 'Coding', 'Verify', 'Done'];
 
   function createStepperElement() {
     const wrapper = document.createElement('div');
@@ -172,10 +172,29 @@
     const barFill = stepperWrapper._barFill;
     const activeIdx = PHASE_TO_STEP[phase] != null ? PHASE_TO_STEP[phase] : 0;
     const totalSteps = STEP_LABELS.length;
+    const successPhases = ['preview_ready', 'no_change_needed', 'applying_local_patch'];
+    const errorPhases = ['pipeline_error'];
+    const isSuccess = successPhases.includes(phase);
+    const isError = errorPhases.includes(phase);
+    const isComplete = isSuccess || isError;
     stepperEl.querySelectorAll('.step').forEach((step) => {
       const idx = parseInt(step.dataset.stepIndex, 10);
-      step.classList.remove('active', 'done');
-      if (activeIdx >= 0) {
+      step.classList.remove('active', 'done', 'complete', 'error');
+      // Restore original label if it was overwritten
+      if (step.dataset.originalLabel) {
+        step.textContent = step.dataset.originalLabel;
+      }
+      if (isSuccess) {
+        step.classList.add('done');
+        if (idx === totalSteps - 1) {
+          step.classList.add('complete');
+          step.dataset.originalLabel = step.textContent;
+          step.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="vertical-align:-1px;margin-right:3px"><path d="M3.5 8.5l3 3 6-7"/></svg>Done';
+        }
+      } else if (isError) {
+        if (idx <= activeIdx) step.classList.add('done');
+        if (idx === activeIdx) step.classList.add('error');
+      } else if (activeIdx >= 0) {
         if (idx < activeIdx) step.classList.add('done');
         else if (idx === activeIdx) step.classList.add('active');
       }
@@ -184,8 +203,7 @@
     if (barFill) {
       const pct = totalSteps > 0 ? Math.round(((activeIdx + 0.5) / totalSteps) * 100) : 0;
       barFill.style.width = `${pct}%`;
-      const terminalPhases = ['preview_ready', 'no_change_needed', 'pipeline_error', 'applying_local_patch'];
-      if (terminalPhases.includes(phase)) {
+      if (isComplete) {
         barFill.style.width = '100%';
         barFill.classList.remove('animating');
       }
@@ -199,12 +217,12 @@
     }
     if (!timerEl) return;
     const startTime = Date.now();
-    timerEl.textContent = '0:00 경과';
+    timerEl.textContent = '0:00 elapsed';
     progressTimerId = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
       const mins = Math.floor(elapsed / 60);
       const secs = String(elapsed % 60).padStart(2, '0');
-      timerEl.textContent = `${mins}:${secs} 경과`;
+      timerEl.textContent = `${mins}:${secs} elapsed`;
     }, 1000);
   }
 
@@ -277,7 +295,7 @@
     }
 
     if (selectedCapture) {
-      chips.push('캡처 영역');
+      chips.push('Captured area');
     }
 
     if (!chips.length) {
@@ -346,8 +364,8 @@
     }
 
     prdSummary.style.display = 'flex';
-    prdSummaryTitle.textContent = prdContext.title || 'PRD에서 핵심 요구사항을 읽었어요';
-    prdSummaryBody.textContent = prdContext.summary || '현재 페이지에 연결할 수 있는 변경 후보를 정리했습니다.';
+    prdSummaryTitle.textContent = prdContext.title || 'Key requirements extracted from the PRD';
+    prdSummaryBody.textContent = prdContext.summary || 'Change candidates mapped to the current page have been organized.';
 
     prdCandidateList.innerHTML = '';
     const candidates = Array.isArray(prdContext.changeCandidates) ? prdContext.changeCandidates.slice(0, 4) : [];
@@ -403,13 +421,13 @@
     const pastedText = prdNotesInput ? prdNotesInput.value.trim() : '';
 
     if (!url && !pastedText) {
-      setPrdInlineStatus('PRD 링크나 핵심 요구사항 중 하나는 필요해요.');
+      setPrdInlineStatus('Please provide either a PRD link or key requirements.');
       return;
     }
 
     isPrdLoading = true;
     if (prdReadBtn) prdReadBtn.disabled = true;
-    setPrdInlineStatus('문서를 읽고 현재 페이지 기준으로 정리하는 중입니다...');
+    setPrdInlineStatus('Reading and organizing the document for the current page...');
 
     getLivePageContext().then((livePageContext) => {
       chrome.runtime.sendMessage({
@@ -427,12 +445,12 @@
         if (prdReadBtn) prdReadBtn.disabled = false;
 
         if (chrome.runtime.lastError || !response || response.ok === false) {
-          setPrdInlineStatus(response?.error || chrome.runtime.lastError?.message || '문서를 읽는 데 실패했어요.');
+          setPrdInlineStatus(response?.error || chrome.runtime.lastError?.message || 'Failed to read the document.');
           return;
         }
 
         renderPrdSummary(response.result || null);
-        setPrdInlineStatus('현재 페이지에 맞는 변경 후보를 정리했어요.');
+        setPrdInlineStatus('Change candidates for the current page are ready.');
       });
     });
   }
@@ -519,7 +537,7 @@
     const freeform = document.createElement('textarea');
     freeform.className = 'clarification-input';
     freeform.rows = 3;
-    freeform.placeholder = config.placeholder || '원하는 변경 방향을 직접 적어주세요.';
+    freeform.placeholder = config.placeholder || 'Describe the change you want in your own words.';
     inputWrap.appendChild(freeform);
 
     const footer = document.createElement('div');
@@ -527,19 +545,19 @@
 
     const hint = document.createElement('div');
     hint.className = 'clarification-hint';
-    hint.textContent = '선택지만 골라도 되고, 직접 자세히 적어도 됩니다.';
+    hint.textContent = 'Pick an option or type your own details — both work.';
     footer.appendChild(hint);
 
     const submitBtn = document.createElement('button');
     submitBtn.type = 'button';
     submitBtn.className = 'clarification-submit';
-    submitBtn.textContent = '이 기준으로 진행';
+    submitBtn.textContent = 'Proceed with this';
     footer.appendChild(submitBtn);
 
     const skipBtn = document.createElement('button');
     skipBtn.type = 'button';
     skipBtn.className = 'clarification-skip';
-    skipBtn.textContent = '바로 진행';
+    skipBtn.textContent = 'Skip & proceed';
     skipBtn.addEventListener('click', () => {
       promptInput.value = pendingClarification.initialPrompt;
       pendingClarification = null;
@@ -564,7 +582,7 @@
     function finalizeClarification() {
       const parts = [];
       if (selectedOption) {
-        parts.push(`선택한 방향: ${selectedOption}`);
+        parts.push(`Selected approach: ${selectedOption}`);
       }
       if (freeform.value.trim()) {
         parts.push(freeform.value.trim());
@@ -573,7 +591,7 @@
       if (!answer) return;
 
       promptInput.value = answer;
-      inputStatus.textContent = '좋아요. 이 기준으로 preview를 만들어볼게요.';
+      inputStatus.textContent = 'Got it. I\'ll build a preview based on this.';
 
       bubble.classList.add('clarification-complete');
       bubble.querySelectorAll('button, textarea').forEach((node) => {
@@ -598,15 +616,15 @@
 
   function describeIntent(intent) {
     const map = {
-      copy_update: '문구를 수정합니다',
-      spacing_adjustment: '간격이나 여백을 조정합니다',
-      token_alignment: '디자인 토큰 기준으로 정렬합니다',
-      component_swap: '더 적절한 컴포넌트로 교체합니다',
-      layout_adjustment: '배치나 정렬을 조정합니다',
-      state_handling: '동작이나 상태 흐름을 수정합니다',
-      accessibility_improvement: '접근성을 개선합니다',
+      copy_update: 'Updates the copy/text',
+      spacing_adjustment: 'Adjusts spacing or margins',
+      token_alignment: 'Aligns to design token standards',
+      component_swap: 'Swaps to a more appropriate component',
+      layout_adjustment: 'Adjusts layout or alignment',
+      state_handling: 'Modifies behavior or state flow',
+      accessibility_improvement: 'Improves accessibility',
     };
-    return map[intent] || '요청한 방향으로 화면을 수정합니다';
+    return map[intent] || 'Modifies the page in the requested direction';
   }
 
   function describeTargetInNaturalLanguage(payload) {
@@ -619,10 +637,10 @@
           item.semantics?.labelText ||
           item.semantics?.placeholder ||
           item.semantics?.domTag ||
-          '요소',
+          'element',
         )
         .filter(Boolean);
-      const suffix = payload.selectedElements.length > 2 ? ` 외 ${payload.selectedElements.length - 2}개 요소` : ' 요소';
+      const suffix = payload.selectedElements.length > 2 ? ` and ${payload.selectedElements.length - 2} more elements` : ' elements';
       return `${labels.join(', ')}${suffix}`;
     }
 
@@ -636,45 +654,45 @@
         payload.selectedElements[0].semantics?.placeholder ||
         payload.selectedElements[0].semantics?.domTag
       )) ||
-      '선택한 요소'
+      'selected element'
     );
   }
 
   function describePlanApproach(intent, payload) {
-    const routeHint = payload.pagePath ? `현재 보고 있는 ${payload.pagePath} 화면 안에서` : '현재 화면 안에서';
+    const routeHint = payload.pagePath ? `Within the current ${payload.pagePath} page` : 'Within the current page';
     const map = {
-      copy_update: `${routeHint} 바뀌어야 하는 문구를 먼저 정확히 찾고, 같은 언어와 맥락을 유지한 채 수정하겠습니다.`,
-      spacing_adjustment: `${routeHint} 선택한 영역의 간격만 작게 조정하고, 레이아웃 구조는 최대한 그대로 두겠습니다.`,
-      token_alignment: `${routeHint} 눈에 보이는 스타일은 유지하면서 토큰 기준으로 정리하겠습니다.`,
-      component_swap: `${routeHint} 기존 역할은 유지하면서 더 적절한 컴포넌트로 바꾸겠습니다.`,
-      layout_adjustment: `${routeHint} 배치와 정렬을 다듬되, 사용 흐름은 건드리지 않겠습니다.`,
-      state_handling: `${routeHint} 눌렀을 때 동작, 활성/비활성, 에러/로딩 흐름처럼 기능 쪽을 우선 수정하겠습니다.`,
-      accessibility_improvement: `${routeHint} 키보드 접근, 라벨, 포커스 흐름을 중심으로 개선하겠습니다.`,
+      copy_update: `${routeHint}, I'll first locate the exact copy that needs changing, then update it while preserving the language and context.`,
+      spacing_adjustment: `${routeHint}, I'll make a small spacing adjustment to the selected area while keeping the layout structure intact.`,
+      token_alignment: `${routeHint}, I'll align to design tokens while keeping the visual appearance the same.`,
+      component_swap: `${routeHint}, I'll swap to a more appropriate component while preserving the existing behavior.`,
+      layout_adjustment: `${routeHint}, I'll refine layout and alignment without affecting the user flow.`,
+      state_handling: `${routeHint}, I'll focus on functional changes like click behavior, enabled/disabled states, and error/loading flows.`,
+      accessibility_improvement: `${routeHint}, I'll improve keyboard access, labels, and focus flow.`,
     };
-    return map[intent] || `${routeHint} 요청하신 방향이 보이도록 가장 작은 변경부터 시도하겠습니다.`;
+    return map[intent] || `${routeHint}, I'll start with the smallest change that makes the requested improvement visible.`;
   }
 
   function describePlanVerification(intent, payload) {
-    const localeLabel = payload.language || '현재 언어';
+    const localeLabel = payload.language || 'current language';
     if (intent === 'copy_update') {
-      return `${localeLabel} 기준으로 문구가 실제 preview 화면에 보이는지 확인한 뒤 보여드리겠습니다.`;
+      return `I'll verify the copy is visible in the preview under ${localeLabel} before showing you.`;
     }
     if (intent === 'state_handling') {
-      return '동작이 바뀐 뒤 validate, typecheck, preview 확인까지 거친 다음 보여드리겠습니다.';
+      return 'After the behavior change, I\'ll run validate, typecheck, and preview checks before showing you.';
     }
     if (intent === 'spacing_adjustment' || intent === 'layout_adjustment') {
-      return 'validate, typecheck, screenshot을 돌려서 화면에서 변경이 실제로 보이는지 확인하겠습니다.';
+      return 'I\'ll run validate, typecheck, and screenshot to verify the change is actually visible on screen.';
     }
-    return 'validate, typecheck, preview 확인까지 돌린 뒤 결과를 보여드리겠습니다.';
+    return 'I\'ll run validate, typecheck, and preview checks, then show you the result.';
   }
 
   function buildPlanTargetLabel(payload) {
     if (Array.isArray(payload.selectedElements) && payload.selectedElements.length > 1) {
       const labels = payload.selectedElements
         .slice(0, 2)
-        .map((item) => item.testId || item.component || item.semantics?.labelText || item.semantics?.domTag || '요소')
+        .map((item) => item.testId || item.component || item.semantics?.labelText || item.semantics?.domTag || 'element')
         .filter(Boolean);
-      const suffix = payload.selectedElements.length > 2 ? ` 외 ${payload.selectedElements.length - 2}개` : '';
+      const suffix = payload.selectedElements.length > 2 ? ` + ${payload.selectedElements.length - 2} more` : '';
       return `${labels.join(', ')}${suffix}`;
     }
 
@@ -687,7 +705,7 @@
         payload.selectedElements[0].semantics?.labelText ||
         payload.selectedElements[0].semantics?.domTag
       )) ||
-      '선택한 요소'
+      'selected element'
     );
   }
 
@@ -731,7 +749,7 @@
           </svg>
         </div>
         <span class="plan-ai-name">Inspect Agent</span>
-        <span class="plan-thinking-badge">요청을 분석하는 중...</span>
+        <span class="plan-thinking-badge">Analyzing request...</span>
       </div>
       <div class="plan-thinking-dots"><span></span><span></span><span></span></div>
     `;
@@ -756,7 +774,7 @@
     const approach = buildConversationalApproach(intent, payload, routeLabel);
     const safeguards = buildConversationalSafeguards(intent, language);
     const prdNote = prd?.title
-      ? `참고로 "${prd.title}" PRD 문서의 맥락도 함께 반영하겠습니다.`
+      ? `I'll also incorporate context from the "${prd.title}" PRD document.`
       : null;
 
     return { opening, approach, safeguards, prdNote, targetLabel, routeLabel, intent };
@@ -767,36 +785,36 @@
     const shortPrompt = prompt.length > 40 ? prompt.slice(0, 40) + '…' : prompt;
 
     const openings = {
-      copy_update: `"${shortPrompt}" — ${targetLabel} 쪽의 문구를 바꾸고 싶으신 거죠. 어떤 텍스트가 어디서 렌더되는지 먼저 추적해볼게요.`,
-      spacing_adjustment: `${targetLabel} 주변 간격이 눈에 걸리셨군요. 현재 값을 확인하고 디자인 토큰 기준으로 한 단계만 조정해볼게요.`,
-      token_alignment: `${targetLabel}을 디자인 시스템 토큰에 맞추고 싶으신 거군요. 현재 하드코딩된 값이 있는지 먼저 확인하겠습니다.`,
-      component_swap: `${targetLabel}을 더 적합한 컴포넌트로 교체하는 방향이네요. 기존 동작을 깨뜨리지 않으면서 바꿀 수 있는지 살펴볼게요.`,
-      layout_adjustment: `${targetLabel}의 배치나 정렬을 다듬고 싶으신 거군요. 주변 요소와의 관계를 보면서 최소한으로 조정하겠습니다.`,
-      state_handling: `${targetLabel}의 동작이나 상태 흐름을 바꾸려는 요청이네요. 어떤 조건에서 어떻게 달라져야 하는지 코드를 먼저 읽어볼게요.`,
-      accessibility_improvement: `${targetLabel}의 접근성을 개선하는 방향이군요. 키보드 접근, 라벨, 포커스 흐름을 중심으로 살펴보겠습니다.`,
+      copy_update: `"${shortPrompt}" — You want to change the copy around ${targetLabel}. I'll first trace where the text is rendered.`,
+      spacing_adjustment: `The spacing around ${targetLabel} caught your eye. I'll check the current values and adjust one step using design tokens.`,
+      token_alignment: `You'd like to align ${targetLabel} with design system tokens. I'll first check for any hardcoded values.`,
+      component_swap: `Swapping ${targetLabel} to a better-fit component. I'll check whether this can be done without breaking existing behavior.`,
+      layout_adjustment: `You'd like to refine the layout/alignment of ${targetLabel}. I'll make minimal adjustments while considering surrounding elements.`,
+      state_handling: `You want to change the behavior or state flow of ${targetLabel}. I'll first read the code to understand which conditions need updating.`,
+      accessibility_improvement: `Improving accessibility for ${targetLabel}. I'll focus on keyboard access, labels, and focus flow.`,
     };
 
-    return openings[intent] || `"${shortPrompt}" — ${targetLabel}을 수정하는 방향이네요. 코드를 살펴보고 가장 작은 변경부터 시도해볼게요.`;
+    return openings[intent] || `"${shortPrompt}" — Modifying ${targetLabel}. I'll look at the code and start with the smallest possible change.`;
   }
 
   function buildConversationalApproach(intent, payload, routeLabel) {
     const approaches = {
-      copy_update: `${routeLabel} 화면에서 해당 컴포넌트가 사용하는 번역 네임스페이스를 확인하고, 올바른 locale 파일에서 정확한 키만 수정하겠습니다. 다른 페이지의 문구는 건드리지 않을게요.`,
-      spacing_adjustment: `현재 간격 값을 확인한 뒤 디자인 시스템의 spacing 토큰 중 적절한 값으로 교체하겠습니다. 레이아웃 구조 자체는 바꾸지 않을게요.`,
-      token_alignment: `하드코딩된 색상이나 크기 값을 찾아서 디자인 시스템 토큰으로 교체하겠습니다. 눈에 보이는 결과는 최대한 같게 유지할게요.`,
-      component_swap: `기존 컴포넌트의 props와 동작을 분석하고, 새 컴포넌트로 옮겼을 때 빠지는 게 없는지 확인하겠습니다.`,
-      layout_adjustment: `Flex/Grid 구조를 분석하고, 요청하신 방향으로 최소한의 CSS나 속성만 조정하겠습니다.`,
-      state_handling: `관련 이벤트 핸들러와 상태 로직을 읽고, 요청하신 동작 변화가 반영되도록 수정하겠습니다. UI 모양은 유지합니다.`,
-      accessibility_improvement: `ARIA 속성, role, tabIndex, 포커스 이동 순서를 점검하고 필요한 부분을 추가하겠습니다.`,
+      copy_update: `I'll check the translation namespace used by the component on the ${routeLabel} page, then update only the correct key in the locale file. Copy on other pages won't be touched.`,
+      spacing_adjustment: `I'll check the current spacing values, then swap them with appropriate design system spacing tokens. The layout structure itself won't change.`,
+      token_alignment: `I'll find hardcoded color or size values and replace them with design system tokens. The visual result will stay as close to the original as possible.`,
+      component_swap: `I'll analyze the existing component's props and behavior, then verify nothing is lost when migrating to the new component.`,
+      layout_adjustment: `I'll analyze the Flex/Grid structure and apply only the minimal CSS or attribute changes in the requested direction.`,
+      state_handling: `I'll read the relevant event handlers and state logic, then apply the requested behavior change. The UI appearance stays the same.`,
+      accessibility_improvement: `I'll review ARIA attributes, roles, tabIndex, and focus order, then add what's needed.`,
     };
 
-    return approaches[intent] || `${routeLabel} 화면의 관련 코드를 읽고, 요청 방향에 맞게 최소한의 변경을 적용하겠습니다.`;
+    return approaches[intent] || `I'll read the relevant code on the ${routeLabel} page and apply minimal changes in the requested direction.`;
   }
 
   function buildConversationalSafeguards(intent, language) {
-    const base = '수정 후 design-system 검증과 typecheck를 실행해서 문제가 없는지 확인하겠습니다.';
+    const base = 'After editing, I\'ll run design-system validation and typecheck to make sure nothing is broken.';
     if (language) {
-      return `${base} ${language === 'ko' ? '한국어' : language} 언어 설정도 유지됩니다.`;
+      return `${base} The ${language === 'ko' ? 'Korean' : language} language setting will be preserved.`;
     }
     return base;
   }
@@ -826,7 +844,7 @@
         </svg>
       </div>
       <span class="plan-ai-name">Inspect Agent</span>
-      <span class="plan-ai-badge">${ai ? '요청을 분석했어요' : '실행 계획'}</span>
+      <span class="plan-ai-badge">${ai ? 'Request analyzed' : 'Execution plan'}</span>
     `;
     bubble.appendChild(header);
 
@@ -841,7 +859,7 @@
       if (ai.analysis) {
         const analysisSection = document.createElement('div');
         analysisSection.className = 'plan-section';
-        analysisSection.innerHTML = `<div class="plan-section-header"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="8.5"/><line x1="8" y1="8.5" x2="10.5" y2="10"/></svg><span class="plan-section-label">접근 방식</span></div>`;
+        analysisSection.innerHTML = `<div class="plan-section-header"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="8.5"/><line x1="8" y1="8.5" x2="10.5" y2="10"/></svg><span class="plan-section-label">Approach</span></div>`;
         const analysisBody = document.createElement('div');
         analysisBody.className = 'plan-approach';
         analysisBody.textContent = ai.analysis;
@@ -853,7 +871,7 @@
       if (Array.isArray(ai.steps) && ai.steps.length) {
         const stepsSection = document.createElement('div');
         stepsSection.className = 'plan-section';
-        stepsSection.innerHTML = `<div class="plan-section-header"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M3 3h10v10H3z"/><path d="M6 6h4"/><path d="M6 8.5h4"/><path d="M6 11h2.5"/></svg><span class="plan-section-label">실행 단계</span><span class="plan-step-count">${ai.steps.length}단계</span></div>`;
+        stepsSection.innerHTML = `<div class="plan-section-header"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M3 3h10v10H3z"/><path d="M6 6h4"/><path d="M6 8.5h4"/><path d="M6 11h2.5"/></svg><span class="plan-section-label">Steps</span><span class="plan-step-count">${ai.steps.length} steps</span></div>`;
         const stepsEl = document.createElement('div');
         stepsEl.className = 'plan-steps';
         ai.steps.forEach((step, idx) => {
@@ -873,7 +891,7 @@
       if (ai.risks) {
         const riskSection = document.createElement('div');
         riskSection.className = 'plan-section plan-risk-card';
-        riskSection.innerHTML = `<div class="plan-section-header plan-risk-header"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M8 1L1 14h14L8 1z"/><line x1="8" y1="6" x2="8" y2="9"/><circle cx="8" cy="11.5" r="0.5" fill="currentColor"/></svg><span class="plan-section-label">주의 사항</span></div><div class="plan-risk-body">${escapeHtml(ai.risks)}</div>`;
+        riskSection.innerHTML = `<div class="plan-section-header plan-risk-header"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M8 1L1 14h14L8 1z"/><line x1="8" y1="6" x2="8" y2="9"/><circle cx="8" cy="11.5" r="0.5" fill="currentColor"/></svg><span class="plan-section-label">Risks</span></div><div class="plan-risk-body">${escapeHtml(ai.risks)}</div>`;
         bubble.appendChild(riskSection);
       }
 
@@ -883,7 +901,7 @@
         verifySection.className = 'plan-section plan-verify-card';
         // Split by period or newline for multiple items
         const items = ai.verification.split(/[.\n]/).map(s => s.trim()).filter(Boolean);
-        let verifyHtml = `<div class="plan-section-header plan-verify-header"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M8 1.5l5.5 3v4c0 3.5-2.5 5.5-5.5 7-3-1.5-5.5-3.5-5.5-7v-4L8 1.5z"/><path d="M6 8l1.5 1.5L10.5 6"/></svg><span class="plan-section-label">검증 방법</span></div>`;
+        let verifyHtml = `<div class="plan-section-header plan-verify-header"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M8 1.5l5.5 3v4c0 3.5-2.5 5.5-5.5 7-3-1.5-5.5-3.5-5.5-7v-4L8 1.5z"/><path d="M6 8l1.5 1.5L10.5 6"/></svg><span class="plan-section-label">Verification</span></div>`;
         if (items.length > 1) {
           verifyHtml += '<div class="plan-verify-list">';
           items.forEach(item => {
@@ -935,12 +953,12 @@
     const confirmBtn = document.createElement('button');
     confirmBtn.type = 'button';
     confirmBtn.className = 'execution-plan-confirm';
-    confirmBtn.textContent = '이대로 진행해주세요';
+    confirmBtn.textContent = 'Proceed with this plan';
 
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
     editBtn.className = 'execution-plan-edit';
-    editBtn.textContent = '조금 다르게 해줘';
+    editBtn.textContent = 'Adjust the plan';
 
     actions.appendChild(confirmBtn);
     actions.appendChild(editBtn);
@@ -954,14 +972,14 @@
       editBtn.disabled = true;
       bubble.classList.add('clarification-complete');
       pendingExecutionPlan = null;
-      inputStatus.textContent = '좋아요. 이 계획대로 작업을 시작할게요.';
+      inputStatus.textContent = 'Got it. Starting work on this plan.';
       performSubmit(plan);
     });
 
     editBtn.addEventListener('click', () => {
       pendingExecutionPlan = null;
       bubble.classList.add('clarification-complete');
-      inputStatus.textContent = '좋아요. 요청을 조금 더 적어주시면 그 기준으로 다시 계획을 세울게요.';
+      inputStatus.textContent = 'Got it. Add a bit more detail and I\'ll revise the plan.';
       promptInput.focus();
     });
   }
@@ -1071,7 +1089,7 @@
       semantics.text ||
       context?.testId ||
       context?.component ||
-      '선택한 요소'
+      'selected element'
     );
   }
 
@@ -1083,59 +1101,59 @@
       if (kind === 'button') {
         return {
           intent,
-          title: `"${targetLabel}" 버튼에서 어떤 기능 변화를 원하세요?`,
-          helper: '이 요청은 시각 수정보다 동작 수정에 가까워 보여서, 클릭 후 무엇이 달라져야 하는지 먼저 맞추겠습니다.',
+          title: `What behavior change do you want for the "${targetLabel}" button?`,
+          helper: 'This looks more like a behavior change than a visual one, so let me first understand what should happen after the click.',
           options: [
-            { label: '클릭 후 동작 변경', value: '버튼 클릭 후 일어나는 동작을 변경' },
-            { label: '활성/비활성 조건', value: '버튼 활성/비활성 조건을 조정' },
-            { label: '로딩/중복 클릭 방지', value: '제출 중 로딩 상태나 중복 클릭 방지를 개선' },
-            { label: '에러 처리 변경', value: '실패 시 에러 처리와 복구 흐름을 조정' },
+            { label: 'Change click behavior', value: 'Change the action that happens after button click' },
+            { label: 'Enable/disable conditions', value: 'Adjust button enable/disable conditions' },
+            { label: 'Loading/double-click prevention', value: 'Improve loading state or prevent double-click during submission' },
+            { label: 'Change error handling', value: 'Adjust error handling and recovery flow on failure' },
           ],
-          placeholder: '예: 필수 입력 전에는 비활성화하고, 제출 중에는 로딩 상태가 보여야 해요.',
+          placeholder: 'e.g. Disable before required fields are filled; show loading state during submission.',
         };
       }
 
       if (kind === 'input') {
         return {
           intent,
-          title: `"${targetLabel}" 입력 동작에서 무엇을 바꾸고 싶나요?`,
-          helper: '입력 관련 기능 요청은 검증 시점, 에러 표시, 포커스 이동 같은 동작 기준이 중요합니다.',
+          title: `What would you like to change about the "${targetLabel}" input behavior?`,
+          helper: 'For input behavior changes, timing of validation, error display, and focus movement are the key aspects.',
           options: [
-            { label: '검증 타이밍 조정', value: '입력 검증 시점을 조정' },
-            { label: '에러 상태 개선', value: '에러 메시지와 에러 상태 표시를 개선' },
-            { label: '입력 규칙 변경', value: '허용 값이나 입력 규칙을 변경' },
-            { label: '포커스/이동 흐름', value: '포커스 이동이나 다음 입력 흐름을 개선' },
+            { label: 'Adjust validation timing', value: 'Adjust when input validation fires' },
+            { label: 'Improve error state', value: 'Improve error messages and error state display' },
+            { label: 'Change input rules', value: 'Change allowed values or input rules' },
+            { label: 'Focus/navigation flow', value: 'Improve focus movement or next-input flow' },
           ],
-          placeholder: '예: blur 시에만 에러를 보이고, 입력 중에는 즉시 빨간색이 뜨지 않게 하고 싶어요.',
+          placeholder: 'e.g. Only show errors on blur; don\'t flash red immediately while typing.',
         };
       }
 
       if (kind === 'list') {
         return {
           intent,
-          title: `"${targetLabel}" 리스트 동작에서 어떤 기능을 원하세요?`,
-          helper: '리스트는 필터, 정렬, 선택, 빈 상태 등 기능 축이 달라서 먼저 좁히는 편이 좋습니다.',
+          title: `What behavior do you want for the "${targetLabel}" list?`,
+          helper: 'Lists have many axes — filter, sort, selection, empty state — so it helps to narrow down first.',
           options: [
-            { label: '필터/검색', value: '필터나 검색 동작을 수정' },
-            { label: '정렬 변경', value: '정렬 방식이나 기본 정렬을 변경' },
-            { label: '행 선택/액션', value: '행 선택이나 액션 동작을 수정' },
-            { label: '빈 상태/에러', value: '빈 상태나 실패 상태 동작을 개선' },
+            { label: 'Filter/search', value: 'Modify filter or search behavior' },
+            { label: 'Change sorting', value: 'Change sort method or default sort order' },
+            { label: 'Row selection/actions', value: 'Modify row selection or action behavior' },
+            { label: 'Empty/error state', value: 'Improve empty state or failure state behavior' },
           ],
-          placeholder: '예: 검색 결과가 없을 때 더 명확한 빈 상태를 보여주고 싶어요.',
+          placeholder: 'e.g. Show a clearer empty state when there are no search results.',
         };
       }
 
       return {
         intent,
-        title: `"${targetLabel}" 기능 변경 목표를 알려주세요.`,
-        helper: '이 요청은 기능 중심으로 보여서, 무엇이 달라져야 하는지 먼저 확인하는 게 중요합니다.',
+        title: `What's the goal for the "${targetLabel}" behavior change?`,
+        helper: 'This looks like a behavior-focused request, so it\'s important to clarify what should change first.',
         options: [
-          { label: '액션 후 결과 변경', value: '사용자 액션 뒤 결과 동작을 변경' },
-          { label: '상태 흐름 개선', value: 'loading / error / success 상태 흐름을 개선' },
-          { label: '검증/제약 변경', value: '입력 검증이나 조건 분기를 변경' },
-          { label: '현재 UI는 유지', value: 'UI 모양은 유지하고 기능만 수정' },
+          { label: 'Change post-action result', value: 'Change the resulting behavior after user action' },
+          { label: 'Improve state flow', value: 'Improve loading / error / success state flow' },
+          { label: 'Change validation/constraints', value: 'Change input validation or conditional logic' },
+          { label: 'Keep current UI', value: 'Keep the UI appearance and only change functionality' },
         ],
-        placeholder: '예: 클릭하면 모달이 열려야 하고, 실패하면 인라인 에러가 보여야 해요.',
+        placeholder: 'e.g. Clicking should open a modal; on failure, show an inline error.',
       };
     }
 
@@ -1143,44 +1161,44 @@
       if (kind === 'button') {
         return {
           intent,
-          title: `"${targetLabel}" 버튼 문구를 어떻게 바꿀지 정해볼게요.`,
-          helper: '버튼 문구는 길이와 톤에 따라 의미 전달과 버튼 폭이 같이 달라집니다.',
+          title: `Let's decide how to change the "${targetLabel}" button text.`,
+          helper: 'Button copy affects both meaning and button width depending on length and tone.',
           options: [
-            { label: '정확한 문구로 교체', value: '버튼 문구를 지정한 문구로 정확히 교체' },
-            { label: '더 명확하게', value: '버튼 문구를 더 명확하고 이해하기 쉽게 수정' },
-            { label: '더 짧게', value: '버튼 크기는 유지하고 문구만 더 짧게 정리' },
-            { label: '현재 톤 유지', value: '현재 언어와 톤은 유지하면서 문구만 개선' },
+            { label: 'Replace with exact text', value: 'Replace button text with the exact specified text' },
+            { label: 'Make it clearer', value: 'Make the button text clearer and easier to understand' },
+            { label: 'Make it shorter', value: 'Keep button size and shorten the text' },
+            { label: 'Keep current tone', value: 'Keep the current language and tone while improving the copy' },
           ],
-          placeholder: '예: "로그인"을 "로그인 하기"로 바꾸고 버튼 크기와 위치는 유지해주세요.',
+          placeholder: 'e.g. Change "Login" to "Sign in" and keep button size and position.',
         };
       }
 
       if (kind === 'input') {
         return {
           intent,
-          title: `"${targetLabel}" 입력 관련 문구를 어떻게 바꿀까요?`,
-          helper: 'placeholder, label, helper text 중 어느 문구인지 알면 더 정확하게 수정할 수 있어요.',
+          title: `How should we change the copy for the "${targetLabel}" input?`,
+          helper: 'Knowing whether it\'s a placeholder, label, or helper text helps me make a more precise edit.',
           options: [
-            { label: 'placeholder 변경', value: 'placeholder 문구만 변경' },
-            { label: 'label 변경', value: '입력 라벨 문구를 변경' },
-            { label: '설명 문구 보강', value: 'helper/description 문구를 더 친절하게 보강' },
-            { label: '구조는 유지', value: '입력 구조는 유지하고 문구만 수정' },
+            { label: 'Change placeholder', value: 'Change only the placeholder text' },
+            { label: 'Change label', value: 'Change the input label text' },
+            { label: 'Enhance description', value: 'Make the helper/description text friendlier' },
+            { label: 'Keep structure', value: 'Keep the input structure and only change the text' },
           ],
-          placeholder: '예: 입력 필드 자체는 유지하고 placeholder만 더 친절하게 바꾸고 싶어요.',
+          placeholder: 'e.g. Keep the input field as-is and just make the placeholder friendlier.',
         };
       }
 
       return {
         intent,
-        title: `"${targetLabel}" 문구를 어떻게 바꿀지 조금만 더 알려주세요.`,
-        helper: '현재 화면에서 실제로 보이는 문구와 바뀐 뒤의 목표를 알수록 preview가 더 정확합니다.',
+        title: `Tell me a bit more about how you'd like to change the "${targetLabel}" text.`,
+        helper: 'The more I know about the current visible text and the desired result, the more accurate the preview.',
         options: [
-          { label: '문구만 정확히 변경', value: '문구만 정확히 바꾸고, 레이아웃은 유지' },
-          { label: '더 명확하게 다듬기', value: '의미는 유지하되 더 명확한 문구로 다듬기' },
-          { label: '더 짧고 간결하게', value: '더 짧고 간결한 문구로 정리' },
-          { label: '언어와 톤 유지', value: '현재 언어와 톤은 유지하면서 수정' },
+          { label: 'Change text only', value: 'Change only the text, keep the layout' },
+          { label: 'Refine for clarity', value: 'Keep the meaning but refine to clearer copy' },
+          { label: 'Make it concise', value: 'Shorten and tighten the copy' },
+          { label: 'Keep language & tone', value: 'Edit while keeping the current language and tone' },
         ],
-        placeholder: '원하는 최종 문구, 유지해야 할 조건, 바꾸면 안 되는 점을 자유롭게 적어주세요.',
+        placeholder: 'Describe the desired final text, any constraints, and what must not change.',
       };
     }
 
@@ -1188,88 +1206,88 @@
       if (kind === 'button') {
         return {
           intent,
-          title: `"${targetLabel}" 버튼 주변 간격을 어떻게 조정할까요?`,
-          helper: '버튼은 간격을 바꾸면 주변 입력창과의 관계가 같이 달라져서 기준을 먼저 잡는 편이 좋습니다.',
+          title: `How should we adjust the spacing around the "${targetLabel}" button?`,
+          helper: 'Changing button spacing also affects its relationship with nearby inputs, so it helps to set the criteria first.',
           options: [
-            { label: '위아래 간격만', value: '버튼 위아래 간격만 조정하고 버튼 크기는 유지' },
-            { label: '입력창과의 간격', value: '버튼과 입력창 사이 간격을 조정' },
-            { label: '조금 더 넓게', value: '더 여유 있어 보이도록 간격 확대' },
-            { label: '현재 밀도 유지', value: '전체 밀도는 유지하고 어색한 부분만 조정' },
+            { label: 'Top/bottom only', value: 'Adjust only top/bottom spacing, keep button size' },
+            { label: 'Gap from inputs', value: 'Adjust spacing between button and input fields' },
+            { label: 'A bit more spacious', value: 'Increase spacing for a more airy feel' },
+            { label: 'Keep current density', value: 'Keep overall density, only fix awkward spots' },
           ],
-          placeholder: '예: 입력창 아래 버튼이 너무 붙어 보여서 한 단계만 더 띄워주세요.',
+          placeholder: 'e.g. The button below the input looks too cramped — add one more spacing step.',
         };
       }
 
       if (kind === 'text') {
         return {
           intent,
-          title: `"${targetLabel}" 텍스트 주변 간격을 어떻게 느끼세요?`,
-          helper: '제목이나 설명 텍스트는 아래 요소와의 거리감이 중요해서 어느 쪽이 답답한지 알면 좋습니다.',
+          title: `How does the spacing around the "${targetLabel}" text feel?`,
+          helper: 'For headings and descriptions, the distance to elements below matters — knowing which side feels cramped helps.',
           options: [
-            { label: '아래 간격 늘리기', value: '텍스트 아래 간격을 조금 더 넓게' },
-            { label: '아래 간격 줄이기', value: '텍스트 아래 간격을 조금 더 좁게' },
-            { label: '위아래 균형 맞추기', value: '텍스트 위아래 간격 균형만 맞추기' },
-            { label: '현재 구조 유지', value: '레이아웃 구조는 유지하고 간격만 조정' },
+            { label: 'More space below', value: 'Add a bit more spacing below the text' },
+            { label: 'Less space below', value: 'Reduce spacing below the text slightly' },
+            { label: 'Balance top/bottom', value: 'Only balance the top and bottom spacing' },
+            { label: 'Keep structure', value: 'Keep layout structure and only adjust spacing' },
           ],
-          placeholder: '예: 로그인 제목 아래 간격이 답답해서 조금만 더 띄우고 싶어요.',
+          placeholder: 'e.g. The spacing below the login title feels cramped — I\'d like just a bit more room.',
         };
       }
 
       return {
         intent,
-        title: `"${targetLabel}" 주변 간격 목표를 조금만 더 알려주세요.`,
-        helper: '같은 “간격 조정”이어도 더 넓게, 더 좁게, 균형만 맞추기처럼 방향이 다를 수 있어요.',
+        title: `Tell me a bit more about the spacing goal around "${targetLabel}".`,
+        helper: 'Even with “spacing adjustment,” the direction can vary — wider, tighter, or just rebalancing.',
         options: [
-          { label: '조금 더 넓게', value: '대상 요소 주변 간격을 조금 더 넓게' },
-          { label: '조금 더 좁게', value: '대상 요소 주변 간격을 조금 더 좁게' },
-          { label: '시각 균형만 맞추기', value: '전체 레이아웃은 유지하고 시각 균형만 맞추기' },
-          { label: '다른 요소는 유지', value: '주변 버튼 크기와 배치는 그대로 유지' },
+          { label: 'A bit wider', value: 'Add a bit more spacing around the target element' },
+          { label: 'A bit tighter', value: 'Reduce spacing around the target element slightly' },
+          { label: 'Visual balance only', value: 'Keep the overall layout and only rebalance visually' },
+          { label: 'Keep other elements', value: 'Keep surrounding button sizes and positions as-is' },
         ],
-        placeholder: '예: 제목 아래 간격이 답답해서 조금만 더 띄우고 싶어요.',
+        placeholder: 'e.g. The spacing below the title feels cramped — I\'d like just a bit more room.',
       };
     }
 
     if (intent === 'token_alignment') {
       return {
         intent,
-        title: `"${targetLabel}"를 어떤 기준에 맞출지 알려주세요.`,
-        helper: '색상, 여백, 타이포 중 어디를 기준에 맞출지 정하면 수정이 더 정확해집니다.',
+        title: `What standards should "${targetLabel}" be aligned to?`,
+        helper: 'Deciding whether to align colors, spacing, or typography helps make the edit more precise.',
         options: [
-          { label: '색상 토큰 정리', value: '색상을 semantic token 기준으로 정리' },
-          { label: '간격 토큰 정리', value: '간격과 여백을 디자인 토큰 기준으로 정리' },
-          { label: '타이포 정리', value: '폰트 크기와 weight를 디자인 시스템 기준으로 정리' },
-          { label: '전체적으로 정리', value: '이 요소 전반을 디자인 시스템 기준으로 정리' },
+          { label: 'Align color tokens', value: 'Align colors to semantic token standards' },
+          { label: 'Align spacing tokens', value: 'Align spacing and margins to design token standards' },
+          { label: 'Align typography', value: 'Align font sizes and weights to design system standards' },
+          { label: 'Align everything', value: 'Align this element overall to design system standards' },
         ],
-        placeholder: '지켜야 할 기준이나 현재 어색한 점을 자유롭게 적어주세요.',
+        placeholder: 'Describe the standards to follow or what currently looks off.',
       };
     }
 
     if (!context?.component && !selectedCapture) {
       return {
         intent,
-        title: '무엇을 바꾸고 싶은지 한 번만 더 좁혀볼게요.',
-        helper: '대상이 아직 넓어서, 어떤 종류의 변경인지 먼저 정하면 더 정확하게 작업할 수 있어요.',
+        title: 'Let me narrow down what you\'d like to change.',
+        helper: 'The scope is still broad — picking the type of change first will help me be more precise.',
         options: [
-          { label: '문구를 바꾸고 싶어요', value: '문구 중심 변경' },
-          { label: '간격이나 정렬을 바꾸고 싶어요', value: '간격/레이아웃 중심 변경' },
-          { label: '색상이나 스타일을 바꾸고 싶어요', value: '스타일 중심 변경' },
-          { label: '컴포넌트 동작을 바꾸고 싶어요', value: '컴포넌트/상태 중심 변경' },
+          { label: 'Change copy/text', value: 'Copy-focused change' },
+          { label: 'Change spacing or alignment', value: 'Spacing/layout-focused change' },
+          { label: 'Change colors or styles', value: 'Style-focused change' },
+          { label: 'Change component behavior', value: 'Component/state-focused change' },
         ],
-        placeholder: '예: 로그인 버튼 문구를 더 명확하게 바꾸고, 레이아웃은 유지하고 싶어요.',
+        placeholder: 'e.g. Make the login button text clearer while keeping the layout.',
       };
     }
 
     return {
       intent,
-      title: `"${targetLabel}" 변경 목표를 조금만 더 알려주세요.`,
-      helper: '짧은 선택과 한 줄 설명만 있으면, preview가 훨씬 정확해집니다.',
+      title: `Tell me a bit more about the goal for the "${targetLabel}" change.`,
+      helper: 'A quick selection plus one line of detail makes the preview much more accurate.',
       options: [
-        { label: '더 명확하게', value: '사용자가 더 쉽게 이해되게 수정' },
-        { label: '더 눈에 띄게', value: '중요도가 더 잘 보이게 수정' },
-        { label: '더 정돈되게', value: '시각적으로 더 정돈되게 수정' },
-        { label: '현재 구조는 유지', value: '현재 구조와 흐름은 유지하면서 수정' },
+        { label: 'Make it clearer', value: 'Edit so users understand it more easily' },
+        { label: 'Make it stand out', value: 'Edit so the importance is more visible' },
+        { label: 'Make it tidier', value: 'Edit for a more visually organized look' },
+        { label: 'Keep current structure', value: 'Edit while preserving the current structure and flow' },
       ],
-      placeholder: '절대 바뀌면 안 되는 점이나 원하는 최종 느낌을 적어주세요.',
+      placeholder: 'Describe what must not change, or the desired final look.',
     };
   }
 
@@ -1281,63 +1299,63 @@
     if (intent === 'state_handling') {
       return {
         intent,
-        title: `"${targetLabel}" 기능 변경에서 마지막으로 확인할게요.`,
-        helper: '기능 요청은 적용 범위와 성공 기준을 정해야 엉뚱한 부분을 건드리지 않습니다.',
+        title: `One last thing to confirm for the "${targetLabel}" behavior change.`,
+        helper: 'For behavior changes, setting the scope and success criteria prevents touching unrelated parts.',
         options: [
-          { label: '이 요소만 변경', value: '선택한 요소와 직접 연결된 동작만 변경' },
-          { label: '현재 UI는 유지', value: '시각 UI는 유지하고 기능만 수정' },
-          { label: 'preview에서 결과 확인', value: 'preview에서 요청한 상태 변화가 보여야 함' },
-          { label: '실패 흐름도 확인', value: '성공뿐 아니라 실패/에러 흐름도 검증' },
+          { label: 'This element only', value: 'Only change behavior directly connected to the selected element' },
+          { label: 'Keep current UI', value: 'Keep the visual UI and only change functionality' },
+          { label: 'Verify in preview', value: 'The requested state change should be visible in the preview' },
+          { label: 'Check failure flow too', value: 'Verify not just success but also failure/error flows' },
         ],
         placeholder: kind === 'button'
-          ? '예: 로그인 버튼과 직접 연결된 제출 동작만 바꾸고, 다른 버튼은 건드리지 말아주세요.'
-          : '예: 선택한 입력/리스트 흐름만 수정하고 다른 화면 구조는 그대로 유지해주세요.',
+          ? 'e.g. Only change the submit behavior tied to the login button — don\'t touch other buttons.'
+          : 'e.g. Only modify the selected input/list flow — keep the rest of the page structure as-is.',
       };
     }
 
     if (intent === 'copy_update') {
       return {
         intent,
-        title: `"${targetLabel}" 문구 변경에서 마지막으로 확인할게요.`,
-        helper: '문구는 맞더라도 레이아웃, 언어, 적용 범위를 함께 정해야 preview가 덜 흔들립니다.',
+        title: `One last thing to confirm for the "${targetLabel}" text change.`,
+        helper: 'Even if the text is right, locking down layout, language, and scope keeps the preview stable.',
         options: [
-          { label: '현재 한국어 유지', value: '현재 언어는 그대로 유지' },
-          { label: '이 요소만 변경', value: '선택한 요소만 바꾸고 다른 문구는 유지' },
-          { label: '레이아웃 유지', value: '문구만 바꾸고 레이아웃과 버튼 크기는 유지' },
-          { label: 'preview에서 바로 확인', value: 'preview에서 바뀐 문구가 실제로 보이게 검증' },
+          { label: 'Keep current language', value: 'Keep the current language as-is' },
+          { label: 'This element only', value: 'Only change the selected element, keep other text' },
+          { label: 'Keep layout', value: 'Only change the text, keep layout and button sizes' },
+          { label: 'Verify in preview', value: 'Verify the updated text is actually visible in the preview' },
         ],
-        placeholder: '예: 로그인 버튼만 바꾸고, 다른 화면 문구는 건드리지 않았으면 좋겠어요.',
+        placeholder: 'e.g. Only change the login button — don\'t touch text elsewhere on the page.',
       };
     }
 
     if (intent === 'spacing_adjustment') {
       return {
         intent,
-        title: `"${targetLabel}" 간격 조정에서 마지막으로 확인할게요.`,
-        helper: '간격 변경은 적용 범위를 좁혀두면 예상치 못한 레이아웃 흔들림을 줄일 수 있어요.',
+        title: `One last thing to confirm for the "${targetLabel}" spacing adjustment.`,
+        helper: 'Narrowing the scope of spacing changes reduces unexpected layout shifts.',
         options: [
-          { label: '이 요소만 조정', value: '선택한 요소 주변만 조정하고 전체 레이아웃은 유지' },
-          { label: '현재 밀도 유지', value: '현재 화면 밀도는 유지하고 답답한 부분만 완화' },
-          { label: '버튼 크기 유지', value: '버튼이나 입력 크기는 건드리지 않기' },
-          { label: 'preview에서 확인', value: 'preview screenshot에서 간격 변화가 보여야 함' },
+          { label: 'This element only', value: 'Only adjust around the selected element, keep overall layout' },
+          { label: 'Keep current density', value: 'Keep current page density, only ease cramped spots' },
+          { label: 'Keep button sizes', value: 'Don\'t touch button or input sizes' },
+          { label: 'Verify in preview', value: 'The spacing change should be visible in the preview screenshot' },
         ],
-        placeholder: '예: 제목 아래만 손보고 아래 폼 전체 구조는 유지해주세요.',
+        placeholder: 'e.g. Only adjust below the title — keep the entire form structure below.',
       };
     }
 
     return {
       intent,
-      title: `"${targetLabel}" 변경에서 마지막으로 확인할게요.`,
-      helper: '마지막 제약 하나만 정하면 바로 preview를 만들 수 있습니다.',
+      title: `One last thing to confirm for the "${targetLabel}" change.`,
+      helper: 'Just one more constraint and I can start building the preview.',
       options: [
-        { label: '현재 구조 유지', value: '현재 구조와 흐름은 유지' },
-        { label: '이 요소 중심', value: '선택한 요소 중심으로만 수정' },
-        { label: '시각적 안정성 우선', value: '큰 레이아웃 변화 없이 안정적으로 수정' },
-        { label: 'preview 검증 우선', value: 'preview에서 요청한 변화가 바로 보여야 함' },
+        { label: 'Keep current structure', value: 'Preserve the current structure and flow' },
+        { label: 'Focus on this element', value: 'Only modify around the selected element' },
+        { label: 'Visual stability first', value: 'Make stable edits without major layout changes' },
+        { label: 'Preview verification first', value: 'The requested change should be immediately visible in the preview' },
       ],
       placeholder: kind === 'capture'
-        ? '예: 캡처한 영역 안에서만 수정하고 다른 부분은 건드리지 않았으면 좋겠어요.'
-        : '예: 선택한 요소 중심으로만 수정하고 주변 구조는 유지해주세요.',
+        ? 'e.g. Only edit within the captured area — don\'t touch anything else.'
+        : 'e.g. Only modify around the selected element and keep the surrounding structure.',
     };
   }
 
@@ -1349,7 +1367,7 @@
   }
 
   function buildClarifiedPrompt(initialPrompt, clarificationAnswer) {
-    return `${initialPrompt}\n\n추가 설명:\n${clarificationAnswer}`.trim();
+    return `${initialPrompt}\n\nAdditional details:\n${clarificationAnswer}`.trim();
   }
 
   function getValidationExpectations(intent, language) {
@@ -1390,8 +1408,8 @@
     const recommendedDefaults = schema?.ui_form_spec?.recommended_defaults || {};
     if (requestContractHint) {
       requestContractHint.textContent = schema
-        ? 'PM/SA 요청 규격과 연결되어 있습니다.'
-        : '기본 요청 규격으로 동작합니다.';
+        ? 'Connected to PM/SA request schema.'
+        : 'Using default request schema.';
     }
 
     if (goalInput && !goalInput.placeholder && schema?.schema?.properties?.goal?.description) {
@@ -1403,7 +1421,7 @@
     }
 
     if (successCriteriaInput && !successCriteriaInput.value && Array.isArray(recommendedDefaults.validation_expectations)) {
-      successCriteriaInput.placeholder = '예: preview에서 요청한 변경이 보인다; 한국어가 유지된다';
+      successCriteriaInput.placeholder = 'e.g. The requested change is visible in preview; language is preserved';
     }
   }
 
@@ -1449,11 +1467,11 @@
 
     if (!activeContext) {
       contextPrimary.textContent = healthState && healthState.serverReachable
-        ? `${modeLabel} 준비됨`
-        : `${modeLabel} 확인 필요`;
+        ? `${modeLabel} ready`
+        : `${modeLabel} needs check`;
       contextSecondary.textContent = prdContext?.title
-        ? `PRD "${prdContext.title}" 를 읽어 현재 페이지 작업에 연결할 준비가 되어 있습니다.`
-        : '요소를 선택하거나 영역을 캡처하면 현재 페이지, 언어, 대상 컴포넌트가 여기에 표시됩니다.';
+        ? `PRD "${prdContext.title}" has been read and is ready to inform the current page.`
+        : 'Select an element or capture an area to display the current page, language, and target component here.';
       return;
     }
 
@@ -1464,21 +1482,21 @@
     ].filter(Boolean);
 
     contextPrimary.textContent = activeContext.source === 'capture'
-      ? `캡처 기준으로 요청합니다 · ${contextBits.join(' · ')}`
-      : `선택한 요소 기준으로 요청합니다 · ${contextBits.join(' · ')}`;
+      ? `Requesting based on capture · ${contextBits.join(' · ')}`
+      : `Requesting based on selected element · ${contextBits.join(' · ')}`;
 
     if (activeContext.source === 'capture') {
       contextSecondary.textContent = prdContext?.title
-        ? `이 요청은 현재 캡처한 영역과 PRD "${prdContext.title}"를 함께 참고합니다.`
-        : '이 요청은 현재 캡처한 영역과 페이지 컨텍스트를 우선 사용합니다.';
+        ? `This request references both the captured area and PRD "${prdContext.title}".`
+        : 'This request uses the captured area and page context as primary inputs.';
       return;
     }
 
     contextSecondary.textContent = activeContext.component
-      ? `${activeContext.component} 컴포넌트를 기준으로 요청합니다.${activeContext.selectionCount > 1 ? ` 현재 ${activeContext.selectionCount}개 요소가 함께 선택되어 있습니다.` : ''}${prdContext?.title ? ` PRD "${prdContext.title}"도 함께 참고합니다.` : ' 필요하면 캡처가 이 컨텍스트를 덮어쓸 수 있습니다.'}`
+      ? `${activeContext.component} component.${activeContext.selectionCount > 1 ? ` ${activeContext.selectionCount} elements are currently selected.` : ''}${prdContext?.title ? ` PRD "${prdContext.title}" is also referenced.` : ' A capture can override this context if needed.'}`
       : (prdContext?.title
-        ? `선택한 요소와 PRD "${prdContext.title}"를 함께 기준으로 요청합니다.`
-        : '선택한 요소를 기준으로 요청합니다.');
+        ? `Requesting based on the selected element and PRD "${prdContext.title}".`
+        : 'Requesting based on the selected element.');
   }
 
   function updateHeaderHealth(health) {
@@ -1553,8 +1571,8 @@
       const infoSandbox = document.getElementById('infoSandbox');
       const infoRequests = document.getElementById('infoRequests');
       if (infoAgent) infoAgent.textContent = h.model || 'unknown';
-      if (infoSandbox) infoSandbox.textContent = h.sandboxImage || (h.serverReachable ? '연결됨' : '연결 안됨');
-      if (infoRequests) infoRequests.textContent = typeof h.requests === 'number' ? `${h.requests}개 활성` : '-';
+      if (infoSandbox) infoSandbox.textContent = h.sandboxImage || (h.serverReachable ? 'Connected' : 'Disconnected');
+      if (infoRequests) infoRequests.textContent = typeof h.requests === 'number' ? `${h.requests} active` : '-';
     });
   }
 
@@ -1658,7 +1676,7 @@
     selectedCapture = data;
     captureCard.style.display = 'block';
     capturePreviewImage.src = data.imageDataUrl;
-    captureMeta.textContent = `${Math.round(data.rect.width)} × ${Math.round(data.rect.height)} 영역이 선택되었습니다. 요청과 함께 전달됩니다.`;
+    captureMeta.textContent = `${Math.round(data.rect.width)} × ${Math.round(data.rect.height)} area selected. It will be included with the request.`;
     renderSelectionChips();
     updateContextStrip();
   }
@@ -1696,7 +1714,7 @@
       thumb.className = 'msg-attachment-thumb';
       thumb.src = captureData.imageDataUrl;
       thumb.alt = 'Attached screenshot';
-      thumb.title = '첨부한 스크린샷';
+      thumb.title = 'Attached screenshot';
       bubble.appendChild(thumb);
     }
 
@@ -1731,23 +1749,23 @@
 
   function getProgressPhaseCopy(phase, latestLog, payload) {
     const targetLabel = describeTargetInNaturalLanguage(payload);
-    const routeLabel = payload?.pagePath || payload?.requestContract?.target?.route_or_page || '현재 화면';
+    const routeLabel = payload?.pagePath || payload?.requestContract?.target?.route_or_page || 'current page';
 
     const phaseCopyMap = {
-      queued: `Agent가 ${routeLabel} 기준으로 작업 범위를 정리하고 있어요.`,
-      creating_worktree: `Agent가 안전한 작업 공간을 준비하고 있어요.`,
-      running_codex: `Agent가 ${targetLabel} 주변 코드를 실제로 수정하고 있어요.`,
-      collecting_diff: `Agent가 바뀐 파일과 변경 범위를 정리하고 있어요.`,
-      validating: `Agent가 validate와 typecheck를 돌려서 안전한지 확인하고 있어요.`,
-      capturing_screenshot: `Agent가 preview 화면을 캡처해서 바로 검토할 수 있게 준비하고 있어요.`,
-      preview_ready: `Preview가 준비됐어요. 바뀐 화면을 바로 검토할 수 있어요.`,
-      no_change_needed: `이번 요청은 현재 화면 기준으로 바로 적용할 변경이 없다고 판단했어요.`,
-      applying_local_patch: `승인된 변경을 로컬 워크스페이스에 적용하고 있어요.`,
-      queued_for_retry: `피드백을 반영해서 다시 수정 준비 중이에요.`,
-      pipeline_error: `작업 중 문제가 생겨서 원인을 정리하고 있어요.`,
+      queued: `Agent is scoping the work for ${routeLabel}.`,
+      creating_worktree: `Agent is preparing a safe workspace.`,
+      running_codex: `Agent is editing the code around ${targetLabel}.`,
+      collecting_diff: `Agent is collecting changed files and summarizing the diff.`,
+      validating: `Agent is running validate and typecheck to ensure safety.`,
+      capturing_screenshot: `Agent is capturing the preview screen so you can review right away.`,
+      preview_ready: `Preview is ready. You can review the changes now.`,
+      no_change_needed: `No changes to apply for this request based on the current page.`,
+      applying_local_patch: `Applying the approved changes to your local workspace.`,
+      queued_for_retry: `Incorporating feedback and preparing another revision.`,
+      pipeline_error: `Something went wrong during processing — diagnosing the cause.`,
     };
 
-    const base = phaseCopyMap[phase] || `Agent가 ${targetLabel} 요청을 처리하고 있어요.`;
+    const base = phaseCopyMap[phase] || `Agent is processing the ${targetLabel} request.`;
     if (!latestLog) return base;
     return `${base} ${latestLog}`;
   }
@@ -1764,7 +1782,7 @@
 
     const title = document.createElement('div');
     title.className = 'progress-card-title';
-    title.textContent = 'Agent가 작업을 시작했어요';
+    title.textContent = 'Agent has started working';
 
     const body = document.createElement('div');
     body.className = 'progress-card-body';
@@ -1783,11 +1801,11 @@
 
     const timer = document.createElement('div');
     timer.className = 'progress-timer';
-    timer.textContent = '0:00 경과';
+    timer.textContent = '0:00 elapsed';
 
     const dashLink = document.createElement('a');
     dashLink.className = 'progress-dashboard-link';
-    dashLink.textContent = '대시보드에서 상세 보기 →';
+    dashLink.textContent = 'View details in dashboard →';
     dashLink.href = '#';
     dashLink.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1847,7 +1865,7 @@
     if (previewUrl && !activeProgressCard.previewLink) {
       const link = document.createElement('a');
       link.className = 'progress-dashboard-link';
-      link.textContent = '변경사항 확인하기 →';
+      link.textContent = 'View changes →';
       link.href = '#';
       link.style.color = 'var(--accent)';
       link.addEventListener('click', (e) => {
@@ -1887,7 +1905,7 @@
     if (!url) return;
     chrome.runtime.sendMessage({ type: 'inspect-open-url', url }, (response) => {
       if (chrome.runtime.lastError || !response || response.ok === false) {
-        addSystemMessage('새 탭 열기에 실패했어요.', 'error');
+        addSystemMessage('Failed to open a new tab.', 'error');
       }
     });
   }
@@ -1918,10 +1936,10 @@
     const highlights = [];
     const normalizedPrompt = (currentElement && currentElement.component ? currentElement.component : '').trim();
     if (files.length) {
-      highlights.push(`변경 파일 ${files.length}개`);
+      highlights.push(`${files.length} files changed`);
     }
     if (normalizedPrompt) {
-      highlights.push(`${normalizedPrompt} 관련 수정`);
+      highlights.push(`${normalizedPrompt}-related changes`);
     }
 
     const meaningfulAdded = added.filter((line) => line && !/^[{}[\],;]+$/.test(line)).slice(0, 2);
@@ -1935,29 +1953,29 @@
     const marginMatchAdded = addedLine.match(/\$marginBottom=\{(\d+)\}/);
     const marginMatchRemoved = removedLine.match(/\$marginBottom=\{(\d+)\}/);
     if (marginMatchAdded && marginMatchRemoved) {
-      const targetLabel = /Title/.test(addedLine) ? '제목 아래 간격' : '간격';
-      bullets.push(`${targetLabel}을 ${marginMatchRemoved[1]}px에서 ${marginMatchAdded[1]}px로 조정했습니다.`);
+      const targetLabel = /Title/.test(addedLine) ? 'title bottom spacing' : 'spacing';
+      bullets.push(`Adjusted ${targetLabel} from ${marginMatchRemoved[1]}px to ${marginMatchAdded[1]}px.`);
     } else if (
       addedLine &&
       removedLine &&
       /t\('/.test(addedLine) &&
       /t\('/.test(removedLine)
     ) {
-      bullets.push('문구 또는 번역 키가 변경되었습니다.');
+      bullets.push('Copy or translation key was changed.');
     } else if (meaningfulAdded.length) {
-      bullets.push(`변경 내용: ${meaningfulAdded.join(' / ')}`);
+      bullets.push(`Changes: ${meaningfulAdded.join(' / ')}`);
     }
 
     if (meaningfulRemoved.length && !(marginMatchAdded && marginMatchRemoved)) {
-      bullets.push(`이전 상태: ${meaningfulRemoved.join(' / ')}`);
+      bullets.push(`Previous: ${meaningfulRemoved.join(' / ')}`);
     }
 
     if (!bullets.length && files.length) {
-      bullets.push(`대상 파일: ${files.map((file) => file.split('/').pop()).join(', ')}`);
+      bullets.push(`Target files: ${files.map((file) => file.split('/').pop()).join(', ')}`);
     }
 
     if (primaryFile) {
-      bullets.push(`수정 파일: ${primaryFile}`);
+      bullets.push(`Modified file: ${primaryFile}`);
     }
 
     return {
@@ -1986,7 +2004,7 @@
       img.className = 'preview-screenshot';
       img.alt = 'Preview';
       img.loading = 'lazy';
-      img.title = '새 탭에서 크게 보기';
+      img.title = 'Open full size in new tab';
       img.addEventListener('click', () => {
         openExternalUrl(screenshotUrl || img.src);
       });
@@ -2011,7 +2029,7 @@
 
       const openFullBtn = document.createElement('button');
       openFullBtn.className = 'preview-open-full-btn';
-      openFullBtn.textContent = '스크린샷 크게 보기';
+      openFullBtn.textContent = 'View full screenshot';
       openFullBtn.addEventListener('click', () => {
         if (img.src) {
           openExternalUrl(screenshotUrl || img.src);
@@ -2022,7 +2040,7 @@
       if (previewUrl) {
         const openPageBtn = document.createElement('button');
         openPageBtn.className = 'preview-open-full-btn preview-open-page-btn';
-        openPageBtn.textContent = '변경사항 확인하기';
+        openPageBtn.textContent = 'View changes';
         openPageBtn.addEventListener('click', () => {
           openExternalUrl(previewUrl);
         });
@@ -2038,7 +2056,7 @@
 
     const summaryTitle = document.createElement('div');
     summaryTitle.className = 'preview-summary-title';
-    summaryTitle.textContent = '변경 요약';
+    summaryTitle.textContent = 'Change summary';
     summarySection.appendChild(summaryTitle);
 
     if (summary.highlights.length) {
@@ -2069,17 +2087,17 @@
 
     const approveBtn = document.createElement('button');
     approveBtn.className = 'preview-btn approve-btn';
-    approveBtn.textContent = '승인하고 적용';
+    approveBtn.textContent = 'Approve & Apply';
     approveBtn.addEventListener('click', () => handleApprove(requestId, actions));
 
     const rejectBtn = document.createElement('button');
     rejectBtn.className = 'preview-btn reject-btn';
-    rejectBtn.textContent = '수정 요청';
+    rejectBtn.textContent = 'Request Changes';
     rejectBtn.addEventListener('click', () => handleReject(requestId, actions));
 
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'preview-btn cancel-btn';
-    cancelBtn.textContent = '취소';
+    cancelBtn.textContent = 'Cancel';
     cancelBtn.addEventListener('click', () => handleCancelReview(msg));
 
     actions.appendChild(approveBtn);
@@ -2105,15 +2123,15 @@
 
     const title = document.createElement('div');
     title.className = 'preview-summary-title';
-    title.textContent = '변경이 필요하지 않아요';
+    title.textContent = 'No changes needed';
 
     const note = document.createElement('div');
     note.className = 'preview-empty-note';
-    note.textContent = latestLog || '현재 코드와 요청을 다시 비교한 결과, 바로 적용할 앱 변경 사항이 없었습니다.';
+    note.textContent = latestLog || 'After comparing the current code with the request, there are no app changes to apply right now.';
 
     const actionBtn = document.createElement('button');
     actionBtn.className = 'preview-open-full-btn preview-open-page-btn';
-    actionBtn.textContent = '요청 더 구체화하기';
+    actionBtn.textContent = 'Refine your request';
     actionBtn.addEventListener('click', () => {
       promptInput.focus();
     });
@@ -2178,7 +2196,7 @@
     if (messageEl && messageEl.parentNode) {
       messageEl.parentNode.removeChild(messageEl);
     }
-    inputStatus.textContent = '리뷰 카드를 닫았습니다. 바로 다음 요청을 보낼 수 있어요.';
+    inputStatus.textContent = 'Review card dismissed. You can send your next request now.';
     scrollToBottom();
   }
 
@@ -2227,8 +2245,8 @@
       success_criteria: successCriteria.length
         ? successCriteria
         : [
-          'preview에서 요청한 변경이 보인다.',
-          ...(resolvedLanguage ? [`preview와 screenshot이 ${resolvedLanguage} 언어를 유지한다.`] : []),
+          'The requested change is visible in the preview.',
+          ...(resolvedLanguage ? [`Preview and screenshot maintain the ${resolvedLanguage} language.`] : []),
         ],
       validation_expectations: getValidationExpectations(intent, resolvedLanguage),
       source_documents: prdContext
@@ -2259,8 +2277,8 @@
     }
     if (goalInput && !goalInput.value.trim()) {
       goalInput.placeholder = promptInput.value.trim()
-        ? `예: ${promptInput.value.trim()}`
-        : '예: 로그인 CTA를 더 명확하게 만든다.';
+        ? `e.g. ${promptInput.value.trim()}`
+        : 'e.g. Make the login CTA clearer.';
     }
   });
 
@@ -2319,7 +2337,7 @@
             startHttpPolling(response.requestId);
           } else {
             // Native mode: simple file-based polling
-            addSystemMessage('Agent에 전송됨', 'sent');
+            addSystemMessage('Sent to Agent', 'sent');
             inputStatus.textContent = '';
             setTimeout(() => {
               inputStatus.textContent = '';
@@ -2351,7 +2369,7 @@
       addClarificationMessage(clarification);
       promptInput.value = '';
       promptInput.style.height = 'auto';
-      inputStatus.textContent = '선택하거나 직접 적어주시면 바로 작업을 시작합니다.';
+      inputStatus.textContent = 'Pick an option or type your own — work starts as soon as you do.';
       if (intentSelect) {
         intentSelect.value = clarification.intent;
         intentSelect.dataset.userTouched = 'auto';
@@ -2379,7 +2397,7 @@
         addClarificationMessage(followup);
         promptInput.value = '';
         promptInput.style.height = 'auto';
-        inputStatus.textContent = '좋아요. 마지막으로 한 가지만 더 확인할게요.';
+        inputStatus.textContent = 'Got it. Just one more thing to confirm.';
         updateSendState();
         return;
       }
@@ -2513,7 +2531,7 @@
       finalPrompt: finalText,
     };
     pendingClarification = null;
-    inputStatus.textContent = '요청을 분석하고 있습니다...';
+    inputStatus.textContent = 'Analyzing your request...';
 
     // Show thinking indicator immediately
     const thinkingMsg = addThinkingMessage();
@@ -2523,12 +2541,12 @@
       // Remove thinking indicator
       if (thinkingMsg && thinkingMsg.parentNode) thinkingMsg.remove();
       pendingExecutionPlan.aiAnalysis = analysis;
-      inputStatus.textContent = '계획을 확인해주시면 실제 수정과 preview 생성을 시작합니다.';
+      inputStatus.textContent = 'Review the plan to start editing and preview generation.';
       addExecutionPlanMessage(pendingExecutionPlan);
     }).catch(() => {
       // Fallback: show plan without AI analysis
       if (thinkingMsg && thinkingMsg.parentNode) thinkingMsg.remove();
-      inputStatus.textContent = '계획을 확인해주시면 실제 수정과 preview 생성을 시작합니다.';
+      inputStatus.textContent = 'Review the plan to start editing and preview generation.';
       addExecutionPlanMessage(pendingExecutionPlan);
     });
   }
@@ -2559,7 +2577,7 @@
             latestLog: response.latestLog || '',
             statusType: 'applied',
             statusLabel: 'preview ready',
-            title: 'Agent가 preview를 준비했어요',
+            title: 'Agent has prepared the preview',
             previewUrl: response.previewUrl || null,
           });
           addPreviewCard(
@@ -2578,7 +2596,7 @@
             latestLog: response.latestLog || '',
             statusType: 'waiting',
             statusLabel: 'no change',
-            title: 'Agent가 이번 요청은 변경 없이 유지하는 편이 맞다고 판단했어요',
+            title: 'Agent determined no changes are needed for this request',
           });
           addNoChangeCard(requestId, response.latestLog || response.error || '');
         } else if (response.status === 'approved') {
@@ -2590,7 +2608,7 @@
             latestLog: response.latestLog || '',
             statusType: 'applied',
             statusLabel: 'applied',
-            title: 'Agent가 변경을 적용했어요',
+            title: 'Agent has applied the changes',
           });
         } else if (response.status === 'error') {
           stopPolling();
@@ -2601,7 +2619,7 @@
             latestLog: response.error || response.latestLog || '',
             statusType: 'error',
             statusLabel: 'error',
-            title: 'Agent 작업 중 문제가 생겼어요',
+            title: 'Something went wrong during Agent processing',
           });
           addSystemMessage(humanizeError(response.error || 'Unknown'), 'error');
         } else if (response.status === 'processing' || response.status === 'pending') {
@@ -2629,14 +2647,14 @@
       pollCount++;
       if (pollCount >= 60) {
         stopPolling();
-        addSystemMessage('Agent 응답 시간이 초과되었습니다', 'timeout');
+        addSystemMessage('Agent response timed out', 'timeout');
         return;
       }
       chrome.runtime.sendMessage({ type: 'inspect-status' }, (response) => {
         if (chrome.runtime.lastError) return;
         if (response && response.status === 'consumed') {
           stopPolling();
-          addSystemMessage('변경이 적용되었습니다!', 'applied');
+          addSystemMessage('Changes applied!', 'applied');
         }
       });
     }, 1000);
@@ -2673,14 +2691,14 @@
   screenshotBtn.addEventListener('click', () => {
     chrome.runtime.sendMessage({ type: 'start-region-capture' }, (response) => {
       if (chrome.runtime.lastError) {
-        addSystemMessage(`영역 선택을 시작하지 못했어요: ${chrome.runtime.lastError.message}`, 'error');
+        addSystemMessage(`Could not start region selection: ${chrome.runtime.lastError.message}`, 'error');
         return;
       }
       if (!response || response.ok === false) {
-        addSystemMessage(`영역 선택을 시작하지 못했어요: ${response?.error || 'Unknown error'}`, 'error');
+        addSystemMessage(`Could not start region selection: ${response?.error || 'Unknown error'}`, 'error');
         return;
       }
-      inputStatus.textContent = '드래그해서 캡처할 영역을 선택하세요.';
+      inputStatus.textContent = 'Drag to select the area you want to capture.';
     });
   });
 
@@ -2720,7 +2738,7 @@
     }
     if (msg.type === 'capture-region-ready') {
       showCaptureCard(msg.data);
-      inputStatus.textContent = '선택한 스크린샷이 요청에 포함됩니다.';
+      inputStatus.textContent = 'The selected screenshot will be included with the request.';
     }
   });
 

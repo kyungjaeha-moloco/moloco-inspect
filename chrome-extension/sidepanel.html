@@ -19,7 +19,7 @@
       <span class="header-status-badge" id="headerStatusBadge">Checking</span>
     </div>
     <div class="header-right">
-      <button class="icon-btn theme-toggle" id="themeToggle" title="테마 전환">
+      <button class="icon-btn theme-toggle" id="themeToggle" title="Toggle theme">
         <svg class="theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
           <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
         </svg>
@@ -27,7 +27,7 @@
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
       </button>
-      <button class="icon-btn" id="settingsBtn" title="설정">
+      <button class="icon-btn" id="settingsBtn" title="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
           <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>
         </svg>
@@ -50,62 +50,62 @@
   </div>
 
   <div class="context-strip" id="contextStrip">
-    <div class="context-primary" id="contextPrimary">연결 상태를 확인하는 중입니다.</div>
-    <div class="context-secondary" id="contextSecondary">현재 페이지와 선택된 요소 정보가 여기에 표시됩니다.</div>
+    <div class="context-primary" id="contextPrimary">Checking connection status.</div>
+    <div class="context-secondary" id="contextSecondary">Current page and selected element info will appear here.</div>
   </div>
 
   <!-- Settings panel (hidden by default) -->
   <div class="settings-panel" id="settingsPanel">
-    <label>연결 방식</label>
+    <label>Connection Mode</label>
     <select id="modeSelect">
       <option value="http">HTTP (Sandbox Agent)</option>
-      <option value="native">Native (파일 기반)</option>
+      <option value="native">Native (File-based)</option>
     </select>
-    <div class="settings-hint">HTTP: Docker sandbox에서 agent가 코드를 수정합니다. Native: 로컬 파일 기반 fallback.</div>
+    <div class="settings-hint">HTTP: Agent modifies code inside a Docker sandbox. Native: Local file-based fallback.</div>
 
-    <label>서버 URL</label>
+    <label>Server URL</label>
     <input type="text" id="serverUrl" placeholder="http://localhost:3847" />
-    <div class="settings-hint">Orchestrator 서버 주소</div>
+    <div class="settings-hint">Orchestrator server address</div>
 
-    <label>프로젝트 경로</label>
+    <label>Project Path</label>
     <input type="text" id="projectRoot" placeholder="/Users/you/project" />
-    <div class="settings-hint">Native 모드에서 요청 파일이 저장될 경로</div>
+    <div class="settings-hint">Path where request files will be saved in Native mode</div>
 
     <div class="settings-divider"></div>
 
-    <label>시스템 정보</label>
+    <label>System Info</label>
     <div class="settings-info" id="systemInfo">
       <div class="settings-info-row">
         <span>Agent</span>
-        <span id="infoAgent">확인 중...</span>
+        <span id="infoAgent">Checking...</span>
       </div>
       <div class="settings-info-row">
         <span>Sandbox</span>
-        <span id="infoSandbox">확인 중...</span>
+        <span id="infoSandbox">Checking...</span>
       </div>
       <div class="settings-info-row">
-        <span>요청 수</span>
+        <span>Requests</span>
         <span id="infoRequests">-</span>
       </div>
       <div class="settings-info-row">
-        <span>버전</span>
+        <span>Version</span>
         <span>1.2.0</span>
       </div>
     </div>
 
     <div class="settings-divider"></div>
 
-    <label>바로가기</label>
+    <label>Shortcuts</label>
     <div class="settings-links">
-      <a class="settings-link" href="#" id="openDashboard">운영 대시보드 열기</a>
-      <a class="settings-link" href="#" id="openDesignSystem">디자인 시스템 문서</a>
+      <a class="settings-link" href="#" id="openDashboard">Open Ops Dashboard</a>
+      <a class="settings-link" href="#" id="openDesignSystem">Design System Docs</a>
     </div>
   </div>
 
   <!-- Selected element card (hidden by default) -->
   <div class="element-card" id="elementCard" style="display:none">
     <div class="element-card-header">
-      <span class="element-card-label">선택한 요소</span>
+      <span class="element-card-label">Selected Element</span>
       <button class="element-card-close" id="clearElement">&times;</button>
     </div>
     <div class="element-name" id="elementName"></div>
@@ -116,7 +116,7 @@
 
   <div class="capture-card" id="captureCard" style="display:none">
     <div class="capture-card-header">
-      <span class="element-card-label">선택한 스크린샷</span>
+      <span class="element-card-label">Selected Screenshot</span>
       <button class="element-card-close" id="clearCapture">&times;</button>
     </div>
     <img class="capture-preview-image" id="capturePreviewImage" alt="Selected screenshot preview" />
@@ -126,8 +126,8 @@
   <div class="prd-card" id="prdCard" style="display:none">
     <div class="prd-card-header">
       <div>
-        <div class="element-card-label">PRD 컨텍스트</div>
-        <div class="prd-card-subtitle">링크나 핵심 요구사항을 읽고 현재 페이지 작업으로 좁힙니다.</div>
+        <div class="element-card-label">PRD Context</div>
+        <div class="prd-card-subtitle">Reads a link or key requirements and narrows them to the current page task.</div>
       </div>
       <button class="element-card-close" id="clearPrd">&times;</button>
     </div>
@@ -135,17 +135,17 @@
     <div class="request-contract-grid">
       <label class="request-field">
         <span>PRD link</span>
-        <input type="text" id="prdUrlInput" placeholder="https://notion.so/... 또는 Confluence/Jira 문서 링크" />
+        <input type="text" id="prdUrlInput" placeholder="https://notion.so/... or Confluence/Jira doc link" />
       </label>
 
       <label class="request-field">
         <span>Fallback notes</span>
-        <textarea id="prdNotesInput" class="request-textarea" rows="4" placeholder="링크를 읽기 어렵다면 핵심 요구사항을 그대로 붙여넣어 주세요."></textarea>
+        <textarea id="prdNotesInput" class="request-textarea" rows="4" placeholder="If the link is inaccessible, paste the key requirements directly here."></textarea>
       </label>
     </div>
 
     <div class="prd-actions">
-      <button type="button" class="prd-action-btn prd-action-primary" id="prdReadBtn">문서 읽기</button>
+      <button type="button" class="prd-action-btn prd-action-primary" id="prdReadBtn">Read Document</button>
       <div class="prd-inline-status" id="prdInlineStatus"></div>
     </div>
 
@@ -153,11 +153,11 @@
       <div class="prd-summary-title" id="prdSummaryTitle"></div>
       <div class="prd-summary-body" id="prdSummaryBody"></div>
       <div class="prd-summary-section" id="prdCandidateSection" style="display:none">
-        <div class="prd-summary-label">현재 페이지와 관련된 변경 후보</div>
+        <div class="prd-summary-label">Change candidates related to current page</div>
         <div class="prd-summary-list" id="prdCandidateList"></div>
       </div>
       <div class="prd-summary-section" id="prdQuestionSection" style="display:none">
-        <div class="prd-summary-label">열린 질문</div>
+        <div class="prd-summary-label">Open Questions</div>
         <div class="prd-summary-list" id="prdQuestionList"></div>
       </div>
     </div>
@@ -165,31 +165,31 @@
 
   <div class="request-contract-card" id="requestContractCard" style="display:none">
     <div class="request-contract-header">
-      <span class="element-card-label">구조화된 요청</span>
-      <span class="request-contract-hint" id="requestContractHint">대화형 요청 정제에 내부적으로 사용됩니다.</span>
+      <span class="element-card-label">Structured Request</span>
+      <span class="request-contract-hint" id="requestContractHint">Used internally for conversational request refinement.</span>
     </div>
 
     <div class="request-contract-grid">
       <label class="request-field">
-        <span>변경 의도</span>
+        <span>Change Intent</span>
         <select id="intentSelect">
           <option value="layout_adjustment">layout_adjustment</option>
         </select>
       </label>
 
       <label class="request-field">
-        <span>목표</span>
-        <input type="text" id="goalInput" placeholder="예: 로그인 CTA를 더 명확하게 만든다." />
+        <span>Goal</span>
+        <input type="text" id="goalInput" placeholder="e.g. Make the login CTA more prominent." />
       </label>
 
       <label class="request-field">
-        <span>성공 기준</span>
-        <input type="text" id="successCriteriaInput" placeholder="세미콜론(;)으로 여러 개를 나눌 수 있습니다." />
+        <span>Success Criteria</span>
+        <input type="text" id="successCriteriaInput" placeholder="Separate multiple criteria with semicolons (;)." />
       </label>
 
       <label class="request-field">
-        <span>제약 조건</span>
-        <input type="text" id="constraintsInput" placeholder="예: 레이아웃 유지; 한국어 유지" />
+        <span>Constraints</span>
+        <input type="text" id="constraintsInput" placeholder="e.g. Keep layout; Keep Korean text" />
       </label>
     </div>
   </div>
@@ -208,8 +208,8 @@
       </div>
       <div class="welcome-title">Moloco Inspect</div>
       <div class="welcome-desc">
-        <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd>로 인스펙터를 활성화하세요.<br>
-        요소를 선택하거나 영역을 캡처한 뒤, 변경할 내용을 설명해주세요.
+        Press <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> to activate the inspector.<br>
+        Select an element or capture a region, then describe what you want to change.
       </div>
     </div>
   </div>
@@ -219,7 +219,7 @@
     <div class="input-status" id="inputStatus"></div>
     <div class="input-box">
       <div class="selection-chip-row" id="selectionChipRow" style="display:none"></div>
-      <textarea class="input-field" id="promptInput" placeholder="무엇이든 요청하세요" rows="3"></textarea>
+      <textarea class="input-field" id="promptInput" placeholder="Describe your request" rows="3"></textarea>
       <div class="input-toolbar">
         <button class="toolbar-btn" id="screenshotBtn" title="Take screenshot">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
@@ -234,7 +234,7 @@
             <path d="M9 17h6"></path>
           </svg>
         </button>
-        <button class="toolbar-btn toolbar-btn-disabled" id="attachBtn" title="준비 중인 기능" disabled aria-disabled="true">
+        <button class="toolbar-btn toolbar-btn-disabled" id="attachBtn" title="Coming soon" disabled aria-disabled="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
             <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
           </svg>

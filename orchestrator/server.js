@@ -1072,21 +1072,21 @@ function buildDiffViewerHtml({ requestId, diff, screenshotUrl, changedFiles, use
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
   :root {
-    --bg: #0d1117; --surface: #161b22; --surface-raised: #1c2129;
-    --border: #30363d; --border-accent: #388bfd40;
-    --text: #e6edf3; --text-secondary: #8b949e; --text-muted: #484f58;
-    --accent: #388bfd; --accent-hover: #58a6ff;
-    --green: #3fb950; --green-bg: rgba(63,185,80,0.1); --green-border: rgba(63,185,80,0.3);
-    --red: #f85149; --red-bg: rgba(248,81,73,0.1); --red-border: rgba(248,81,73,0.3);
-    --hunk-bg: rgba(56,139,253,0.1); --hunk-text: #79c0ff;
-    --radius: 8px; --radius-lg: 12px;
+    --bg: #f4f4f4; --surface: #ffffff; --surface-raised: #f4f4f4;
+    --border: #e0e0e0; --border-accent: rgba(15,98,254,0.2);
+    --text: #161616; --text-secondary: #525252; --text-muted: #8d8d8d;
+    --accent: #0f62fe; --accent-hover: #0043ce;
+    --green: #24a148; --green-bg: rgba(36,161,72,0.08); --green-border: rgba(36,161,72,0.25);
+    --red: #da1e28; --red-bg: rgba(218,30,40,0.06); --red-border: rgba(218,30,40,0.2);
+    --hunk-bg: rgba(15,98,254,0.06); --hunk-text: #0f62fe;
+    --radius: 6px; --radius-lg: 8px;
   }
   body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
   .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
 
   /* Header */
   .header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
-  .header-icon { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), #a371f7); display: flex; align-items: center; justify-content: center; }
+  .header-icon { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); display: flex; align-items: center; justify-content: center; }
   .header-icon svg { color: #fff; }
   .header h1 { font-size: 18px; font-weight: 600; flex: 1; }
   .header code { font-size: 13px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; }
@@ -1127,10 +1127,10 @@ function buildDiffViewerHtml({ requestId, diff, screenshotUrl, changedFiles, use
   .diff-toolbar-stats .del { color: var(--red); }
   .diff-scroll { overflow: auto; max-height: 640px; }
   .diff-scroll pre { padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7; white-space: pre; tab-size: 2; counter-reset: line; }
-  .diff-add { background: var(--green-bg); color: #aff5b4; display: block; padding: 0 16px; margin: 0 -16px; }
-  .diff-del { background: var(--red-bg); color: #ffc1ba; display: block; padding: 0 16px; margin: 0 -16px; }
+  .diff-add { background: #e6ffec; color: #1a7f37; display: block; padding: 0 16px; margin: 0 -16px; }
+  .diff-del { background: #ffebe9; color: #cf222e; display: block; padding: 0 16px; margin: 0 -16px; }
   .diff-hunk { background: var(--hunk-bg); color: var(--hunk-text); display: block; font-weight: 500; padding: 4px 16px; margin: 8px -16px 4px; border-radius: 4px; }
-  .diff-file { color: var(--accent); display: block; font-weight: 600; padding: 8px 16px; margin: 12px -16px 4px; border-top: 1px solid var(--border); }
+  .diff-file { color: var(--text); display: block; font-weight: 600; padding: 8px 16px; margin: 12px -16px 4px; border-top: 1px solid var(--border); background: var(--surface-raised); }
   .diff-file:first-child { margin-top: 0; border-top: none; }
 
   /* Screenshot */

@@ -1802,6 +1802,20 @@ button:focus-visible, select:focus-visible {
   color: var(--step-done-text);
 }
 
+.progress-stepper .step.complete {
+  background: var(--success, #24a148);
+  color: #fff;
+  font-weight: 600;
+  animation: none;
+}
+
+.progress-stepper .step.error {
+  background: var(--danger, #da1e28);
+  color: #fff;
+  font-weight: 600;
+  animation: none;
+}
+
 .progress-timer {
   font-size: 11px;
   color: var(--text-secondary);

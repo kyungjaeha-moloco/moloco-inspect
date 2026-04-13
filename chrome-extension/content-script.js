@@ -2,7 +2,7 @@
  * Moloco Inspect Content Script
  *
  * Injected into localhost pages. Provides:
- * - Alt+Shift+X toggle for inspect mode
+ * - Cmd+Shift+E (Mac) / Alt+Shift+E (Win/Linux) toggle for inspect mode
  * - Hover overlay highlighting
  * - Click to select element → React fiber + source info
  * - Prompt input → sends to background.js → Native Messaging → .omc/inspect-prompt.json
@@ -352,11 +352,11 @@
   // ─── Toast ──────────────────────────────────────────────────────────
 
   const TOAST_MESSAGES = {
-    sent: 'Agent에 전송됨',
-    waiting: 'Agent가 적용 중...',
-    applied: '변경이 적용되었습니다!',
+    sent: 'Sent to agent',
+    waiting: 'Agent applying changes...',
+    applied: 'Changes applied!',
     error: 'Failed to send',
-    timeout: 'Agent 응답 시간 초과',
+    timeout: 'Agent response timed out',
   };
 
   function showToast(status, extra) {
@@ -402,7 +402,7 @@
     if (!captureHelpEl) {
       captureHelpEl = document.createElement('div');
       captureHelpEl.id = '__capture-help';
-      captureHelpEl.textContent = '드래그해서 캡처할 영역을 선택하세요. Esc로 취소할 수 있습니다.';
+      captureHelpEl.textContent = 'Drag to select a capture region. Press Esc to cancel.';
       document.body.appendChild(captureHelpEl);
     }
   }
@@ -560,7 +560,8 @@
   document.addEventListener(
     'keydown',
     (e) => {
-      if (e.altKey && e.shiftKey && (e.key === 'x' || e.key === 'X')) {
+      const modKey = navigator.platform.includes('Mac') ? e.metaKey : e.altKey;
+      if (modKey && e.shiftKey && (e.key === 'e' || e.key === 'E')) {
         e.preventDefault();
         toggle();
         return;
@@ -771,5 +772,6 @@
     }
   });
 
-  console.log('[Moloco Inspect] Content script loaded. Press Alt+Shift+X to activate.');
+  const isMac = navigator.platform.includes('Mac');
+  console.log(`[Moloco Inspect] Content script loaded. Press ${isMac ? 'Cmd' : 'Alt'}+Shift+E to activate.`);
 })();
