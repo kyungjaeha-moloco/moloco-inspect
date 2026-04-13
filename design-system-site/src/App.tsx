@@ -43,6 +43,7 @@ const PatternsPage = lazy(() => import('./pages/PatternsPage').then(m => ({ defa
 const UxWritingPage = lazy(() => import('./pages/UxWritingPage').then(m => ({ default: m.UxWritingPage })));
 const GovernancePage = lazy(() => import('./pages/GovernancePage').then(m => ({ default: m.GovernancePage })));
 const BlocksPage = lazy(() => import('./pages/BlocksPage').then(m => ({ default: m.BlocksPage })));
+const ArchitecturePage = lazy(() => import('./pages/ArchitecturePage').then(m => ({ default: m.ArchitecturePage })));
 
 const catalog = buildComponentsCatalog(
   componentsJson as LiveComponentsJson,
@@ -69,6 +70,7 @@ export function App() {
           <Route path="/" element={
             <OverviewPage catalog={catalog} depCount={depCount} governanceData={governanceData} />
           } />
+          <Route path="/architecture" element={<ArchitecturePage />} />
           <Route path="/tokens" element={<TokensPage colorsData={foundationsData} tokensData={tokensData} />} />
           <Route path="/foundations/colors" element={<Navigate to="/tokens" replace />} />
           <Route path="/components" element={<ComponentsPage catalog={catalog} />} />

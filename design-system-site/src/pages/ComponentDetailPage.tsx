@@ -178,8 +178,28 @@ export function ComponentDetailPage({ catalog, stateMachines, behaviors }: Props
       </div>
 
       <div className="page-header">
-        <h1 className="page-title">{comp.name}</h1>
-        <p className="page-subtitle">{comp.description}</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+          <div>
+            <h1 className="page-title">{comp.name}</h1>
+            <p className="page-subtitle">{comp.description}</p>
+          </div>
+          {comp.storybookPath && (
+            <a
+              href={comp.storybookPath}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 500,
+                color: '#346bea', background: '#dbeafe', border: '1px solid #93c5fd',
+                textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0, marginTop: 4,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M11 7.5V11a1.5 1.5 0 01-1.5 1.5h-6A1.5 1.5 0 012 11V4.5A1.5 1.5 0 013.5 3H7"/><path d="M9 1.5h3.5V5"/><path d="M6 8l6-6"/></svg>
+              Storybook
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Live Preview with Controls */}

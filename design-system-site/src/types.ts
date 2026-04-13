@@ -33,6 +33,7 @@ export type ComponentEntry = {
   recipeDescription?: string;
   recipeProviders?: string[];
   recipeCode?: string;
+  storybookPath?: string;
   goldenStates: Array<{ name: string; description: string }>;
   structure?: {
     dimensions?: Record<string, string>;

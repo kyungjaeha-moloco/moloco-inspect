@@ -46,6 +46,12 @@ const ICONS: Record<string, React.ReactNode> = {
       <rect x="9" y="9" width="6" height="6" rx="1" />
     </svg>
   ),
+  architecture: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 1v4M8 5L3 9M8 5l5 4M3 9v4M8 9v4M13 9v4" />
+      <circle cx="8" cy="1" r="1" fill="currentColor" />
+    </svg>
+  ),
   governance: (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M8 1v14M1 8h14" />

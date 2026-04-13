@@ -75,6 +75,7 @@ export function buildComponentsCatalog(
         recipeDescription: recipe?.description,
         recipeProviders: recipe?.providers ?? [],
         recipeCode: recipe?.code,
+        storybookPath: component.storybookPath,
         goldenStates,
         dos: component.dos ?? [],
         donts: component.donts ?? [],
