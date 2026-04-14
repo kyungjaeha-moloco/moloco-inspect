@@ -1,30 +1,30 @@
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0f62fe', 'primaryTextColor': '#fff', 'lineColor': '#525252', 'fontSize': '13px' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#1a73e8', 'primaryTextColor': '#ffffff', 'lineColor': '#333333', 'fontSize': '15px', 'fontFamily': 'Inter, Helvetica, Arial, sans-serif' }}}%%
 flowchart TB
     subgraph ENTRY["Entry Points"]
-        EXT["Chrome Extension<br/>● Element Inspector<br/>● Region Capture<br/>● AI Plan Review"]
-        SLACK["Slack Bot<br/>(Next Phase)"]
-        JIRA["Jira Integration<br/>(Planned)"]
+        EXT["Chrome Extension\n· Element Inspector\n· Region Capture\n· AI Plan Review"]
+        SLACK["Slack Bot\n(Next Phase)"]
+        JIRA["Jira Integration\n(Planned)"]
     end
 
-    subgraph ORCH["Orchestrator (Node.js, port 3847)"]
+    subgraph ORCH["Orchestrator — Node.js, port 3847"]
         API["11 API Endpoints"]
-        PIPE["Pipeline Engine<br/>Request → Analysis → Sandbox<br/>→ Agent → Validate → Preview → PR"]
+        PIPE["Pipeline Engine\nRequest → Analysis → Sandbox\n→ Agent → Validate → Preview → PR"]
         SSE["SSE Real-time Events"]
         ANALYTICS["Analytics Logging"]
     end
 
-    subgraph SANDBOX["Docker Sandbox (per request)"]
+    subgraph SANDBOX["Docker Sandbox — per request, isolated"]
         REPO["Product Repo Copy"]
-        AGENT["AI Agent<br/>(Claude Sonnet 4.6)"]
+        AGENT["AI Agent\nClaude Sonnet 4.6"]
         TSC["TypeScript Check"]
-        VITE["Vite Dev Server<br/>(Live Preview)"]
-        PW["Playwright<br/>(Screenshot)"]
+        VITE["Vite Dev Server\nLive Preview"]
+        PW["Playwright\nScreenshot"]
     end
 
     subgraph DATA["Data Layer"]
-        OPS["Ops Hub<br/>Dashboard<br/>● Request tracking<br/>● Metrics<br/>● Diff review"]
-        DS["Design System<br/>● 95 Components<br/>● 186 Tokens<br/>● Doc Site"]
-        MCP["MCP Server<br/>9 AI Tools"]
+        OPS["Ops Hub Dashboard\n· Request tracking\n· Metrics · Diff review"]
+        DS["Design System\n· 95 Components\n· 186 Tokens\n· Doc Site"]
+        MCP["MCP Server\n9 AI Tools"]
     end
 
     EXT --> API
@@ -40,10 +40,13 @@ flowchart TB
     MCP --> AGENT
     ANALYTICS --> OPS
 
-    style ENTRY fill:#e8f0fe,stroke:#0f62fe
-    style ORCH fill:#f4f4f4,stroke:#525252
-    style SANDBOX fill:#fff3e0,stroke:#f57c00
-    style DATA fill:#e8f5e9,stroke:#24a148
-    style EXT fill:#0f62fe,stroke:#0043ce,color:#fff
-    style SLACK fill:#e0e0e0,stroke:#8d8d8d,color:#525252
-    style JIRA fill:#e0e0e0,stroke:#8d8d8d,color:#525252
+    style ENTRY fill:#e8f0fe,stroke:#1a73e8,color:#202124
+    style ORCH fill:#f8f9fa,stroke:#5f6368,color:#202124
+    style SANDBOX fill:#fef7e0,stroke:#f9ab00,color:#202124
+    style DATA fill:#e6f4ea,stroke:#34a853,color:#202124
+    style EXT fill:#1a73e8,stroke:#1557b0,color:#ffffff
+    style SLACK fill:#e8eaed,stroke:#5f6368,color:#5f6368
+    style JIRA fill:#e8eaed,stroke:#5f6368,color:#5f6368
+    style AGENT fill:#1a73e8,stroke:#1557b0,color:#ffffff
+    style OPS fill:#34a853,stroke:#1e8e3e,color:#ffffff
+    style DS fill:#1a73e8,stroke:#1557b0,color:#ffffff

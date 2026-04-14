@@ -1,27 +1,40 @@
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0f62fe', 'primaryTextColor': '#fff', 'lineColor': '#525252', 'fontSize': '13px' }}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#1a73e8', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#1557b0', 'lineColor': '#333333', 'secondaryColor': '#f8f9fa', 'tertiaryColor': '#ffffff', 'fontSize': '16px', 'fontFamily': 'Inter, Helvetica, Arial, sans-serif' }}}%%
 flowchart TD
-    REQ["Request Received"] --> ANALYSIS["AI Analysis — Claude Sonnet ~3s"]
-    ANALYSIS --> |PM Confirms| SANDBOX["Create Sandbox 2-5s"]
-    SANDBOX --> SYNC["Sync Source 3-8s"]
-    SYNC --> AGENT["Run Agent 30-120s"]
-    AGENT --> DIFF["Collect Diff"]
-    DIFF --> |No changes| DONE_NC["No Change Needed"]
-    DIFF --> |Has changes| TC["TypeScript Check 5-30s"]
-    TC --> PREVIEW["Start Vite Preview 30-90s"]
-    PREVIEW --> SS["Playwright Screenshot"]
-    SS --> READY["Preview Ready"]
-    READY --> |Approve| PR["Create GitHub PR"]
-    READY --> |Reject + Feedback| AGENT
+    REQ["Request Received"]
+    ANALYSIS["AI Analysis\nClaude Sonnet · ~3s"]
+    SANDBOX["Create Sandbox · 2-5s"]
+    SYNC["Sync Source · 3-8s"]
+    AGENT["Run Agent · 30-120s"]
+    DIFF["Collect Diff"]
+    DONE_NC["No Change Needed"]
+    TC["TypeScript Check · 5-30s"]
+    PREVIEW["Start Vite Preview · 30-90s"]
+    SS["Playwright Screenshot"]
+    READY["Preview Ready"]
+    PR["Create GitHub PR"]
 
-    style REQ fill:#e0e0e0,stroke:#525252
-    style ANALYSIS fill:#d4e5ff,stroke:#0f62fe
-    style SANDBOX fill:#fff3e0,stroke:#f57c00
-    style SYNC fill:#fff3e0,stroke:#f57c00
-    style AGENT fill:#0f62fe,stroke:#0043ce,color:#fff
-    style DIFF fill:#f4f4f4,stroke:#525252
-    style TC fill:#e8f5e9,stroke:#24a148
-    style PREVIEW fill:#e8f5e9,stroke:#24a148
-    style SS fill:#e8f5e9,stroke:#24a148
-    style READY fill:#24a148,stroke:#198038,color:#fff
-    style PR fill:#24a148,stroke:#198038,color:#fff
-    style DONE_NC fill:#e0e0e0,stroke:#8d8d8d
+    REQ --> ANALYSIS
+    ANALYSIS -->|"PM Confirms"| SANDBOX
+    SANDBOX --> SYNC
+    SYNC --> AGENT
+    AGENT --> DIFF
+    DIFF -->|"No changes"| DONE_NC
+    DIFF -->|"Has changes"| TC
+    TC --> PREVIEW
+    PREVIEW --> SS
+    SS --> READY
+    READY -->|"Approve"| PR
+    READY -->|"Reject + Feedback"| AGENT
+
+    style REQ fill:#e8eaed,stroke:#5f6368,color:#202124
+    style ANALYSIS fill:#e8f0fe,stroke:#1a73e8,color:#1a73e8
+    style SANDBOX fill:#fef7e0,stroke:#f9ab00,color:#e37400
+    style SYNC fill:#fef7e0,stroke:#f9ab00,color:#e37400
+    style AGENT fill:#1a73e8,stroke:#1557b0,color:#ffffff
+    style DIFF fill:#f8f9fa,stroke:#5f6368,color:#202124
+    style TC fill:#e6f4ea,stroke:#34a853,color:#137333
+    style PREVIEW fill:#e6f4ea,stroke:#34a853,color:#137333
+    style SS fill:#e6f4ea,stroke:#34a853,color:#137333
+    style READY fill:#34a853,stroke:#1e8e3e,color:#ffffff
+    style PR fill:#34a853,stroke:#1e8e3e,color:#ffffff
+    style DONE_NC fill:#e8eaed,stroke:#5f6368,color:#5f6368
