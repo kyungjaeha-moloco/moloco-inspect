@@ -1,75 +1,64 @@
 direction: down
 
-source: "Design System — Source of Truth" {
+title: "Design System Data Flow" {
   style: {
-    fill: "#e8f0fe"
-    stroke: "#1a73e8"
-    border-radius: 12
-    font-size: 14
+    font-size: 20
     bold: true
-  }
-
-  comp: "95 Component Contracts\nProps · Variants · States\nTokens · Anti-patterns" {
-    style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 14; bold: true }
-  }
-  tokens: "186 Design Tokens\nSemantic Palette\nSpacing · Radius · Shadow" {
-    style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 14; bold: true }
-  }
-  patterns: "12 UI Patterns\nForm · Table · Dashboard\nDialog · List · Detail" {
-    style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 14; bold: true }
+    fill: "#ffffff"
+    stroke: "#ffffff"
   }
 }
 
-consumers: "Who Uses It" {
-  style: {
-    fill: "#e6f4ea"
-    stroke: "#34a853"
-    border-radius: 12
-    font-size: 14
-    bold: true
-  }
-
-  agent: "AI Agent\nReferences during\ncode generation" {
-    style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
-  }
-  doc: "Documentation Site\nInteractive previews\nProp controls · Search" {
-    style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
-  }
-  mcp: "MCP Server\n9 tools for any\nAI tool integration" {
-    style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
-  }
-  llms: "llms.txt\nAI-readable index\nfor LLM integration" {
-    style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
-  }
+# ─── Source of Truth (center, top) ───
+components: "95 Component Contracts\nProps · Variants · States · Tokens · Anti-patterns" {
+  style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 10; font-size: 15; bold: true }
+}
+tokens: "186 Design Tokens\nSemantic Palette · Spacing · Radius · Shadow" {
+  style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 10; font-size: 15; bold: true }
+}
+patterns: "12 UI Patterns\nForm · Table · Dashboard · Dialog · List · Detail" {
+  style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 10; font-size: 15; bold: true }
 }
 
-quality: "Quality Guarantee" {
-  style: {
-    fill: "#fef7e0"
-    stroke: "#f9ab00"
-    border-radius: 12
-    font-size: 14
-    bold: true
-  }
-
-  tsc: "TypeScript\nType safety" {
-    style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
-  }
-  eval: "Evaluator (Phase 2)\nAuto-scoring" {
-    style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
-  }
-  drift: "Drift Detection (Phase 3)\nCI-based" {
-    style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
-  }
+# ─── How it's consumed ───
+agent: "AI Agent\nReads contracts + tokens\nto generate correct code" {
+  shape: rectangle
+  style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 10; font-size: 15; bold: true }
 }
 
-source.comp -> consumers.agent
-source.comp -> consumers.doc
-source.comp -> consumers.mcp
-source.comp -> consumers.llms
-source.tokens -> consumers.agent
-source.tokens -> consumers.doc
-source.patterns -> consumers.agent
-consumers.agent -> quality.tsc
-quality.tsc -> quality.eval
-quality.eval -> quality.drift
+doc_site: "Documentation Site\nInteractive previews · Prop controls\nAnatomy diagrams · Dark mode · Search" {
+  style: { fill: "#e6f4ea"; stroke: "#34a853"; border-radius: 10; font-size: 14 }
+}
+
+mcp_server: "MCP Server — 9 Tools\nAny AI tool can query\ncomponents, tokens, patterns" {
+  style: { fill: "#e6f4ea"; stroke: "#34a853"; border-radius: 10; font-size: 14 }
+}
+
+llms_txt: "llms.txt\nAI-readable index\nfor LLM integrations" {
+  style: { fill: "#e6f4ea"; stroke: "#34a853"; border-radius: 10; font-size: 14 }
+}
+
+# ─── Quality checks ───
+typecheck: "TypeScript Check\nType safety on generated code" {
+  style: { fill: "#fef7e0"; stroke: "#f9ab00"; border-radius: 10; font-size: 14 }
+}
+evaluator: "Evaluator Agent (Phase 2)\nAuto-score DS compliance" {
+  style: { fill: "#fef7e0"; stroke: "#f9ab00"; border-radius: 10; font-size: 14 }
+}
+drift: "Drift Detection (Phase 3)\nCI blocks hardcoded values" {
+  style: { fill: "#fef7e0"; stroke: "#f9ab00"; border-radius: 10; font-size: 14 }
+}
+
+# ─── Main flow (center) ───
+components -> agent: "references" { style.font-size: 12 }
+tokens -> agent: "uses" { style.font-size: 12 }
+patterns -> agent: "follows" { style.font-size: 12 }
+
+agent -> typecheck: "generated code" { style.font-size: 12 }
+typecheck -> evaluator: { style.stroke-dash: 5 }
+evaluator -> drift: { style.stroke-dash: 5 }
+
+# ─── Side consumers ───
+components -> doc_site: { style.stroke: "#34a853" }
+components -> mcp_server: { style.stroke: "#34a853" }
+components -> llms_txt: { style.stroke: "#34a853" }
