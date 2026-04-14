@@ -315,35 +315,34 @@ function AgentPerformanceChart({ statusCounts, total }: { statusCounts: Record<s
   ].map(s => ({ ...s, value: statusCounts[s.key] ?? 0 })).filter(s => s.value > 0);
 
   return (
-    <div className="agent-perf" style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 32, padding: '16px 0' }}>
       {/* Recharts Donut */}
-      <div style={{ position: 'relative', width: 160, height: 160, flexShrink: 0 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={segments.length > 0 ? segments : [{ key: 'empty', value: 1, color: '#e0e0e0' }]}
-              dataKey="value"
-              cx="50%" cy="50%"
-              innerRadius={48} outerRadius={72}
-              paddingAngle={segments.length > 1 ? 2 : 0}
-              strokeWidth={0}
-            >
-              {(segments.length > 0 ? segments : [{ key: 'empty', color: '#e0e0e0' }]).map((s) => (
-                <Cell key={s.key} fill={s.color} />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(value: number, name: string, props: any) => [`${value} (${total > 0 ? Math.round((value / total) * 100) : 0}%)`, props.payload.label || name]}
-              contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+      <div style={{ position: 'relative', width: 150, height: 150, flexShrink: 0 }}>
+        <PieChart width={150} height={150}>
+          <Pie
+            data={segments.length > 0 ? segments : [{ key: 'empty', value: 1, color: '#e0e0e0', label: 'Empty' }]}
+            dataKey="value"
+            cx={75} cy={75}
+            innerRadius={44} outerRadius={68}
+            paddingAngle={segments.length > 1 ? 2 : 0}
+            strokeWidth={0}
+          >
+            {(segments.length > 0 ? segments : [{ key: 'empty', color: '#e0e0e0' }]).map((s) => (
+              <Cell key={s.key} fill={s.color} />
+            ))}
+          </Pie>
+          <Tooltip
+            formatter={(value: number, _name: string, props: any) => [`${value} (${total > 0 ? Math.round((Number(value) / total) * 100) : 0}%)`, props.payload.label || '']}
+            contentStyle={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: 12, zIndex: 10 }}
+            wrapperStyle={{ zIndex: 10 }}
+          />
+        </PieChart>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>{total}</span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</span>
+          <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>{total}</span>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</span>
         </div>
       </div>
-      {/* Legend */}
+      {/* Legend — right side */}
       <div className="agent-perf-legend">
         {segments.map(s => {
           const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
