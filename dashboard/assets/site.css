@@ -1815,7 +1815,8 @@ a.data-table-row:hover {
 /* Remove focus outline on chart panels and recharts */
 .chart-panel:focus, .chart-panel:focus-visible,
 .recharts-wrapper:focus, .recharts-wrapper:focus-visible,
-.recharts-surface:focus, .recharts-surface:focus-visible {
-  outline: none;
-  box-shadow: none;
+.recharts-surface:focus, .recharts-surface:focus-visible,
+.recharts-wrapper *:focus, .recharts-wrapper *:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
