@@ -31,7 +31,7 @@ Select Element ──> Describe Change ──> AI Plans ──> Agent Codes ─�
         │                       │                          │
         v                       v                          v
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│   Ops Hub        │     │  Design System   │     │  DS MCP Server      │
+│   Inspect Hub        │     │  Design System   │     │  DS MCP Server      │
 │  (Dashboard)     │     │  Site (Carbon)   │     │  (9 tools)          │
 └─────────────────┘     └──────────────────┘     └─────────────────────┘
 ```
@@ -43,7 +43,7 @@ moloco-inspect/
 ├── chrome-extension/      # Browser extension (inspector, side panel, background)
 ├── orchestrator/          # Node.js server — pipeline, sandbox, AI analysis, PR creation
 ├── sandbox/               # Docker image + agent scripts for isolated code editing
-├── dashboard/             # Ops Hub — request tracking, analytics, settings
+├── dashboard/             # Inspect Hub — request tracking, analytics, settings
 ├── design-system/         # JSON source of truth — components, tokens, patterns
 ├── design-system-site/    # Design System documentation site (Carbon-style)
 ├── design-system-mcp/     # MCP server exposing DS data to AI tools (9 endpoints)
@@ -78,7 +78,7 @@ cd orchestrator
 ANTHROPIC_API_KEY="sk-ant-..." SANDBOX_MODEL=claude-sonnet-4-6 node server.js
 # Runs on http://localhost:3847
 
-# 4. Start Ops Hub dashboard
+# 4. Start Inspect Hub dashboard
 cd dashboard && pnpm install && pnpm dev
 # Runs on http://localhost:4174
 
@@ -108,7 +108,7 @@ cd design-system-site && pnpm install && pnpm dev
 - **PR Creation** — one-click `gh pr create` from approved changes
 - **Provider Auto-detect** — Anthropic (primary), OpenAI (fallback)
 
-### Ops Hub (Dashboard)
+### Inspect Hub (Dashboard)
 - **Overview** — success rate, daily requests, avg latency, error rate
 - **Request Tracking** — full request lifecycle with AI analysis, diff, screenshots
 - **Agent Performance** — per-agent metrics with stacked bar charts
