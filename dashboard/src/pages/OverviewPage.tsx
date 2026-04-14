@@ -306,31 +306,53 @@ function DailyTrendChart({ records }: { records: AnalyticsRecord[] }) {
 
 function AgentPerformanceChart({ statusCounts, total }: { statusCounts: Record<string, number>; total: number }) {
   const segments = [
-    { key: 'preview', label: 'Preview Ready', color: 'var(--success)' },
-    { key: 'completed', label: 'Applied', color: '#24a148' },
-    { key: 'no_change_needed', label: 'No Change', color: 'var(--warning)' },
-    { key: 'processing', label: 'Processing', color: 'var(--accent)' },
-    { key: 'pending', label: 'Pending', color: 'var(--text-muted)' },
-    { key: 'error', label: 'Error', color: 'var(--danger)' },
+    { key: 'preview', label: 'Preview Ready', color: '#24a148' },
+    { key: 'completed', label: 'Applied', color: '#198038' },
+    { key: 'no_change_needed', label: 'No Change', color: '#f1c21b' },
+    { key: 'processing', label: 'Processing', color: '#0f62fe' },
+    { key: 'pending', label: 'Pending', color: '#8d8d8d' },
+    { key: 'error', label: 'Error', color: '#da1e28' },
   ].map(s => ({ ...s, count: statusCounts[s.key] ?? 0 })).filter(s => s.count > 0);
 
+  // Donut chart via SVG
+  const size = 160;
+  const strokeWidth = 28;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  let accumulated = 0;
+
   return (
-    <div className="agent-perf">
-      {/* Stacked bar */}
-      {total > 0 && (
-        <div className="agent-perf-stack">
-          {segments.map(s => (
-            <div
-              key={s.key}
-              className="agent-perf-segment"
-              style={{ flex: s.count, background: s.color }}
-              title={`${s.label}: ${s.count}`}
-            />
-          ))}
+    <div className="agent-perf" style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+      {/* Donut */}
+      <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
+          {total > 0 && segments.map(s => {
+            const pct = s.count / total;
+            const dashLength = pct * circumference;
+            const dashOffset = -accumulated * circumference;
+            accumulated += pct;
+            return (
+              <circle
+                key={s.key}
+                cx={size / 2} cy={size / 2} r={radius}
+                fill="none" stroke={s.color} strokeWidth={strokeWidth}
+                strokeDasharray={`${dashLength} ${circumference - dashLength}`}
+                strokeDashoffset={dashOffset}
+                strokeLinecap="butt"
+              />
+            );
+          })}
+          {total === 0 && (
+            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#e0e0e0" strokeWidth={strokeWidth} />
+          )}
+        </svg>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>{total}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</span>
         </div>
-      )}
-      {/* Legend chips */}
-      <div className="agent-perf-legend">
+      </div>
+      {/* Legend */}
+      <div className="agent-perf-legend" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {segments.map(s => {
           const pct = total > 0 ? Math.round((s.count / total) * 100) : 0;
           return (
