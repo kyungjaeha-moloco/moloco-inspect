@@ -318,11 +318,11 @@ function AgentPerformanceChart({ statusCounts, total }: { statusCounts: Record<s
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, padding: '16px 0' }}>
       {/* Recharts Donut */}
       <div style={{ position: 'relative', width: 150, height: 150, flexShrink: 0 }}>
-        <PieChart width={150} height={150}>
+        <PieChart width={150} height={150} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
           <Pie
             data={segments.length > 0 ? segments : [{ key: 'empty', value: 1, color: '#e0e0e0', label: 'Empty' }]}
             dataKey="value"
-            cx={75} cy={75}
+            cx="50%" cy="50%"
             innerRadius={44} outerRadius={68}
             paddingAngle={segments.length > 1 ? 2 : 0}
             strokeWidth={0}
