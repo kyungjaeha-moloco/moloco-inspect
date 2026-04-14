@@ -1,126 +1,132 @@
 direction: down
 
-entry: "Entry Points" {
+# ─── Entry Points ───
+chrome: "Chrome Extension" {
   style: {
-    fill: "#e8f0fe"
-    stroke: "#1a73e8"
-    border-radius: 12
-    font-size: 14
+    fill: "#1a73e8"
+    stroke: "#1557b0"
+    font-color: "#ffffff"
+    border-radius: 10
+    font-size: 16
     bold: true
   }
-
-  ext: "Chrome Extension" {
-    style: {
-      fill: "#1a73e8"
-      stroke: "#1557b0"
-      font-color: "#ffffff"
-      border-radius: 8
-      font-size: 14
-      bold: true
-    }
-    items: |md
-      · Element Inspector
-      · Region Capture
-      · AI Plan Review
-      · PRD Ingest
-    |
+}
+slack: "Slack Bot (Next)" {
+  style: {
+    fill: "#dadce0"
+    stroke: "#9aa0a6"
+    font-color: "#5f6368"
+    border-radius: 10
+    font-size: 14
   }
-
-  slack: "Slack Bot\n(Next Phase)" {
-    style: {
-      fill: "#e8eaed"
-      stroke: "#5f6368"
-      font-color: "#5f6368"
-      border-radius: 8
-      font-size: 13
-    }
-  }
-
-  jira: "Jira Integration\n(Planned)" {
-    style: {
-      fill: "#e8eaed"
-      stroke: "#5f6368"
-      font-color: "#5f6368"
-      border-radius: 8
-      font-size: 13
-    }
+}
+jira: "Jira (Planned)" {
+  style: {
+    fill: "#dadce0"
+    stroke: "#9aa0a6"
+    font-color: "#5f6368"
+    border-radius: 10
+    font-size: 14
   }
 }
 
-orch: "Orchestrator — Node.js" {
+# ─── Orchestrator ───
+orchestrator: "Orchestrator" {
   style: {
     fill: "#f8f9fa"
     stroke: "#5f6368"
     border-radius: 12
-    font-size: 14
+    font-size: 15
     bold: true
   }
 
-  api: "11 API Endpoints" {
-    style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 8; font-size: 13 }
+  analysis: "AI Analysis\nClaude Sonnet 4.6" {
+    style: { fill: "#e8f0fe"; stroke: "#1a73e8"; border-radius: 8; font-size: 14 }
   }
-  pipe: "Pipeline Engine\nRequest → Analysis → Sandbox\n→ Agent → Validate → Preview → PR" {
-    style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 8; font-size: 13 }
+  pipeline: "Pipeline Engine\n11 API Endpoints" {
+    style: { fill: "#e8f0fe"; stroke: "#1a73e8"; border-radius: 8; font-size: 14 }
   }
-  sse: "SSE Events" {
-    style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 8; font-size: 13 }
+  pr: "PR Creation\ngh pr create" {
+    style: { fill: "#e8f0fe"; stroke: "#1a73e8"; border-radius: 8; font-size: 14 }
   }
-  analytics: "Analytics" {
-    style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 8; font-size: 13 }
-  }
+
+  analysis -> pipeline -> pr
 }
 
-sandbox: "Docker Sandbox — per request" {
+# ─── Sandbox ───
+sandbox: "Docker Sandbox" {
   style: {
     fill: "#fef7e0"
     stroke: "#f9ab00"
     border-radius: 12
-    font-size: 14
+    font-size: 15
     bold: true
   }
 
-  repo: "Product Repo Copy" {
-    style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
-  }
-  agent: "AI Agent\nClaude Sonnet 4.6" {
+  agent: "AI Agent\nCode Modification" {
     style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 14; bold: true }
   }
-  tsc: "TypeScript Check" {
+  typecheck: "TypeScript\nCheck" {
     style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
   }
-  vite: "Vite Dev Server\n(Live Preview)" {
+  preview: "Vite\nLive Preview" {
     style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
   }
-  pw: "Playwright\nScreenshot" {
+  screenshot: "Playwright\nScreenshot" {
     style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
   }
+
+  agent -> typecheck -> preview -> screenshot
 }
 
-data: "Data Layer" {
+# ─── Data Layer ───
+ops: "Ops Hub\nDashboard · Metrics\nDiff Review · Timeline" {
   style: {
-    fill: "#e6f4ea"
-    stroke: "#34a853"
-    border-radius: 12
+    fill: "#34a853"
+    stroke: "#1e8e3e"
+    font-color: "#ffffff"
+    border-radius: 10
     font-size: 14
     bold: true
   }
-
-  ops: "Ops Hub Dashboard\n· Request tracking\n· Metrics · Diff review" {
-    style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
+}
+ds: "Design System\n95 Components\n186 Tokens · Doc Site" {
+  style: {
+    fill: "#1a73e8"
+    stroke: "#1557b0"
+    font-color: "#ffffff"
+    border-radius: 10
+    font-size: 14
+    bold: true
   }
-  ds: "Design System\n· 95 Components\n· 186 Tokens · Doc Site" {
-    style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
-  }
-  mcp: "MCP Server\n9 AI Tools" {
-    style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
+}
+mcp: "MCP Server\n9 AI Tools" {
+  style: {
+    fill: "#1a73e8"
+    stroke: "#1557b0"
+    font-color: "#ffffff"
+    border-radius: 10
+    font-size: 14
+    bold: true
   }
 }
 
-entry.ext -> orch.api
-entry.slack -> orch.api: { style.stroke-dash: 5 }
-entry.jira -> orch.api: { style.stroke-dash: 5 }
-orch.pipe -> sandbox.repo
-sandbox.repo -> sandbox.agent -> sandbox.tsc -> sandbox.vite
-sandbox.agent -> sandbox.pw
-data.ds -> sandbox.agent
-orch.analytics -> data.ops
+# ─── Connections ───
+chrome -> orchestrator: "HTTP" {
+  style: { stroke: "#1a73e8"; font-size: 12 }
+}
+slack -> orchestrator: {
+  style: { stroke-dash: 5; stroke: "#9aa0a6" }
+}
+jira -> orchestrator: {
+  style: { stroke-dash: 5; stroke: "#9aa0a6" }
+}
+orchestrator -> sandbox: "Docker API" {
+  style: { stroke: "#f9ab00"; font-size: 12 }
+}
+ds -> sandbox.agent: "Context" {
+  style: { stroke: "#1a73e8"; font-size: 12; stroke-dash: 3 }
+}
+orchestrator -> ops: "Events" {
+  style: { stroke: "#34a853"; font-size: 12 }
+}
