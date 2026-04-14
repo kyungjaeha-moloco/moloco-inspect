@@ -1,8 +1,8 @@
 # Design Agent — Progress Report & Revised Roadmap
 
-**Date:** April 13, 2026
+**Kickoff:** March 26, 2026 | **Updated:** April 14, 2026 (Day 19)
 **Author:** Kyungjae Ha
-**Status:** Phase 1 substantially complete, ahead of the original 10-week schedule
+**Status:** Phase 1 core complete in ~18 days vs. planned 70 days (4× faster). Stability & Polish in progress.
 
 ---
 
@@ -309,197 +309,212 @@ The Ops Hub is a React dashboard for monitoring and managing all agent requests.
 
 ---
 
-## 6. Milestones & Roadmap
+## 6. Milestones & Roadmap (M1–M16)
 
-### Milestone Overview
+### Phase Objectives
 
-```
-Phase 1 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- M1 Context Layer  ██████████ DONE
- M2 Agent Pipeline ██████████ DONE
- M3 Chrome Extension ████████ DONE (was Phase 3)
- M4 Stability      ██████░░░░ IN PROGRESS
- M5 User Testing   ░░░░░░░░░░ READY TO START
- M6 PoC Report     ░░░░░░░░░░ AFTER M5
+| Phase | Question | Focus |
+|-------|----------|-------|
+| **Phase 1** | "Does it work?" | Pipeline verification + PoC |
+| **Phase 2** | "Can the team use it?" | Channel expansion + Quality automation + Deploy + Training |
+| **Phase 3** | "Does it run itself?" | Self-managing quality + Production hardening |
 
-Phase 2 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- M7 Slack Integration    ░░░░░░░░░░
- M8 Jira Integration     ░░░░░░░░░░
- M9 Evaluator Separation ░░░░░░░░░░
+### Timeline (M1–M16, Target: August 15, 2026)
 
-Phase 3 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- M10 Visual Regression   ░░░░░░░░░░
- M11 Copy Agent          ░░░░░░░░░░
- M12 Doc Maintainer      ░░░░░░░░░░
-```
+| Phase | # | Milestone | Duration | Target | Status |
+|-------|---|-----------|----------|--------|--------|
+| **Phase 1** | | **"Does it work?"** | | | |
+| *Pipeline* | M1 | Context Layer (95 components, tokens, patterns) | — | — | ✅ Done |
+| | M2 | Agent Pipeline (sandbox → code → validate → preview → PR) | — | — | ✅ Done |
+| | M3 | Chrome Extension (inspector, capture, AI analysis, plan review) | — | — | ✅ Done |
+| | M4 | Design System Site (Carbon-style, interactive previews, prop controls, dark mode, ⌘K search) | — | — | ✅ Done |
+| | M5 | Ops Hub Dashboard (request tracking, inline diff, approve/reject, timeline, metrics) | — | — | ✅ Done |
+| *PoC* | M6 | Stability & Polish | 2w | Apr 14 – 25 | 🔵 In progress |
+| | M7 | User Testing (PM 2, Eng 1, SA 1) | 2w | Apr 28 – May 9 | ⬜ |
+| | M8 | PoC Report & Go/No-Go | 1w | May 12 – 16 | ⬜ |
+| | | *Buffer — PoC feedback incorporation* | *1w* | *May 19 – 23* | |
+| | | | | | |
+| **Phase 2** | | **"Can the team use it?"** | | | |
+| *Channel Expansion* | M9 | External Integration (Slack + Jira + PRD parsing) | 4w | May 26 – Jun 20 | ⬜ |
+| *Quality Automation* | M10 | Evaluator Separation (Generator vs Evaluator) | 1.5w | Jun 23 – Jul 2 | ⬜ |
+| *Deploy & Rollout* | M11 | Server Deploy & QA | 1w | Jul 3 – 9 | ⬜ |
+| | M12 | Demo, Onboarding & Rollout | 1.5w | Jul 10 – 18 | ⬜ |
+| | | | | | |
+| **Phase 3** | | **"Does it run itself?"** | | | |
+| *Self-managing Quality* | M13 | Visual Regression — Eng (Playwright screenshot diff) | 1.5w | Jul 21 – 30 | ⬜ |
+| | M14 | Copy Agent — Designer (UX writing, i18n) | 1.5w | Jul 21 – 30 (parallel) | ⬜ |
+| | M15 | Doc Maintainer (auto-update Context Layer on code change) | 1w | Jul 31 – Aug 6 | ⬜ |
+| *Production Hardening* | M16 | Production Hardening (monitoring, backup, error recovery) | 1.5w | Aug 7 – 15 | ⬜ |
 
 ---
 
-### M4. Stability & Polish (Current — 2 weeks)
+### Already Completed (M1–M5)
 
-The pipeline works end-to-end, but several areas need hardening before user testing.
+| # | Milestone | Key Deliverables |
+|---|-----------|-----------------|
+| M1 | Context Layer | 95 component JSON contracts, 186 design tokens, 12 UI patterns, MCP server (9 tools), llms.txt |
+| M2 | Agent Pipeline | Orchestrator, Docker sandbox, Claude Sonnet agent, typecheck, live preview, diff viewer, PR creation, auto-refinement (3 rounds) |
+| M3 | Chrome Extension | Element inspector, region capture, AI plan review, structured requests, PRD ingest (basic), `Cmd+Shift+E` shortcut |
+| M4 | Design System Site | Carbon-style doc site, interactive prop controls (Mantine-style), anatomy diagrams (Radix-style), Shiki syntax highlighting, style/a11y tabs, Blocks page, dark mode, ⌘K global search |
+| M5 | Ops Hub Dashboard | Overview (stat cards, daily activity chart, donut performance chart), request list, request detail (inline diff, approve/reject, sticky action bar, AI analysis, timeline), state persistence |
+
+---
+
+### M6. Stability & Polish (Apr 14 – 25)
 
 | Task | Problem | Solution | Priority |
 |------|---------|----------|----------|
-| Live Preview auth | Sandbox preview shows login screen | Debug bootstrap page's `signInWithCache` flow; ensure `.env.test` mock interceptor activates in sandbox vite | P0 |
-| Screenshot capture | Sandbox lacks headless browser; screenshots often fail | Bundle Playwright in the sandbox Docker image; orchestrator falls back to host-side capture | P1 |
-| State persistence | Orchestrator restart loses all request data | Add SQLite or NDJSON file-based persistence for request state | P1 |
-| Sandbox cold start | `pnpm install` takes 30–90s per request | Pre-bake `node_modules` into the Docker image; only run install on lockfile change | P2 |
-| AI prompt quality | Some requests produce generic plans | Add intent-specific few-shot examples; increase Context Layer usage in agent prompt | P2 |
-| PRD parsing | PRD formats vary; extraction accuracy low | Structured PRD template + LLM-based extraction with validation | P2 |
+| Live Preview auth | Sandbox preview shows login screen | Inject auth tokens into sandbox `index.html` before vite starts | P0 |
+| Screenshot capture | Sandbox lacks headless browser | Playwright captures screenshot after vite is ready | P1 |
+| State persistence | Orchestrator restart loses data | File-based persistence (`state/{id}.json`), restore on startup | P1 |
+| Sandbox cold start | `pnpm install` takes 30–90s | Pre-bake `node_modules` into Docker image | P2 |
+| AI prompt quality | Some requests produce generic plans | Intent-specific few-shot examples + Context Layer usage | P2 |
 
 **Exit Criteria:** Live Preview works without login. Screenshot captures reliably. State survives restart.
 
 ---
 
-### M5. User Testing (2 weeks)
-
-First real-world validation with CAS team members.
+### M7. User Testing (Apr 28 – May 9)
 
 **Participants:** 2 PMs, 1 Engineer, 1 SA (4 total)
-**Target Surface:** TAS Order Management List (most patterned, highest component reuse)
-
-**Test Protocol:**
-1. Each participant receives 5 pre-defined UI change tasks (varying complexity)
-2. Tasks cover all supported intents: layout, copy, spacing, component swap, state handling
-3. Participants use Chrome Extension independently (1:1 onboarding in first session)
-4. Each task is timed from request submission to PR creation
-5. Generated code reviewed by engineer for quality scoring
-6. Post-test survey (5-point scale)
-
-**Success Criteria:**
+**Target:** TAS Order Management List
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
 | PM completes task without designer | 3 of 4 participants | Observation |
 | Time from request to PR | < 5 minutes | System logs |
-| DS compliance rate | 80%+ auto-pass on Evaluator | Evaluator logs |
+| DS compliance rate | 80%+ auto-pass | Evaluator logs |
 | Engineer review pass rate | 70%+ (minor fix or less) | PR review records |
 | User satisfaction | 3.5/5+ | Post-test survey |
-| Request coverage | 60%+ of test tasks processable | Request classification |
+| Request coverage | 60%+ of test tasks | Request classification |
 
-**Exit Criteria:** At least 3 of 6 metrics met. Clear signal on which request types work well and which need improvement.
-
----
-
-### M6. PoC Impact Report (1 week)
-
-Compile user testing data into a stakeholder-ready report.
-
-**Deliverables:**
-- Quantitative results vs. success criteria table
-- Per-intent breakdown: which types of requests succeed, which fail, and why
-- Before/after comparison: time and designer dependency for common tasks
-- Context Layer coverage gap analysis: which components/patterns are missing
-- Concrete recommendations for Phase 2 scope and priority
-- Demo recording (3-minute walkthrough)
-- Presentation for CAS team all-hands
-
-**Exit Criteria:** Report reviewed by document reviewers (Gyeongjun Lee, Kevin Park, Ji Hun Lee). Go/no-go decision for Phase 2.
+**Exit Criteria:** At least 3 of 6 metrics met.
 
 ---
 
-### M7. Slack Integration (4 weeks)
+### M8. PoC Report & Go/No-Go (May 12 – 16)
 
-Add Slack as the second entry point for team-wide visibility and text-based requests.
+**Deliverables:** Results vs. criteria table, per-intent breakdown, before/after comparison, demo recording, CAS team presentation.
 
-| Week | Deliverable |
-|------|-------------|
-| 1 | Slack app setup, `@design-agent` mention detection, basic request submission via thread |
-| 2 | Agent replies in-thread with plan summary; user confirms/rejects in Slack |
-| 3 | Status notifications: sandbox started, preview ready, PR created, merged |
-| 4 | Deep link to Chrome Extension for visual refinement; `/design-agent status` command |
+**Exit Criteria:** Report reviewed by Gyeongjun Lee, Kevin Park, Ji Hun Lee. Go/no-go decision for Phase 2.
 
-**Key Design Decisions:**
-- Slack is the **notification and text-entry** layer, not a replacement for Chrome Extension
-- Complex visual changes → Slack links to Chrome Extension for element selection
-- Simple text/copy changes → fully completable in Slack thread
-- All requests visible in Ops Hub regardless of entry point
-
-**Exit Criteria:** PM can submit a copy-change request in Slack and receive a PR link without leaving Slack.
+**Buffer (May 19 – 23):** Incorporate PoC feedback before Phase 2 begins.
 
 ---
 
-### M8. Jira Integration (4 weeks)
+### M9. External Integration (May 26 – Jun 20)
 
-Add Jira as the third entry point for ticket-driven automation.
+Slack, Jira, and PRD parsing in a single milestone — 3 entry channels unified.
 
-| Week | Deliverable |
-|------|-------------|
-| 1 | Jira webhook listener; detect UI improvement tickets by label/component |
-| 2 | Auto-generate change proposal from ticket description; post proposal as Jira comment |
-| 3 | Ticket → Agent → PR flow; bi-directional link (Jira ticket ↔ GitHub PR) |
-| 4 | Status sync (PR merged → ticket moves to "Done"); batch related tickets into single PR |
+| Week | Focus | Deliverable |
+|------|-------|-------------|
+| 1 (May 26) | Slack | Bot setup, `@design-agent` mention, thread-based request/response |
+| 2 (Jun 2) | Jira | Webhook listener, ticket detection, proposal comment |
+| 3 (Jun 9) | Jira + PRD | Ticket→PR link, PRD basic parsing, component mapping |
+| 4 (Jun 16) | PRD + QA | PRD change candidate generation, 3-channel integration testing |
 
-**Scope Rules:**
-- Only tickets tagged with `design-agent` label are processed
-- Agent posts a proposal comment first; human must approve before code generation
-- Tickets requiring new components (not in DS) are auto-escalated to designer
-
-**Exit Criteria:** A tagged Jira ticket automatically generates a PR proposal. PM approves in Jira, PR is created.
+**Exit Criteria:** PM can request via Slack or Jira and receive a PR. PRD link extracts actionable items.
 
 ---
 
-### M9. Evaluator Separation (4 weeks)
+### M10. Evaluator Separation (Jun 23 – Jul 2)
 
-Separate generation and evaluation into distinct agents to eliminate self-evaluation bias.
+Separate Generator and Evaluator agents to eliminate self-evaluation bias.
 
-| Week | Deliverable |
-|------|-------------|
-| 1 | Define evaluation rubric: DS token usage, import paths, component API compliance, layout rules |
-| 2 | Build Evaluator agent with rule-based checks + LLM-based review |
-| 3 | Integration: Generator output → Evaluator scores → auto-feedback loop |
-| 4 | Dashboard: per-request quality scores, trend charts, common failure patterns |
-
-**Evaluation Dimensions:**
-
-| Dimension | Check Type | Example |
-|-----------|-----------|---------|
-| Token compliance | Rule | No hardcoded `#ffffff`; must use `semantic.background.base` |
-| Component API | Rule | `MCButton2` must not receive unknown props |
-| Import paths | Rule | No relative imports crossing module boundaries |
+| Dimension | Check | Example |
+|-----------|-------|---------|
+| Token compliance | Rule | No hardcoded `#ffffff` → must use `semantic.background.base` |
+| Component API | Rule | `MCButton2` rejects unknown props |
+| Import paths | Rule | No cross-boundary relative imports |
 | Layout patterns | Rule + LLM | Spacing follows 4/8/12/16/24px scale |
-| Visual consistency | LLM | Generated UI "looks right" compared to existing patterns |
-| Accessibility | Rule | Interactive elements have `aria-label` or visible text |
+| Accessibility | Rule | Interactive elements have `aria-label` |
 
-**Stop Conditions (from original proposal):**
-1. Target score reached → auto-deploy
-2. Score stagnation after 3 rounds → escalate to human
-3. Score drops between rounds → immediate escalate
-4. Safety ceiling reached → escalate
+**Stop Conditions:** Target score → auto-deploy. Stagnation after 3 rounds → escalate. Score drop → immediate escalate.
 
-**Exit Criteria:** Evaluator runs automatically on every request. 80%+ of auto-passed code requires no engineer changes.
+**Exit Criteria:** Evaluator runs on every request. 80%+ auto-passed code needs no engineer changes.
 
 ---
 
-### M10–M12. Phase 3 (Estimated 6 weeks each)
+### M11. Server Deploy & QA (Jul 3 – 9)
 
-| Milestone | Scope | Entry Condition |
-|-----------|-------|-----------------|
-| M10. Visual Regression | Playwright screenshot diff (before/after); auto-detect visual regressions in generated code | M9 complete |
-| M11. Copy Agent | Dedicated agent for UX writing: tone & voice guide, terminology dictionary, multilingual rules (ko/en/ja) | M7 complete (Slack needed for copy-focused requests) |
-| M12. Doc Maintainer | PR merge → auto-update Context Layer (Agent View + Human View); drift detection in CI | M9 complete |
+| Task | Description |
+|------|-------------|
+| Infrastructure | Docker Compose on team server (or each dev's machine) |
+| Deploy | Orchestrator + Sandbox image + Ops Hub + DS Site |
+| Access | VPN internal, HTTPS, basic auth |
+| QA | 10 end-to-end scenarios, Slack/Jira channels verified |
 
 ---
 
-### Timeline Summary
+### M12. Demo, Onboarding & Rollout (Jul 10 – 18)
 
-| Phase | Milestones | Duration | Status |
-|-------|-----------|----------|--------|
-| **Phase 1** | M1 Context Layer | — | ✅ Done |
-| | M2 Agent Pipeline | — | ✅ Done |
-| | M3 Chrome Extension | — | ✅ Done |
-| | M4 Stability & Polish | 2 weeks | 🔵 In progress |
-| | M5 User Testing | 2 weeks | ⬜ Ready |
-| | M6 PoC Report | 1 week | ⬜ After M5 |
-| **Phase 2** | M7 Slack Integration | 4 weeks | ⬜ After M6 go-decision |
-| | M8 Jira Integration | 4 weeks | ⬜ After M7 or parallel |
-| | M9 Evaluator Separation | 4 weeks | ⬜ After M7 |
-| **Phase 3** | M10 Visual Regression | 6 weeks | ⬜ After M9 |
-| | M11 Copy Agent | 6 weeks | ⬜ After M7 |
-| | M12 Doc Maintainer | 6 weeks | ⬜ After M9 |
+| Task | Description |
+|------|-------------|
+| Demo | 30-min live session for CAS team + 3-min recording |
+| 1:1 Onboarding | Hands-on session with each PM/SA |
+| Guide | Quick Start doc + FAQ + troubleshooting |
+| Slack channel | `#cas-design-agent` setup with bot |
+| Feedback | Survey after 1 week of usage |
 
-**Total estimated time to full vision:** Phase 1 remaining (~5 weeks) + Phase 2 (~12 weeks) + Phase 3 (~12 weeks) = **~29 weeks from now**. Phase 2 start depends on M6 go-decision.
+---
+
+### M13–M14. Parallel Quality Agents (Jul 21 – 30)
+
+| # | Agent | Owner | Scope |
+|---|-------|-------|-------|
+| M13 | Visual Regression | Engineer | Playwright screenshot diff (before/after), auto-detect regressions |
+| M14 | Copy Agent | Designer | UX writing: tone & voice, terminology, multilingual (ko/en/ja) |
+
+---
+
+### M15. Doc Maintainer (Jul 31 – Aug 6)
+
+PR merge → auto-update Context Layer (Agent View + Human View). Drift detection in CI blocks hardcoded values that bypass tokens.
+
+---
+
+### M16. Production Hardening (Aug 7 – 15)
+
+Monitoring, error recovery, backup, uptime alerting. System runs without daily intervention.
+
+---
+
+### Checkpoints
+
+| Gate | Date | Decision |
+|------|------|----------|
+| **Phase 1 → Buffer** | May 16 | PoC success criteria met → Go/No-Go |
+| **Buffer → Phase 2** | May 26 | Feedback incorporated → Phase 2 begins |
+| **Phase 2 → 3** | Jul 18 | Team actively using, deployed & trained |
+| **Phase 3 Complete** | Aug 15 | Self-managing quality + production stable |
+
+### Visual Timeline
+
+```
+Apr          May              Jun              Jul              Aug
+├────────────┼────────────────┼────────────────┼────────────────┼───────┤
+
+Phase 1 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ M1-M5                 ✅ Done
+ M6 Stability  ████████
+ M7 Testing           ████████
+ M8 Report                    ████
+ Buffer                           ████
+
+Phase 2 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                       M9  Integration  ████████████████
+                                       M10 Evaluator                    ██████
+                                       M11 Deploy                             ████
+                                       M12 Rollout                               ██████
+
+Phase 3 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                          M13 Visual  ██████ ┐
+                                                                          M14 Copy    ██████ ┘ parallel
+                                                                          M15 DocMaint       ████
+                                                                          M16 Prod               ██████
+
+                                                                                              Aug 15 ← Complete
+```
 
 ---
 
