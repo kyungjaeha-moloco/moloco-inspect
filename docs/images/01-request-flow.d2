@@ -1,0 +1,105 @@
+direction: right
+
+select: {
+  label: "1. SELECT"
+  shape: rectangle
+  style: {
+    fill: "#e8f0fe"
+    stroke: "#1a73e8"
+    border-radius: 8
+    font-size: 16
+    bold: true
+  }
+  desc: |md
+    Open product page
+    `Cmd+Shift+E`
+    Click element
+  |
+}
+
+describe: {
+  label: "2. DESCRIBE"
+  shape: rectangle
+  style: {
+    fill: "#e8f0fe"
+    stroke: "#1a73e8"
+    border-radius: 8
+    font-size: 16
+    bold: true
+  }
+  desc: |md
+    Natural language
+    *"Move this column
+    to the left"*
+  |
+}
+
+plan: {
+  label: "3. AI PLANS"
+  shape: rectangle
+  style: {
+    fill: "#1a73e8"
+    stroke: "#1557b0"
+    font-color: "#ffffff"
+    border-radius: 8
+    font-size: 16
+    bold: true
+  }
+  desc: |md
+    Claude Sonnet analyzes
+    → execution plan
+  |
+}
+
+execute: {
+  label: "4. EXECUTE"
+  shape: rectangle
+  style: {
+    fill: "#1a73e8"
+    stroke: "#1557b0"
+    font-color: "#ffffff"
+    border-radius: 8
+    font-size: 16
+    bold: true
+  }
+  desc: |md
+    Agent modifies code
+    in Docker sandbox
+  |
+}
+
+review: {
+  label: "5. REVIEW"
+  shape: rectangle
+  style: {
+    fill: "#e6f4ea"
+    stroke: "#34a853"
+    border-radius: 8
+    font-size: 16
+    bold: true
+  }
+  desc: |md
+    Live preview
+    Diff viewer
+    Screenshot
+  |
+}
+
+ship: {
+  label: "6. SHIP"
+  shape: rectangle
+  style: {
+    fill: "#34a853"
+    stroke: "#1e8e3e"
+    font-color: "#ffffff"
+    border-radius: 8
+    font-size: 16
+    bold: true
+  }
+  desc: |md
+    One-click
+    GitHub PR
+  |
+}
+
+select -> describe -> plan -> execute -> review -> ship

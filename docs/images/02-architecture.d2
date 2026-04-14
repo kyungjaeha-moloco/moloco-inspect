@@ -1,0 +1,126 @@
+direction: down
+
+entry: "Entry Points" {
+  style: {
+    fill: "#e8f0fe"
+    stroke: "#1a73e8"
+    border-radius: 12
+    font-size: 14
+    bold: true
+  }
+
+  ext: "Chrome Extension" {
+    style: {
+      fill: "#1a73e8"
+      stroke: "#1557b0"
+      font-color: "#ffffff"
+      border-radius: 8
+      font-size: 14
+      bold: true
+    }
+    items: |md
+      · Element Inspector
+      · Region Capture
+      · AI Plan Review
+      · PRD Ingest
+    |
+  }
+
+  slack: "Slack Bot\n(Next Phase)" {
+    style: {
+      fill: "#e8eaed"
+      stroke: "#5f6368"
+      font-color: "#5f6368"
+      border-radius: 8
+      font-size: 13
+    }
+  }
+
+  jira: "Jira Integration\n(Planned)" {
+    style: {
+      fill: "#e8eaed"
+      stroke: "#5f6368"
+      font-color: "#5f6368"
+      border-radius: 8
+      font-size: 13
+    }
+  }
+}
+
+orch: "Orchestrator — Node.js" {
+  style: {
+    fill: "#f8f9fa"
+    stroke: "#5f6368"
+    border-radius: 12
+    font-size: 14
+    bold: true
+  }
+
+  api: "11 API Endpoints" {
+    style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 8; font-size: 13 }
+  }
+  pipe: "Pipeline Engine\nRequest → Analysis → Sandbox\n→ Agent → Validate → Preview → PR" {
+    style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 8; font-size: 13 }
+  }
+  sse: "SSE Events" {
+    style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 8; font-size: 13 }
+  }
+  analytics: "Analytics" {
+    style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 8; font-size: 13 }
+  }
+}
+
+sandbox: "Docker Sandbox — per request" {
+  style: {
+    fill: "#fef7e0"
+    stroke: "#f9ab00"
+    border-radius: 12
+    font-size: 14
+    bold: true
+  }
+
+  repo: "Product Repo Copy" {
+    style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
+  }
+  agent: "AI Agent\nClaude Sonnet 4.6" {
+    style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 14; bold: true }
+  }
+  tsc: "TypeScript Check" {
+    style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
+  }
+  vite: "Vite Dev Server\n(Live Preview)" {
+    style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
+  }
+  pw: "Playwright\nScreenshot" {
+    style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
+  }
+}
+
+data: "Data Layer" {
+  style: {
+    fill: "#e6f4ea"
+    stroke: "#34a853"
+    border-radius: 12
+    font-size: 14
+    bold: true
+  }
+
+  ops: "Ops Hub Dashboard\n· Request tracking\n· Metrics · Diff review" {
+    style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
+  }
+  ds: "Design System\n· 95 Components\n· 186 Tokens · Doc Site" {
+    style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
+  }
+  mcp: "MCP Server\n9 AI Tools" {
+    style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
+  }
+}
+
+entry.ext -> orch.api
+entry.slack -> orch.api: { style.stroke-dash: 5 }
+entry.jira -> orch.api: { style.stroke-dash: 5 }
+orch.pipe -> sandbox.repo
+sandbox.repo -> sandbox.agent -> sandbox.tsc -> sandbox.vite
+sandbox.agent -> sandbox.pw
+data.ds -> sandbox.agent
+orch.analytics -> data.ops

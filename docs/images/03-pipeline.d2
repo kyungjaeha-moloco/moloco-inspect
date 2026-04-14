@@ -1,0 +1,146 @@
+direction: down
+
+req: "Request Received" {
+  style: {
+    fill: "#f8f9fa"
+    stroke: "#5f6368"
+    border-radius: 8
+    font-size: 15
+  }
+}
+
+analysis: "AI Analysis\nClaude Sonnet · ~3s" {
+  style: {
+    fill: "#e8f0fe"
+    stroke: "#1a73e8"
+    border-radius: 8
+    font-size: 15
+  }
+}
+
+sandbox: "Create Sandbox · 2-5s" {
+  style: {
+    fill: "#fef7e0"
+    stroke: "#f9ab00"
+    border-radius: 8
+    font-size: 15
+  }
+}
+
+sync: "Sync Source · 3-8s" {
+  style: {
+    fill: "#fef7e0"
+    stroke: "#f9ab00"
+    border-radius: 8
+    font-size: 15
+  }
+}
+
+agent: "Run Agent · 30-120s" {
+  style: {
+    fill: "#1a73e8"
+    stroke: "#1557b0"
+    font-color: "#ffffff"
+    border-radius: 8
+    font-size: 16
+    bold: true
+  }
+}
+
+diff: "Collect Diff" {
+  shape: diamond
+  style: {
+    fill: "#f8f9fa"
+    stroke: "#5f6368"
+    font-size: 14
+  }
+}
+
+no_change: "No Change Needed" {
+  style: {
+    fill: "#f8f9fa"
+    stroke: "#dadce0"
+    border-radius: 8
+    font-size: 14
+    font-color: "#5f6368"
+  }
+}
+
+tc: "TypeScript Check · 5-30s" {
+  style: {
+    fill: "#e6f4ea"
+    stroke: "#34a853"
+    border-radius: 8
+    font-size: 15
+  }
+}
+
+preview: "Start Vite Preview · 30-90s" {
+  style: {
+    fill: "#e6f4ea"
+    stroke: "#34a853"
+    border-radius: 8
+    font-size: 15
+  }
+}
+
+screenshot: "Playwright Screenshot" {
+  style: {
+    fill: "#e6f4ea"
+    stroke: "#34a853"
+    border-radius: 8
+    font-size: 15
+  }
+}
+
+ready: "Preview Ready" {
+  style: {
+    fill: "#34a853"
+    stroke: "#1e8e3e"
+    font-color: "#ffffff"
+    border-radius: 8
+    font-size: 16
+    bold: true
+  }
+}
+
+pr: "Create GitHub PR" {
+  style: {
+    fill: "#34a853"
+    stroke: "#1e8e3e"
+    font-color: "#ffffff"
+    border-radius: 8
+    font-size: 16
+    bold: true
+  }
+}
+
+req -> analysis
+analysis -> sandbox: "PM Confirms" {
+  style.font-color: "#1a73e8"
+  style.font-size: 13
+}
+sandbox -> sync
+sync -> agent
+agent -> diff
+diff -> no_change: "No changes" {
+  style.font-color: "#5f6368"
+  style.font-size: 13
+}
+diff -> tc: "Has changes" {
+  style.font-color: "#34a853"
+  style.font-size: 13
+}
+tc -> preview
+preview -> screenshot
+screenshot -> ready
+ready -> pr: "Approve" {
+  style.font-color: "#34a853"
+  style.font-size: 13
+  style.bold: true
+}
+ready -> agent: "Reject + Feedback" {
+  style.font-color: "#ea4335"
+  style.font-size: 13
+  style.stroke-dash: 5
+}

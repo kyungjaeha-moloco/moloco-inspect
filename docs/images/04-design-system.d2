@@ -1,0 +1,75 @@
+direction: down
+
+source: "Design System — Source of Truth" {
+  style: {
+    fill: "#e8f0fe"
+    stroke: "#1a73e8"
+    border-radius: 12
+    font-size: 14
+    bold: true
+  }
+
+  comp: "95 Component Contracts\nProps · Variants · States\nTokens · Anti-patterns" {
+    style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 14; bold: true }
+  }
+  tokens: "186 Design Tokens\nSemantic Palette\nSpacing · Radius · Shadow" {
+    style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 14; bold: true }
+  }
+  patterns: "12 UI Patterns\nForm · Table · Dashboard\nDialog · List · Detail" {
+    style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 14; bold: true }
+  }
+}
+
+consumers: "Who Uses It" {
+  style: {
+    fill: "#e6f4ea"
+    stroke: "#34a853"
+    border-radius: 12
+    font-size: 14
+    bold: true
+  }
+
+  agent: "AI Agent\nReferences during\ncode generation" {
+    style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
+  }
+  doc: "Documentation Site\nInteractive previews\nProp controls · Search" {
+    style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
+  }
+  mcp: "MCP Server\n9 tools for any\nAI tool integration" {
+    style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
+  }
+  llms: "llms.txt\nAI-readable index\nfor LLM integration" {
+    style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 8; font-size: 13; bold: true }
+  }
+}
+
+quality: "Quality Guarantee" {
+  style: {
+    fill: "#fef7e0"
+    stroke: "#f9ab00"
+    border-radius: 12
+    font-size: 14
+    bold: true
+  }
+
+  tsc: "TypeScript\nType safety" {
+    style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
+  }
+  eval: "Evaluator (Phase 2)\nAuto-scoring" {
+    style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
+  }
+  drift: "Drift Detection (Phase 3)\nCI-based" {
+    style: { fill: "#ffffff"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
+  }
+}
+
+source.comp -> consumers.agent
+source.comp -> consumers.doc
+source.comp -> consumers.mcp
+source.comp -> consumers.llms
+source.tokens -> consumers.agent
+source.tokens -> consumers.doc
+source.patterns -> consumers.agent
+consumers.agent -> quality.tsc
+quality.tsc -> quality.eval
+quality.eval -> quality.drift
