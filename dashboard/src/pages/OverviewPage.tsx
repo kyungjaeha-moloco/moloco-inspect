@@ -315,7 +315,7 @@ function AgentPerformanceChart({ statusCounts, total }: { statusCounts: Record<s
   ].map(s => ({ ...s, value: statusCounts[s.key] ?? 0 })).filter(s => s.value > 0);
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 32, padding: '16px 0' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, padding: '16px 0' }}>
       {/* Recharts Donut */}
       <div style={{ position: 'relative', width: 150, height: 150, flexShrink: 0 }}>
         <PieChart width={150} height={150}>
