@@ -47,6 +47,7 @@ const DEFAULT_PRODUCT_REPO_ROOT = path.join(SOURCE_WORKSPACE_ROOT, 'msm-portal')
 const DESIGN_SYSTEM_ROOT = process.env.DESIGN_SYSTEM_ROOT ||
   (fs.existsSync(LOCAL_DESIGN_SYSTEM_ROOT) ? LOCAL_DESIGN_SYSTEM_ROOT : path.join(SOURCE_WORKSPACE_ROOT, 'design-system'));
 const SCREENSHOTS_DIR = path.join(__dirname, 'screenshots');
+const STATE_DIR = path.join(__dirname, 'state');
 const ATTACHMENTS_DIR = path.join(__dirname, 'attachments');
 const ANALYTICS_DIR = path.join(__dirname, 'analytics');
 const REQUEST_HISTORY_PATH = path.join(ANALYTICS_DIR, 'request-history.ndjson');
@@ -444,6 +445,49 @@ function createRequest(payload) {
   return state;
 }
 
+function persistState(id) {
+  try {
+    const state = requests.get(id);
+    if (!state) return;
+    if (!fs.existsSync(STATE_DIR)) fs.mkdirSync(STATE_DIR, { recursive: true });
+    // Save serializable fields only (exclude sandbox object with container refs)
+    const serializable = {
+      id: state.id, status: state.status, phase: state.phase,
+      request: state.request, payload: state.payload,
+      diff: state.diff, changedFiles: state.changedFiles,
+      screenshotPath: state.screenshotPath, previewUrl: state.previewUrl,
+      livePreviewUrl: state.livePreviewUrl, prUrl: state.prUrl,
+      latestLog: state.latestLog, log: state.log,
+      error: state.error, analytics: state.analytics,
+      createdAt: state.createdAt, updatedAt: state.updatedAt,
+      diffStat: state.diffStat || null,
+    };
+    fs.writeFileSync(path.join(STATE_DIR, `${id}.json`), JSON.stringify(serializable), 'utf-8');
+  } catch (e) {
+    console.error(`[State] Failed to persist ${id}:`, e.message);
+  }
+}
+
+function restoreAllState() {
+  if (!fs.existsSync(STATE_DIR)) return;
+  const files = fs.readdirSync(STATE_DIR).filter(f => f.endsWith('.json'));
+  let restored = 0;
+  for (const file of files) {
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(STATE_DIR, file), 'utf-8'));
+      if (data.id && !requests.has(data.id)) {
+        // Mark sandbox as expired (container no longer running)
+        data.sandbox = null;
+        data.sandboxExpired = true;
+        if (data.livePreviewUrl) data.livePreviewExpired = true;
+        requests.set(data.id, data);
+        restored++;
+      }
+    } catch {}
+  }
+  if (restored) console.log(`[State] Restored ${restored} requests from disk`);
+}
+
 function updateRequest(id, updates) {
   const state = requests.get(id);
   if (!state) return null;
@@ -473,6 +517,7 @@ function updateRequest(id, updates) {
       res.write(`data: ${event}\n\n`);
     }
   }
+  persistState(id);
   return state;
 }
 
@@ -556,12 +601,15 @@ function buildAnalyticsSnapshot(state) {
     worktreePath: state.worktreePath ? path.relative(WORKSPACE_ROOT, state.worktreePath) : null,
     previewUrl: state.previewUrl,
     livePreviewUrl: state.livePreviewUrl || null,
+    livePreviewExpired: state.livePreviewExpired || false,
+    sandboxExpired: state.sandboxExpired || false,
     screenshotUrl: state.screenshotPath ? `/api/screenshot/${state.id}` : null,
     screenshotPath: screenshotRelative,
     attachmentPath: attachmentRelative,
     changedFiles,
     changedFileCount: changedFiles.length,
     diffLineCount: state.diff ? state.diff.split('\n').length : 0,
+    diff: state.diff || null,
     logCount: state.log.length,
     lifecycleCount: (state.analytics?.lifecycle ?? []).length,
     approvalState: state.analytics?.approvalState ?? 'pending_review',
@@ -1831,6 +1879,7 @@ Return JSON:
 });
 
 ensureAnalyticsStorage();
+restoreAllState();
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Orchestrator] Listening on http://localhost:${PORT}`);
   console.log(`[Orchestrator] Workspace root: ${WORKSPACE_ROOT}`);

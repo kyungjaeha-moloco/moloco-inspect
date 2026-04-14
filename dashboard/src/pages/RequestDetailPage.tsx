@@ -170,10 +170,17 @@ export function RequestDetailPage() {
           </div>
           {/* Live Preview button — prominent */}
           {(req as any)?.livePreviewUrl && (
-            <a className="rd-preview-btn" href={(req as any).livePreviewUrl} target="_blank" rel="noreferrer">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16"><path d="M6 3h7v7"/><path d="M13 3L6 10"/><path d="M11 9v4H3V5h4"/></svg>
-              Open Live Preview
-            </a>
+            (req as any)?.livePreviewExpired ? (
+              <div className="rd-preview-expired">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16"><circle cx="8" cy="8" r="6"/><path d="M6 6l4 4M10 6l-4 4"/></svg>
+                Sandbox expired — preview no longer available
+              </div>
+            ) : (
+              <a className="rd-preview-btn" href={(req as any).livePreviewUrl} target="_blank" rel="noreferrer">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16"><path d="M6 3h7v7"/><path d="M13 3L6 10"/><path d="M11 9v4H3V5h4"/></svg>
+                Open Live Preview
+              </a>
+            )
           )}
           {/* Screenshot */}
           {req?.screenshotUrl ? (

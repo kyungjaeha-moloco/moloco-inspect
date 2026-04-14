@@ -841,6 +841,13 @@ a.data-table-row:hover {
 }
 .rd-preview-btn:hover { filter: brightness(1.1); box-shadow: 0 0 0 3px var(--accent-dim); }
 
+.rd-preview-expired {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin: 16px 20px; padding: 12px; border-radius: var(--radius-md);
+  background: rgba(218,30,40,0.06); border: 1px solid rgba(218,30,40,0.2);
+  color: var(--text-muted); font-size: 13px;
+}
+
 .rd-screenshot {
   width: calc(100% - 40px); margin: 0 20px 16px; border-radius: var(--radius-md);
   border: 1px solid var(--border); cursor: pointer; transition: opacity 0.15s;
