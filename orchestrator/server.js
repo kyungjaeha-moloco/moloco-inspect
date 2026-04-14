@@ -843,6 +843,8 @@ async function runPipeline(id) {
     updateRequest(id, { phase: 'syncing_source' });
     if (fs.existsSync(DEFAULT_PRODUCT_REPO_ROOT)) {
       await copyFilesIn({ containerId: sandbox.containerId, sourceDir: DEFAULT_PRODUCT_REPO_ROOT });
+      // Remove macOS resource fork files (._*) that break esbuild/vite
+      await execInContainer({ containerId: sandbox.containerId, command: 'find /workspace -name "._*" -delete 2>/dev/null || true', timeout: 10000 }).catch(() => {});
       appendLog(id, 'Source synced into sandbox');
     }
     // Copy opencode auth for OAuth-based providers
