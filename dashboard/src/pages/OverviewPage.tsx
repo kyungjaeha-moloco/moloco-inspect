@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, CartesianGrid, Cell, ComposedChart, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { API_BASE, AnalyticsRecord } from '../analytics/types';
 import { formatDuration, formatPercent, getStatusBadgeClass, truncate } from '../analytics/helpers';
@@ -312,54 +312,46 @@ function AgentPerformanceChart({ statusCounts, total }: { statusCounts: Record<s
     { key: 'processing', label: 'Processing', color: '#0f62fe' },
     { key: 'pending', label: 'Pending', color: '#8d8d8d' },
     { key: 'error', label: 'Error', color: '#da1e28' },
-  ].map(s => ({ ...s, count: statusCounts[s.key] ?? 0 })).filter(s => s.count > 0);
-
-  // Donut chart via SVG
-  const size = 160;
-  const strokeWidth = 28;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  let accumulated = 0;
+  ].map(s => ({ ...s, value: statusCounts[s.key] ?? 0 })).filter(s => s.value > 0);
 
   return (
-    <div className="agent-perf" style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-      {/* Donut */}
-      <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
-          {total > 0 && segments.map(s => {
-            const pct = s.count / total;
-            const dashLength = pct * circumference;
-            const dashOffset = -accumulated * circumference;
-            accumulated += pct;
-            return (
-              <circle
-                key={s.key}
-                cx={size / 2} cy={size / 2} r={radius}
-                fill="none" stroke={s.color} strokeWidth={strokeWidth}
-                strokeDasharray={`${dashLength} ${circumference - dashLength}`}
-                strokeDashoffset={dashOffset}
-                strokeLinecap="butt"
-              />
-            );
-          })}
-          {total === 0 && (
-            <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#e0e0e0" strokeWidth={strokeWidth} />
-          )}
-        </svg>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="agent-perf" style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+      {/* Recharts Donut */}
+      <div style={{ position: 'relative', width: 160, height: 160, flexShrink: 0 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={segments.length > 0 ? segments : [{ key: 'empty', value: 1, color: '#e0e0e0' }]}
+              dataKey="value"
+              cx="50%" cy="50%"
+              innerRadius={48} outerRadius={72}
+              paddingAngle={segments.length > 1 ? 2 : 0}
+              strokeWidth={0}
+            >
+              {(segments.length > 0 ? segments : [{ key: 'empty', color: '#e0e0e0' }]).map((s) => (
+                <Cell key={s.key} fill={s.color} />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value: number, name: string, props: any) => [`${value} (${total > 0 ? Math.round((value / total) * 100) : 0}%)`, props.payload.label || name]}
+              contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
           <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>{total}</span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</span>
         </div>
       </div>
       {/* Legend */}
-      <div className="agent-perf-legend" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div className="agent-perf-legend">
         {segments.map(s => {
-          const pct = total > 0 ? Math.round((s.count / total) * 100) : 0;
+          const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
           return (
             <div key={s.key} className="agent-perf-chip">
               <span className="agent-perf-dot" style={{ background: s.color }} />
               <span className="agent-perf-chip-label">{s.label}</span>
-              <span className="agent-perf-chip-value">{s.count}</span>
+              <span className="agent-perf-chip-value">{s.value}</span>
               <span className="agent-perf-chip-pct">{pct}%</span>
             </div>
           );

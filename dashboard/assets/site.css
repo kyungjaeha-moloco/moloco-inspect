@@ -1666,8 +1666,8 @@ a.data-table-row:hover {
 }
 .agent-perf-legend {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
 }
 .agent-perf-chip {
   display: flex;
