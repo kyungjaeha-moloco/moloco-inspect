@@ -1,16 +1,16 @@
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0f62fe', 'primaryTextColor': '#fff', 'lineColor': '#525252', 'fontSize': '13px' }}}%%
-flowchart LR
-    REQ["Request<br/>Received"] --> ANALYSIS["AI Analysis<br/>Claude Sonnet<br/><i>~3s</i>"]
-    ANALYSIS --> |PM Confirms| SANDBOX["Create<br/>Sandbox<br/><i>2-5s</i>"]
-    SANDBOX --> SYNC["Sync<br/>Source<br/><i>3-8s</i>"]
-    SYNC --> AGENT["Run<br/>Agent<br/><i>30-120s</i>"]
-    AGENT --> DIFF["Collect<br/>Diff"]
-    DIFF --> |No changes| DONE_NC["No Change<br/>Needed"]
-    DIFF --> |Has changes| TC["TypeScript<br/>Check<br/><i>5-30s</i>"]
-    TC --> PREVIEW["Start Vite<br/>Preview<br/><i>30-90s</i>"]
-    PREVIEW --> SS["Playwright<br/>Screenshot"]
-    SS --> READY["Preview<br/>Ready"]
-    READY --> |Approve| PR["Create<br/>GitHub PR"]
+flowchart TD
+    REQ["Request Received"] --> ANALYSIS["AI Analysis — Claude Sonnet ~3s"]
+    ANALYSIS --> |PM Confirms| SANDBOX["Create Sandbox 2-5s"]
+    SANDBOX --> SYNC["Sync Source 3-8s"]
+    SYNC --> AGENT["Run Agent 30-120s"]
+    AGENT --> DIFF["Collect Diff"]
+    DIFF --> |No changes| DONE_NC["No Change Needed"]
+    DIFF --> |Has changes| TC["TypeScript Check 5-30s"]
+    TC --> PREVIEW["Start Vite Preview 30-90s"]
+    PREVIEW --> SS["Playwright Screenshot"]
+    SS --> READY["Preview Ready"]
+    READY --> |Approve| PR["Create GitHub PR"]
     READY --> |Reject + Feedback| AGENT
 
     style REQ fill:#e0e0e0,stroke:#525252
