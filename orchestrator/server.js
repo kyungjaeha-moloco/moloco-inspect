@@ -845,6 +845,12 @@ async function runPipeline(id) {
       await copyFilesIn({ containerId: sandbox.containerId, sourceDir: DEFAULT_PRODUCT_REPO_ROOT });
       // Remove macOS resource fork files (._*) that break esbuild/vite
       await execInContainer({ containerId: sandbox.containerId, command: 'find /workspace -name "._*" -delete 2>/dev/null || true', timeout: 10000 }).catch(() => {});
+      // Inject Zscaler CA cert for corporate proxy SSL (SSL_CERT_FILE=/tmp/ca-bundle.crt set at container creation)
+      const zscalerCaPath = path.join(__dirname, '..', 'sandbox', 'zscaler-ca.pem');
+      if (fs.existsSync(zscalerCaPath)) {
+        await execAsync(`docker cp "${zscalerCaPath}" "${sandbox.containerId}:/tmp/zscaler-ca.pem"`, { timeout: 5000 }).catch(() => {});
+        await execInContainer({ containerId: sandbox.containerId, command: 'cp /etc/ssl/certs/ca-certificates.crt /tmp/ca-bundle.crt && cat /tmp/zscaler-ca.pem >> /tmp/ca-bundle.crt', timeout: 5000 }).catch(() => {});
+      }
       appendLog(id, 'Source synced into sandbox');
     }
     // Copy opencode auth for OAuth-based providers

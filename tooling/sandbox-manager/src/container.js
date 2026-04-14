@@ -28,7 +28,7 @@ export async function createSandbox({
 
   const envFlags = [
     '-e', `NODE_TLS_REJECT_UNAUTHORIZED=0`,
-    '-e', `SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt`,
+    '-e', `SSL_CERT_FILE=/tmp/ca-bundle.crt`,
   ];
 
   if (provider === 'opencode') {
