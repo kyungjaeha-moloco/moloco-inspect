@@ -32,7 +32,7 @@ export function RequestDetailPage() {
   const { requestId } = useParams<{ requestId: string }>();
   const { detail, loading, error } = useAnalyticsRequestDetail(requestId);
   const [diffExpanded, setDiffExpanded] = useState(true);
-  const [timelineExpanded, setTimelineExpanded] = useState(false);
+  const [timelineExpanded, setTimelineExpanded] = useState(true);
   const [feedbackText, setFeedbackText] = useState('');
   const [showFeedback, setShowFeedback] = useState(false);
   const [actionResult, setActionResult] = useState<{ type: string; message: string } | null>(null);
