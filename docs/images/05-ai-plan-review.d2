@@ -1,0 +1,56 @@
+direction: down
+
+card: "Inspect Agent — Request analyzed" {
+  style: {
+    fill: "#f8f9fa"
+    stroke: "#1a73e8"
+    border-radius: 12
+    font-size: 16
+    bold: true
+  }
+
+  understanding: "Understanding\nYou want to add a 'Used Amount' column\nto the order list table on the TAS\norder management page." {
+    style: { fill: "#e8f0fe"; stroke: "#1a73e8"; border-radius: 8; font-size: 14 }
+  }
+
+  exec_steps: "Steps" {
+    style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 8; font-size: 14; bold: true }
+
+    s1: "1. Find MCOrderListTableContainer.tsx" {
+      style: { fill: "#e6f4ea"; stroke: "#34a853"; border-radius: 6; font-size: 13 }
+    }
+    s2: "2. Add column definition { id: 'usedAmount' }" {
+      style: { fill: "#e6f4ea"; stroke: "#34a853"; border-radius: 6; font-size: 13 }
+    }
+    s3: "3. Update the data accessor" {
+      style: { fill: "#e6f4ea"; stroke: "#34a853"; border-radius: 6; font-size: 13 }
+    }
+    s4: "4. Add i18n key for column header" {
+      style: { fill: "#e6f4ea"; stroke: "#34a853"; border-radius: 6; font-size: 13 }
+    }
+    s5: "5. Run typecheck to verify" {
+      style: { fill: "#e6f4ea"; stroke: "#34a853"; border-radius: 6; font-size: 13 }
+    }
+
+    s1 -> s2 -> s3 -> s4 -> s5
+  }
+
+  risks: "Risks: Column width may need adjustment" {
+    style: { fill: "#fef7e0"; stroke: "#f9ab00"; border-radius: 8; font-size: 13 }
+  }
+
+  understanding -> exec_steps -> risks
+}
+
+actions: "Actions" {
+  style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 10; font-size: 14 }
+
+  proceed: "Proceed with this plan" {
+    style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 8; font-size: 14; bold: true }
+  }
+  adjust: "Adjust the plan" {
+    style: { fill: "#f8f9fa"; stroke: "#5f6368"; border-radius: 8; font-size: 14 }
+  }
+}
+
+card -> actions

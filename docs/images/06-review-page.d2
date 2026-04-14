@@ -1,0 +1,77 @@
+direction: down
+
+page: "Request Detail — a8f3c2d1" {
+  style: {
+    fill: "#f8f9fa"
+    stroke: "#dadce0"
+    border-radius: 12
+    font-size: 16
+    bold: true
+  }
+
+  prompt: "'Add a Used Amount column to the order list table'" {
+    style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 8; font-size: 15; bold: true }
+  }
+
+  columns: "Two-column Layout" {
+    style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 10; font-size: 13 }
+
+    analysis_col: "Agent Analysis" {
+      style: { fill: "#e8f0fe"; stroke: "#1a73e8"; border-radius: 8; font-size: 14; bold: true }
+
+      understanding: "Understanding: Adding usedAmount\ncolumn to the order list table" {
+        style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 6; font-size: 12 }
+      }
+      exec_steps: "Steps: ① Find container\n② Add column def ③ Update accessor\n④ Add i18n key ⑤ Typecheck" {
+        style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 6; font-size: 12 }
+      }
+      risk: "Risks: Column width adjustment" {
+        style: { fill: "#fef7e0"; stroke: "#f9ab00"; border-radius: 6; font-size: 12 }
+      }
+
+      understanding -> exec_steps -> risk
+    }
+
+    preview_col: "Preview" {
+      style: { fill: "#e6f4ea"; stroke: "#34a853"; border-radius: 8; font-size: 14; bold: true }
+
+      preview_btn: "Open Live Preview" {
+        style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 14; bold: true }
+      }
+      screenshot: "Screenshot (Playwright)" {
+        style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 6; font-size: 12 }
+      }
+      files: "Files: MCOrderListTable...tsx\nko.json · en.json" {
+        style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 6; font-size: 12 }
+      }
+
+      preview_btn -> screenshot -> files
+    }
+  }
+
+  diff: "Code Changes                                    +12 -3  3 files\ndiff --git a/MCOrderListTableContainer.tsx\n+ { id: 'usedAmount', Header: t('table.usedAmount') }" {
+    style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 8; font-size: 12; font-color: "#137333" }
+  }
+
+  timeline: "Timeline (12 events)" {
+    style: { fill: "#f8f9fa"; stroke: "#dadce0"; border-radius: 8; font-size: 12 }
+  }
+
+  prompt -> columns -> diff -> timeline
+}
+
+actions: "Action Bar" {
+  style: { fill: "#ffffff"; stroke: "#dadce0"; border-radius: 10; font-size: 13 }
+
+  approve: "✓ Approve & Create PR" {
+    style: { fill: "#34a853"; stroke: "#1e8e3e"; font-color: "#ffffff"; border-radius: 8; font-size: 14; bold: true }
+  }
+  reject: "Request Changes" {
+    style: { fill: "#ffffff"; stroke: "#da1e28"; font-color: "#da1e28"; border-radius: 8; font-size: 14 }
+  }
+  live: "Live Preview ↗" {
+    style: { fill: "#1a73e8"; stroke: "#1557b0"; font-color: "#ffffff"; border-radius: 8; font-size: 14 }
+  }
+}
+
+page -> actions

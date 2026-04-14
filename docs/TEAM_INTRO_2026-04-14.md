@@ -45,26 +45,7 @@ Or for more complex requests:
 ### Step 3 — AI Plans the Change
 Claude Sonnet 4.6 analyzes the request and returns a structured execution plan:
 
-```
-┌─────────────────────────────────────────────────┐
-│  Inspect Agent — Request analyzed                │
-│                                                  │
-│  Understanding:                                  │
-│  You want to add a "Used Amount" column to the   │
-│  order list table.                               │
-│                                                  │
-│  Steps:                                          │
-│  1. Find MCOrderListTableContainer.tsx           │
-│  2. Add column definition { id: 'usedAmount' }  │
-│  3. Update the data accessor                     │
-│  4. Add i18n key for column header               │
-│  5. Run typecheck to verify                      │
-│                                                  │
-│  Risks: Column width may need adjustment         │
-│                                                  │
-│  [Proceed with this plan]  [Adjust the plan]     │
-└─────────────────────────────────────────────────┘
-```
+![AI Plan Review](images/05-ai-plan-review.png)
 
 ### Step 4 — Agent Executes in Sandbox
 
@@ -87,28 +68,7 @@ The Inspect Hub dashboard shows the result with:
 - **Screenshot** — visual capture of the modified page
 - **Changed files** — list of modified files as chips
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  ← Requests    ● preview · 1:23 · tving · /oms/order          │
-│                                                                 │
-│  "Add a Used Amount column to the order list table"            │
-│                                                                 │
-│  ┌─────────────────────┬───────────────────────────────────┐   │
-│  │ Agent Analysis       │ Preview                           │   │
-│  │ Understanding:       │ [████ Open Live Preview ████]     │   │
-│  │ Steps: ①②③④⑤        │ [Screenshot] + changed files      │   │
-│  │ ⚠ Risks             │                                   │   │
-│  └─────────────────────┴───────────────────────────────────┘   │
-│                                                                 │
-│  Code Changes                                  +12 -3  3 files │
-│  ▾ diff --git a/MCOrderListTableContainer.tsx                  │
-│  + { id: 'usedAmount', Header: t('table.usedAmount') }        │
-│                                                                 │
-│  ▾ Timeline (12 events)                                         │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
-│  [✓ Approve & Create PR]  [Request Changes]  [Live Preview ↗]  │
-└─────────────────────────────────────────────────────────────────┘
-```
+![Review Page](images/06-review-page.png)
 
 ### Step 6 — Ship
 On "Approve", the orchestrator creates a git branch, applies the diff, commits, and creates a GitHub PR via `gh pr create`. The engineer reviews and merges through the normal process.
