@@ -1,0 +1,38 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0f62fe', 'primaryTextColor': '#fff', 'lineColor': '#525252', 'fontSize': '13px' }}}%%
+flowchart TB
+    subgraph DS["Design System — Source of Truth"]
+        COMP["95 Component Contracts<br/>Props, Variants, States,<br/>Tokens, Anti-patterns"]
+        TOKENS["186 Design Tokens<br/>Semantic Palette<br/>Spacing, Radius, Shadow"]
+        PATTERNS["12 UI Patterns<br/>Form, Table, Dashboard,<br/>Dialog, List, Detail"]
+    end
+
+    subgraph CONSUMERS["Who Uses It"]
+        AGENT_C["AI Agent<br/>References during<br/>code generation"]
+        DOC["Documentation Site<br/>Interactive previews,<br/>prop controls, search"]
+        MCP_C["MCP Server<br/>9 tools for any<br/>AI tool integration"]
+        LLMS["llms.txt<br/>AI-readable index<br/>for LLM integration"]
+    end
+
+    subgraph QUALITY["Quality Guarantee"]
+        TSC_Q["TypeScript<br/>Type safety"]
+        EVAL["Evaluator<br/>(Phase 2)<br/>Auto-scoring"]
+        DRIFT["Drift Detection<br/>(Phase 3)<br/>CI-based"]
+    end
+
+    COMP --> AGENT_C
+    COMP --> DOC
+    COMP --> MCP_C
+    COMP --> LLMS
+    TOKENS --> AGENT_C
+    TOKENS --> DOC
+    PATTERNS --> AGENT_C
+    AGENT_C --> TSC_Q
+    TSC_Q --> EVAL
+    EVAL --> DRIFT
+
+    style DS fill:#e8f0fe,stroke:#0f62fe
+    style CONSUMERS fill:#e8f5e9,stroke:#24a148
+    style QUALITY fill:#fff3e0,stroke:#f57c00
+    style COMP fill:#0f62fe,stroke:#0043ce,color:#fff
+    style TOKENS fill:#0f62fe,stroke:#0043ce,color:#fff
+    style PATTERNS fill:#0f62fe,stroke:#0043ce,color:#fff

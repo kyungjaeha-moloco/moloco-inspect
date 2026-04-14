@@ -1,0 +1,27 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0f62fe', 'primaryTextColor': '#fff', 'lineColor': '#525252', 'fontSize': '13px' }}}%%
+flowchart LR
+    REQ["Request<br/>Received"] --> ANALYSIS["AI Analysis<br/>Claude Sonnet<br/><i>~3s</i>"]
+    ANALYSIS --> |PM Confirms| SANDBOX["Create<br/>Sandbox<br/><i>2-5s</i>"]
+    SANDBOX --> SYNC["Sync<br/>Source<br/><i>3-8s</i>"]
+    SYNC --> AGENT["Run<br/>Agent<br/><i>30-120s</i>"]
+    AGENT --> DIFF["Collect<br/>Diff"]
+    DIFF --> |No changes| DONE_NC["No Change<br/>Needed"]
+    DIFF --> |Has changes| TC["TypeScript<br/>Check<br/><i>5-30s</i>"]
+    TC --> PREVIEW["Start Vite<br/>Preview<br/><i>30-90s</i>"]
+    PREVIEW --> SS["Playwright<br/>Screenshot"]
+    SS --> READY["Preview<br/>Ready"]
+    READY --> |Approve| PR["Create<br/>GitHub PR"]
+    READY --> |Reject + Feedback| AGENT
+
+    style REQ fill:#e0e0e0,stroke:#525252
+    style ANALYSIS fill:#d4e5ff,stroke:#0f62fe
+    style SANDBOX fill:#fff3e0,stroke:#f57c00
+    style SYNC fill:#fff3e0,stroke:#f57c00
+    style AGENT fill:#0f62fe,stroke:#0043ce,color:#fff
+    style DIFF fill:#f4f4f4,stroke:#525252
+    style TC fill:#e8f5e9,stroke:#24a148
+    style PREVIEW fill:#e8f5e9,stroke:#24a148
+    style SS fill:#e8f5e9,stroke:#24a148
+    style READY fill:#24a148,stroke:#198038,color:#fff
+    style PR fill:#24a148,stroke:#198038,color:#fff
+    style DONE_NC fill:#e0e0e0,stroke:#8d8d8d

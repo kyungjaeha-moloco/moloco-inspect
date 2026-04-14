@@ -1,0 +1,29 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0f62fe', 'primaryTextColor': '#fff', 'primaryBorderColor': '#0043ce', 'lineColor': '#525252', 'secondaryColor': '#e0e0e0', 'tertiaryColor': '#f4f4f4', 'fontSize': '14px' }}}%%
+flowchart LR
+    subgraph SELECT["1. Select"]
+        A["Open product page<br/>Cmd+Shift+E<br/>Click element"]
+    end
+    subgraph DESCRIBE["2. Describe"]
+        B["Natural language<br/>'Move this column<br/>to the left'"]
+    end
+    subgraph PLAN["3. AI Plans"]
+        C["Claude Sonnet<br/>analyzes request<br/>→ execution plan"]
+    end
+    subgraph EXECUTE["4. Execute"]
+        D["Agent modifies<br/>code in Docker<br/>sandbox"]
+    end
+    subgraph REVIEW["5. Review"]
+        E["Live preview<br/>+ diff viewer<br/>+ screenshot"]
+    end
+    subgraph SHIP["6. Ship"]
+        F["One-click<br/>GitHub PR<br/>creation"]
+    end
+
+    A --> B --> C --> D --> E --> F
+
+    style SELECT fill:#e8f0fe,stroke:#0f62fe,color:#161616
+    style DESCRIBE fill:#e8f0fe,stroke:#0f62fe,color:#161616
+    style PLAN fill:#d4e5ff,stroke:#0f62fe,color:#161616
+    style EXECUTE fill:#d4e5ff,stroke:#0f62fe,color:#161616
+    style REVIEW fill:#c1d8ff,stroke:#0f62fe,color:#161616
+    style SHIP fill:#24a148,stroke:#198038,color:#fff

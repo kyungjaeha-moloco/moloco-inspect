@@ -1,0 +1,49 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0f62fe', 'primaryTextColor': '#fff', 'lineColor': '#525252', 'fontSize': '13px' }}}%%
+flowchart TB
+    subgraph ENTRY["Entry Points"]
+        EXT["Chrome Extension<br/>● Element Inspector<br/>● Region Capture<br/>● AI Plan Review"]
+        SLACK["Slack Bot<br/>(Next Phase)"]
+        JIRA["Jira Integration<br/>(Planned)"]
+    end
+
+    subgraph ORCH["Orchestrator (Node.js, port 3847)"]
+        API["11 API Endpoints"]
+        PIPE["Pipeline Engine<br/>Request → Analysis → Sandbox<br/>→ Agent → Validate → Preview → PR"]
+        SSE["SSE Real-time Events"]
+        ANALYTICS["Analytics Logging"]
+    end
+
+    subgraph SANDBOX["Docker Sandbox (per request)"]
+        REPO["Product Repo Copy"]
+        AGENT["AI Agent<br/>(Claude Sonnet 4.6)"]
+        TSC["TypeScript Check"]
+        VITE["Vite Dev Server<br/>(Live Preview)"]
+        PW["Playwright<br/>(Screenshot)"]
+    end
+
+    subgraph DATA["Data Layer"]
+        OPS["Ops Hub<br/>Dashboard<br/>● Request tracking<br/>● Metrics<br/>● Diff review"]
+        DS["Design System<br/>● 95 Components<br/>● 186 Tokens<br/>● Doc Site"]
+        MCP["MCP Server<br/>9 AI Tools"]
+    end
+
+    EXT --> API
+    SLACK -.-> API
+    JIRA -.-> API
+    API --> PIPE
+    PIPE --> SANDBOX
+    PIPE --> SSE
+    PIPE --> ANALYTICS
+    REPO --> AGENT --> TSC --> VITE
+    AGENT --> PW
+    DS --> AGENT
+    MCP --> AGENT
+    ANALYTICS --> OPS
+
+    style ENTRY fill:#e8f0fe,stroke:#0f62fe
+    style ORCH fill:#f4f4f4,stroke:#525252
+    style SANDBOX fill:#fff3e0,stroke:#f57c00
+    style DATA fill:#e8f5e9,stroke:#24a148
+    style EXT fill:#0f62fe,stroke:#0043ce,color:#fff
+    style SLACK fill:#e0e0e0,stroke:#8d8d8d,color:#525252
+    style JIRA fill:#e0e0e0,stroke:#8d8d8d,color:#525252
