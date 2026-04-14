@@ -67,7 +67,7 @@ export function OpsLayout({ children }: { children: React.ReactNode }) {
             <rect width="18" height="18" rx="4" opacity="0.9" />
             <text x="4" y="13" fontSize="11" fontWeight="700" fill="var(--bg-base)">M</text>
           </svg>
-          Moloco Ops
+          Inspect Hub
         </div>
         <nav className="sidebar-nav">
           <div className="sidebar-section-label">Navigation</div>

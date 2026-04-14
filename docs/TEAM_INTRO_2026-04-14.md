@@ -13,7 +13,7 @@
 
 The Design Agent system is now **operational end-to-end**. A PM or SA can open a live product page, select an element, describe a change in natural language, and receive an AI-generated code modification — complete with live preview, syntax-highlighted diff review, and one-click PR creation.
 
-Phase 1 scope was completed in ~18 days against a planned 70-day (10-week) schedule. Several Phase 2–3 features (Chrome Extension, auto-refinement loop, design system documentation site, Ops Hub dashboard) have already been delivered.
+Phase 1 scope was completed in ~18 days against a planned 70-day (10-week) schedule. Several Phase 2–3 features (Chrome Extension, auto-refinement loop, design system documentation site, Inspect Hub dashboard) have already been delivered.
 
 ---
 
@@ -80,7 +80,7 @@ Claude Sonnet 4.6 analyzes the request and returns a structured execution plan:
 
 ### Step 5 — PM Reviews
 
-The Ops Hub dashboard shows the result with:
+The Inspect Hub dashboard shows the result with:
 - **AI Analysis** — understanding, approach, steps, risks, verification
 - **Live Preview** — the actual modified page running in the browser
 - **Inline diff** — syntax-highlighted code changes with +/- counts
@@ -227,7 +227,7 @@ Any AI tool (Claude Code, Cursor, etc.) can query components, tokens, and patter
 | Chrome Extension with inspector | Phase 3 | ✅ Phase 1 |
 | Auto-refinement loop | Phase 2 | ✅ Phase 1 |
 | Design System doc site | Phase 3 | ✅ Phase 1 |
-| Ops Hub dashboard | Not planned | ✅ Phase 1 |
+| Inspect Hub dashboard | Not planned | ✅ Phase 1 |
 | Live preview with auth | Not planned | ✅ Phase 1 |
 | MCP Server (9 tools) | Not planned | ✅ Phase 1 |
 | Inline diff + approve/reject | Not planned | ✅ Phase 1 |
@@ -286,7 +286,7 @@ Any AI tool (Claude Code, Cursor, etc.) can query components, tokens, and patter
 | | M2 | Agent Pipeline (sandbox → code → validate → preview → PR) | — | — | ✅ Done |
 | | M3 | Chrome Extension (inspector, capture, AI analysis) | — | — | ✅ Done |
 | | M4 | Design System Site (Carbon-style, previews, dark mode, search) | — | — | ✅ Done |
-| | M5 | Ops Hub Dashboard (tracking, diff, approve/reject, metrics) | — | — | ✅ Done |
+| | M5 | Inspect Hub Dashboard (tracking, diff, approve/reject, metrics) | — | — | ✅ Done |
 | *PoC* | M6 | Stability & Polish | 2w | Apr 14 – 25 | 🔵 In progress |
 | | M7 | User Testing (PM 2, Eng 1, SA 1) | 2w | Apr 28 – May 9 | ⬜ |
 | | M8 | PoC Report & Go/No-Go | 1w | May 12 – 16 | ⬜ |
@@ -446,7 +446,7 @@ moloco-inspect/
 ├── chrome-extension/      Chrome Extension (inspector, side panel)
 ├── orchestrator/          Pipeline server (Node.js)
 ├── sandbox/               Docker image for isolated execution
-├── dashboard/             Ops Hub (React dashboard)
+├── dashboard/             Inspect Hub (React dashboard)
 ├── design-system/         95 component JSON contracts + tokens
 ├── design-system-site/    Documentation site (Carbon-style)
 ├── design-system-mcp/     MCP server for AI tool integration

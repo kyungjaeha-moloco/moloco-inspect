@@ -39,7 +39,7 @@ The proposal targeted 20 core components for the Context Layer. The actual imple
 ### Scope: Beyond Single Pipeline
 
 The original plan was "one pipeline, one entry point." The actual system includes:
-- Full Ops Hub dashboard for request tracking and metrics
+- Full Inspect Hub dashboard for request tracking and metrics
 - Design System documentation site with interactive component previews
 - MCP Server exposing design system data to any AI tool
 - Auto-refinement loop (reject → feedback → agent iterates)
@@ -52,7 +52,7 @@ The original plan was "one pipeline, one entry point." The actual system include
 ┌──────────────────────────────────────────────────────────────────────┐
 │                        User Layer                                    │
 │                                                                      │
-│   Chrome Extension          Ops Hub Dashboard         (Future: Slack)│
+│   Chrome Extension          Inspect Hub Dashboard         (Future: Slack)│
 │   ┌────────────────┐       ┌──────────────────┐                     │
 │   │ Element inspect │       │ Request tracking  │                     │
 │   │ Region capture  │       │ Inline diff review│                     │
@@ -242,9 +242,9 @@ The Context Layer is the structured knowledge base that the agent references. As
 - `Cmd+K` global search (fuzzy matching across pages and components)
 - Blocks page with full page-level composition patterns (shadcn-style)
 
-### 4.4 Ops Hub (Dashboard)
+### 4.4 Inspect Hub (Dashboard)
 
-The Ops Hub is a React dashboard for monitoring and managing all agent requests.
+The Inspect Hub is a React dashboard for monitoring and managing all agent requests.
 
 **Overview Page:**
 - Stat cards: Success Rate / Today's Requests / Avg Latency / Error Rate
@@ -300,7 +300,7 @@ The Ops Hub is a React dashboard for monitoring and managing all agent requests.
 | Chrome Extension with inspector | Phase 3 (Week 18+) | ✅ Phase 1 |
 | Auto-refinement loop | Phase 2 (Week 14+) | ✅ Phase 1 |
 | Design System doc site | Phase 3 (Week 18+) | ✅ Phase 1 |
-| Ops Hub analytics dashboard | Not in original plan | ✅ Phase 1 |
+| Inspect Hub analytics dashboard | Not in original plan | ✅ Phase 1 |
 | Live preview with auth | Not in original plan | ✅ Phase 1 |
 | Inline diff + approve/reject | Not in original plan | ✅ Phase 1 |
 | MCP Server (9 tools) | Not in original plan | ✅ Phase 1 |
@@ -328,7 +328,7 @@ The Ops Hub is a React dashboard for monitoring and managing all agent requests.
 | | M2 | Agent Pipeline (sandbox → code → validate → preview → PR) | — | — | ✅ Done |
 | | M3 | Chrome Extension (inspector, capture, AI analysis, plan review) | — | — | ✅ Done |
 | | M4 | Design System Site (Carbon-style, interactive previews, prop controls, dark mode, ⌘K search) | — | — | ✅ Done |
-| | M5 | Ops Hub Dashboard (request tracking, inline diff, approve/reject, timeline, metrics) | — | — | ✅ Done |
+| | M5 | Inspect Hub Dashboard (request tracking, inline diff, approve/reject, timeline, metrics) | — | — | ✅ Done |
 | *PoC* | M6 | Stability & Polish | 2w | Apr 14 – 25 | 🔵 In progress |
 | | M7 | User Testing (PM 2, Eng 1, SA 1) | 2w | Apr 28 – May 9 | ⬜ |
 | | M8 | PoC Report & Go/No-Go | 1w | May 12 – 16 | ⬜ |
@@ -356,7 +356,7 @@ The Ops Hub is a React dashboard for monitoring and managing all agent requests.
 | M2 | Agent Pipeline | Orchestrator, Docker sandbox, Claude Sonnet agent, typecheck, live preview, diff viewer, PR creation, auto-refinement (3 rounds) |
 | M3 | Chrome Extension | Element inspector, region capture, AI plan review, structured requests, PRD ingest (basic), `Cmd+Shift+E` shortcut |
 | M4 | Design System Site | Carbon-style doc site, interactive prop controls (Mantine-style), anatomy diagrams (Radix-style), Shiki syntax highlighting, style/a11y tabs, Blocks page, dark mode, ⌘K global search |
-| M5 | Ops Hub Dashboard | Overview (stat cards, daily activity chart, donut performance chart), request list, request detail (inline diff, approve/reject, sticky action bar, AI analysis, timeline), state persistence |
+| M5 | Inspect Hub Dashboard | Overview (stat cards, daily activity chart, donut performance chart), request list, request detail (inline diff, approve/reject, sticky action bar, AI analysis, timeline), state persistence |
 
 ---
 
@@ -440,7 +440,7 @@ Separate Generator and Evaluator agents to eliminate self-evaluation bias.
 | Task | Description |
 |------|-------------|
 | Infrastructure | Docker Compose on team server (or each dev's machine) |
-| Deploy | Orchestrator + Sandbox image + Ops Hub + DS Site |
+| Deploy | Orchestrator + Sandbox image + Inspect Hub + DS Site |
 | Access | VPN internal, HTTPS, basic auth |
 | QA | 10 end-to-end scenarios, Slack/Jira channels verified |
 
@@ -537,7 +537,7 @@ The system is running and available for demonstration:
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| Ops Hub | http://localhost:4174 | Dashboard, request tracking, diff review |
+| Inspect Hub | http://localhost:4174 | Dashboard, request tracking, diff review |
 | Orchestrator | http://localhost:3847 | API server, pipeline management |
 | Design System Site | http://localhost:4176 | Component documentation |
 | Product App | http://localhost:8000 | Live product (TAS/TVING OMS) |
@@ -549,7 +549,7 @@ To run a demo:
 4. Describe the desired change in the side panel
 5. Review the AI plan → Confirm
 6. Wait for the agent to complete (~1–3 minutes)
-7. Review diff + live preview in the Ops Hub
+7. Review diff + live preview in the Inspect Hub
 8. Approve to create a PR
 
 ---
