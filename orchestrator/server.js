@@ -883,26 +883,12 @@ async function runPipeline(id) {
       return;
     }
 
-    try {
-      updateRequest(id, { phase: 'validating' });
-      // Check if node_modules exists before running typecheck
-      const nmCheck = await execInContainer({ containerId: sandbox.containerId, command: 'test -d /workspace/msm-portal/js/msm-portal-web/node_modules && echo "exists" || echo "missing"', timeout: 5000 });
-      if (nmCheck.stdout.trim() === 'missing') {
-        appendLog(id, 'Typecheck skipped (node_modules not in sandbox)');
-      } else {
-        const tc = await execInContainer({ containerId: sandbox.containerId, command: 'cd /workspace/msm-portal && pnpm exec tsc --noEmit -p js/msm-portal-web/tsconfig.json 2>&1', timeout: 60000 });
-        appendLog(id, tc.exitCode === 0 ? 'Typecheck passed' : 'Typecheck warning: ' + (tc.stdout + tc.stderr).slice(0, 300));
-      }
-    } catch (e) { appendLog(id, 'Typecheck skipped: ' + e.message); }
-
-    // Screenshot capture moved to after vite is ready (uses Playwright inside sandbox)
-
     // Start live preview in sandbox + diff viewer
     try {
       const pagePath = state.request?.pagePath || state.payload?.pagePath || '/';
       const clientEnv = state.request?.client || state.payload?.client || 'tving';
 
-      appendLog(id, 'Installing dependencies for live preview...');
+      appendLog(id, 'Installing dependencies...');
       // Copy .npmrc for private registry auth
       const npmrcPath = path.join(os.homedir(), '.npmrc');
       if (fs.existsSync(npmrcPath)) {
@@ -913,6 +899,15 @@ async function runPipeline(id) {
         command: 'cd /workspace/msm-portal/js/msm-portal-web && pnpm install --frozen-lockfile 2>&1 | tail -3',
         timeout: 180000,
       });
+
+      // TypeScript check (after pnpm install so node_modules exists)
+      try {
+        updateRequest(id, { phase: 'validating' });
+        appendLog(id, 'Running TypeScript check...');
+        const tc = await execInContainer({ containerId: sandbox.containerId, command: 'cd /workspace/msm-portal && pnpm exec tsc --noEmit -p js/msm-portal-web/tsconfig.json 2>&1', timeout: 60000 });
+        appendLog(id, tc.exitCode === 0 ? 'Typecheck passed' : 'Typecheck warning: ' + (tc.stdout + tc.stderr).slice(0, 300));
+      } catch (e) { appendLog(id, 'Typecheck skipped: ' + e.message); }
+
       // Inject auth tokens directly into index.html before vite starts
       const wpId = clientEnv === 'tving' ? 'TVING_OMS' : clientEnv.toUpperCase();
       const authScript = `<script>(function(){var e=Date.now()+288e5,a=JSON.stringify({token:"mock-preview-token",expiresAt:e}),w=JSON.stringify({token:"mock-workplace-token:${wpId}",workplaceId:"${wpId}",expiresAt:e});try{localStorage.setItem("MSM_AUTH",a);localStorage.setItem("MSM_AUTH_WORKPLACE",w);sessionStorage.setItem("MSM_AUTH",a);sessionStorage.setItem("MSM_AUTH_WORKPLACE",w)}catch(x){}})()</script>`;
