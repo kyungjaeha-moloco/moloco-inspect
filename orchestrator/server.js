@@ -1737,11 +1737,26 @@ Return JSON:
 
   const analyticsDetailMatch = pathname.match(/^\/api\/analytics\/request\/([\w-]+)$/);
   if (analyticsDetailMatch) {
+    const reqId = analyticsDetailMatch[1];
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '5000', 10) || 5000, 10000);
     const records = readAnalyticsHistory(limit);
-    const detail = buildAnalyticsDetail(records, analyticsDetailMatch[1]);
+    const detail = buildAnalyticsDetail(records, reqId);
     if (!detail) {
       return json(res, 404, { ok: false, error: 'Request analytics not found' });
+    }
+    // Merge persisted state data (diff, livePreviewUrl, changedFiles, etc.) into analytics response
+    const liveState = requests.get(reqId);
+    if (liveState) {
+      if (liveState.diff) detail.request.diff = liveState.diff;
+      if (liveState.changedFiles) detail.request.changedFiles = liveState.changedFiles;
+      if (liveState.livePreviewUrl) detail.request.livePreviewUrl = liveState.livePreviewUrl;
+      if (liveState.livePreviewExpired) detail.request.livePreviewExpired = true;
+      if (liveState.sandboxExpired) detail.request.sandboxExpired = true;
+      if (liveState.screenshotPath) detail.request.screenshotUrl = `/api/screenshot/${reqId}`;
+      if (liveState.log) detail.request.log = liveState.log;
+      if (liveState.request?.aiAnalysis) detail.request.request = { ...detail.request.request, aiAnalysis: liveState.request.aiAnalysis };
+      if (liveState.previewUrl) detail.request.previewUrl = liveState.previewUrl;
+      if (liveState.prUrl) detail.request.prUrl = liveState.prUrl;
     }
     return json(res, 200, {
       ok: true,

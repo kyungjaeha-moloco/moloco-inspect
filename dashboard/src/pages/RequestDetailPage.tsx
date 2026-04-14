@@ -245,6 +245,10 @@ export function RequestDetailPage() {
               {actionResult.type === 'approved' ? '✓ ' : actionResult.type === 'rejected' ? '↻ ' : '✕ '}
               {actionResult.message}
             </div>
+          ) : (req as any)?.sandboxExpired ? (
+            <div className="rd-action-result rd-action-expired" style={{ color: 'var(--text-muted)' }}>
+              Sandbox expired — approve and live preview are no longer available. Diff and timeline are preserved.
+            </div>
           ) : (
             <>
               <button className="rd-btn rd-btn-approve" onClick={handleApprove} disabled={actionLoading}>
@@ -253,7 +257,7 @@ export function RequestDetailPage() {
               <button className="rd-btn rd-btn-reject" onClick={() => setShowFeedback(!showFeedback)} disabled={actionLoading}>
                 Request Changes
               </button>
-              {(req as any)?.livePreviewUrl && (
+              {(req as any)?.livePreviewUrl && !(req as any)?.livePreviewExpired && (
                 <a className="rd-btn rd-btn-preview" href={(req as any).livePreviewUrl} target="_blank" rel="noreferrer">
                   Live Preview ↗
                 </a>
@@ -307,7 +311,7 @@ export function RequestDetailPage() {
                 <div className={`timeline-item${entry.type === 'log' ? ' timeline-log' : ''}`} key={entry._key}>
                   <div className="timeline-time">{formatTimestamp(entry.at)}</div>
                   <div className="timeline-content">
-                    <span className={`timeline-label${entry.type === 'pipeline_error' ? ' badge-danger' : entry.type === 'log' ? ' badge-muted' : ''}`}>{entry.type}</span>
+                    <span className={`timeline-label${entry.type === 'pipeline_error' ? ' badge-danger' : entry.type === 'log' ? ' badge-muted' : ''}`} data-type={entry.type}>{entry.type}</span>
                     {(entry.summary || entry.phase || entry.status) && (
                       <span> {entry.summary || entry.phase || entry.status}</span>
                     )}
