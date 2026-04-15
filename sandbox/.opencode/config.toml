@@ -1,11 +1,2 @@
-# OpenCode provider timeout configuration
-# Default is 300000ms (5min) — set to 20 minutes for complex agent tasks.
-
-[provider.opencode]
-timeout = 1200000
-
-[provider.openai]
-timeout = 1200000
-
-[provider.anthropic]
-timeout = 1200000
+# OpenCode project configuration
+# Keep minimal to avoid ProviderInitError
