@@ -382,14 +382,6 @@ function buildNormalizedRequestContract(payload) {
   };
 }
 
-// Extract app route from full URL path like /v1/p/TVING_OMS_DEV/oms/order?type=available → /oms/order?type=available
-function normalizePagePath(pagePath) {
-  if (!pagePath) return '/';
-  // Strip /v1/p/{workplaceId}/ prefix to get app-internal route
-  const stripped = pagePath.replace(/^\/v1\/p\/[^/]+\//, '/');
-  return stripped || '/';
-}
-
 function normalizePayload(payload) {
   const normalizedFile = toRepoRelativePath(payload?.file);
   const normalizedSourceFile = toRepoRelativePath(
@@ -401,7 +393,7 @@ function normalizePayload(payload) {
     ...payload,
     file: normalizedFile,
     client: inferClientFromPayload(payload || {}),
-    pagePath: normalizePagePath(payload?.pagePath || requestContract.target.route_or_page),
+    pagePath: payload?.pagePath || requestContract.target.route_or_page || '/',
     language: payload?.language || requestContract.target.selection_context.language || null,
     requestContract: {
       ...requestContract,
