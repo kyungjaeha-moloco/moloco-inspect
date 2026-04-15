@@ -158,7 +158,8 @@ export async function extractDiff({ containerId }) {
     .map((f) => f.trim())
     .filter(Boolean)
     .filter((f) => !f.startsWith('.opencode/'))
-    .filter((f) => !/(^|\/)\.\_/.test(f));
+    .filter((f) => !/(^|\/)\.\_/.test(f))
+    .filter((f) => f !== 'opencode.json');
 
   if (!changedFiles.length) {
     return { diffText: '', changedFiles: [], diffStat: '' };

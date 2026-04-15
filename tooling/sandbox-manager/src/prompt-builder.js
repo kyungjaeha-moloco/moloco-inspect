@@ -58,7 +58,7 @@ export function buildSandboxPrompt(payload) {
   parts.push(`\n--- RULES ---`);
   parts.push(`1. Read the target file FIRST. Do not explore unrelated directories.`);
   parts.push(`2. Make the SMALLEST possible change. Touch at most 3 files.`);
-  parts.push(`3. Do not install dependencies, modify package.json, or create commits.`);
+  parts.push(`3. Do not install dependencies, modify package.json, lockfiles, or opencode.json. Do not create commits.`);
   parts.push(`4. If a file path is given, start there. Otherwise search by testId or component name.`);
   parts.push(`5. Finish within 5 tool calls when possible. Do not over-explore.`);
 
