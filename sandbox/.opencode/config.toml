@@ -1,0 +1,13 @@
+# OpenCode provider timeout configuration
+# Default is 300000ms (5min) which is too short for complex agent tasks.
+# Set to false to disable provider-level timeout.
+# Client-side timeout (20min) in opencode-client.js remains as the guard.
+
+[provider.opencode]
+timeout = false
+
+[provider.openai]
+timeout = false
+
+[provider.anthropic]
+timeout = false

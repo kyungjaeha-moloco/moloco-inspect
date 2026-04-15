@@ -45,13 +45,25 @@ export function buildSandboxPrompt(payload) {
 
   parts.push(`\nPM Request: ${payload.userPrompt}`);
 
-  parts.push(`\nDesign system path: ${DESIGN_SYSTEM_PATH}`);
-  parts.push('\nStart by reading the target file. Make the smallest possible change.');
-  parts.push('\nDo not install dependencies. Do not modify package.json or lockfiles.');
-  parts.push('\nDo not create commits or branches. The orchestrator handles that.');
+  // App structure context for faster file discovery
+  const client = payload.client || 'tving';
+  parts.push(`\n--- WORKSPACE CONTEXT ---`);
+  parts.push(`App root: /workspace/msm-portal/js/msm-portal-web`);
+  parts.push(`App entry: src/apps/${client}/`);
+  parts.push(`Design system: ${DESIGN_SYSTEM_PATH}`);
+  parts.push(`Shared components: src/components/`);
+  parts.push(`i18n files: src/i18n/locales/{ko,en}/`);
+  parts.push(`Pattern: Container (data) → Component (UI). Containers use tRPC hooks.`);
+
+  parts.push(`\n--- RULES ---`);
+  parts.push(`1. Read the target file FIRST. Do not explore unrelated directories.`);
+  parts.push(`2. Make the SMALLEST possible change. Touch at most 3 files.`);
+  parts.push(`3. Do not install dependencies, modify package.json, or create commits.`);
+  parts.push(`4. If a file path is given, start there. Otherwise search by testId or component name.`);
+  parts.push(`5. Finish within 5 tool calls when possible. Do not over-explore.`);
 
   if (/\b(text|copy|label|placeholder|번역|문구|텍스트)\b/i.test(payload.userPrompt || '')) {
-    parts.push('\nThis is a copy change request. Verify which useTranslation namespace the component uses before editing locale files.');
+    parts.push('\n6. This is a copy change. Check useTranslation namespace before editing locale files.');
   }
 
   return parts.join('\n');
