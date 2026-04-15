@@ -2087,7 +2087,7 @@
 
     const approveBtn = document.createElement('button');
     approveBtn.className = 'preview-btn approve-btn';
-    approveBtn.textContent = 'Approve & Apply';
+    approveBtn.textContent = '✓ Approve & Create PR';
     approveBtn.addEventListener('click', () => handleApprove(requestId, actions));
 
     const rejectBtn = document.createElement('button');
