@@ -1051,29 +1051,43 @@ export default AuthProvider;
           if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
           updateRequest(id, { phase: 'capturing_screenshot' });
           appendLog(id, 'Capturing screenshot via Playwright...');
+          // Write auth config as JSON file to avoid shell escaping issues with JWT tokens
+          const screenshotConfig = JSON.stringify({
+            idToken: actualIdToken,
+            wpToken: actualWpToken,
+            wpId,
+            lang,
+            pagePath: pagePath || '/',
+          });
+          await execInContainer({
+            containerId: sandbox.containerId,
+            command: `mkdir -p /workspace/results && cat > /workspace/results/auth.json << 'JSONEOF'\n${screenshotConfig}\nJSONEOF`,
+            timeout: 5000,
+          });
           const screenshotScript = `
 const { chromium } = require('/usr/local/lib/node_modules/playwright');
+const fs = require('fs');
 (async () => {
+  const cfg = JSON.parse(fs.readFileSync('/workspace/results/auth.json','utf8'));
   const browser = await chromium.launch({ executablePath: '/usr/bin/chromium-browser', args: ['--no-sandbox', '--disable-gpu'] });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  // Seed auth tokens
-  await page.goto('http://localhost:5173${(pagePath || '/').replace(/'/g, "\\'")}', { waitUntil: 'networkidle', timeout: 20000 }).catch(() => page.goto('http://localhost:5173/', { waitUntil: 'networkidle', timeout: 15000 }));
-  await page.evaluate(({idTk,wpTk,wpId}) => {
+  await page.goto('http://localhost:5173' + cfg.pagePath, { waitUntil: 'networkidle', timeout: 20000 }).catch(() => page.goto('http://localhost:5173/', { waitUntil: 'networkidle', timeout: 15000 }));
+  await page.evaluate((c) => {
     var e=String(Math.floor(Date.now()/1000)+54000);
-    localStorage.setItem('MSM_AUTH',JSON.stringify({token:idTk,expireTime:e}));
-    localStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:wpTk,workplaceId:wpId,expireTime:e}));
-    sessionStorage.setItem('MSM_AUTH',JSON.stringify({token:idTk,expireTime:e}));
-    sessionStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:wpTk,workplaceId:wpId,expireTime:e}));
-    localStorage.setItem('i18nextLng',lang);
-  }, {idTk:'${actualIdToken}',wpTk:'${actualWpToken}',wpId:'${wpId}',lang:'${lang}'});
+    localStorage.setItem('MSM_AUTH',JSON.stringify({token:c.idToken,expireTime:e}));
+    localStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:c.wpToken,workplaceId:c.wpId,expireTime:e}));
+    sessionStorage.setItem('MSM_AUTH',JSON.stringify({token:c.idToken,expireTime:e}));
+    sessionStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:c.wpToken,workplaceId:c.wpId,expireTime:e}));
+    localStorage.setItem('i18nextLng',c.lang);
+  }, cfg);
   await page.reload({ waitUntil: 'networkidle', timeout: 15000 }).catch(() => {});
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(3000);
   await page.screenshot({ path: '/workspace/results/screenshot.png', fullPage: false });
   await browser.close();
 })();`.trim();
           await execInContainer({
             containerId: sandbox.containerId,
-            command: `mkdir -p /workspace/results && node -e '${screenshotScript.replace(/'/g, "'\"'\"'")}'`,
+            command: `node -e '${screenshotScript.replace(/'/g, "'\"'\"'")}'`,
             timeout: 45000,
           });
           const ssPath = path.join(SCREENSHOTS_DIR, `${id}.png`);
