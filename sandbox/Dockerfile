@@ -45,9 +45,9 @@ WORKDIR /workspace/msm-portal
 # ─── design-system ───────────────────────────────────────────────────
 COPY design-system /workspace/design-system
 
-# ─── OpenCode config (provider timeout = disabled) ──────────────────
+# ─── OpenCode config (provider timeout = 20min) ─────────────────────
 RUN mkdir -p /workspace/msm-portal/.opencode/agents
-COPY sandbox/.opencode/config.toml /workspace/msm-portal/.opencode/config.toml
+COPY sandbox/opencode.json /workspace/msm-portal/opencode.json
 
 # ─── OpenCode agent definitions ──────────────────────────────────────
 COPY sandbox/agents /workspace/msm-portal/.opencode/agents/

@@ -1,0 +1,22 @@
+{
+  "provider": {
+    "opencode": {
+      "options": {
+        "timeout": 1200000,
+        "chunkTimeout": 120000
+      }
+    },
+    "openai": {
+      "options": {
+        "timeout": 1200000,
+        "chunkTimeout": 120000
+      }
+    },
+    "anthropic": {
+      "options": {
+        "timeout": 1200000,
+        "chunkTimeout": 120000
+      }
+    }
+  }
+}
