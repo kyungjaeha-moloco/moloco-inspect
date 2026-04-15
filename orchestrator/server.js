@@ -1603,13 +1603,14 @@ Return JSON:
 
       try {
         let text = '';
-        // Use the same provider as the sandbox agent
-        if (SANDBOX_PROVIDER === 'anthropic' && (SANDBOX_API_KEY || process.env.ANTHROPIC_API_KEY)) {
-          const apiKey = process.env.ANTHROPIC_API_KEY || SANDBOX_API_KEY;
+        // Analysis is independent of sandbox provider — try Anthropic first, then OpenAI
+        const analysisAnthropicKey = process.env.ANTHROPIC_API_KEY || (SANDBOX_PROVIDER === 'anthropic' ? SANDBOX_API_KEY : null);
+        if (analysisAnthropicKey) {
+          const analysisModel = process.env.ANALYSIS_MODEL || 'claude-sonnet-4-20250514';
           const resp = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
-            headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-            body: JSON.stringify({ model: SANDBOX_MODEL, max_tokens: 1500, messages: [{ role: 'user', content: analysisPrompt }] }),
+            headers: { 'x-api-key': analysisAnthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+            body: JSON.stringify({ model: analysisModel, max_tokens: 1500, messages: [{ role: 'user', content: analysisPrompt }] }),
           });
           if (resp.ok) {
             const result = await resp.json();
