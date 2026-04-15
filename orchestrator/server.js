@@ -1592,13 +1592,15 @@ const server = http.createServer(async (req, res) => {
       let analysis = null;
 
       // Attempt LLM call if API key available
-      const analysisPrompt = `You are an expert UI/UX engineer. Analyze this change request and return ONLY valid JSON in English.
+      const analysisPrompt = `You are an expert UI/UX engineer. Analyze this change request.
+
+IMPORTANT: ALL output MUST be in English, regardless of the input language. Translate any non-English request into English in your analysis.
 
 Context: ${client}, route: ${pagePath}, component: ${component || testId || 'unknown'}${language ? ', lang: ' + language : ''}
 Selected elements: ${selectedElements.map(e => e.component || e.testId || '').filter(Boolean).join(', ') || 'none'}
 Request: "${userPrompt}"
 
-Return JSON:
+Return ONLY valid JSON (no markdown, no explanation). Every value MUST be in English:
 {"understanding":"2-3 sentence summary of the request intent","analysis":"3-4 sentence technical approach (files, components, APIs)","steps":["specific step 1 (include file names)","step 2","step 3","step 4","verification step"],"risks":"risk factors or null","verification":"how to verify the changes"}`;
 
       try {
