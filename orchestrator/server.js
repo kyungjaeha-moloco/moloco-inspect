@@ -924,30 +924,72 @@ async function runPipeline(id) {
         appendLog(id, tc.exitCode === 0 ? 'Typecheck passed' : 'Typecheck warning: ' + (tc.stdout + tc.stderr).slice(0, 300));
       } catch (e) { appendLog(id, 'Typecheck skipped: ' + e.message); }
 
-      // Auth bypass: replace AuthProvider with a preview-mode version that skips real API calls
-      const wpId = clientEnv === 'tving' ? 'TVING_OMS' : clientEnv.toUpperCase();
+      // Auth: fetch real tokens from MSM API and inject into sandbox
+      const msmApiUrl = 'https://msm-api-test.moloco.cloud/msm/v1';
+      const previewEmail = process.env.PREVIEW_EMAIL || 'kyungjae.ha@moloco.com';
+      const previewPassword = process.env.PREVIEW_PASSWORD || 'Romanticview+4';
+      // Derive workplace ID from URL path (e.g. TVING_OMS_DEV) or env
+      const wpId = (() => {
+        const rawPath = state.payload?.pageUrl || state.payload?.pagePath || '';
+        const m = rawPath.match(/\/v1\/p\/([^/]+)\//);
+        if (m) return m[1];
+        return clientEnv === 'tving' ? 'TVING_OMS_DEV' : clientEnv.toUpperCase();
+      })();
+
+      let idToken = '';
+      let wpToken = '';
+      try {
+        const idResp = await fetch(`${msmApiUrl}/auth/id-tokens`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: previewEmail, password: previewPassword }),
+        });
+        if (idResp.ok) {
+          const idData = await idResp.json();
+          idToken = idData.token || '';
+        }
+        if (idToken) {
+          const wpResp = await fetch(`${msmApiUrl}/auth/tokens`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+            body: JSON.stringify({ workplace_id: wpId }),
+          });
+          if (wpResp.ok) {
+            const wpData = await wpResp.json();
+            wpToken = wpData.token || '';
+          }
+        }
+        // Store tokens in state for proxy auth injection
+        updateRequest(id, { authTokens: { idToken: idToken || '', wpToken: wpToken || '', wpId } });
+        appendLog(id, `Auth tokens: idToken=${idToken ? 'OK' : 'FAIL'} wpToken=${wpToken ? 'OK' : 'FAIL'} wp=${wpId}`);
+      } catch (authErr) {
+        appendLog(id, 'Auth token fetch failed: ' + (authErr.message || '').slice(0, 200));
+      }
+
+      const actualIdToken = idToken || 'mock-preview-token';
+      const actualWpToken = wpToken || `mock-workplace-token:${wpId}`;
+
+      // Replace AuthProvider with bypass that uses real tokens
       const authBypassProvider = `import { FC, PropsWithChildren, useCallback } from 'react';
 import { AuthContext } from './AuthContext';
 import { AuthTokenMemoryStorage, WorkplaceTokenMemoryStorage } from './memory-storage';
-import { AuthCacheStorage, WorkplaceTokenCacheStorage } from './token-cache';
-import { MEAutoSignOutType } from './types';
 
-const MOCK_TOKEN = 'mock-preview-token';
-const MOCK_WP_TOKEN = 'mock-workplace-token:${wpId}';
-const MOCK_WP_ID = '${wpId}';
+const ID_TOKEN = '${actualIdToken}';
+const WP_TOKEN = '${actualWpToken}';
+const WP_ID = '${wpId}';
 
-AuthTokenMemoryStorage.setToken(MOCK_TOKEN);
-WorkplaceTokenMemoryStorage.setToken(MOCK_WP_TOKEN);
+AuthTokenMemoryStorage.setToken(ID_TOKEN);
+WorkplaceTokenMemoryStorage.setToken(WP_TOKEN);
 
 const noop = async () => {};
 const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
-  const getIdToken = useCallback(() => MOCK_TOKEN, []);
-  const getWorkplaceToken = useCallback(() => MOCK_WP_TOKEN, []);
+  const getIdToken = useCallback(() => ID_TOKEN, []);
+  const getWorkplaceToken = useCallback(() => WP_TOKEN, []);
   return (
     <AuthContext.Provider value={{
       isAuthenticatedForUser: true,
       isAuthenticatedForWorkplace: true,
-      workplaceId: MOCK_WP_ID,
+      workplaceId: WP_ID,
       manualSignedOut: false,
       signIn: noop,
       signInWithMFA: noop,
@@ -958,7 +1000,7 @@ const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
       signOut: () => {},
       getIdToken,
       getWorkplaceToken,
-      getWorkplaceTokenWithWorkplaceId: async () => MOCK_WP_TOKEN,
+      getWorkplaceTokenWithWorkplaceId: async () => WP_TOKEN,
     }}>{children}</AuthContext.Provider>
   );
 };
@@ -969,13 +1011,13 @@ export default AuthProvider;
         command: `cat > /workspace/msm-portal/js/msm-portal-web/src/common/auth/AuthProvider.tsx << 'AUTHEOF'\n${authBypassProvider}AUTHEOF`,
         timeout: 5000,
       }).then(() => {
-        appendLog(id, `Auth bypass: AuthProvider replaced for preview (${wpId})`);
+        appendLog(id, `Auth bypass: AuthProvider with real tokens (${wpId})`);
       }).catch(e => appendLog(id, 'Auth bypass failed: ' + e.message));
 
-      // Also inject tokens into index.html for localStorage/sessionStorage seeding
+      // Inject tokens into index.html for localStorage/sessionStorage seeding
       const expireTime = 'String(Math.floor(Date.now()/1000)+54000)';
-      const authScript = `<script>(function(){var e=${expireTime},a=JSON.stringify({token:"mock-preview-token",expireTime:e}),w=JSON.stringify({token:"mock-workplace-token:${wpId}",workplaceId:"${wpId}",expireTime:e});try{localStorage.setItem("MSM_AUTH",a);localStorage.setItem("MSM_AUTH_WORKPLACE",w);sessionStorage.setItem("MSM_AUTH",a);sessionStorage.setItem("MSM_AUTH_WORKPLACE",w)}catch(x){}})()</script>`;
       const indexHtmlPath = `src/apps/${clientEnv}/index.html`;
+      const authScript = `<script>(function(){var e=${expireTime},a=JSON.stringify({token:"${actualIdToken}",expireTime:e}),w=JSON.stringify({token:"${actualWpToken}",workplaceId:"${wpId}",expireTime:e});try{localStorage.setItem("MSM_AUTH",a);localStorage.setItem("MSM_AUTH_WORKPLACE",w);sessionStorage.setItem("MSM_AUTH",a);sessionStorage.setItem("MSM_AUTH_WORKPLACE",w)}catch(x){}})()</script>`;
       await execInContainer({
         containerId: sandbox.containerId,
         command: `cd /workspace/msm-portal/js/msm-portal-web && sed -i 's|</head>|${authScript.replace(/'/g, "\\'")}\\n</head>|' ${indexHtmlPath}`,
@@ -1023,13 +1065,13 @@ const { chromium } = require('/usr/local/lib/node_modules/playwright');
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   // Seed auth tokens
   await page.goto('http://localhost:5173${(pagePath || '/').replace(/'/g, "\\'")}', { waitUntil: 'networkidle', timeout: 20000 }).catch(() => page.goto('http://localhost:5173/', { waitUntil: 'networkidle', timeout: 15000 }));
-  await page.evaluate((wpId) => {
+  await page.evaluate(({idTk,wpTk,wpId}) => {
     var e=String(Math.floor(Date.now()/1000)+54000);
-    localStorage.setItem('MSM_AUTH',JSON.stringify({token:'mock-preview-token',expireTime:e}));
-    localStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:'mock-workplace-token:'+wpId,workplaceId:wpId,expireTime:e}));
-    sessionStorage.setItem('MSM_AUTH',JSON.stringify({token:'mock-preview-token',expireTime:e}));
-    sessionStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:'mock-workplace-token:'+wpId,workplaceId:wpId,expireTime:e}));
-  }, '${wpId}');
+    localStorage.setItem('MSM_AUTH',JSON.stringify({token:idTk,expireTime:e}));
+    localStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:wpTk,workplaceId:wpId,expireTime:e}));
+    sessionStorage.setItem('MSM_AUTH',JSON.stringify({token:idTk,expireTime:e}));
+    sessionStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:wpTk,workplaceId:wpId,expireTime:e}));
+  }, {idTk:'${actualIdToken}',wpTk:'${actualWpToken}',wpId:'${wpId}'});
   await page.reload({ waitUntil: 'networkidle', timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(2000);
   await page.screenshot({ path: '/workspace/results/screenshot.png', fullPage: false });
@@ -1544,7 +1586,11 @@ const server = http.createServer(async (req, res) => {
 
     const target = `http://127.0.0.1:${state.sandbox.vitePort}${subPath}${url.search}`;
     // Fallback: also inject auth tokens directly into HTML in case bootstrap is unavailable
-    const AUTH_INJECT = `<script>(function(){var e=String(Math.floor(Date.now()/1000)+54000),a=JSON.stringify({token:"mock-preview-token",expireTime:e}),w=JSON.stringify({token:"mock-workplace-token:${workplaceId}",workplaceId:"${workplaceId}",expireTime:e});try{localStorage.setItem("MSM_AUTH",a);localStorage.setItem("MSM_AUTH_WORKPLACE",w);sessionStorage.setItem("MSM_AUTH",a);sessionStorage.setItem("MSM_AUTH_WORKPLACE",w)}catch(x){}})()</script>`;
+    const authTokens = state.authTokens || {};
+    const proxyIdToken = authTokens.idToken || 'mock-preview-token';
+    const proxyWpToken = authTokens.wpToken || `mock-workplace-token:${workplaceId}`;
+    const proxyWpId = authTokens.wpId || workplaceId;
+    const AUTH_INJECT = `<script>(function(){var e=String(Math.floor(Date.now()/1000)+54000),a=JSON.stringify({token:"${proxyIdToken}",expireTime:e}),w=JSON.stringify({token:"${proxyWpToken}",workplaceId:"${proxyWpId}",expireTime:e});try{localStorage.setItem("MSM_AUTH",a);localStorage.setItem("MSM_AUTH_WORKPLACE",w);sessionStorage.setItem("MSM_AUTH",a);sessionStorage.setItem("MSM_AUTH_WORKPLACE",w)}catch(x){}})()</script>`;
     try {
       const proxyReq = http.request(target, { method: req.method, headers: { ...req.headers, host: `127.0.0.1:${state.sandbox.vitePort}` } }, (proxyRes) => {
         const ct = proxyRes.headers['content-type'] || '';
