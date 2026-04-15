@@ -245,8 +245,12 @@ async function refreshHealthState() {
     if (!response.ok) {
       throw new Error(`Health check returned ${response.status}`);
     }
+    const data = await response.json();
     healthState.serverReachable = true;
     healthState.lastError = null;
+    healthState.model = data.model || null;
+    healthState.requests = data.requests ?? null;
+    healthState.sandboxImage = data.sandboxImage || null;
     setIconState('connected');
   } catch (error) {
     healthState.serverReachable = false;
