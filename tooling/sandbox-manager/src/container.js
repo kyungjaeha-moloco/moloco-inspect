@@ -72,7 +72,7 @@ export async function createSandbox({
 export async function copyFilesIn({ containerId, sourceDir, containerDir = '/workspace/msm-portal' }) {
   // Copy source into container via tar, excluding .git and node_modules
   await execAsync(
-    `cd "${sourceDir}" && tar cf - --exclude='.git' --exclude='node_modules' --exclude='.omc' . | docker exec -i "${containerId}" tar xf - -C "${containerDir}/"`,
+    `cd "${sourceDir}" && tar cf - --exclude='.git' --exclude='node_modules' --exclude='.omc' --exclude='._*' . | docker exec -i "${containerId}" tar xf - -C "${containerDir}/"`,
     { timeout: 300_000, maxBuffer: 50 * 1024 * 1024 },
   );
 
@@ -157,7 +157,8 @@ export async function extractDiff({ containerId }) {
     .map((l) => l.substring(3)) // porcelain format: 2-char status + space + path
     .map((f) => f.trim())
     .filter(Boolean)
-    .filter((f) => !f.startsWith('.opencode/'));
+    .filter((f) => !f.startsWith('.opencode/'))
+    .filter((f) => !/(^|\/)\.\_/.test(f));
 
   if (!changedFiles.length) {
     return { diffText: '', changedFiles: [], diffStat: '' };

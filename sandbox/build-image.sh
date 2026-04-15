@@ -11,7 +11,8 @@ IMAGE_TAG="${IMAGE_TAG:-latest}"
 echo "Building ${IMAGE_NAME}:${IMAGE_TAG}..."
 echo "Context: $REPO_ROOT"
 
-docker build \
+DOCKER_BUILDKIT=1 docker build \
+  --secret id=npmrc,src="${HOME}/.npmrc" \
   -t "${IMAGE_NAME}:${IMAGE_TAG}" \
   -f "$SCRIPT_DIR/Dockerfile" \
   "$REPO_ROOT"

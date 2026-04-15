@@ -923,8 +923,9 @@ async function runPipeline(id) {
         containerId: sandbox.containerId,
         command: `cd /workspace/msm-portal/js/msm-portal-web && sed -i 's|</head>|${authScript.replace(/'/g, "\\'")}\\n</head>|' index.html`,
         timeout: 5000,
-      }).catch(e => appendLog(id, 'Auth inject into index.html skipped: ' + e.message));
-      appendLog(id, 'Auth tokens injected into index.html');
+      }).then(() => {
+        appendLog(id, 'Auth tokens injected into index.html');
+      }).catch(e => appendLog(id, 'Auth inject into index.html failed: ' + e.message));
 
       appendLog(id, 'Starting live preview server...');
       // Start vite in background
@@ -961,19 +962,19 @@ async function runPipeline(id) {
           updateRequest(id, { phase: 'capturing_screenshot' });
           appendLog(id, 'Capturing screenshot via Playwright...');
           const screenshotScript = `
-const { chromium } = require('playwright');
+const { chromium } = require('/usr/local/lib/node_modules/playwright');
 (async () => {
   const browser = await chromium.launch({ executablePath: '/usr/bin/chromium-browser', args: ['--no-sandbox', '--disable-gpu'] });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   // Seed auth tokens
   await page.goto('http://localhost:5173${(pagePath || '/').replace(/'/g, "\\'")}', { waitUntil: 'networkidle', timeout: 20000 }).catch(() => page.goto('http://localhost:5173/', { waitUntil: 'networkidle', timeout: 15000 }));
-  await page.evaluate(() => {
+  await page.evaluate((wpId) => {
     var e=Date.now()+288e5;
     localStorage.setItem('MSM_AUTH',JSON.stringify({token:'mock-preview-token',expiresAt:e}));
-    localStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:'mock-workplace-token:TVING_OMS',workplaceId:'TVING_OMS',expiresAt:e}));
+    localStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:'mock-workplace-token:'+wpId,workplaceId:wpId,expiresAt:e}));
     sessionStorage.setItem('MSM_AUTH',JSON.stringify({token:'mock-preview-token',expiresAt:e}));
-    sessionStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:'mock-workplace-token:TVING_OMS',workplaceId:'TVING_OMS',expiresAt:e}));
-  });
+    sessionStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:'mock-workplace-token:'+wpId,workplaceId:wpId,expiresAt:e}));
+  }, '${wpId}');
   await page.reload({ waitUntil: 'networkidle', timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(2000);
   await page.screenshot({ path: '/workspace/results/screenshot.png', fullPage: false });
@@ -994,6 +995,41 @@ const { chromium } = require('playwright');
           }
         } catch (ssErr) {
           appendLog(id, 'Screenshot capture failed: ' + (ssErr.message || '').slice(0, 200));
+        }
+      } else {
+        // Fallback: capture vite log and attempt error-state screenshot
+        try {
+          const viteLog = await execInContainer({
+            containerId: sandbox.containerId,
+            command: 'tail -20 /tmp/vite.log 2>/dev/null || echo "No vite log"',
+            timeout: 5000,
+          }).catch(() => ({ stdout: 'Could not read vite log' }));
+          appendLog(id, 'Vite not ready. Log tail: ' + (viteLog.stdout || '').slice(0, 300));
+
+          if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+          const fallbackScript = `
+const { chromium } = require('/usr/local/lib/node_modules/playwright');
+(async () => {
+  const browser = await chromium.launch({ executablePath: '/usr/bin/chromium-browser', args: ['--no-sandbox', '--disable-gpu'] });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await page.goto('http://localhost:5173/', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: '/workspace/results/screenshot.png', fullPage: false });
+  await browser.close();
+})();`.trim();
+          await execInContainer({
+            containerId: sandbox.containerId,
+            command: `mkdir -p /workspace/results && node -e '${fallbackScript.replace(/'/g, "'\"'\"'")}'`,
+            timeout: 20000,
+          });
+          const ssPath = path.join(SCREENSHOTS_DIR, `${id}.png`);
+          await extractFile({ containerId: sandbox.containerId, containerPath: '/workspace/results/screenshot.png', hostPath: ssPath }).catch(() => null);
+          if (fs.existsSync(ssPath)) {
+            updateRequest(id, { screenshotPath: ssPath });
+            appendLog(id, 'Fallback screenshot captured (vite may not be fully loaded)');
+          }
+        } catch (fbErr) {
+          appendLog(id, 'Fallback screenshot failed: ' + (fbErr.message || '').slice(0, 200));
         }
       }
     } catch (error) {

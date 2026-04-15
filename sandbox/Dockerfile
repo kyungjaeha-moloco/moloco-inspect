@@ -27,12 +27,19 @@ ENV npm_config_strict_ssl=false
 # pnpm
 RUN npm install -g pnpm@9
 
-# Playwright: use system Chromium
+# Playwright: use system Chromium (skip browser download, use pre-installed)
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+RUN npm install -g playwright-core && npm install -g playwright
 
-# ─── msm-portal (placeholder — will be populated via docker cp) ──────
-RUN mkdir -p /workspace/msm-portal
+# ─── msm-portal: pre-bake node_modules for fast cold start ──────────
+# Copy only dependency manifests first (Docker layer caching)
+RUN mkdir -p /workspace/msm-portal/js/msm-portal-web
+COPY sandbox/msm-portal-deps/package.json /workspace/msm-portal/js/msm-portal-web/package.json
+COPY sandbox/msm-portal-deps/pnpm-lock.yaml /workspace/msm-portal/js/msm-portal-web/pnpm-lock.yaml
+# .npmrc injected at build time via --secret for private registry auth
+RUN --mount=type=secret,id=npmrc,target=/root/.npmrc \
+    cd /workspace/msm-portal/js/msm-portal-web && (pnpm install --frozen-lockfile || pnpm install)
 WORKDIR /workspace/msm-portal
 
 # ─── design-system ───────────────────────────────────────────────────
