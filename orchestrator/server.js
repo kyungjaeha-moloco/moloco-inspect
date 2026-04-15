@@ -1071,7 +1071,8 @@ const fs = require('fs');
   const cfg = JSON.parse(fs.readFileSync('/workspace/results/auth.json','utf8'));
   const browser = await chromium.launch({ executablePath: '/usr/bin/chromium-browser', args: ['--no-sandbox', '--disable-gpu'] });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  await page.goto('http://localhost:5173' + cfg.pagePath, { waitUntil: 'networkidle', timeout: 20000 }).catch(() => page.goto('http://localhost:5173/', { waitUntil: 'networkidle', timeout: 15000 }));
+  // Set tokens BEFORE navigating to target page — prevents "unknown user" on first load
+  await page.goto('http://localhost:5173/', { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => {});
   await page.evaluate((c) => {
     var e=String(Math.floor(Date.now()/1000)+54000);
     localStorage.setItem('MSM_AUTH',JSON.stringify({token:c.idToken,expireTime:e}));
@@ -1080,8 +1081,9 @@ const fs = require('fs');
     sessionStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:c.wpToken,workplaceId:c.wpId,expireTime:e}));
     localStorage.setItem('i18nextLng',c.lang);
   }, cfg);
-  await page.reload({ waitUntil: 'networkidle', timeout: 15000 }).catch(() => {});
-  await page.waitForTimeout(3000);
+  // Now navigate to the actual target page with tokens already in storage
+  await page.goto('http://localhost:5173' + cfg.pagePath, { waitUntil: 'networkidle', timeout: 20000 }).catch(() => {});
+  await page.waitForTimeout(5000);
   await page.screenshot({ path: '/workspace/results/screenshot.png', fullPage: false });
   await browser.close();
 })();`.trim();
