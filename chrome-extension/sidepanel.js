@@ -139,7 +139,7 @@
     pipeline_error: -1,
   };
 
-  const STEP_LABELS = ['Setup', 'Coding', 'Verify', 'Done'];
+  const STEP_LABELS = ['Setup', 'Working', 'Verify', 'Done'];
 
   function createStepperElement() {
     const wrapper = document.createElement('div');
