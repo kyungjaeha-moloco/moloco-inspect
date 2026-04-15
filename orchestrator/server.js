@@ -1006,10 +1006,11 @@ export default AuthProvider;
         appendLog(id, `Auth bypass: AuthProvider with real tokens (${wpId})`);
       }).catch(e => appendLog(id, 'Auth bypass failed: ' + e.message));
 
-      // Inject tokens into index.html for localStorage/sessionStorage seeding
+      // Inject tokens + language into index.html for localStorage/sessionStorage seeding
       const expireTime = 'String(Math.floor(Date.now()/1000)+54000)';
+      const lang = state.payload?.language || 'ko';
       const indexHtmlPath = `src/apps/${clientEnv}/index.html`;
-      const authScript = `<script>(function(){var e=${expireTime},a=JSON.stringify({token:"${actualIdToken}",expireTime:e}),w=JSON.stringify({token:"${actualWpToken}",workplaceId:"${wpId}",expireTime:e});try{localStorage.setItem("MSM_AUTH",a);localStorage.setItem("MSM_AUTH_WORKPLACE",w);sessionStorage.setItem("MSM_AUTH",a);sessionStorage.setItem("MSM_AUTH_WORKPLACE",w)}catch(x){}})()</script>`;
+      const authScript = `<script>(function(){var e=${expireTime},a=JSON.stringify({token:"${actualIdToken}",expireTime:e}),w=JSON.stringify({token:"${actualWpToken}",workplaceId:"${wpId}",expireTime:e});try{localStorage.setItem("MSM_AUTH",a);localStorage.setItem("MSM_AUTH_WORKPLACE",w);sessionStorage.setItem("MSM_AUTH",a);sessionStorage.setItem("MSM_AUTH_WORKPLACE",w);localStorage.setItem("i18nextLng","${lang}")}catch(x){}})()</script>`;
       await execInContainer({
         containerId: sandbox.containerId,
         command: `cd /workspace/msm-portal/js/msm-portal-web && sed -i 's|</head>|${authScript.replace(/'/g, "\\'")}\\n</head>|' ${indexHtmlPath}`,
@@ -1063,7 +1064,8 @@ const { chromium } = require('/usr/local/lib/node_modules/playwright');
     localStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:wpTk,workplaceId:wpId,expireTime:e}));
     sessionStorage.setItem('MSM_AUTH',JSON.stringify({token:idTk,expireTime:e}));
     sessionStorage.setItem('MSM_AUTH_WORKPLACE',JSON.stringify({token:wpTk,workplaceId:wpId,expireTime:e}));
-  }, {idTk:'${actualIdToken}',wpTk:'${actualWpToken}',wpId:'${wpId}'});
+    localStorage.setItem('i18nextLng',lang);
+  }, {idTk:'${actualIdToken}',wpTk:'${actualWpToken}',wpId:'${wpId}',lang:'${lang}'});
   await page.reload({ waitUntil: 'networkidle', timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(2000);
   await page.screenshot({ path: '/workspace/results/screenshot.png', fullPage: false });
@@ -1582,7 +1584,8 @@ const server = http.createServer(async (req, res) => {
     const proxyIdToken = authTokens.idToken || 'mock-preview-token';
     const proxyWpToken = authTokens.wpToken || `mock-workplace-token:${workplaceId}`;
     const proxyWpId = authTokens.wpId || workplaceId;
-    const AUTH_INJECT = `<script>(function(){var e=String(Math.floor(Date.now()/1000)+54000),a=JSON.stringify({token:"${proxyIdToken}",expireTime:e}),w=JSON.stringify({token:"${proxyWpToken}",workplaceId:"${proxyWpId}",expireTime:e});try{localStorage.setItem("MSM_AUTH",a);localStorage.setItem("MSM_AUTH_WORKPLACE",w);sessionStorage.setItem("MSM_AUTH",a);sessionStorage.setItem("MSM_AUTH_WORKPLACE",w)}catch(x){}})()</script>`;
+    const proxyLang = state.payload?.language || 'ko';
+    const AUTH_INJECT = `<script>(function(){var e=String(Math.floor(Date.now()/1000)+54000),a=JSON.stringify({token:"${proxyIdToken}",expireTime:e}),w=JSON.stringify({token:"${proxyWpToken}",workplaceId:"${proxyWpId}",expireTime:e});try{localStorage.setItem("MSM_AUTH",a);localStorage.setItem("MSM_AUTH_WORKPLACE",w);sessionStorage.setItem("MSM_AUTH",a);sessionStorage.setItem("MSM_AUTH_WORKPLACE",w);localStorage.setItem("i18nextLng","${proxyLang}")}catch(x){}})()</script>`;
     try {
       const proxyReq = http.request(target, { method: req.method, headers: { ...req.headers, host: `127.0.0.1:${state.sandbox.vitePort}` } }, (proxyRes) => {
         const ct = proxyRes.headers['content-type'] || '';
