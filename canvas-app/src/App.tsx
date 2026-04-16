@@ -35,6 +35,35 @@ export default function App() {
 
     // Resume undo history
     useCanvasStore.temporal.getState().resume();
+
+    // Auto-save comments on every change (debounced 1s)
+    let saveTimeout: ReturnType<typeof setTimeout>;
+    const unsubscribe = useFeedbackStore.subscribe((state) => {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        const { nodes, edges, components } = useCanvasStore.getState();
+        const saved = {
+          nodes,
+          edges,
+          components,
+          comments: state.comments,
+        };
+        try {
+          const json = JSON.stringify({
+            project: { id: DEFAULT_PROJECT_ID, name: 'Untitled Project', viewport: { x: 0, y: 0, zoom: 1 }, schemaVersion: 1, createdBy: 'local', updatedAt: new Date().toISOString() },
+            ...saved,
+          });
+          localStorage.setItem(`moloco-canvas-${DEFAULT_PROJECT_ID}`, json);
+        } catch (err) {
+          console.error('[auto-save] Failed to save comments:', err);
+        }
+      }, 1000);
+    });
+
+    return () => {
+      clearTimeout(saveTimeout);
+      unsubscribe();
+    };
   }, []);
 
   const handleOpenLibrary = useCallback(() => setShowLibrary(true), []);
