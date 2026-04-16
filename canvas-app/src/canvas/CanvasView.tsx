@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -16,9 +16,13 @@ import { ScreenNode } from './nodes/ScreenNode';
 import { SectionNode } from './nodes/SectionNode';
 import { FlowEdge } from './edges/FlowEdge';
 import { Toolbar } from './Toolbar';
+import { ComponentPalette } from '../editor/ComponentPalette';
+import { PropPanel } from '../editor/PropPanel';
+import { CreateToolbar, useEdgeCreation } from '../editor/CreateToolbar';
 import { useCanvasStore } from '../store/canvas-store';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useSectionAutoResize } from '../hooks/useSectionAutoResize';
+import { useCanvasDropHandler } from '../hooks/useCanvasDropHandler';
 
 const nodeTypes: NodeTypes = {
   screen: ScreenNode,
@@ -59,11 +63,26 @@ export function CanvasView() {
       interactionMode: s.interactionMode,
     })));
 
+  // Sidebar state
+  const [paletteOpen, setPaletteOpen] = useState(true);
+
   // Keyboard shortcuts (Delete, Ctrl+Z/Y/S, V/H/C)
   const { handleSave, handleUndo, handleRedo } = useKeyboardShortcuts();
 
   // Section auto-resize on child drag stop
   const { handleNodeDragStop } = useSectionAutoResize();
+
+  // HTML DnD drop handler
+  const { handleDragOver, handleDrop } = useCanvasDropHandler();
+
+  // Edge creation mode (from CreateToolbar)
+  const { handleNodeClickForEdge } = useEdgeCreation();
+  const handleNodeClick = useCallback(
+    (_event: React.MouseEvent, node: any) => {
+      handleNodeClickForEdge(node.id);
+    },
+    [handleNodeClickForEdge],
+  );
 
   // Undo/redo state from zundo temporal store
   const canUndo = useStore(useCanvasStore.temporal, (s) => s.pastStates.length > 0);
@@ -75,40 +94,71 @@ export function CanvasView() {
     [interactionMode],
   );
 
+  // Deselect component when clicking on canvas background
+  const setSelectedComponentId = useCanvasStore((s) => s.setSelectedComponentId);
+  const handlePaneClick = useCallback(() => {
+    setSelectedComponentId(null);
+  }, [setSelectedComponentId]);
+
+  const handlePaletteToggle = useCallback(() => {
+    setPaletteOpen((prev) => !prev);
+  }, []);
+
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#0a0a14' }}>
-      <ArrowMarker />
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeDragStop={handleNodeDragStop}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        panOnDrag={panOnDrag}
-        nodesDraggable={interactionMode === 'select'}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.1}
-        maxZoom={2}
-        proOptions={{ hideAttribution: true }}
-      >
-        <MiniMap />
-        <Controls />
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={20}
-          color="#333"
-        />
-        <Toolbar
-          onSave={handleSave}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-        />
-      </ReactFlow>
+    <div
+      style={{
+        width: '100vw',
+        height: '100vh',
+        display: 'flex',
+        background: '#0a0a14',
+      }}
+    >
+      {/* Left sidebar: Component Palette */}
+      <ComponentPalette isOpen={paletteOpen} onToggle={handlePaletteToggle} />
+
+      {/* Center: Canvas */}
+      <div style={{ flex: 1, position: 'relative' }}>
+        <ArrowMarker />
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeDragStop={handleNodeDragStop}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onNodeClick={handleNodeClick}
+          onPaneClick={handlePaneClick}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          panOnDrag={panOnDrag}
+          nodesDraggable={interactionMode === 'select'}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+          minZoom={0.1}
+          maxZoom={2}
+          proOptions={{ hideAttribution: true }}
+        >
+          <MiniMap />
+          <Controls />
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={20}
+            color="#333"
+          />
+          <Toolbar
+            onSave={handleSave}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+          />
+          <CreateToolbar />
+        </ReactFlow>
+      </div>
+
+      {/* Right sidebar: Prop Panel */}
+      <PropPanel />
     </div>
   );
 }
