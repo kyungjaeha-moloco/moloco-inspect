@@ -2,7 +2,6 @@ import type {
   CanvasNode,
   CanvasEdge,
   ScreenComponent,
-  CanvasProject,
   SavedCanvasState,
 } from '../types';
 
