@@ -15,6 +15,8 @@ export const sampleNodes: CanvasNode[] = [
     id: 'screen-1',
     type: 'screen',
     position: { x: 40, y: 60 },
+    width: 320,
+    height: 400,
     parentId: 'section-1',
     expandParent: true,
     data: {
@@ -29,6 +31,8 @@ export const sampleNodes: CanvasNode[] = [
     id: 'screen-2',
     type: 'screen',
     position: { x: 440, y: 60 },
+    width: 320,
+    height: 400,
     parentId: 'section-1',
     expandParent: true,
     data: {
@@ -43,6 +47,8 @@ export const sampleNodes: CanvasNode[] = [
     id: 'screen-3',
     type: 'screen',
     position: { x: 840, y: 60 },
+    width: 320,
+    height: 300,
     parentId: 'section-1',
     expandParent: true,
     data: {
