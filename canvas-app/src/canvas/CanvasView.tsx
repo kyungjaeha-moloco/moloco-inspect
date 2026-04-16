@@ -11,6 +11,7 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import { useStore } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import { ScreenNode } from './nodes/ScreenNode';
 import { SectionNode } from './nodes/SectionNode';
 import { FlowEdge } from './edges/FlowEdge';
@@ -50,7 +51,13 @@ function ArrowMarker() {
 
 export function CanvasView() {
   const { nodes, edges, onNodesChange, onEdgesChange, interactionMode } =
-    useCanvasStore();
+    useCanvasStore(useShallow((s) => ({
+      nodes: s.nodes,
+      edges: s.edges,
+      onNodesChange: s.onNodesChange,
+      onEdgesChange: s.onEdgesChange,
+      interactionMode: s.interactionMode,
+    })));
 
   // Keyboard shortcuts (Delete, Ctrl+Z/Y/S, V/H/C)
   const { handleSave, handleUndo, handleRedo } = useKeyboardShortcuts();

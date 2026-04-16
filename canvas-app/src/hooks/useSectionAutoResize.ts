@@ -51,6 +51,7 @@ export function useSectionAutoResize() {
               }
             : n,
         ),
+        isDirty: true,
       });
     },
     [],
