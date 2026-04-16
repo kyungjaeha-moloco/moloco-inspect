@@ -11,6 +11,7 @@ import type {
   ScreenComponent,
   InteractionMode,
 } from '../types';
+import { sampleNodes, sampleEdges, sampleComponents } from '../sample-data';
 
 interface CanvasState {
   // ── React Flow state ──
@@ -34,9 +35,9 @@ interface CanvasState {
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
-  nodes: [],
-  edges: [],
-  components: {},
+  nodes: sampleNodes,
+  edges: sampleEdges,
+  components: sampleComponents,
   interactionMode: 'select',
 
   onNodesChange: (changes) => {

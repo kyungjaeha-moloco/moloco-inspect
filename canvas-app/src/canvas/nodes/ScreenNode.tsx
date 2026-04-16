@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { ScreenNode as ScreenNodeType } from '../../types';
 import { DSComponentRenderer } from '../../ds-registry/DSComponentRenderer';
@@ -7,7 +7,13 @@ import { useCanvasStore } from '../../store/canvas-store';
 export const ScreenNode = React.memo(function ScreenNode({
   id, data, selected,
 }: NodeProps<ScreenNodeType>) {
-  const components = useCanvasStore((s) => s.getComponentsForScreen(id));
+  const allComponents = useCanvasStore((s) => s.components);
+  const components = useMemo(
+    () => Object.values(allComponents)
+      .filter((c) => c.screenId === id && c.parentId === null)
+      .sort((a, b) => a.order - b.order),
+    [allComponents, id],
+  );
 
   return (
     <div style={{

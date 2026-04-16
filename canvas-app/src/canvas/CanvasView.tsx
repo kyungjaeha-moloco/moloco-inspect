@@ -49,7 +49,7 @@ export function CanvasView() {
     useCanvasStore();
 
   return (
-    <div style={{ width: '100%', height: '100%', background: '#0a0a14' }}>
+    <div style={{ width: '100vw', height: '100vh', background: '#0a0a14' }}>
       <ArrowMarker />
       <ReactFlow
         nodes={nodes}
