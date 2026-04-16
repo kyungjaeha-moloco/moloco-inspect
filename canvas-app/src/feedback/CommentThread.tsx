@@ -63,6 +63,10 @@ export const CommentThread = React.memo(function CommentThread({
     });
   };
 
+  // Known limitation: the thread popup can be clipped when the comment pin is near
+  // the right or bottom edge of the screen frame. Proper edge detection (measuring
+  // popup dimensions and adjusting transform origin) should be addressed in a
+  // follow-up task.
   return (
     <div
       onClick={(e) => e.stopPropagation()}

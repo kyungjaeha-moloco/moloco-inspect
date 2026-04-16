@@ -1,5 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
-import { useShallow } from 'zustand/react/shallow';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useFeedbackStore } from '../store/feedback-store';
 import { useCanvasStore } from '../store/canvas-store';
 import { CommentPin } from './CommentPin';
@@ -14,23 +13,21 @@ export const CommentOverlay = React.memo(function CommentOverlay({
 }: CommentOverlayProps) {
   const interactionMode = useCanvasStore((s) => s.interactionMode);
 
-  const { comments, activeThreadId, setActiveThread, addComment } =
-    useFeedbackStore(
-      useShallow((s) => ({
-        comments: s.comments,
-        activeThreadId: s.activeThreadId,
-        setActiveThread: s.setActiveThread,
-        addComment: s.addComment,
-      })),
-    );
+  const allComments = useFeedbackStore((s) => s.comments);
+  const activeThreadId = useFeedbackStore((s) => s.activeThreadId);
+  const setActiveThread = useFeedbackStore((s) => s.setActiveThread);
+  const addComment = useFeedbackStore((s) => s.addComment);
 
   const screenComments = useMemo(
     () =>
-      Object.values(comments)
+      Object.values(allComments)
         .filter((c) => c.screenId === screenId)
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-    [comments, screenId],
+    [allComments, screenId],
   );
+
+  const [pendingPin, setPendingPin] = useState<{ xRatio: number; yRatio: number } | null>(null);
+  const [pendingText, setPendingText] = useState('');
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -41,13 +38,10 @@ export const CommentOverlay = React.memo(function CommentOverlay({
       const xRatio = (e.clientX - rect.left) / rect.width;
       const yRatio = (e.clientY - rect.top) / rect.height;
 
-      // Prompt for comment text
-      const text = window.prompt('Add a comment:');
-      if (!text || !text.trim()) return;
-
-      addComment(screenId, xRatio, yRatio, text.trim());
+      setPendingPin({ xRatio, yRatio });
+      setPendingText('');
     },
-    [interactionMode, screenId, addComment],
+    [interactionMode],
   );
 
   const handlePinClick = useCallback(
@@ -61,7 +55,7 @@ export const CommentOverlay = React.memo(function CommentOverlay({
     setActiveThread(null);
   }, [setActiveThread]);
 
-  const activeComment = activeThreadId ? comments[activeThreadId] : null;
+  const activeComment = activeThreadId ? allComments[activeThreadId] : null;
   const showActiveThread = activeComment && activeComment.screenId === screenId;
 
   return (
@@ -70,28 +64,136 @@ export const CommentOverlay = React.memo(function CommentOverlay({
       style={{
         position: 'absolute',
         inset: 0,
-        pointerEvents: interactionMode === 'comment' || screenComments.length > 0 ? 'auto' : 'none',
+        // pointerEvents none by default — let clicks pass through to screen content.
+        // Only set to auto in comment mode so overlay captures click-to-place events.
+        pointerEvents: interactionMode === 'comment' ? 'auto' : 'none',
         cursor: interactionMode === 'comment' ? 'crosshair' : 'default',
         zIndex: 15,
       }}
     >
-      {/* Pin markers */}
+      {/* Pin markers — each wrapped so they capture clicks regardless of mode */}
       {screenComments.map((comment, idx) => (
-        <CommentPin
+        <div
           key={comment.id}
-          comment={comment}
-          index={idx}
-          isActive={activeThreadId === comment.id}
-          onClick={handlePinClick}
-        />
+          style={{
+            position: 'absolute',
+            left: `${comment.xRatio * 100}%`,
+            top: `${comment.yRatio * 100}%`,
+            pointerEvents: 'auto',
+            zIndex: 15,
+          }}
+        >
+          <CommentPin
+            comment={comment}
+            index={idx}
+            isActive={activeThreadId === comment.id}
+            onClick={handlePinClick}
+          />
+        </div>
       ))}
 
       {/* Active thread popup */}
       {showActiveThread && (
-        <CommentThread
-          comment={activeComment}
-          onClose={handleCloseThread}
-        />
+        <div style={{ pointerEvents: 'auto' }}>
+          <CommentThread
+            comment={activeComment}
+            onClose={handleCloseThread}
+          />
+        </div>
+      )}
+
+      {/* Inline comment input form — shown after clicking in comment mode */}
+      {pendingPin && (
+        <div
+          style={{
+            position: 'absolute',
+            left: `${pendingPin.xRatio * 100}%`,
+            top: `${pendingPin.yRatio * 100}%`,
+            transform: 'translate(-50%, 8px)',
+            pointerEvents: 'auto',
+            zIndex: 20,
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 8,
+              padding: 12,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              width: 240,
+              border: '1px solid #e0e0e0',
+            }}
+          >
+            <textarea
+              autoFocus
+              value={pendingText}
+              onChange={(e) => setPendingText(e.target.value)}
+              placeholder="댓글을 입력하세요..."
+              style={{
+                width: '100%',
+                height: 60,
+                border: '1px solid #d0d0d0',
+                borderRadius: 4,
+                padding: 8,
+                fontSize: 13,
+                resize: 'none',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setPendingPin(null);
+                  setPendingText('');
+                }
+              }}
+            />
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                marginTop: 8,
+                justifyContent: 'flex-end',
+              }}
+            >
+              <button
+                onClick={() => {
+                  setPendingPin(null);
+                  setPendingText('');
+                }}
+                style={{
+                  padding: '4px 12px',
+                  border: '1px solid #d0d0d0',
+                  borderRadius: 4,
+                  background: '#fff',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                }}
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingText.trim()) {
+                    addComment(screenId, pendingPin.xRatio, pendingPin.yRatio, pendingText.trim());
+                    setPendingPin(null);
+                    setPendingText('');
+                  }
+                }}
+                style={{
+                  padding: '4px 12px',
+                  border: 'none',
+                  borderRadius: 4,
+                  background: '#346bea',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                }}
+              >
+                등록
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
