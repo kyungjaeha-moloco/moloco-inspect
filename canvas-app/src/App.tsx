@@ -5,10 +5,15 @@ import { ComponentLibraryView } from './editor/ComponentLibraryView';
 import { useCanvasStore } from './store/canvas-store';
 import { useFeedbackStore } from './store/feedback-store';
 import { loadCanvas, DEFAULT_PROJECT_ID } from './services/local-adapter';
+import { initBridgeClient } from './bridge/bridge-client';
 import './App.css';
 
 export default function App() {
   const [showLibrary, setShowLibrary] = useState(false);
+
+  useEffect(() => {
+    initBridgeClient();
+  }, []);
 
   useEffect(() => {
     const saved = loadCanvas(DEFAULT_PROJECT_ID);

@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { canvasApiPlugin } from './src/bridge/vite-plugin-canvas-api';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DESIGN_SYSTEM_SRC = path.resolve(__dirname, '../design-system/src');
@@ -10,7 +11,7 @@ const DS_SITE_SRC = path.resolve(__dirname, '../design-system-site/src');
 
 export default defineConfig({
   base: './',
-  plugins: [react()],
+  plugins: [react(), canvasApiPlugin()],
   resolve: {
     alias: {
       '@design-system': DESIGN_SYSTEM_SRC,
