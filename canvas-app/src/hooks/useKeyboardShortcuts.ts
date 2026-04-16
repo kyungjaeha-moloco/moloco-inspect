@@ -8,6 +8,7 @@ export function useKeyboardShortcuts() {
   const setInteractionMode = useCanvasStore((s) => s.setInteractionMode);
   const deleteSelectedNodes = useCanvasStore((s) => s.deleteSelectedNodes);
   const setDirty = useCanvasStore((s) => s.setDirty);
+  const setSelectedComponentId = useCanvasStore((s) => s.setSelectedComponentId);
 
   const handleSave = useCallback(() => {
     const { nodes, edges, components } = useCanvasStore.getState();
@@ -42,6 +43,12 @@ export function useKeyboardShortcuts() {
         e.target instanceof HTMLSelectElement ||
         (e.target instanceof HTMLElement && e.target.isContentEditable)
       ) {
+        return;
+      }
+
+      // ── Escape: Deselect component ──
+      if (e.key === 'Escape') {
+        setSelectedComponentId(null);
         return;
       }
 
@@ -96,7 +103,7 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleSave, handleUndo, handleRedo, deleteSelectedNodes, setInteractionMode]);
+  }, [handleSave, handleUndo, handleRedo, deleteSelectedNodes, setInteractionMode, setSelectedComponentId]);
 
   return { handleSave, handleUndo, handleRedo };
 }
