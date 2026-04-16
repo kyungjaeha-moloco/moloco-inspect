@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
 import type { ScreenNode as ScreenNodeType } from '../../types';
@@ -11,6 +11,7 @@ export const ScreenNode = React.memo(function ScreenNode({
   selected,
 }: NodeProps<ScreenNodeType>) {
   const toggleNodeLock = useCanvasStore((s) => s.toggleNodeLock);
+  const setSelectedComponentId = useCanvasStore((s) => s.setSelectedComponentId);
   const components = useCanvasStore(
     useShallow((s) =>
       Object.values(s.components)
@@ -19,12 +20,48 @@ export const ScreenNode = React.memo(function ScreenNode({
     )
   );
 
+  const [isDragOver, setIsDragOver] = useState(false);
+
   const handleLockToggle = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
       toggleNodeLock(id);
     },
     [id, toggleNodeLock],
+  );
+
+  const handleBodyClick = useCallback(
+    (e: React.MouseEvent) => {
+      // Only deselect if clicking on the body itself, not on a component
+      if (e.target === e.currentTarget) {
+        setSelectedComponentId(null);
+      }
+    },
+    [setSelectedComponentId],
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('application/canvas-component-type')) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      setIsDragOver(false);
+      const componentType = e.dataTransfer.getData('application/canvas-component-type');
+      if (!componentType) return;
+      e.preventDefault();
+      e.stopPropagation();
+      useCanvasStore.getState().addComponent(id, componentType);
+    },
+    [id],
   );
 
   const isLocked = data.locked;
@@ -52,12 +89,19 @@ export const ScreenNode = React.memo(function ScreenNode({
           minHeight: data.height,
           background: '#ffffff',
           borderRadius: 8,
-          border: selected ? '2px solid #346bea' : '1px solid #e0e0e0',
+          border: selected
+            ? '2px solid #346bea'
+            : isDragOver
+              ? '2px solid #60a5fa'
+              : '1px solid #e0e0e0',
           boxShadow: selected
             ? '0 0 0 2px rgba(52,107,234,0.2)'
-            : '0 2px 8px rgba(0,0,0,0.08)',
+            : isDragOver
+              ? '0 0 0 2px rgba(96,165,250,0.2)'
+              : '0 2px 8px rgba(0,0,0,0.08)',
           overflow: 'hidden',
           fontSize: 14,
+          transition: 'border-color 0.15s, box-shadow 0.15s',
         }}
       >
         {/* Title bar */}
@@ -131,11 +175,16 @@ export const ScreenNode = React.memo(function ScreenNode({
 
         {/* Components */}
         <div
+          onClick={handleBodyClick}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
           style={{
             padding: 16,
             display: 'flex',
             flexDirection: 'column',
             gap: 8,
+            minHeight: 60,
           }}
         >
           {components.length === 0 ? (
@@ -143,13 +192,15 @@ export const ScreenNode = React.memo(function ScreenNode({
               style={{
                 padding: 24,
                 textAlign: 'center',
-                color: '#ccc',
+                color: isDragOver ? '#346bea' : '#ccc',
                 fontSize: 12,
-                border: '1px dashed #e0e0e0',
+                border: `1px dashed ${isDragOver ? '#346bea' : '#e0e0e0'}`,
                 borderRadius: 6,
+                background: isDragOver ? '#f0f5ff' : 'transparent',
+                transition: 'all 0.15s',
               }}
             >
-              컴포넌트를 추가하세요
+              {isDragOver ? 'Drop here' : 'Drag a component here'}
             </div>
           ) : (
             components.map((comp) => (
