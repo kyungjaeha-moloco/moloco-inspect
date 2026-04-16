@@ -43,6 +43,22 @@ interface CanvasState {
   deleteSelectedNodes: () => void;
   updateNodeData: (nodeId: string, data: Partial<Record<string, unknown>>) => void;
   toggleNodeLock: (nodeId: string) => void;
+
+  // ── Editor state (Phase 1) ──
+  selectedComponentId: string | null;
+  setSelectedComponentId: (id: string | null) => void;
+
+  // Component CRUD
+  addComponent: (screenId: string, type: string, props?: Record<string, any>) => string;
+  updateComponentProps: (componentId: string, props: Record<string, any>) => void;
+  removeComponent: (componentId: string) => void;
+  moveComponentUp: (componentId: string) => void;
+  moveComponentDown: (componentId: string) => void;
+
+  // Screen/Section/Edge creation
+  addScreen: (name: string, position: { x: number; y: number }, parentId?: string) => string;
+  addSection: (name: string, position: { x: number; y: number }) => string;
+  addEdge: (sourceId: string, targetId: string, label?: string) => string;
 }
 
 // ── Partialize: only track these fields for undo/redo ──
@@ -57,6 +73,7 @@ export const useCanvasStore = create<CanvasState>()(
       components: sampleComponents,
       interactionMode: 'select',
       isDirty: false,
+      selectedComponentId: null,
 
       onNodesChange: (changes) => {
         set({
@@ -74,6 +91,7 @@ export const useCanvasStore = create<CanvasState>()(
 
       setInteractionMode: (mode) => set({ interactionMode: mode }),
       setDirty: (dirty) => set({ isDirty: dirty }),
+      setSelectedComponentId: (id) => set({ selectedComponentId: id }),
 
       setNodes: (nodes) => set({ nodes, isDirty: true }),
       setEdges: (edges) => set({ edges, isDirty: true }),
@@ -146,6 +164,164 @@ export const useCanvasStore = create<CanvasState>()(
           ) as CanvasNode[],
           isDirty: true,
         });
+      },
+
+      addComponent: (screenId, type, props = {}) => {
+        const { components } = get();
+        const siblings = Object.values(components).filter(
+          (c) => c.screenId === screenId && c.parentId === null,
+        );
+        const newId = `comp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const newComponent: ScreenComponent = {
+          id: newId,
+          screenId,
+          parentId: null,
+          childIds: [],
+          type,
+          props,
+          order: siblings.length,
+          createdAt: new Date().toISOString(),
+        };
+        set({
+          components: { ...components, [newId]: newComponent },
+          selectedComponentId: newId,
+          isDirty: true,
+        });
+        return newId;
+      },
+
+      updateComponentProps: (componentId, props) => {
+        const { components } = get();
+        const comp = components[componentId];
+        if (!comp) return;
+        set({
+          components: {
+            ...components,
+            [componentId]: { ...comp, props: { ...comp.props, ...props } },
+          },
+          isDirty: true,
+        });
+      },
+
+      removeComponent: (componentId) => {
+        const { components, selectedComponentId } = get();
+        const comp = components[componentId];
+        if (!comp) return;
+        const newComponents = { ...components };
+        delete newComponents[componentId];
+        // Re-order remaining siblings
+        const siblings = Object.values(newComponents)
+          .filter((c) => c.screenId === comp.screenId && c.parentId === comp.parentId)
+          .sort((a, b) => a.order - b.order);
+        siblings.forEach((s, i) => {
+          newComponents[s.id] = { ...newComponents[s.id], order: i };
+        });
+        set({
+          components: newComponents,
+          selectedComponentId: selectedComponentId === componentId ? null : selectedComponentId,
+          isDirty: true,
+        });
+      },
+
+      moveComponentUp: (componentId) => {
+        const { components } = get();
+        const comp = components[componentId];
+        if (!comp || comp.order === 0) return;
+        // Find the sibling directly above
+        const above = Object.values(components).find(
+          (c) =>
+            c.screenId === comp.screenId &&
+            c.parentId === comp.parentId &&
+            c.order === comp.order - 1,
+        );
+        if (!above) return;
+        set({
+          components: {
+            ...components,
+            [componentId]: { ...comp, order: comp.order - 1 },
+            [above.id]: { ...above, order: above.order + 1 },
+          },
+          isDirty: true,
+        });
+      },
+
+      moveComponentDown: (componentId) => {
+        const { components } = get();
+        const comp = components[componentId];
+        if (!comp) return;
+        const siblings = Object.values(components).filter(
+          (c) => c.screenId === comp.screenId && c.parentId === comp.parentId,
+        );
+        if (comp.order >= siblings.length - 1) return;
+        const below = Object.values(components).find(
+          (c) =>
+            c.screenId === comp.screenId &&
+            c.parentId === comp.parentId &&
+            c.order === comp.order + 1,
+        );
+        if (!below) return;
+        set({
+          components: {
+            ...components,
+            [componentId]: { ...comp, order: comp.order + 1 },
+            [below.id]: { ...below, order: below.order - 1 },
+          },
+          isDirty: true,
+        });
+      },
+
+      addScreen: (name, position, parentId) => {
+        const { nodes } = get();
+        const newId = `screen-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const newNode: CanvasNode = {
+          id: newId,
+          type: 'screen',
+          position,
+          width: 320,
+          height: 400,
+          ...(parentId ? { parentId, expandParent: true } : {}),
+          data: {
+            name,
+            width: 320,
+            height: 400,
+            zIndex: 1,
+            locked: false,
+          },
+        } as CanvasNode;
+        set({ nodes: [...nodes, newNode], isDirty: true });
+        return newId;
+      },
+
+      addSection: (name, position) => {
+        const { nodes } = get();
+        const newId = `section-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const newNode: CanvasNode = {
+          id: newId,
+          type: 'section',
+          position,
+          style: { width: 800, height: 500 },
+          data: {
+            name,
+            color: '#346bea',
+          },
+        } as CanvasNode;
+        // Sections must come before their children in the array
+        set({ nodes: [newNode, ...nodes], isDirty: true });
+        return newId;
+      },
+
+      addEdge: (sourceId, targetId, label = '') => {
+        const { edges } = get();
+        const newId = `edge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const newEdge: CanvasEdge = {
+          id: newId,
+          source: sourceId,
+          target: targetId,
+          type: 'flow',
+          data: { label },
+        };
+        set({ edges: [...edges, newEdge], isDirty: true });
+        return newId;
       },
     }),
     {
