@@ -80,28 +80,29 @@ export const sampleNodes: CanvasNode[] = [
       height: 700,
       zIndex: 1,
       locked: false,
-      customHtml: `<div style="display:flex;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="width:45%;background:linear-gradient(135deg,#e5234c 0%,#d41e3c 30%,#c0192f 60%,#e5234c 100%);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;">
-    <div style="position:absolute;top:-50px;left:-80px;width:300px;height:500px;background:rgba(255,255,255,0.08);transform:rotate(20deg);border-radius:20px;"></div>
-    <div style="position:absolute;bottom:-100px;right:-60px;width:350px;height:400px;background:rgba(255,255,255,0.06);transform:rotate(-15deg);border-radius:20px;"></div>
-    <div style="position:absolute;top:100px;right:20px;width:200px;height:350px;background:rgba(255,255,255,0.04);transform:rotate(30deg);border-radius:15px;"></div>
-    <span style="color:white;font-size:36px;font-weight:900;letter-spacing:4px;z-index:1;">TVING</span>
+      customHtml: `<div style="display:flex;width:100%;height:100%;font-family:'Noto Sans KR',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0;">
+  <div style="width:33.33%;background:#e5234c;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+    <div style="position:absolute;top:-10%;left:5%;width:55%;height:70%;background:#d41e3c;transform:rotate(-25deg);border-radius:0;"></div>
+    <div style="position:absolute;top:15%;left:-15%;width:50%;height:65%;background:#cf1d38;transform:rotate(25deg);"></div>
+    <div style="position:absolute;bottom:-5%;right:-10%;width:60%;height:55%;background:#d41e3c;transform:rotate(-20deg);"></div>
+    <div style="position:absolute;top:30%;left:25%;width:45%;height:50%;background:#c0192f;transform:rotate(15deg);"></div>
+    <span style="color:white;font-size:42px;font-weight:900;font-style:italic;letter-spacing:3px;z-index:1;text-shadow:0 2px 8px rgba(0,0,0,0.15);">TVING</span>
   </div>
-  <div style="width:55%;background:white;display:flex;align-items:center;justify-content:center;padding:40px;">
-    <div style="width:100%;max-width:320px;">
-      <h1 style="font-size:24px;font-weight:700;color:#1a1a1a;margin:0 0 32px 0;">로그인</h1>
-      <div style="margin-bottom:20px;">
-        <label style="display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:8px;">이메일</label>
-        <div style="border:1px solid #d0d0d0;border-radius:6px;padding:12px 14px;font-size:14px;color:#999;">이메일 주소를 입력해 주세요.</div>
+  <div style="width:66.67%;background:#ffffff;display:flex;align-items:flex-start;justify-content:center;padding-top:28%;">
+    <div style="width:340px;">
+      <h1 style="font-size:28px;font-weight:700;color:#1a1a1a;margin:0 0 36px 0;letter-spacing:-0.5px;">로그인</h1>
+      <div style="margin-bottom:22px;">
+        <label style="display:block;font-size:13px;font-weight:500;color:#333;margin-bottom:8px;">이메일</label>
+        <div style="border:1px solid #d9d9d9;border-radius:4px;padding:13px 14px;font-size:14px;color:#bbb;background:#fff;height:44px;display:flex;align-items:center;">이메일 주소를 입력해 주세요.</div>
       </div>
-      <div style="margin-bottom:24px;">
+      <div style="margin-bottom:28px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <label style="font-size:13px;font-weight:600;color:#333;">비밀번호</label>
-          <span style="font-size:12px;color:#346bea;cursor:pointer;">비밀번호를 잊으셨나요?</span>
+          <label style="font-size:13px;font-weight:500;color:#333;">비밀번호</label>
+          <span style="font-size:12px;color:#4568dc;cursor:pointer;">비밀번호를 잊으셨나요?</span>
         </div>
-        <div style="border:1px solid #d0d0d0;border-radius:6px;padding:12px 14px;font-size:14px;color:#999;">비밀번호를 입력해주세요.</div>
+        <div style="border:1px solid #d9d9d9;border-radius:4px;padding:13px 14px;font-size:14px;color:#bbb;background:#fff;height:44px;display:flex;align-items:center;">비밀번호를 입력해주세요.</div>
       </div>
-      <div style="background:#346bea;color:white;text-align:center;padding:14px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;">로그인</div>
+      <div style="background:#4568dc;color:white;text-align:center;padding:0;border-radius:4px;font-size:15px;font-weight:600;cursor:pointer;height:48px;display:flex;align-items:center;justify-content:center;">로그인</div>
     </div>
   </div>
 </div>`,
@@ -121,29 +122,30 @@ export const sampleNodes: CanvasNode[] = [
       height: 700,
       zIndex: 1,
       locked: false,
-      customHtml: `<div style="display:flex;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="width:45%;background:linear-gradient(135deg,#e5234c 0%,#d41e3c 30%,#c0192f 60%,#e5234c 100%);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;">
-    <div style="position:absolute;top:-50px;left:-80px;width:300px;height:500px;background:rgba(255,255,255,0.08);transform:rotate(20deg);border-radius:20px;"></div>
-    <div style="position:absolute;bottom:-100px;right:-60px;width:350px;height:400px;background:rgba(255,255,255,0.06);transform:rotate(-15deg);border-radius:20px;"></div>
-    <div style="position:absolute;top:100px;right:20px;width:200px;height:350px;background:rgba(255,255,255,0.04);transform:rotate(30deg);border-radius:15px;"></div>
-    <span style="color:white;font-size:36px;font-weight:900;letter-spacing:4px;z-index:1;">TVING</span>
+      customHtml: `<div style="display:flex;width:100%;height:100%;font-family:'Noto Sans KR',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0;">
+  <div style="width:33.33%;background:#e5234c;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+    <div style="position:absolute;top:-10%;left:5%;width:55%;height:70%;background:#d41e3c;transform:rotate(-25deg);border-radius:0;"></div>
+    <div style="position:absolute;top:15%;left:-15%;width:50%;height:65%;background:#cf1d38;transform:rotate(25deg);"></div>
+    <div style="position:absolute;bottom:-5%;right:-10%;width:60%;height:55%;background:#d41e3c;transform:rotate(-20deg);"></div>
+    <div style="position:absolute;top:30%;left:25%;width:45%;height:50%;background:#c0192f;transform:rotate(15deg);"></div>
+    <span style="color:white;font-size:42px;font-weight:900;font-style:italic;letter-spacing:3px;z-index:1;text-shadow:0 2px 8px rgba(0,0,0,0.15);">TVING</span>
   </div>
-  <div style="width:55%;background:#fff5f5;display:flex;align-items:center;justify-content:center;padding:40px;">
-    <div style="width:100%;max-width:320px;">
-      <h1 style="font-size:24px;font-weight:700;color:#1a1a1a;margin:0 0 32px 0;">로그인</h1>
-      <div style="margin-bottom:20px;">
-        <label style="display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:8px;">이메일</label>
-        <div style="border:1.5px solid #e5234c;border-radius:6px;padding:12px 14px;font-size:14px;color:#1a1a1a;background:white;">user@example.com</div>
+  <div style="width:66.67%;background:#fff8f8;display:flex;align-items:flex-start;justify-content:center;padding-top:28%;">
+    <div style="width:340px;">
+      <h1 style="font-size:28px;font-weight:700;color:#1a1a1a;margin:0 0 36px 0;letter-spacing:-0.5px;">로그인</h1>
+      <div style="margin-bottom:22px;">
+        <label style="display:block;font-size:13px;font-weight:500;color:#333;margin-bottom:8px;">이메일</label>
+        <div style="border:1px solid #e5234c;border-radius:4px;padding:13px 14px;font-size:14px;color:#1a1a1a;background:#fff;height:44px;display:flex;align-items:center;">user@example.com</div>
       </div>
       <div style="margin-bottom:12px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <label style="font-size:13px;font-weight:600;color:#333;">비밀번호</label>
-          <span style="font-size:12px;color:#346bea;cursor:pointer;">비밀번호를 잊으셨나요?</span>
+          <label style="font-size:13px;font-weight:500;color:#333;">비밀번호</label>
+          <span style="font-size:12px;color:#4568dc;cursor:pointer;">비밀번호를 잊으셨나요?</span>
         </div>
-        <div style="border:1.5px solid #e5234c;border-radius:6px;padding:12px 14px;font-size:14px;color:#999;background:white;">••••••••</div>
+        <div style="border:1px solid #e5234c;border-radius:4px;padding:13px 14px;font-size:14px;color:#1a1a1a;background:#fff;height:44px;display:flex;align-items:center;">••••••••</div>
       </div>
-      <div style="color:#e5234c;font-size:13px;margin-bottom:20px;">이메일 또는 비밀번호가 일치하지 않습니다.</div>
-      <div style="background:#346bea;color:white;text-align:center;padding:14px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;">로그인</div>
+      <div style="color:#e5234c;font-size:13px;margin-bottom:24px;">이메일 또는 비밀번호가 일치하지 않습니다.</div>
+      <div style="background:#4568dc;color:white;text-align:center;padding:0;border-radius:4px;font-size:15px;font-weight:600;cursor:pointer;height:48px;display:flex;align-items:center;justify-content:center;">로그인</div>
     </div>
   </div>
 </div>`,
@@ -163,21 +165,23 @@ export const sampleNodes: CanvasNode[] = [
       height: 600,
       zIndex: 1,
       locked: false,
-      customHtml: `<div style="display:flex;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="width:45%;background:linear-gradient(135deg,#e5234c 0%,#d41e3c 30%,#c0192f 60%,#e5234c 100%);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;">
-    <div style="position:absolute;top:-50px;left:-80px;width:300px;height:400px;background:rgba(255,255,255,0.08);transform:rotate(20deg);border-radius:20px;"></div>
-    <div style="position:absolute;bottom:-80px;right:-60px;width:350px;height:300px;background:rgba(255,255,255,0.06);transform:rotate(-15deg);border-radius:20px;"></div>
-    <span style="color:white;font-size:36px;font-weight:900;letter-spacing:4px;z-index:1;">TVING</span>
+      customHtml: `<div style="display:flex;width:100%;height:100%;font-family:'Noto Sans KR',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:0;">
+  <div style="width:33.33%;background:#e5234c;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+    <div style="position:absolute;top:-10%;left:5%;width:55%;height:70%;background:#d41e3c;transform:rotate(-25deg);border-radius:0;"></div>
+    <div style="position:absolute;top:15%;left:-15%;width:50%;height:65%;background:#cf1d38;transform:rotate(25deg);"></div>
+    <div style="position:absolute;bottom:-5%;right:-10%;width:60%;height:55%;background:#d41e3c;transform:rotate(-20deg);"></div>
+    <div style="position:absolute;top:30%;left:25%;width:45%;height:50%;background:#c0192f;transform:rotate(15deg);"></div>
+    <span style="color:white;font-size:42px;font-weight:900;font-style:italic;letter-spacing:3px;z-index:1;text-shadow:0 2px 8px rgba(0,0,0,0.15);">TVING</span>
   </div>
-  <div style="width:55%;background:white;display:flex;align-items:center;justify-content:center;padding:40px;">
-    <div style="width:100%;max-width:320px;">
-      <h1 style="font-size:22px;font-weight:700;color:#1a1a1a;margin:0 0 10px 0;">비밀번호 찾기</h1>
-      <p style="font-size:13px;color:#666;margin:0 0 28px 0;line-height:1.5;">가입 시 등록한 이메일 주소를 입력해 주세요.</p>
-      <div style="margin-bottom:20px;">
-        <div style="border:1px solid #d0d0d0;border-radius:6px;padding:12px 14px;font-size:14px;color:#999;">이메일 주소를 입력해 주세요.</div>
+  <div style="width:66.67%;background:#ffffff;display:flex;align-items:flex-start;justify-content:center;padding-top:28%;">
+    <div style="width:340px;">
+      <h1 style="font-size:28px;font-weight:700;color:#1a1a1a;margin:0 0 12px 0;letter-spacing:-0.5px;">비밀번호 찾기</h1>
+      <p style="font-size:13px;color:#666;margin:0 0 32px 0;line-height:1.6;">가입 시 등록한 이메일 주소를 입력해 주세요.</p>
+      <div style="margin-bottom:28px;">
+        <div style="border:1px solid #d9d9d9;border-radius:4px;padding:13px 14px;font-size:14px;color:#bbb;background:#fff;height:44px;display:flex;align-items:center;">이메일 주소를 입력해 주세요.</div>
       </div>
-      <div style="background:#346bea;color:white;text-align:center;padding:14px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:20px;">인증 메일 발송</div>
-      <div style="text-align:center;font-size:13px;color:#346bea;cursor:pointer;">로그인으로 돌아가기</div>
+      <div style="background:#4568dc;color:white;text-align:center;padding:0;border-radius:4px;font-size:15px;font-weight:600;cursor:pointer;height:48px;display:flex;align-items:center;justify-content:center;margin-bottom:20px;">인증 메일 발송</div>
+      <div style="text-align:center;font-size:13px;color:#4568dc;cursor:pointer;">로그인으로 돌아가기</div>
     </div>
   </div>
 </div>`,
