@@ -17,6 +17,7 @@ export interface ScreenData extends Record<string, unknown> {
   height: number;
   zIndex: number;
   locked: boolean;
+  customHtml?: string;  // Optional: render raw HTML instead of DS components
 }
 
 export type ScreenNode = Node<ScreenData, 'screen'>;

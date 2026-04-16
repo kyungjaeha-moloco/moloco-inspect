@@ -176,40 +176,47 @@ export const ScreenNode = React.memo(function ScreenNode({
 
         {/* Components wrapper — overflow hidden to prevent DS content leakage */}
         <div style={{ overflow: 'hidden' }}>
-          <div
-            onClick={handleBodyClick}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            style={{
-              padding: 16,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-              minHeight: 60,
-            }}
-          >
-            {components.length === 0 ? (
-              <div
-                style={{
-                  padding: 24,
-                  textAlign: 'center',
-                  color: isDragOver ? '#346bea' : '#ccc',
-                  fontSize: 12,
-                  border: `1px dashed ${isDragOver ? '#346bea' : '#e0e0e0'}`,
-                  borderRadius: 6,
-                  background: isDragOver ? '#f0f5ff' : 'transparent',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {isDragOver ? 'Drop here' : 'Drag a component here'}
-              </div>
-            ) : (
-              components.map((comp) => (
-                <DSComponentRenderer key={comp.id} component={comp} />
-              ))
-            )}
-          </div>
+          {data.customHtml ? (
+            <div
+              dangerouslySetInnerHTML={{ __html: data.customHtml }}
+              style={{ width: '100%', height: '100%' }}
+            />
+          ) : (
+            <div
+              onClick={handleBodyClick}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              style={{
+                padding: 16,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                minHeight: 60,
+              }}
+            >
+              {components.length === 0 ? (
+                <div
+                  style={{
+                    padding: 24,
+                    textAlign: 'center',
+                    color: isDragOver ? '#346bea' : '#ccc',
+                    fontSize: 12,
+                    border: `1px dashed ${isDragOver ? '#346bea' : '#e0e0e0'}`,
+                    borderRadius: 6,
+                    background: isDragOver ? '#f0f5ff' : 'transparent',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {isDragOver ? 'Drop here' : 'Drag a component here'}
+                </div>
+              ) : (
+                components.map((comp) => (
+                  <DSComponentRenderer key={comp.id} component={comp} />
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {/* Comment overlay — absolute pins + thread popup */}
