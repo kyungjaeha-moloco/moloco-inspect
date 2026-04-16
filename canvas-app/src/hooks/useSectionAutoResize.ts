@@ -3,7 +3,6 @@ import { getNodesBounds, type Node } from '@xyflow/react';
 import { useCanvasStore } from '../store/canvas-store';
 
 const SECTION_PADDING = 40;
-const SECTION_TOP_PADDING = 60; // extra space for label
 
 /**
  * Returns an onNodeDragStop handler that auto-resizes the parent
