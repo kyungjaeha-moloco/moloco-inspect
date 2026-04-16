@@ -38,10 +38,8 @@ interface Props {
 }
 
 export const DSComponentRenderer = React.memo(function DSComponentRenderer({ component }: Props) {
-  const selectedComponentId = useCanvasStore((s) => s.selectedComponentId);
+  const isSelected = useCanvasStore((s) => s.selectedComponentId === component.id);
   const setSelectedComponentId = useCanvasStore((s) => s.setSelectedComponentId);
-
-  const isSelected = selectedComponentId === component.id;
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {

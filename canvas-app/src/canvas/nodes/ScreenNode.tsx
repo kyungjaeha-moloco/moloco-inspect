@@ -1,5 +1,4 @@
-import React, { useCallback, useState } from 'react';
-import { useShallow } from 'zustand/react/shallow';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
 import type { ScreenNode as ScreenNodeType } from '../../types';
 import { DSComponentRenderer } from '../../ds-registry/DSComponentRenderer';
@@ -12,12 +11,12 @@ export const ScreenNode = React.memo(function ScreenNode({
 }: NodeProps<ScreenNodeType>) {
   const toggleNodeLock = useCanvasStore((s) => s.toggleNodeLock);
   const setSelectedComponentId = useCanvasStore((s) => s.setSelectedComponentId);
-  const components = useCanvasStore(
-    useShallow((s) =>
-      Object.values(s.components)
-        .filter((c) => c.screenId === id && c.parentId === null)
-        .sort((a, b) => a.order - b.order)
-    )
+  const allComponents = useCanvasStore((s) => s.components);
+  const components = useMemo(
+    () => Object.values(allComponents)
+      .filter((c) => c.screenId === id && c.parentId === null)
+      .sort((a, b) => a.order - b.order),
+    [allComponents, id],
   );
 
   const [isDragOver, setIsDragOver] = useState(false);

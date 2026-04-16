@@ -75,8 +75,8 @@ export function CanvasView() {
   // HTML DnD drop handler
   const { handleDragOver, handleDrop } = useCanvasDropHandler();
 
-  // Edge creation mode (from CreateToolbar)
-  const { handleNodeClickForEdge } = useEdgeCreation();
+  // Edge creation mode (single source of truth)
+  const { edgeMode, edgeSource, toggleEdgeMode, handleNodeClickForEdge } = useEdgeCreation();
   const handleNodeClick = useCallback(
     (_event: React.MouseEvent, node: any) => {
       handleNodeClickForEdge(node.id);
@@ -153,7 +153,7 @@ export function CanvasView() {
             canUndo={canUndo}
             canRedo={canRedo}
           />
-          <CreateToolbar />
+          <CreateToolbar edgeMode={edgeMode} edgeSource={edgeSource} onToggleEdgeMode={toggleEdgeMode} />
         </ReactFlow>
       </div>
 

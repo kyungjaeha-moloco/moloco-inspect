@@ -3,7 +3,13 @@ import { useReactFlow } from '@xyflow/react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCanvasStore } from '../store/canvas-store';
 
-export const CreateToolbar = React.memo(function CreateToolbar() {
+interface CreateToolbarProps {
+  edgeMode: boolean;
+  edgeSource: string | null;
+  onToggleEdgeMode: () => void;
+}
+
+export const CreateToolbar = React.memo(function CreateToolbar({ edgeMode, edgeSource, onToggleEdgeMode }: CreateToolbarProps) {
   const { addScreen, addSection } = useCanvasStore(
     useShallow((s) => ({
       addScreen: s.addScreen,
@@ -11,10 +17,6 @@ export const CreateToolbar = React.memo(function CreateToolbar() {
     })),
   );
   const reactFlow = useReactFlow();
-
-  // Edge creation state
-  const [edgeMode, setEdgeMode] = useState(false);
-  const [edgeSource, setEdgeSource] = useState<string | null>(null);
 
   const getViewportCenter = useCallback(() => {
     const viewport = reactFlow.getViewport();
@@ -33,16 +35,6 @@ export const CreateToolbar = React.memo(function CreateToolbar() {
     const center = getViewportCenter();
     addSection('New Section', center);
   }, [addSection, getViewportCenter]);
-
-  const handleEdgeModeToggle = useCallback(() => {
-    if (edgeMode) {
-      setEdgeMode(false);
-      setEdgeSource(null);
-    } else {
-      setEdgeMode(true);
-      setEdgeSource(null);
-    }
-  }, [edgeMode]);
 
   const buttonStyle: React.CSSProperties = {
     height: 28,
@@ -83,7 +75,7 @@ export const CreateToolbar = React.memo(function CreateToolbar() {
         + Section
       </button>
       <button
-        onClick={handleEdgeModeToggle}
+        onClick={onToggleEdgeMode}
         style={{
           ...buttonStyle,
           background: edgeMode ? '#e8f0fe' : '#fff',
