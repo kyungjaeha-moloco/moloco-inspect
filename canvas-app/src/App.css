@@ -4,5 +4,25 @@ body {
   background: #0a0a14; color: #e0e0e0; overflow: hidden;
 }
 #root { width: 100vw; height: 100vh; }
+
+/* React Flow node overrides */
 .react-flow__node-screen { padding: 0 !important; border: none !important; background: none !important; border-radius: 0 !important; }
 .react-flow__node-section { padding: 0 !important; border: none !important; background: none !important; }
+
+/* Sidebar scrollbar styling */
+.react-flow__panel { z-index: 5; }
+
+/* Component palette scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d0d0d0;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #bbb;
+}
