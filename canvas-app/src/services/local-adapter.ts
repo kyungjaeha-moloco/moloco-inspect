@@ -22,6 +22,7 @@ export function saveCanvas(
     nodes: CanvasNode[];
     edges: CanvasEdge[];
     components: Record<string, ScreenComponent>;
+    comments?: Record<string, import('../types').Comment>;
   },
 ): boolean {
   const saved: SavedCanvasState = {
@@ -36,6 +37,7 @@ export function saveCanvas(
     nodes: state.nodes,
     edges: state.edges,
     components: state.components,
+    comments: state.comments,
   };
 
   try {
@@ -81,6 +83,7 @@ export function saveCanvasWithRetry(
     nodes: CanvasNode[];
     edges: CanvasEdge[];
     components: Record<string, ScreenComponent>;
+    comments?: Record<string, import('../types').Comment>;
   },
 ): boolean {
   const success = saveCanvas(projectId, state);

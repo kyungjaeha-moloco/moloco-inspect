@@ -69,6 +69,7 @@ export interface SavedCanvasState {
   nodes: CanvasNode[];
   edges: CanvasEdge[];
   components: Record<string, ScreenComponent>;
+  comments?: Record<string, Comment>;
 }
 
 // ── Comment / Feedback ───────────────────────────────

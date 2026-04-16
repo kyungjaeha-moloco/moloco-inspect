@@ -3,6 +3,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { CanvasView } from './canvas/CanvasView';
 import { ComponentLibraryView } from './editor/ComponentLibraryView';
 import { useCanvasStore } from './store/canvas-store';
+import { useFeedbackStore } from './store/feedback-store';
 import { loadCanvas, DEFAULT_PROJECT_ID } from './services/local-adapter';
 import './App.css';
 
@@ -23,6 +24,10 @@ export default function App() {
         components: saved.components,
         isDirty: false,
       });
+      // Load comments if present
+      if (saved.comments) {
+        useFeedbackStore.setState({ comments: saved.comments });
+      }
     } else {
       console.log('[app] No saved state found — using sample data');
       useCanvasStore.setState({ isDirty: true });

@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { useCanvasStore } from '../store/canvas-store';
+import { useFeedbackStore } from '../store/feedback-store';
 import { saveCanvasWithRetry } from '../services/local-adapter';
 
 const DEFAULT_PROJECT_ID = 'default';
@@ -12,10 +13,12 @@ export function useKeyboardShortcuts() {
 
   const handleSave = useCallback(() => {
     const { nodes, edges, components } = useCanvasStore.getState();
+    const { comments } = useFeedbackStore.getState();
     const success = saveCanvasWithRetry(DEFAULT_PROJECT_ID, {
       nodes,
       edges,
       components,
+      comments,
     });
     if (success) {
       setDirty(false);
