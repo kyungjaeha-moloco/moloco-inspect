@@ -247,6 +247,28 @@ export const sampleNodes: CanvasNode[] = [
 </div>`,
     },
   },
+  {
+    id: 'section-tving-real',
+    type: 'section',
+    position: { x: 0, y: 2500 },
+    style: { width: 3600, height: 1000 },
+    data: { name: 'TVING 실제 서비스 화면', color: '#15803d' },
+  },
+  {
+    id: 'iframe-login',
+    type: 'iframe',
+    position: { x: 40, y: 60 },
+    width: 1440,
+    height: 900,
+    parentId: 'section-tving-real',
+    expandParent: true,
+    data: {
+      name: '로그인',
+      url: 'http://localhost:8000/sign-in',
+      width: 1440,
+      height: 900,
+    },
+  },
 ];
 
 export const sampleEdges: CanvasEdge[] = [

@@ -17,6 +17,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { ScreenNode } from './nodes/ScreenNode';
 import { SectionNode } from './nodes/SectionNode';
 import { CommentNode } from './nodes/CommentNode';
+import { IframeNode } from './nodes/IframeNode';
 import type { CommentFlowNode } from './nodes/CommentNode';
 import { FlowEdge } from './edges/FlowEdge';
 import { Toolbar } from './Toolbar';
@@ -34,6 +35,7 @@ const nodeTypes: NodeTypes = {
   screen: ScreenNode,
   section: SectionNode,
   comment: CommentNode,
+  iframe: IframeNode,
 };
 
 const edgeTypes: EdgeTypes = {

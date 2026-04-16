@@ -58,9 +58,20 @@ export interface CanvasProject {
 
 export type InteractionMode = 'select' | 'pan' | 'comment';
 
+// ── IframeNode ────────────────────────────────────────
+
+export interface IframeData extends Record<string, unknown> {
+  name: string;
+  url: string;
+  width: number;
+  height: number;
+}
+
+export type IframeNode = Node<IframeData, 'iframe'>;
+
 // ── Union types for React Flow ────────────────────────
 
-export type CanvasNode = SectionNode | ScreenNode;
+export type CanvasNode = SectionNode | ScreenNode | IframeNode;
 export type CanvasEdge = FlowEdge;
 
 // ── Saved State (for localStorage persistence) ───────
