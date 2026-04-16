@@ -1,4 +1,5 @@
 import React from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useCanvasStore } from '../store/canvas-store';
 import type { InteractionMode } from '../types';
 
@@ -28,9 +29,13 @@ export const Toolbar = React.memo(function Toolbar({
   canUndo = false,
   canRedo = false,
 }: ToolbarProps) {
-  const interactionMode = useCanvasStore((s) => s.interactionMode);
-  const setInteractionMode = useCanvasStore((s) => s.setInteractionMode);
-  const isDirty = useCanvasStore((s) => s.isDirty);
+  const { interactionMode, setInteractionMode, isDirty } = useCanvasStore(
+    useShallow((s) => ({
+      interactionMode: s.interactionMode,
+      setInteractionMode: s.setInteractionMode,
+      isDirty: s.isDirty,
+    }))
+  );
 
   return (
     <div

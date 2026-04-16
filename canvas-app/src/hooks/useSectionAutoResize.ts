@@ -29,11 +29,11 @@ export function useSectionAutoResize() {
 
       // Calculate new section size
       const newWidth = Math.max(
-        bounds.x + bounds.width + SECTION_PADDING,
+        SECTION_PADDING + bounds.x + bounds.width + SECTION_PADDING,
         300, // minimum width
       );
       const newHeight = Math.max(
-        bounds.y + bounds.height + SECTION_PADDING,
+        SECTION_PADDING + bounds.y + bounds.height + SECTION_PADDING,
         200, // minimum height
       );
 

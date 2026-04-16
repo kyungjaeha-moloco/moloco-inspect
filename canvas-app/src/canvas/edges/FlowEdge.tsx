@@ -16,7 +16,7 @@ export const FlowEdge = React.memo(function FlowEdge({
     <>
       <BaseEdge id={id} path={edgePath} style={{
         stroke: selected ? '#346bea' : '#94a3b8', strokeWidth: selected ? 2 : 1.5,
-      }} markerEnd="url(#arrow)" />
+      }} markerEnd="url(#arrow-marker)" />
       {data?.label && (
         <EdgeLabelRenderer>
           <div style={{
