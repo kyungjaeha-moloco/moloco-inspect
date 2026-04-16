@@ -1,0 +1,148 @@
+import type { CanvasNode, CanvasEdge, ScreenComponent } from './types';
+
+export const sampleNodes: CanvasNode[] = [
+  {
+    id: 'section-1',
+    type: 'section',
+    position: { x: 0, y: 0 },
+    style: { width: 1200, height: 600 },
+    data: {
+      name: '캠페인 생성 플로우',
+      color: '#346bea',
+    },
+  },
+  {
+    id: 'screen-1',
+    type: 'screen',
+    position: { x: 40, y: 60 },
+    parentId: 'section-1',
+    expandParent: true,
+    data: {
+      name: 'Step 1: 캠페인 정보 입력',
+      width: 320,
+      height: 400,
+      zIndex: 1,
+      locked: false,
+    },
+  },
+  {
+    id: 'screen-2',
+    type: 'screen',
+    position: { x: 440, y: 60 },
+    parentId: 'section-1',
+    expandParent: true,
+    data: {
+      name: 'Step 2: 타겟팅 설정',
+      width: 320,
+      height: 400,
+      zIndex: 1,
+      locked: false,
+    },
+  },
+  {
+    id: 'screen-3',
+    type: 'screen',
+    position: { x: 840, y: 60 },
+    parentId: 'section-1',
+    expandParent: true,
+    data: {
+      name: 'Step 3: 완료',
+      width: 320,
+      height: 300,
+      zIndex: 1,
+      locked: false,
+    },
+  },
+];
+
+export const sampleEdges: CanvasEdge[] = [
+  {
+    id: 'edge-1-2',
+    source: 'screen-1',
+    target: 'screen-2',
+    type: 'flow',
+    data: { label: '다음' },
+  },
+  {
+    id: 'edge-2-3',
+    source: 'screen-2',
+    target: 'screen-3',
+    type: 'flow',
+    data: { label: '완료' },
+  },
+];
+
+const now = new Date().toISOString();
+
+export const sampleComponents: Record<string, ScreenComponent> = {
+  'comp-1': {
+    id: 'comp-1',
+    screenId: 'screen-1',
+    parentId: null,
+    childIds: [],
+    type: 'MCFormTextInput',
+    props: {},
+    order: 0,
+    createdAt: now,
+  },
+  'comp-2': {
+    id: 'comp-2',
+    screenId: 'screen-1',
+    parentId: null,
+    childIds: [],
+    type: 'MCFormTextArea',
+    props: {},
+    order: 1,
+    createdAt: now,
+  },
+  'comp-3': {
+    id: 'comp-3',
+    screenId: 'screen-1',
+    parentId: null,
+    childIds: [],
+    type: 'MCButton2',
+    props: { variant: 'contained' },
+    order: 2,
+    createdAt: now,
+  },
+  'comp-4': {
+    id: 'comp-4',
+    screenId: 'screen-2',
+    parentId: null,
+    childIds: [],
+    type: 'MCFormCheckBox',
+    props: {},
+    order: 0,
+    createdAt: now,
+  },
+  'comp-5': {
+    id: 'comp-5',
+    screenId: 'screen-2',
+    parentId: null,
+    childIds: [],
+    type: 'MCFormSwitchInput',
+    props: {},
+    order: 1,
+    createdAt: now,
+  },
+  'comp-6': {
+    id: 'comp-6',
+    screenId: 'screen-3',
+    parentId: null,
+    childIds: [],
+    type: 'MCStatus',
+    props: { status: 'positive' },
+    order: 0,
+    createdAt: now,
+  },
+  'comp-7': {
+    id: 'comp-7',
+    screenId: 'screen-3',
+    parentId: null,
+    childIds: [],
+    type: 'MCButton2',
+    props: { variant: 'outlined' },
+    order: 1,
+    createdAt: now,
+  },
+};
