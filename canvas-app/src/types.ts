@@ -89,9 +89,11 @@ export interface Reply {
 
 export interface Comment {
   id: string;
-  screenId: string;
-  xRatio: number;              // 0~1 (screen width ratio)
-  yRatio: number;              // 0~1 (screen height ratio)
+  screenId: string | null;     // null = canvas-level comment
+  xRatio: number;              // 0~1 (screen width ratio); unused for canvas-level comments
+  yRatio: number;              // 0~1 (screen height ratio); unused for canvas-level comments
+  canvasX?: number;            // absolute canvas position (for canvas-level comments)
+  canvasY?: number;
   text: string;
   author: AuthUser;
   status: 'open' | 'resolved' | 'rejected';

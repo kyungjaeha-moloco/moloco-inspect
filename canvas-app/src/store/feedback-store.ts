@@ -19,6 +19,7 @@ interface FeedbackState {
 
   // Actions — comments
   addComment: (screenId: string, xRatio: number, yRatio: number, text: string) => string;
+  addCanvasComment: (canvasX: number, canvasY: number, text: string) => string;
   updateCommentText: (commentId: string, text: string) => void;
   deleteComment: (commentId: string) => void;
   setCommentStatus: (commentId: string, status: CommentStatus) => void;
@@ -54,6 +55,30 @@ export const useFeedbackStore = create<FeedbackState>()((set, get) => ({
       screenId,
       xRatio: Math.max(0, Math.min(1, xRatio)),
       yRatio: Math.max(0, Math.min(1, yRatio)),
+      text,
+      author: currentUser,
+      status: 'open',
+      reactions: {},
+      replies: [],
+      createdAt: new Date().toISOString(),
+    };
+    set({
+      comments: { ...comments, [newId]: newComment },
+      activeThreadId: newId,
+    });
+    return newId;
+  },
+
+  addCanvasComment: (canvasX, canvasY, text) => {
+    const { comments, currentUser } = get();
+    const newId = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const newComment: Comment = {
+      id: newId,
+      screenId: null,
+      xRatio: 0,
+      yRatio: 0,
+      canvasX,
+      canvasY,
       text,
       author: currentUser,
       status: 'open',
@@ -173,7 +198,7 @@ export const useFeedbackStore = create<FeedbackState>()((set, get) => ({
   getCommentsForScreen: (screenId) => {
     const { comments } = get();
     return Object.values(comments)
-      .filter((c) => c.screenId === screenId)
+      .filter((c) => c.screenId !== null && c.screenId === screenId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   },
 }));
