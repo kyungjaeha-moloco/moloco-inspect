@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -184,11 +184,32 @@ function CanvasFlow() {
   const { handleDragOver, handleDrop } = useCanvasDropHandler();
 
   const { edgeMode, edgeSource, toggleEdgeMode, handleNodeClickForEdge } = useEdgeCreation();
+  const reactFlowInstance = useReactFlow();
+
+  // Z key state for zoom-to-node
+  const zKeyHeld = useRef(false);
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => { if (e.key === 'z' && !e.metaKey && !e.ctrlKey && !e.shiftKey) zKeyHeld.current = true; };
+    const up = (e: KeyboardEvent) => { if (e.key === 'z') zKeyHeld.current = false; };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
+  }, []);
+
   const handleNodeClick = useCallback(
     (_event: React.MouseEvent, node: any) => {
+      // Z + click → zoom to fit this node
+      if (zKeyHeld.current) {
+        reactFlowInstance.fitView({
+          nodes: [{ id: node.id }],
+          duration: 400,
+          padding: 0.1,
+        });
+        return;
+      }
       handleNodeClickForEdge(node.id);
     },
-    [handleNodeClickForEdge],
+    [handleNodeClickForEdge, reactFlowInstance],
   );
 
   const canUndo = useStore(useCanvasStore.temporal, (s) => s.pastStates.length > 0);
