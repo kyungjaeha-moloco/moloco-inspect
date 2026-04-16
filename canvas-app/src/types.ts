@@ -61,3 +61,12 @@ export type InteractionMode = 'select' | 'pan' | 'comment';
 
 export type CanvasNode = SectionNode | ScreenNode;
 export type CanvasEdge = FlowEdge;
+
+// ── Saved State (for localStorage persistence) ───────
+
+export interface SavedCanvasState {
+  project: CanvasProject;
+  nodes: CanvasNode[];
+  edges: CanvasEdge[];
+  components: Record<string, ScreenComponent>;
+}
