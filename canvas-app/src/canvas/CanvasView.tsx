@@ -189,12 +189,25 @@ function CanvasFlow() {
   // Z key state for zoom-to-node
   const zKeyHeld = useRef(false);
   useEffect(() => {
-    const down = (e: KeyboardEvent) => { if (e.key === 'z' && !e.metaKey && !e.ctrlKey && !e.shiftKey) zKeyHeld.current = true; };
+    const down = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'z' && !e.metaKey && !e.ctrlKey && !e.shiftKey) zKeyHeld.current = true;
+
+      // = key → zoom in, - key → zoom out
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault();
+        reactFlowInstance.zoomIn({ duration: 200 });
+      }
+      if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        reactFlowInstance.zoomOut({ duration: 200 });
+      }
+    };
     const up = (e: KeyboardEvent) => { if (e.key === 'z') zKeyHeld.current = false; };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
-  }, []);
+  }, [reactFlowInstance]);
 
   const handleNodeClick = useCallback(
     (_event: React.MouseEvent, node: any) => {

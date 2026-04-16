@@ -304,7 +304,7 @@ export const sampleNodes: CanvasNode[] = [
     id: 'section-captured',
     type: 'section',
     position: { x: 0, y: 4700 },
-    style: { width: 3200, height: 1100 },
+    style: { width: 3200, height: 1150 },
     data: { name: '자동 캡처된 화면 (Playwright)', color: '#7c3aed' },
   },
   {
@@ -312,7 +312,7 @@ export const sampleNodes: CanvasNode[] = [
     type: 'screenshot',
     position: { x: 40, y: 60 },
     width: 1440,
-    height: 900,
+    height: 940,
     parentId: 'section-captured',
     expandParent: true,
     data: {
@@ -320,7 +320,7 @@ export const sampleNodes: CanvasNode[] = [
       screenshotUrl: '/screenshots/sign-in.png',
       iframeUrl: 'http://localhost:8000/sign-in',
       width: 1440,
-      height: 900,
+      height: 940,
     },
   },
   {
@@ -328,7 +328,7 @@ export const sampleNodes: CanvasNode[] = [
     type: 'screenshot',
     position: { x: 1580, y: 60 },
     width: 1440,
-    height: 900,
+    height: 940,
     parentId: 'section-captured',
     expandParent: true,
     data: {
@@ -336,7 +336,7 @@ export const sampleNodes: CanvasNode[] = [
       screenshotUrl: '/screenshots/reset-password.png',
       iframeUrl: 'http://localhost:8000/reset-password',
       width: 1440,
-      height: 900,
+      height: 940,
     },
   },
 ];
