@@ -1,5 +1,6 @@
-import React, { Component, type ReactNode } from 'react';
+import React, { Component, useCallback, type ReactNode } from 'react';
 import { PREVIEW_REGISTRY } from './registry';
+import { useCanvasStore } from '../store/canvas-store';
 import type { ScreenComponent } from '../types';
 
 interface ErrorBoundaryState {
@@ -37,23 +38,48 @@ interface Props {
 }
 
 export const DSComponentRenderer = React.memo(function DSComponentRenderer({ component }: Props) {
+  const selectedComponentId = useCanvasStore((s) => s.selectedComponentId);
+  const setSelectedComponentId = useCanvasStore((s) => s.setSelectedComponentId);
+
+  const isSelected = selectedComponentId === component.id;
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setSelectedComponentId(component.id);
+    },
+    [component.id, setSelectedComponentId],
+  );
+
   const Preview = PREVIEW_REGISTRY[component.type];
+
+  const wrapperStyle: React.CSSProperties = {
+    position: 'relative',
+    borderRadius: 6,
+    border: isSelected ? '2px solid #346bea' : '2px solid transparent',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s',
+  };
 
   if (!Preview) {
     return (
-      <div style={{
-        padding: 12, background: '#f8f9fa', border: '1px dashed #d0d0d0',
-        borderRadius: 6, color: '#888', fontSize: 12, textAlign: 'center',
-      }}>
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>{component.type}</div>
-        <div style={{ fontSize: 10, color: '#aaa' }}>프리뷰 없음</div>
+      <div onClick={handleClick} style={wrapperStyle}>
+        <div style={{
+          padding: 12, background: '#f8f9fa', border: '1px dashed #d0d0d0',
+          borderRadius: 6, color: '#888', fontSize: 12, textAlign: 'center',
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>{component.type}</div>
+          <div style={{ fontSize: 10, color: '#aaa' }}>프리뷰 없음</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <PreviewErrorBoundary componentType={component.type}>
-      <Preview propValues={component.props} />
-    </PreviewErrorBoundary>
+    <div onClick={handleClick} style={wrapperStyle}>
+      <PreviewErrorBoundary componentType={component.type}>
+        <Preview propValues={component.props} />
+      </PreviewErrorBoundary>
+    </div>
   );
 });
