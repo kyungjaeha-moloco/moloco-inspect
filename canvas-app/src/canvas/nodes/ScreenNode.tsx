@@ -3,6 +3,7 @@ import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
 import type { ScreenNode as ScreenNodeType } from '../../types';
 import { DSComponentRenderer } from '../../ds-registry/DSComponentRenderer';
 import { useCanvasStore } from '../../store/canvas-store';
+import { CommentOverlay } from '../../feedback/CommentOverlay';
 
 export const ScreenNode = React.memo(function ScreenNode({
   id,
@@ -98,9 +99,10 @@ export const ScreenNode = React.memo(function ScreenNode({
             : isDragOver
               ? '0 0 0 2px rgba(96,165,250,0.2)'
               : '0 2px 8px rgba(0,0,0,0.08)',
-          overflow: 'hidden',
+          overflow: 'visible',
           fontSize: 14,
           transition: 'border-color 0.15s, box-shadow 0.15s',
+          position: 'relative',
         }}
       >
         {/* Title bar */}
@@ -172,41 +174,46 @@ export const ScreenNode = React.memo(function ScreenNode({
           </button>
         </div>
 
-        {/* Components */}
-        <div
-          onClick={handleBodyClick}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          style={{
-            padding: 16,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            minHeight: 60,
-          }}
-        >
-          {components.length === 0 ? (
-            <div
-              style={{
-                padding: 24,
-                textAlign: 'center',
-                color: isDragOver ? '#346bea' : '#ccc',
-                fontSize: 12,
-                border: `1px dashed ${isDragOver ? '#346bea' : '#e0e0e0'}`,
-                borderRadius: 6,
-                background: isDragOver ? '#f0f5ff' : 'transparent',
-                transition: 'all 0.15s',
-              }}
-            >
-              {isDragOver ? 'Drop here' : 'Drag a component here'}
-            </div>
-          ) : (
-            components.map((comp) => (
-              <DSComponentRenderer key={comp.id} component={comp} />
-            ))
-          )}
+        {/* Components wrapper — overflow hidden to prevent DS content leakage */}
+        <div style={{ overflow: 'hidden' }}>
+          <div
+            onClick={handleBodyClick}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            style={{
+              padding: 16,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              minHeight: 60,
+            }}
+          >
+            {components.length === 0 ? (
+              <div
+                style={{
+                  padding: 24,
+                  textAlign: 'center',
+                  color: isDragOver ? '#346bea' : '#ccc',
+                  fontSize: 12,
+                  border: `1px dashed ${isDragOver ? '#346bea' : '#e0e0e0'}`,
+                  borderRadius: 6,
+                  background: isDragOver ? '#f0f5ff' : 'transparent',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {isDragOver ? 'Drop here' : 'Drag a component here'}
+              </div>
+            ) : (
+              components.map((comp) => (
+                <DSComponentRenderer key={comp.id} component={comp} />
+              ))
+            )}
+          </div>
         </div>
+
+        {/* Comment overlay — absolute pins + thread popup */}
+        <CommentOverlay screenId={id} />
 
         {/* Connection handles */}
         <Handle
