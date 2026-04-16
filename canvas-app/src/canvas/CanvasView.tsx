@@ -23,6 +23,7 @@ import { useCanvasStore } from '../store/canvas-store';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useSectionAutoResize } from '../hooks/useSectionAutoResize';
 import { useCanvasDropHandler } from '../hooks/useCanvasDropHandler';
+import { FeedbackPanel } from '../feedback/FeedbackPanel';
 
 const nodeTypes: NodeTypes = {
   screen: ScreenNode,
@@ -104,6 +105,12 @@ export function CanvasView() {
     setPaletteOpen((prev) => !prev);
   }, []);
 
+  // Feedback panel state
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const handleFeedbackToggle = useCallback(() => {
+    setFeedbackOpen((prev) => !prev);
+  }, []);
+
   return (
     <div
       style={{
@@ -159,6 +166,9 @@ export function CanvasView() {
 
       {/* Right sidebar: Prop Panel */}
       <PropPanel />
+
+      {/* Right sidebar: Feedback Panel */}
+      <FeedbackPanel isOpen={feedbackOpen} onToggle={handleFeedbackToggle} />
     </div>
   );
 }
