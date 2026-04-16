@@ -3,6 +3,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { randomUUID } from 'crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
 
+const WS_PORT = 4181;
+
 export function canvasApiPlugin(): Plugin {
   let wss: WebSocketServer;
   let activeClient: WebSocket | null = null;
@@ -14,16 +16,9 @@ export function canvasApiPlugin(): Plugin {
   return {
     name: 'canvas-api',
     configureServer(server: ViteDevServer) {
-      // WebSocket server
-      wss = new WebSocketServer({ noServer: true });
-
-      server.httpServer?.on('upgrade', (request, socket, head) => {
-        if (request.url === '/__canvas_bridge') {
-          wss.handleUpgrade(request, socket, head, (ws) => {
-            wss.emit('connection', ws, request);
-          });
-        }
-      });
+      // Standalone WebSocket server on separate port (avoids Vite HMR conflict)
+      wss = new WebSocketServer({ port: WS_PORT });
+      console.log(`[canvas-api] WebSocket server on ws://localhost:${WS_PORT}`);
 
       wss.on('connection', (ws) => {
         console.log('[canvas-api] Browser connected');
@@ -63,7 +58,6 @@ export function canvasApiPlugin(): Plugin {
           pendingRequests.set(id, { resolve, reject });
           activeClient.send(JSON.stringify({ id, type, payload }));
 
-          // Timeout after 10 seconds
           setTimeout(() => {
             if (pendingRequests.has(id)) {
               pendingRequests.delete(id);
@@ -73,7 +67,7 @@ export function canvasApiPlugin(): Plugin {
         });
       }
 
-      // HTTP middleware
+      // HTTP middleware on the existing Vite server
       server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
         const url = req.url || '';
 
@@ -81,7 +75,6 @@ export function canvasApiPlugin(): Plugin {
           return next();
         }
 
-        // CORS headers
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -93,7 +86,6 @@ export function canvasApiPlugin(): Plugin {
           return;
         }
 
-        // Parse body for POST/PATCH
         let body: any = {};
         if (req.method === 'POST' || req.method === 'PATCH') {
           const chunks: Buffer[] = [];
@@ -110,7 +102,6 @@ export function canvasApiPlugin(): Plugin {
         }
 
         try {
-          // Route handling
           if (url === '/api/state' && req.method === 'GET') {
             const result = await sendCommand('getState');
             res.writeHead(200);

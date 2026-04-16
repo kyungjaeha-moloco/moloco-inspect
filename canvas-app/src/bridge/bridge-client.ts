@@ -3,8 +3,7 @@ import { useCanvasStore } from '../store/canvas-store';
 let ws: WebSocket | null = null;
 
 export function initBridgeClient() {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/__canvas_bridge`;
+  const wsUrl = `ws://${window.location.hostname}:4181`;
 
   ws = new WebSocket(wsUrl);
 
