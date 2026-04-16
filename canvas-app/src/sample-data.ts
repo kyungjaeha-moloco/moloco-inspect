@@ -299,6 +299,46 @@ export const sampleNodes: CanvasNode[] = [
       height: 900,
     },
   },
+  // Playwright captured screens section
+  {
+    id: 'section-captured',
+    type: 'section',
+    position: { x: 0, y: 4700 },
+    style: { width: 3200, height: 1100 },
+    data: { name: '자동 캡처된 화면 (Playwright)', color: '#7c3aed' },
+  },
+  {
+    id: 'screenshot-sign-in',
+    type: 'screenshot',
+    position: { x: 40, y: 60 },
+    width: 1440,
+    height: 900,
+    parentId: 'section-captured',
+    expandParent: true,
+    data: {
+      name: '로그인',
+      screenshotUrl: '/screenshots/sign-in.png',
+      iframeUrl: 'http://localhost:8000/sign-in',
+      width: 1440,
+      height: 900,
+    },
+  },
+  {
+    id: 'screenshot-reset-password',
+    type: 'screenshot',
+    position: { x: 1580, y: 60 },
+    width: 1440,
+    height: 900,
+    parentId: 'section-captured',
+    expandParent: true,
+    data: {
+      name: '비밀번호 재설정',
+      screenshotUrl: '/screenshots/reset-password.png',
+      iframeUrl: 'http://localhost:8000/reset-password',
+      width: 1440,
+      height: 900,
+    },
+  },
 ];
 
 export const sampleEdges: CanvasEdge[] = [
@@ -350,6 +390,13 @@ export const sampleEdges: CanvasEdge[] = [
     target: 'iframe-select-workplace',
     type: 'flow',
     data: { label: '로그인 성공' },
+  },
+  {
+    id: 'edge-screenshots',
+    source: 'screenshot-sign-in',
+    target: 'screenshot-reset-password',
+    type: 'flow',
+    data: { label: '비밀번호 찾기' },
   },
 ];
 

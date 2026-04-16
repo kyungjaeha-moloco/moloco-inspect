@@ -69,9 +69,21 @@ export interface IframeData extends Record<string, unknown> {
 
 export type IframeNode = Node<IframeData, 'iframe'>;
 
+// ── Screenshot Node ───────────────────────────────────
+
+export interface ScreenshotData extends Record<string, unknown> {
+  name: string;
+  screenshotUrl: string;
+  iframeUrl: string;
+  width: number;
+  height: number;
+}
+
+export type ScreenshotNode = Node<ScreenshotData, 'screenshot'>;
+
 // ── Union types for React Flow ────────────────────────
 
-export type CanvasNode = SectionNode | ScreenNode | IframeNode;
+export type CanvasNode = SectionNode | ScreenNode | IframeNode | ScreenshotNode;
 export type CanvasEdge = FlowEdge;
 
 // ── Saved State (for localStorage persistence) ───────

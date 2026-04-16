@@ -18,6 +18,7 @@ import { ScreenNode } from './nodes/ScreenNode';
 import { SectionNode } from './nodes/SectionNode';
 import { CommentNode } from './nodes/CommentNode';
 import { IframeNode } from './nodes/IframeNode';
+import { ScreenshotNode } from './nodes/ScreenshotNode';
 import type { CommentFlowNode } from './nodes/CommentNode';
 import { FlowEdge } from './edges/FlowEdge';
 import { Toolbar } from './Toolbar';
@@ -36,6 +37,7 @@ const nodeTypes: NodeTypes = {
   section: SectionNode,
   comment: CommentNode,
   iframe: IframeNode,
+  screenshot: ScreenshotNode,
 };
 
 const edgeTypes: EdgeTypes = {
