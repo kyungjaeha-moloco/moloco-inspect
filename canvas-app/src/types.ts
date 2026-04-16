@@ -70,3 +70,33 @@ export interface SavedCanvasState {
   edges: CanvasEdge[];
   components: Record<string, ScreenComponent>;
 }
+
+// ── Comment / Feedback ───────────────────────────────
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  avatar?: string;
+}
+
+export interface Reply {
+  id: string;
+  text: string;
+  author: AuthUser;
+  createdAt: string;
+}
+
+export interface Comment {
+  id: string;
+  screenId: string;
+  xRatio: number;              // 0~1 (screen width ratio)
+  yRatio: number;              // 0~1 (screen height ratio)
+  text: string;
+  author: AuthUser;
+  status: 'open' | 'resolved' | 'rejected';
+  reactions: Record<string, string[]>;  // { "thumbsup": ["user1", "user2"] }
+  replies: Reply[];
+  createdAt: string;
+}
+
+export type CommentStatus = Comment['status'];
