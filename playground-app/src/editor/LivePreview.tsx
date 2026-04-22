@@ -1,24 +1,44 @@
 /**
  * LivePreview — iframe embedding the playground's sandbox Vite server.
  *
- * Uses the overlay-proxy technique from v3 plan §7.2:
- *  - `view`: transparent overlay on top of the iframe captures click/drag
- *    (so parent affordances stay responsive) but forwards wheel events
- *    into the iframe so the user can still scroll the live app.
- *  - `pick`: overlay removed; clicks reach the sandbox's Vite picker
- *    plugin (wired in M3). Until then, picker clicks are a no-op.
- *  - `pin`: overlay captures click coordinates, drops a `PinComment`
- *    into the pin store, and focuses an inline textarea for the user
- *    to type their note.
+ * Three interaction modes layered over the iframe (v3 plan §7.2):
+ *  - `view`: transparent overlay on top of the iframe captures wheel
+ *    events (forwarded into the iframe so scrolling still works) and
+ *    swallows clicks so the parent canvas affordances stay responsive.
+ *  - `pick` / `pin`: overlay removed. Clicks fall through to the Vite
+ *    plugin picker runtime inside the iframe, which sends back either
+ *    a `playground.picked` (Pick → stored on `lastPickedElement`) or is
+ *    turned into a pin here (Pin → `pin-store.addPin` with `element`).
  *
- * The `vitePort` on Playground is ephemeral (see spike addendum A2).
- * Callers must re-read playground state on every mount — this component
- * just renders whatever port is handed to it.
+ * M3 bridge wiring: `createPlaygroundBridge` opens a nonce-authenticated
+ * postMessage channel with the iframe. The bridge rotates its nonce with
+ * every (playground, vitePort, reloadNonce) tuple so a new iframe can
+ * never read events meant for an old one. SPA route changes arrive via
+ * `onRoute` and update `playground-store.currentRoute`; pins are filtered
+ * against that route so a pin placed on `/creative-review` does not
+ * visually smear across the app when the user navigates away.
+ *
+ * `vitePort` is ephemeral (spike addendum A2); callers re-read playground
+ * state on mount and pass the fresh port in — this component just renders.
  */
 
-import { useEffect, useMemo, useRef, type WheelEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type WheelEvent,
+} from 'react';
 import type { Playground } from '../services/orchestrator-client';
-import type { IframeMode } from '../store/playground-store';
+import {
+  createPlaygroundBridge,
+  type PlaygroundBridge,
+  type BridgePicked,
+  type BridgeReady,
+  type BridgeRoute,
+} from '../services/playground-bridge';
+import { usePlaygroundStore, type IframeMode } from '../store/playground-store';
 import { usePinStore, type PinComment } from '../store/pin-store';
 
 interface LivePreviewProps {
@@ -38,6 +58,18 @@ export function LivePreview({
   reloadNonce = 0,
 }: LivePreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const bridgeRef = useRef<PlaygroundBridge | null>(null);
+  // Mirror of the parent `mode` prop so bridge callbacks always read the
+  // latest value without forcing a bridge re-creation on every mode flip.
+  const modeRef = useRef<IframeMode>(mode);
+  modeRef.current = mode;
+
+  // Has the picker runtime inside the iframe handshaked yet? Used to
+  // swap pin-mode between the old coordinate-overlay fallback (works
+  // with pre-M3 sandbox images) and the picker-driven flow. Flipped by
+  // the bridge's `onReady` handler.
+  const [bridgeReady, setBridgeReady] = useState(false);
+
   const { vitePort, status, id: playgroundId, headCommitSha } = playground;
 
   // Bump iframe key whenever port changes (new resume) OR the parent
@@ -52,16 +84,124 @@ export function LivePreview({
   const deletePin = usePinStore((s) => s.deletePin);
   const setEditing = usePinStore((s) => s.setEditing);
 
+  const currentRoute = usePlaygroundStore((s) => s.currentRoute);
+  const setCurrentRoute = usePlaygroundStore((s) => s.setCurrentRoute);
+  const setLastPickedElement = usePlaygroundStore(
+    (s) => s.setLastPickedElement,
+  );
+
   // Load this playground's pin history on mount / playground switch.
   useEffect(() => {
     loadForPlayground(playgroundId);
   }, [playgroundId, loadForPlayground]);
 
-  // Scope to current playground only — store might hold pins from a
-  // previous session if we ever add preloading.
+  // ─── Bridge lifecycle ─────────────────────────────────────────────
+  //
+  // One bridge per (playground, vitePort, reloadNonce) tuple. Disposing
+  // on cleanup guarantees the nonce rotates with the iframe. Handlers
+  // capture the current `playgroundId`/`headCommitSha` so pinned events
+  // get stamped with the right commit.
+
+  useEffect(() => {
+    if (!vitePort || status !== 'active') {
+      return;
+    }
+
+    const handleReady = (msg: BridgeReady) => {
+      setBridgeReady(true);
+      setCurrentRoute(msg.route);
+      const iframe = iframeRef.current;
+      if (iframe) bridge.setMode(iframe, modeRef.current);
+    };
+
+    const handlePicked = (msg: BridgePicked) => {
+      const m = modeRef.current;
+      if (m === 'pin') {
+        // Drop a pin at the picked element's bbox centroid. The bbox is
+        // viewport-relative from the iframe — which is exactly what the
+        // overlay-relative pin coordinates expect, since the iframe
+        // fills the same container. Fast-follow clicks that land while
+        // the pin textarea is open still create pins; if users ask for
+        // the old "one-shot" behavior we can flip back to view here.
+        const x = Math.round(msg.bbox.x + msg.bbox.width / 2);
+        const y = Math.round(msg.bbox.y + msg.bbox.height / 2);
+        addPin({
+          playgroundId,
+          x,
+          y,
+          commitSha: headCommitSha,
+          route: msg.route,
+          element: msg.element,
+        });
+      } else if (m === 'pick') {
+        setLastPickedElement(msg.element);
+      }
+    };
+
+    const handleRoute = (msg: BridgeRoute) => {
+      setCurrentRoute(msg.route);
+    };
+
+    const bridge = createPlaygroundBridge(
+      {
+        onReady: handleReady,
+        onPicked: handlePicked,
+        onRoute: handleRoute,
+        onError: (m) =>
+          console.warn('[playground] runtime error', m.message, m.stack),
+      },
+      { debug: false },
+    );
+    bridgeRef.current = bridge;
+
+    return () => {
+      bridge.dispose();
+      bridgeRef.current = null;
+      setBridgeReady(false);
+    };
+  }, [
+    playgroundId,
+    vitePort,
+    status,
+    reloadNonce,
+    headCommitSha,
+    addPin,
+    setCurrentRoute,
+    setLastPickedElement,
+  ]);
+
+  // Propagate parent mode → child picker. When ready hasn't fired yet,
+  // the ready handler will flush `modeRef.current` on arrival, so we
+  // don't queue anything here.
+  useEffect(() => {
+    const bridge = bridgeRef.current;
+    const iframe = iframeRef.current;
+    if (!bridge || !iframe || !bridge.isReady) return;
+    bridge.setMode(iframe, mode);
+  }, [mode]);
+
+  // Compose iframe src with handshake query. Bridge identity tracks
+  // `iframeKey`, so re-deriving src whenever that changes is correct.
+  const src = useMemo(() => {
+    if (!vitePort) return null;
+    const raw = `http://127.0.0.1:${vitePort}/`;
+    const bridge = bridgeRef.current;
+    return bridge ? bridge.buildIframeSrc(raw) : raw;
+  }, [vitePort, iframeKey]);
+
+  // Scope + route-filter pins for the rendered overlay.
+  // Pins without a route pre-date M3 route tracking and always show,
+  // so the user isn't surprised by a regression when the bridge rolls
+  // out. Pins with a route only show on that route.
   const pins = useMemo(
-    () => allPins.filter((p) => p.playgroundId === playgroundId),
-    [allPins, playgroundId],
+    () =>
+      allPins.filter((p) => {
+        if (p.playgroundId !== playgroundId) return false;
+        if (!p.route) return true;
+        if (!currentRoute) return true;
+        return p.route === currentRoute;
+      }),
+    [allPins, playgroundId, currentRoute],
   );
 
   const handleWheel = (e: WheelEvent<HTMLDivElement>) => {
@@ -74,23 +214,25 @@ export function LivePreview({
     }
   };
 
-  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  // Legacy coord-only pin fallback. Fires only when the picker runtime
+  // hasn't handshaked yet — e.g. viewing an old sandbox image that was
+  // built before M3. Once the bridge is ready the overlay is removed
+  // and the picker inside the iframe owns pin-mode clicks.
+  const handleFallbackOverlayClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (mode !== 'pin') return;
-    // Ignore clicks that came from a pin marker / editor (they bubble up).
     const target = e.target as HTMLElement;
     if (target.closest('[data-pin-marker]')) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    // Best-effort route capture — cross-origin blocks live SPA nav
-    // tracking, so this records only the iframe's initial-load path.
-    // M3 replaces this with a postMessage live-route feed.
-    let route: string | undefined;
-    try {
-      route = new URL(
-        iframeRef.current?.src ?? '',
-        window.location.origin,
-      ).pathname;
-    } catch {
-      route = undefined;
+    let route: string | undefined = currentRoute ?? undefined;
+    if (!route) {
+      try {
+        route = new URL(
+          iframeRef.current?.src ?? '',
+          window.location.origin,
+        ).pathname;
+      } catch {
+        route = undefined;
+      }
     }
     addPin({
       playgroundId,
@@ -106,7 +248,13 @@ export function LivePreview({
       <div style={placeholderStyle}>
         <div>
           <strong>상태: {status}</strong>
-          <div style={{ color: 'var(--text-tertiary)', fontSize: 12, marginTop: 4 }}>
+          <div
+            style={{
+              color: 'var(--text-tertiary)',
+              fontSize: 12,
+              marginTop: 4,
+            }}
+          >
             Resume 후 라이브 미리보기를 로드할 수 있습니다.
           </div>
         </div>
@@ -114,12 +262,18 @@ export function LivePreview({
     );
   }
 
-  if (!vitePort) {
+  if (!vitePort || !src) {
     return (
       <div style={placeholderStyle}>
         <div>
           <strong>Vite 포트 미할당</strong>
-          <div style={{ color: 'var(--text-tertiary)', fontSize: 12, marginTop: 4 }}>
+          <div
+            style={{
+              color: 'var(--text-tertiary)',
+              fontSize: 12,
+              marginTop: 4,
+            }}
+          >
             Resume 또는 재기동이 필요합니다.
           </div>
         </div>
@@ -127,8 +281,9 @@ export function LivePreview({
     );
   }
 
-  const src = `http://127.0.0.1:${vitePort}/`;
-  const showOverlay = mode !== 'pick';
+  // Overlay shows in view mode (swallow clicks + proxy wheel) and as a
+  // pin-mode fallback until the picker handshake completes.
+  const showOverlay = mode === 'view' || (mode === 'pin' && !bridgeReady);
 
   return (
     <div style={wrapperStyle}>
@@ -141,36 +296,40 @@ export function LivePreview({
       />
       {showOverlay && (
         <div
-          onClick={handleOverlayClick}
           onWheel={handleWheel}
+          onClick={handleFallbackOverlayClick}
           style={{
             ...overlayStyle,
             cursor: mode === 'pin' ? 'crosshair' : 'default',
           }}
-        >
-          {/* Pin markers render only in pin mode so they don't hover
-              over the app while the user explores in view mode.
-              Filtering per-SPA-route arrives with M3 postMessage. */}
-          {mode === 'pin' &&
-            pins.map((pin, idx) => (
-              <PinMarker
-                key={pin.id}
-                index={idx + 1}
-                pin={pin}
-                isEditing={editingPinId === pin.id}
-                isStale={!!pin.commitSha && pin.commitSha !== headCommitSha}
-                onFocus={() => setEditing(pin.id)}
-                onBlurText={(text) => {
-                  updatePinText(pin.id, text);
-                  setEditing(null);
-                }}
-                onDelete={() => deletePin(pin.id)}
-              />
-            ))}
+          aria-hidden
+        />
+      )}
+      {/* Pin markers live above the iframe directly — the overlay is
+          absent in pin mode so the picker catches clicks inside the
+          iframe. Marker pointerEvents remain auto so the parent still
+          handles edit / delete interactions with existing pins. */}
+      {mode === 'pin' && (
+        <div style={pinLayerStyle}>
+          {pins.map((pin, idx) => (
+            <PinMarker
+              key={pin.id}
+              index={idx + 1}
+              pin={pin}
+              isEditing={editingPinId === pin.id}
+              isStale={!!pin.commitSha && pin.commitSha !== headCommitSha}
+              onFocus={() => setEditing(pin.id)}
+              onBlurText={(text) => {
+                updatePinText(pin.id, text);
+                setEditing(null);
+              }}
+              onDelete={() => deletePin(pin.id)}
+            />
+          ))}
         </div>
       )}
       {/* Subtle count chip so the user knows there are pins even when
-          view/pick modes hide them. */}
+          view / pick modes hide them. */}
       {pins.length > 0 && mode !== 'pin' && (
         <div
           aria-hidden
@@ -215,6 +374,13 @@ function PinMarker({
 }) {
   const resolved = !!pin.resolvedAt;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // Label prefers the picker's own label; falls back to displayName /
+  // testId / selector in the priority order baked into the runtime.
+  const identityLabel =
+    pin.element?.label ??
+    pin.element?.displayName ??
+    (pin.element?.testId ? `[${pin.element.testId}]` : undefined) ??
+    pin.element?.selector;
   return (
     <div
       data-pin-marker
@@ -234,6 +400,7 @@ function PinMarker({
           onFocus();
         }}
         aria-label={`핀 ${index}`}
+        title={identityLabel}
         style={{
           width: 26,
           height: 26,
@@ -270,6 +437,18 @@ function PinMarker({
             zIndex: 10,
           }}
         >
+          {identityLabel && (
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--text-tertiary)',
+                marginBottom: 6,
+                wordBreak: 'break-all',
+              }}
+            >
+              {identityLabel}
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             autoFocus
@@ -359,6 +538,12 @@ const overlayStyle: React.CSSProperties = {
   inset: 0,
   background: 'transparent',
   pointerEvents: 'auto',
+};
+
+const pinLayerStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  pointerEvents: 'none',
 };
 
 const placeholderStyle: React.CSSProperties = {

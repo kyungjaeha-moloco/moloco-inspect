@@ -308,7 +308,7 @@ const RUNTIME_VERSION = '0.1.0';
   };
 
   const handleMouseMove = (ev: MouseEvent) => {
-    if (mode !== 'pick') return;
+    if (mode !== 'pick' && mode !== 'pin') return;
     const target = ev.target as Element | null;
     if (!target || isPickerInternal(target)) return;
     if (target === hoverEl) return;
@@ -333,7 +333,7 @@ const RUNTIME_VERSION = '0.1.0';
   };
 
   const handleClick = (ev: MouseEvent) => {
-    if (mode !== 'pick') return;
+    if (mode !== 'pick' && mode !== 'pin') return;
     const target = ev.target as Element | null;
     if (!target || isPickerInternal(target)) return;
     // Swallow the click — otherwise the app will treat it as navigation.
@@ -357,7 +357,7 @@ const RUNTIME_VERSION = '0.1.0';
   const applyMode = (next: PickerMode) => {
     if (next === mode) return;
     mode = next;
-    if (mode !== 'pick') clearHover();
+    if (mode !== 'pick' && mode !== 'pin') clearHover();
     log('mode →', mode);
   };
 

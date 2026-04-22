@@ -8,24 +8,18 @@
  */
 
 import { create } from 'zustand';
+import type { BridgeElementContext } from '../services/playground-bridge';
 
 /**
  * Identifier bundle pulled from the sandbox's React tree via the Vite
- * picker plugin. Shipped in M3; current coordinates-only pins leave this
- * undefined and fall back to `x, y`. See v3 plan §5.2 and spike A4.
+ * picker plugin. Shipped in M3; coordinate-only pins leave this undefined
+ * and fall back to `(x, y)`. See v3 plan §5.2 and spike A4.
+ *
+ * Re-exported alias of `BridgeElementContext` so downstream code keeps
+ * importing `ElementContext` from the pin store while the canonical
+ * shape lives next to the wire protocol.
  */
-export interface ElementContext {
-  /** `data-testid` — cheap, stable, best when present. */
-  testId?: string;
-  /** React fiber `displayName` — walker output. */
-  displayName?: string;
-  /** CSS selector path (nth-child included). Last-resort fallback. */
-  selector?: string;
-  /** `_debugSource` → "src/apps/tving/.../X.tsx:123". Dev-only. */
-  sourceFile?: string;
-  /** Human-readable label assembled by the picker for UI display. */
-  label?: string;
-}
+export type ElementContext = BridgeElementContext;
 
 export interface PinReply {
   id: string;
@@ -74,6 +68,8 @@ interface PinStoreState {
     y: number;
     commitSha?: string;
     route?: string;
+    /** Optional semantic target from the picker (M3). */
+    element?: ElementContext;
   }): PinComment;
   updatePinText(id: string, text: string): void;
   deletePin(id: string): void;
@@ -129,7 +125,7 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
     set({ pins, editingPinId: null });
   },
 
-  addPin: ({ playgroundId, x, y, commitSha, route }) => {
+  addPin: ({ playgroundId, x, y, commitSha, route, element }) => {
     const pin: PinComment = {
       id: nextId(),
       playgroundId,
@@ -137,6 +133,7 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
       y,
       commitSha,
       route,
+      ...(element ? { element } : {}),
       text: '',
       createdAt: Date.now(),
     };

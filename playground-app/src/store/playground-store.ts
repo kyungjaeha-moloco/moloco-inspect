@@ -11,6 +11,7 @@
 
 import { create } from 'zustand';
 import type { Playground } from '../services/orchestrator-client';
+import type { BridgeElementContext } from '../services/playground-bridge';
 
 export type WizardPhase = 'idle' | 'chatting' | 'executing' | 'done' | 'error';
 
@@ -93,6 +94,21 @@ interface PlaygroundStoreState {
   queueDepth: number;
   progress: ExecutionProgress[];
 
+  /**
+   * Current pathname inside the iframe. Updated by the M3 bridge on
+   * SPA `history.pushState` / `popstate`. `null` until the child sends
+   * its first route event (usually right after `playground.ready`).
+   * Used to scope pin visibility to the route the pin was placed on.
+   */
+  currentRoute: string | null;
+
+  /**
+   * Last element the user picked in Pick mode — surfaces the picker
+   * payload to AI prompts and the pin-attach flow. Cleared on mode
+   * switch out of Pick.
+   */
+  lastPickedElement: BridgeElementContext | null;
+
   setCurrent(pg: Playground | null): void;
   mergeCurrent(patch: Partial<Playground>): void;
   setMode(mode: IframeMode): void;
@@ -100,6 +116,9 @@ interface PlaygroundStoreState {
   setError(error: string | null): void;
   setQueueDepth(n: number): void;
   pushProgress(entry: ExecutionProgress): void;
+
+  setCurrentRoute(route: string | null): void;
+  setLastPickedElement(element: BridgeElementContext | null): void;
 
   addUserMessage(content: string): ChatMessage;
   addAssistantMessage(
@@ -120,7 +139,15 @@ function nextId(prefix: string) {
 
 const initial: Pick<
   PlaygroundStoreState,
-  'current' | 'mode' | 'messages' | 'isSending' | 'error' | 'queueDepth' | 'progress'
+  | 'current'
+  | 'mode'
+  | 'messages'
+  | 'isSending'
+  | 'error'
+  | 'queueDepth'
+  | 'progress'
+  | 'currentRoute'
+  | 'lastPickedElement'
 > = {
   current: null,
   mode: 'view',
@@ -129,6 +156,8 @@ const initial: Pick<
   error: null,
   queueDepth: 0,
   progress: [],
+  currentRoute: null,
+  lastPickedElement: null,
 };
 
 export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
@@ -139,12 +168,23 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
     set((state) =>
       state.current ? { current: { ...state.current, ...patch } } : {},
     ),
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) =>
+    // Leaving Pick clears `lastPickedElement` — it's only meaningful while
+    // the user is actively picking. Pin keeps it so the next pin attaches
+    // to whatever was last highlighted, if the user swapped modes mid-pick.
+    set((state) => ({
+      mode,
+      lastPickedElement:
+        mode === 'pick' || mode === 'pin' ? state.lastPickedElement : null,
+    })),
   setSending: (isSending) => set({ isSending }),
   setError: (error) => set({ error }),
   setQueueDepth: (queueDepth) => set({ queueDepth }),
   pushProgress: (entry) =>
     set((state) => ({ progress: [...state.progress, entry] })),
+
+  setCurrentRoute: (currentRoute) => set({ currentRoute }),
+  setLastPickedElement: (lastPickedElement) => set({ lastPickedElement }),
 
   addUserMessage: (content) => {
     const msg: ChatMessage = {
