@@ -1,0 +1,1731 @@
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import {
+  usePlaygroundStore,
+  type ChatMessage,
+  type ExecutionState,
+  type PlanItem,
+  type PlanMeta,
+  type TargetClient,
+} from '../store/playground-store';
+import {
+  postChat,
+  postChangeRequest,
+  subscribeChangeRequest,
+  changeRequestScreenshotUrl,
+  changeRequestDiffUrl,
+  getPlayground,
+  checkoutPlaygroundCommit,
+  OrchestratorError,
+  type ChangeRequestEvent,
+  type RawPlan,
+} from '../services/orchestrator-client';
+import {
+  InputArea,
+  Card,
+  CardSectionLabel,
+  Chip,
+  type InputAreaToolbarButton,
+} from '../shared-ui';
+import { usePinStore, type PinComment } from '../store/pin-store';
+
+/**
+ * AIPanel — left-pane conversational interface for the Playground editor.
+ *
+ * Runs in the 2-pane context: the sibling `LivePreview` iframe already
+ * renders the sandboxed app, so there is no screenshot/canvas fan-out —
+ * every plan fires a single change-request against the playground's
+ * queue, and the live app just re-HMRs into the updated state.
+ *
+ * Shares chat message types with `shared-ui/` primitives so the Chrome
+ * extension sidepanel can adopt the same components later.
+ */
+export const AIPanel = React.memo(function AIPanel() {
+  const {
+    messages,
+    isSending,
+    error,
+    playgroundId,
+    playgroundClient,
+    checkedOutSha,
+    headCommitSha,
+    addUserMessage,
+    addAssistantMessage,
+    updateExecution,
+    setSending,
+    setError,
+    reset,
+    togglePlanItem,
+    resolvePlan,
+    mergeCurrent,
+  } = usePlaygroundStore(
+    useShallow((s) => ({
+      messages: s.messages,
+      isSending: s.isSending,
+      error: s.error,
+      playgroundId: s.current?.id ?? null,
+      playgroundClient: s.current?.client ?? null,
+      checkedOutSha: s.current?.checkedOutSha ?? null,
+      headCommitSha: s.current?.headCommitSha ?? null,
+      addUserMessage: s.addUserMessage,
+      addAssistantMessage: s.addAssistantMessage,
+      updateExecution: s.updateExecution,
+      setSending: s.setSending,
+      setError: s.setError,
+      reset: s.reset,
+      togglePlanItem: s.togglePlanItem,
+      resolvePlan: s.resolvePlan,
+      mergeCurrent: s.mergeCurrent,
+    })),
+  );
+
+  /** Sha the sandbox is actually sitting on now — either a time-travel
+   *  checkout or HEAD when there is no checkout. Drives the "현재 이 시점"
+   *  / "이 시점으로 돌아가기" split on ExecutionCard. */
+  const activeSha = checkedOutSha ?? headCommitSha ?? null;
+
+  const [input, setInput] = useState('');
+  const [activeTab, setActiveTab] = useState<'chat' | 'comments'>('chat');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, isSending]);
+
+  // Epoch guard — bump on every send so late SSE events from a previous
+  // run don't stomp on the current conversation after a reset.
+  const epochRef = useRef(0);
+
+  const executePlan = useCallback(
+    async (m: ChatMessage) => {
+      if (!m.plan) return;
+      if (!playgroundId) {
+        setError('Playground가 선택되지 않았습니다.');
+        return;
+      }
+      const plan = m.plan;
+      const sentEpoch = epochRef.current;
+      const sentPlaygroundId = playgroundId;
+
+      const history = usePlaygroundStore.getState().messages;
+      const idx = history.findIndex((x) => x.id === m.id);
+      const priorUser = [...history.slice(0, idx)]
+        .reverse()
+        .find((x) => x.role === 'user');
+      const userPrompt = priorUser?.content ?? plan.meta.summary ?? m.content;
+
+      // Playground is bound to a single app — its `client` always wins over
+      // whatever the plan came back with. Otherwise the agent happily edits
+      // the wrong app folder (e.g. msm-default) while the iframe is serving
+      // tving, and the "change applied" commit looks empty to the user.
+      const targetClient =
+        playgroundClient ?? plan.meta.targetClient ?? 'msm-default';
+      const pagePath = plan.meta.targetRoute ?? '/';
+      const enabledItems = plan.items.filter((i) => i.enabled);
+
+      const isStillActive = () =>
+        sentEpoch === epochRef.current &&
+        usePlaygroundStore.getState().current?.id === sentPlaygroundId;
+
+      const execMsg = addAssistantMessage({
+        content: '샌드박스에서 실행 시작…',
+        execution: {
+          requestId: '',
+          status: 'processing',
+          phase: 'queued',
+          phasesSeen: ['queued'],
+        },
+      });
+
+      try {
+        const ack = await postChangeRequest({
+          userPrompt,
+          pagePath,
+          client: targetClient,
+          requestContract: { change_intent: plan.meta.intent },
+          planItems: enabledItems,
+          visualConstraints: plan.meta.visualConstraints,
+          playgroundId: sentPlaygroundId,
+        });
+        if (!isStillActive()) return;
+        updateExecution(execMsg.id, { requestId: ack.id, status: ack.status });
+
+        let commitCaptured = false;
+        const close = subscribeChangeRequest(
+          ack.id,
+          (event: ChangeRequestEvent) => {
+            if (!isStillActive()) {
+              close();
+              return;
+            }
+            updateExecution(execMsg.id, {
+              status: event.status,
+              phase: event.phase,
+              latestLog: event.latestLog,
+              diffUrl: event.diff ? changeRequestDiffUrl(ack.id) : undefined,
+              changedFiles: event.changedFiles ?? undefined,
+              error: event.error,
+              screenshotUrl:
+                event.status === 'preview' || event.status === 'approved'
+                  ? changeRequestScreenshotUrl(ack.id)
+                  : undefined,
+            });
+
+            const done =
+              event.phase === 'preview_ready' ||
+              event.status === 'preview' ||
+              event.status === 'approved';
+            if (done && !commitCaptured) {
+              commitCaptured = true;
+              // Queue is serialized per playground (v3 §4), so HEAD right
+              // after completion corresponds to this execution's commit.
+              getPlayground(sentPlaygroundId)
+                .then((pg) => {
+                  if (!isStillActive()) return;
+                  mergeCurrent(pg);
+                  if (pg.headCommitSha) {
+                    updateExecution(execMsg.id, { commitSha: pg.headCommitSha });
+                  }
+                })
+                .catch((err) => {
+                  console.warn(
+                    '[AIPanel] failed to capture playground HEAD after execution',
+                    err,
+                  );
+                });
+            }
+
+            if (event.status === 'error') close();
+          },
+        );
+      } catch (err) {
+        const msg =
+          err instanceof OrchestratorError
+            ? `실행 요청 실패: ${err.message}`
+            : err instanceof Error
+              ? err.message
+              : '실행 요청 실패';
+        updateExecution(execMsg.id, {
+          status: 'error',
+          phase: 'error',
+          error: msg,
+        });
+      }
+    },
+    [
+      playgroundId,
+      playgroundClient,
+      addAssistantMessage,
+      updateExecution,
+      setError,
+      mergeCurrent,
+    ],
+  );
+
+  const handleCheckoutCommit = useCallback(
+    async (sha: string) => {
+      if (!playgroundId) return;
+      try {
+        const pg = await checkoutPlaygroundCommit(playgroundId, sha);
+        mergeCurrent(pg);
+      } catch (err) {
+        console.error('[AIPanel] checkout failed', err);
+        setError(err instanceof Error ? err.message : '시점 복원 실패');
+      }
+    },
+    [playgroundId, mergeCurrent, setError],
+  );
+
+  const handleSend = useCallback(async () => {
+    const trimmed = input.trim();
+    if (!trimmed || isSending) return;
+
+    epochRef.current += 1;
+    const sentEpoch = epochRef.current;
+    const sentPlaygroundId = playgroundId;
+
+    setError(null);
+    setInput('');
+    addUserMessage(trimmed);
+
+    const current = usePlaygroundStore.getState().messages;
+    const apiMessages = current.map((m) => ({
+      role: m.role,
+      content: m.plan
+        ? `${m.content}\n\n(Plan with ${m.plan.items.length} items)`
+        : m.content,
+    }));
+
+    const isStillActive = () =>
+      sentEpoch === epochRef.current &&
+      usePlaygroundStore.getState().current?.id === sentPlaygroundId;
+
+    setSending(true);
+    try {
+      const reply = await postChat(apiMessages);
+      if (!isStillActive()) return;
+      if (reply.type === 'question') {
+        addAssistantMessage({ content: reply.content });
+      } else {
+        addAssistantMessage({
+          content: reply.content || '아래 계획으로 진행 가능합니다:',
+          plan: rawToPlan(reply.plan),
+        });
+      }
+    } catch (err) {
+      if (!isStillActive()) return;
+      const msg =
+        err instanceof OrchestratorError
+          ? err.status === 503
+            ? 'AI 서비스 미설정 — ANTHROPIC_API_KEY 설정 후 orchestrator 재시작.'
+            : `AI 응답 실패: ${err.message}`
+          : err instanceof Error
+            ? err.message
+            : 'AI 응답 실패';
+      console.error('[AIPanel] chat failed:', err);
+      addAssistantMessage({ content: `⚠️ ${msg}` });
+      setError(msg);
+    } finally {
+      if (isStillActive()) setSending(false);
+    }
+  }, [
+    input,
+    isSending,
+    playgroundId,
+    setSending,
+    setError,
+    addUserMessage,
+    addAssistantMessage,
+  ]);
+
+  const toolbarButtons: InputAreaToolbarButton[] = useMemo(
+    () => [
+      {
+        id: 'attach',
+        title: '첨부 (곧 지원)',
+        disabled: true,
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+          </svg>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const isEmpty = messages.length === 0;
+  const canSubmit =
+    input.trim().length > 0 && !isSending && !!playgroundId && !checkedOutSha;
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        background: 'var(--bg-primary)',
+        display: 'flex',
+        flexDirection: 'column',
+        color: 'var(--text-primary)',
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      }}
+    >
+      {/* Header — Claude-style: icon pill + title, then Chat tab row with + */}
+      <div
+        style={{
+          padding: '16px 18px 0',
+          background: 'var(--bg-primary)',
+          flex: '0 0 auto',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            aria-hidden
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              background:
+                'linear-gradient(135deg, #b9ceff 0%, #4f86ff 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 14,
+              color: '#ffffff',
+            }}
+          >
+            ◎
+          </div>
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              letterSpacing: '-0.01em',
+            }}
+          >
+            Moloco Inspect
+          </div>
+        </div>
+
+        {/* Tab row */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginTop: 14,
+            borderBottom: '1px solid var(--border-primary)',
+          }}
+        >
+          <div style={{ display: 'flex', gap: 18 }}>
+            {(['chat', 'comments'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setActiveTab(t)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  padding: '8px 0',
+                  fontSize: 13,
+                  fontWeight: activeTab === t ? 600 : 500,
+                  color:
+                    activeTab === t
+                      ? 'var(--text-primary)'
+                      : 'var(--text-tertiary)',
+                  borderBottom:
+                    activeTab === t
+                      ? '2px solid var(--text-primary)'
+                      : '2px solid transparent',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {t === 'chat' ? 'Chat' : 'Comments'}
+              </button>
+            ))}
+          </div>
+          {activeTab === 'chat' && (
+            <button
+              type="button"
+              onClick={reset}
+              title="새 대화"
+              aria-label="새 대화"
+              style={{
+                border: 'none',
+                background: 'transparent',
+                padding: 4,
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                fontSize: 18,
+                lineHeight: 1,
+                fontFamily: 'inherit',
+              }}
+            >
+              +
+            </button>
+          )}
+        </div>
+      </div>
+
+      {activeTab === 'chat' ? (
+        <>
+          {/* Messages area */}
+          <div
+            ref={scrollRef}
+            className="ui-scroll"
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: isEmpty ? 0 : '16px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+              background: 'var(--bg-primary)',
+            }}
+          >
+            {isEmpty && <EmptyState />}
+            {messages.map((m) => (
+              <MessageRow
+                key={m.id}
+                message={m}
+                activeSha={activeSha}
+                onTogglePlanItem={(itemId) => togglePlanItem(m.id, itemId)}
+                onAcceptPlan={() => {
+                  resolvePlan(m.id, 'accepted');
+                  void executePlan(m);
+                }}
+                onRejectPlan={() => resolvePlan(m.id, 'rejected')}
+                onCheckoutCommit={handleCheckoutCommit}
+              />
+            ))}
+            {isSending && <TypingIndicator />}
+          </div>
+
+          <InputArea
+            value={input}
+            placeholder={
+              isEmpty
+                ? '무엇을 만들고 싶으세요? (예: TVING nav에 Moloco Ads 섹션 추가)'
+                : '메시지 보내기...'
+            }
+            onChange={setInput}
+            onSubmit={handleSend}
+            canSubmit={canSubmit}
+            disabled={isSending || !playgroundId}
+            toolbarButtons={toolbarButtons}
+            hint="Enter 전송 · Shift+Enter 줄바꿈"
+            sendLabel={isSending ? '⋯' : '전송'}
+            footer={
+              <>
+                <span
+                  style={{
+                    padding: '1px 6px',
+                    background: 'var(--badge-bg)',
+                    color: 'var(--badge-text)',
+                    borderRadius: 10,
+                    fontSize: 10,
+                    fontWeight: 500,
+                  }}
+                >
+                  inspect agent
+                </span>
+                <span
+                  style={{
+                    padding: '1px 6px',
+                    background: 'var(--success-light)',
+                    color: 'var(--success)',
+                    borderRadius: 10,
+                    fontSize: 10,
+                    fontWeight: 500,
+                  }}
+                >
+                  playground
+                </span>
+              </>
+            }
+          />
+          {error && (
+            <div
+              style={{
+                padding: '6px 12px',
+                fontSize: 11,
+                color: 'var(--error)',
+                background: 'var(--error-light)',
+                borderTop: '1px solid var(--border-primary)',
+              }}
+            >
+              ⚠️ {error}
+            </div>
+          )}
+        </>
+      ) : (
+        <CommentsList playgroundId={playgroundId} headCommitSha={headCommitSha} />
+      )}
+    </div>
+  );
+});
+
+// ── Sub-components ─────────────────────────────────────────
+
+function CommentsList({
+  playgroundId,
+  headCommitSha,
+}: {
+  playgroundId: string | null;
+  headCommitSha: string | null;
+}) {
+  const allPins = usePinStore((s) => s.pins);
+  const deletePin = usePinStore((s) => s.deletePin);
+  const toggleResolved = usePinStore((s) => s.toggleResolved);
+  const updatePinText = usePinStore((s) => s.updatePinText);
+  const addReply = usePinStore((s) => s.addReply);
+  const updateReplyText = usePinStore((s) => s.updateReplyText);
+  const deleteReply = usePinStore((s) => s.deleteReply);
+
+  const pins = useMemo(
+    () => allPins.filter((p) => p.playgroundId === playgroundId),
+    [allPins, playgroundId],
+  );
+
+  if (!playgroundId) {
+    return (
+      <div style={commentsEmptyStyle}>Playground가 선택되지 않았습니다.</div>
+    );
+  }
+
+  if (pins.length === 0) {
+    return (
+      <div style={commentsEmptyStyle}>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+          아직 댓글이 없습니다.
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 6, lineHeight: 1.5 }}>
+          우측 iframe에서 <strong style={{ color: 'var(--text-primary)' }}>📍 Pin</strong> 모드로 전환 후
+          원하는 위치를 클릭해 댓글을 남겨보세요.
+          <br />
+          컴포넌트 단위 타겟팅은 M3 Vite 플러그인 picker에서 연결될 예정입니다.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ui-scroll" style={commentsListStyle}>
+      {pins.map((pin, idx) => (
+        <CommentRow
+          key={pin.id}
+          pin={pin}
+          index={idx + 1}
+          isStale={!!pin.commitSha && pin.commitSha !== headCommitSha}
+          onEditText={(text) => updatePinText(pin.id, text)}
+          onToggleResolved={() => toggleResolved(pin.id)}
+          onDelete={() => deletePin(pin.id)}
+          onAddReply={(text) => addReply(pin.id, text)}
+          onUpdateReplyText={(replyId, text) =>
+            updateReplyText(pin.id, replyId, text)
+          }
+          onDeleteReply={(replyId) => deleteReply(pin.id, replyId)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function CommentRow({
+  pin,
+  index,
+  isStale,
+  onEditText,
+  onToggleResolved,
+  onDelete,
+  onAddReply,
+  onUpdateReplyText,
+  onDeleteReply,
+}: {
+  pin: PinComment;
+  index: number;
+  isStale: boolean;
+  onEditText: (text: string) => void;
+  onToggleResolved: () => void;
+  onDelete: () => void;
+  onAddReply: (text: string) => void;
+  onUpdateReplyText: (replyId: string, text: string) => void;
+  onDeleteReply: (replyId: string) => void;
+}) {
+  const resolved = !!pin.resolvedAt;
+  const replyCount = pin.replies?.length ?? 0;
+  const targetLabel =
+    pin.element?.label ??
+    pin.element?.testId ??
+    pin.element?.displayName ??
+    (pin.route ? pin.route : `(${pin.x}, ${pin.y})`);
+  const when = formatWhen(pin.createdAt);
+
+  const [isEditingBody, setIsEditingBody] = useState(!pin.text);
+  const [composeOpen, setComposeOpen] = useState(false);
+
+  return (
+    <div
+      style={{
+        padding: '14px 16px',
+        borderBottom: '1px solid var(--border-secondary)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        opacity: resolved ? 0.6 : 1,
+      }}
+    >
+      {/* Header: number + target + time */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+        <span
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            background: resolved
+              ? 'var(--success)'
+              : isStale
+                ? 'var(--warning)'
+                : 'var(--accent)',
+            color: '#fff',
+            fontSize: 10,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flex: '0 0 auto',
+          }}
+        >
+          {index}
+        </span>
+        <span
+          style={{
+            color: 'var(--text-tertiary)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            flex: 1,
+            minWidth: 0,
+          }}
+          title={targetLabel}
+        >
+          {targetLabel}
+        </span>
+        <span style={{ color: 'var(--text-tertiary)' }}>{when}</span>
+      </div>
+
+      {/* Body — click to edit, blur to save */}
+      {isEditingBody ? (
+        <textarea
+          autoFocus
+          defaultValue={pin.text}
+          placeholder="메모"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') (e.target as HTMLTextAreaElement).blur();
+          }}
+          onBlur={(e) => {
+            if (e.target.value !== pin.text) onEditText(e.target.value);
+            setIsEditingBody(false);
+          }}
+          style={inlineBodyInputStyle}
+        />
+      ) : (
+        <div
+          onClick={() => setIsEditingBody(true)}
+          style={{
+            fontSize: 14,
+            lineHeight: 1.5,
+            color: pin.text ? 'var(--text-primary)' : 'var(--text-tertiary)',
+            cursor: 'text',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            minHeight: 18,
+          }}
+        >
+          {pin.text || '메모 추가…'}
+        </div>
+      )}
+
+      {/* Replies (plain read-only rows) */}
+      {replyCount > 0 && (
+        <div
+          style={{
+            marginLeft: 6,
+            paddingLeft: 10,
+            borderLeft: '2px solid var(--border-secondary)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          {pin.replies!.map((r) => (
+            <ReplyRow
+              key={r.id}
+              text={r.text}
+              createdAt={r.createdAt}
+              onUpdateText={(text) => onUpdateReplyText(r.id, text)}
+              onDelete={() => onDeleteReply(r.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Reply compose — hidden until the user asks */}
+      {composeOpen && (
+        <div
+          style={{
+            marginLeft: 6,
+            paddingLeft: 10,
+            borderLeft: '2px solid var(--accent-light)',
+          }}
+        >
+          <ReplyCompose
+            onSubmit={(text) => {
+              onAddReply(text);
+              setComposeOpen(false);
+            }}
+            onCancel={() => setComposeOpen(false)}
+          />
+        </div>
+      )}
+
+      {/* Action row — discreet text-only buttons */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 14,
+          fontSize: 11,
+          color: 'var(--text-tertiary)',
+        }}
+      >
+        {!resolved && (
+          <button
+            type="button"
+            onClick={() => setComposeOpen((v) => !v)}
+            style={linkButtonStyle}
+          >
+            💬 댓글{replyCount > 0 ? ` ${replyCount}` : ''}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onToggleResolved}
+          style={linkButtonStyle}
+        >
+          {resolved ? '↺ 다시 열기' : '✓ 해결'}
+        </button>
+        <span style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={onDelete}
+          style={{ ...linkButtonStyle, color: 'var(--error)' }}
+        >
+          삭제
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ReplyRow({
+  text,
+  createdAt,
+  onUpdateText,
+  onDelete,
+}: {
+  text: string;
+  createdAt: number;
+  onUpdateText: (text: string) => void;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 6,
+          fontSize: 10,
+          color: 'var(--text-tertiary)',
+        }}
+      >
+        <span>{formatWhen(createdAt)}</span>
+        <span style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={onDelete}
+          style={{
+            ...linkButtonStyle,
+            fontSize: 10,
+            padding: 0,
+          }}
+          title="댓글 삭제"
+        >
+          ✕
+        </button>
+      </div>
+      {editing ? (
+        <textarea
+          autoFocus
+          defaultValue={text}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') (e.target as HTMLTextAreaElement).blur();
+          }}
+          onBlur={(e) => {
+            if (e.target.value !== text) onUpdateText(e.target.value);
+            setEditing(false);
+          }}
+          style={inlineBodyInputStyle}
+        />
+      ) : (
+        <div
+          onClick={() => setEditing(true)}
+          style={{
+            fontSize: 13,
+            lineHeight: 1.5,
+            color: 'var(--text-primary)',
+            cursor: 'text',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}
+        >
+          {text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReplyCompose({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (text: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState('');
+  const canSubmit = value.trim().length > 0;
+  const submit = () => {
+    if (!canSubmit) return;
+    onSubmit(value.trim());
+    setValue('');
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <textarea
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="댓글 입력…"
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            e.preventDefault();
+            submit();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        style={inlineBodyInputStyle}
+      />
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+        <button type="button" onClick={onCancel} style={linkButtonStyle}>
+          취소
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!canSubmit}
+          style={{
+            padding: '4px 10px',
+            fontSize: 11,
+            border: 'none',
+            borderRadius: 'var(--radius-sm)',
+            background: canSubmit ? 'var(--accent)' : 'var(--bg-tertiary)',
+            color: canSubmit ? 'var(--text-inverse)' : 'var(--text-tertiary)',
+            cursor: canSubmit ? 'pointer' : 'not-allowed',
+            fontWeight: 600,
+            fontFamily: 'inherit',
+          }}
+        >
+          전송
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const inlineBodyInputStyle: React.CSSProperties = {
+  width: '100%',
+  minHeight: 40,
+  resize: 'vertical',
+  fontSize: 13,
+  fontFamily: 'inherit',
+  color: 'var(--text-primary)',
+  background: 'var(--bg-elevated)',
+  border: '1px solid var(--border-primary)',
+  borderRadius: 'var(--radius-sm)',
+  padding: 6,
+  boxSizing: 'border-box',
+  lineHeight: 1.5,
+};
+
+const linkButtonStyle: React.CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  padding: 0,
+  fontSize: 11,
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+};
+
+function formatWhen(ts: number) {
+  const diffMs = Date.now() - ts;
+  const min = Math.floor(diffMs / 60_000);
+  if (min < 1) return '방금';
+  if (min < 60) return `${min}분 전`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간 전`;
+  return new Date(ts).toLocaleDateString();
+}
+
+const commentsEmptyStyle: React.CSSProperties = {
+  padding: '32px 20px',
+  textAlign: 'center',
+  flex: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--text-tertiary)',
+};
+
+const commentsListStyle: React.CSSProperties = {
+  flex: 1,
+  overflowY: 'auto',
+  background: 'var(--bg-primary)',
+};
+
+function EmptyState() {
+  const suggestions = [
+    'TVING Ad System nav에 Moloco Ads 섹션 추가',
+    '경매형 주문 페이지에 대량 상태 변경 기능 추가',
+    '광고 소재 리뷰 페이지 컬럼 정리',
+  ];
+
+  const pickSuggestion = (s: string) => {
+    const el = document.querySelector('textarea');
+    if (!el) return;
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      'value',
+    )?.set;
+    setter?.call(el, s);
+    (el as HTMLTextAreaElement).focus();
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  return (
+    <div
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '32px 24px',
+        textAlign: 'center',
+        color: 'var(--text-secondary)',
+        gap: 20,
+      }}
+    >
+      <div
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: '50%',
+          background: 'var(--accent-light)',
+          color: 'var(--accent)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        aria-hidden
+      >
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <circle cx="12" cy="12" r="7" />
+          <line x1="12" y1="1" x2="12" y2="5" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="1" y1="12" x2="5" y2="12" />
+          <line x1="19" y1="12" x2="23" y2="12" />
+        </svg>
+      </div>
+      <div>
+        <div
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+            marginBottom: 6,
+          }}
+        >
+          무엇을 만들어 볼까요?
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+          Jira 티켓·PRD 링크를 붙이거나, 바꾸고 싶은 것을 자연어로 설명해 주세요.
+          <br />
+          AI가 DS 패턴 기반으로 계획을 세워드립니다.
+        </div>
+      </div>
+
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div
+          style={{
+            fontSize: 10,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+            color: 'var(--text-tertiary)',
+            fontWeight: 600,
+            marginBottom: 2,
+            textAlign: 'left',
+          }}
+        >
+          예시
+        </div>
+        {suggestions.map((s) => (
+          <button
+            key={s}
+            onClick={() => pickSuggestion(s)}
+            style={{
+              textAlign: 'left',
+              border: '1px solid var(--border-primary)',
+              borderRadius: 'var(--radius-md)',
+              padding: '8px 10px',
+              background: 'var(--bg-secondary)',
+              cursor: 'pointer',
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              lineHeight: 1.4,
+              fontFamily: 'inherit',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--accent)';
+              e.currentTarget.style.background = 'var(--accent-light)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-primary)';
+              e.currentTarget.style.background = 'var(--bg-secondary)';
+            }}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MessageRow({
+  message,
+  activeSha,
+  onTogglePlanItem,
+  onAcceptPlan,
+  onRejectPlan,
+  onCheckoutCommit,
+}: {
+  message: ChatMessage;
+  activeSha: string | null;
+  onTogglePlanItem: (itemId: string) => void;
+  onAcceptPlan: () => void;
+  onRejectPlan: () => void;
+  onCheckoutCommit: (sha: string) => void;
+}) {
+  const roleLabel = message.role === 'user' ? 'You' : 'Moloco';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: 'var(--text-primary)',
+            letterSpacing: '-0.01em',
+          }}
+        >
+          {roleLabel}
+        </div>
+        {message.content && (
+          <div
+            style={{
+              fontSize: 14,
+              lineHeight: 1.55,
+              color: 'var(--text-primary)',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+          >
+            {message.content}
+          </div>
+        )}
+      </div>
+
+      {message.plan && (
+        <PlanCard
+          plan={message.plan}
+          resolved={message.planResolved}
+          onToggleItem={onTogglePlanItem}
+          onAccept={onAcceptPlan}
+          onReject={onRejectPlan}
+        />
+      )}
+
+      {message.execution && (
+        <ExecutionCard
+          execution={message.execution}
+          activeSha={activeSha}
+          onCheckoutCommit={onCheckoutCommit}
+        />
+      )}
+    </div>
+  );
+}
+
+function PlanCard({
+  plan,
+  resolved,
+  onToggleItem,
+  onAccept,
+  onReject,
+}: {
+  plan: { meta: PlanMeta; items: PlanItem[] };
+  resolved?: 'accepted' | 'rejected';
+  onToggleItem: (id: string) => void;
+  onAccept: () => void;
+  onReject: () => void;
+}) {
+  const enabledCount = useMemo(
+    () => plan.items.filter((i) => i.enabled).length,
+    [plan.items],
+  );
+  const dim = resolved === 'rejected';
+
+  return (
+    <Card tone={resolved === 'accepted' ? 'accent' : 'default'} style={{ opacity: dim ? 0.5 : 1 }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+        <Chip label={plan.meta.intent} color="accent" />
+        {plan.meta.targetClient && <Chip label={plan.meta.targetClient} />}
+        {plan.meta.targetRoute && <Chip label={plan.meta.targetRoute} />}
+        {plan.meta.targetEntity && <Chip label={plan.meta.targetEntity} color="entity" />}
+      </div>
+
+      {plan.meta.summary && (
+        <div
+          style={{
+            fontSize: 12,
+            color: 'var(--text-secondary)',
+            lineHeight: 1.5,
+            marginBottom: 10,
+            padding: '8px 10px',
+            background: 'var(--bg-primary)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-primary)',
+          }}
+        >
+          {plan.meta.summary}
+        </div>
+      )}
+
+      <CardSectionLabel>
+        계획 ({enabledCount}/{plan.items.length})
+      </CardSectionLabel>
+      <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {plan.items.map((item) => (
+          <li
+            key={item.id}
+            onClick={() => !resolved && onToggleItem(item.id)}
+            style={{
+              fontSize: 12,
+              padding: '6px 8px',
+              borderRadius: 'var(--radius-sm)',
+              background: item.enabled ? 'var(--bg-primary)' : 'transparent',
+              border: `1px solid ${item.enabled ? 'var(--border-primary)' : 'var(--border-secondary)'}`,
+              cursor: resolved ? 'default' : 'pointer',
+              display: 'flex',
+              gap: 8,
+              alignItems: 'flex-start',
+              opacity: item.enabled ? 1 : 0.55,
+            }}
+          >
+            <span
+              style={{
+                color: item.enabled ? 'var(--success)' : 'var(--text-tertiary)',
+                fontSize: 13,
+                lineHeight: '1.2',
+                flex: '0 0 auto',
+                marginTop: 1,
+              }}
+            >
+              {item.enabled ? '✓' : '○'}
+            </span>
+            <div style={{ flex: 1 }}>
+              <div
+                style={{
+                  color: item.enabled ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                  textDecoration: item.enabled ? 'none' : 'line-through',
+                  fontWeight: 500,
+                  lineHeight: 1.4,
+                }}
+              >
+                {item.title}
+              </div>
+              {item.description && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--text-tertiary)',
+                    lineHeight: 1.45,
+                    marginTop: 2,
+                  }}
+                >
+                  {item.description}
+                </div>
+              )}
+              {item.targetFile && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--text-secondary)',
+                    marginTop: 4,
+                    fontFamily:
+                      'ui-monospace, SFMono-Regular, "Menlo", monospace',
+                    background: 'var(--bg-secondary)',
+                    padding: '3px 6px',
+                    borderRadius: 4,
+                    wordBreak: 'break-all',
+                    lineHeight: 1.4,
+                  }}
+                  title={item.targetFile}
+                >
+                  📄 {item.targetFile}
+                </div>
+              )}
+              {item.patternId && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: 'var(--text-tertiary)',
+                    marginTop: 3,
+                  }}
+                >
+                  pattern:{' '}
+                  <code
+                    style={{
+                      background: 'var(--accent-light)',
+                      color: 'var(--accent-text)',
+                      padding: '0 4px',
+                      borderRadius: 3,
+                    }}
+                  >
+                    {item.patternId}
+                  </code>
+                </div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      {!resolved ? (
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 10 }}>
+          <button
+            onClick={onReject}
+            style={{
+              padding: '6px 12px',
+              border: '1px solid var(--border-primary)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-primary)',
+              cursor: 'pointer',
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+            }}
+          >
+            거부
+          </button>
+          <button
+            onClick={onAccept}
+            disabled={enabledCount === 0}
+            style={{
+              padding: '6px 14px',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              background: enabledCount === 0 ? 'var(--bg-tertiary)' : 'var(--approve-bg)',
+              color: enabledCount === 0 ? 'var(--text-tertiary)' : '#fff',
+              cursor: enabledCount === 0 ? 'not-allowed' : 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            실행하기 →
+          </button>
+        </div>
+      ) : (
+        <div
+          style={{
+            marginTop: 10,
+            fontSize: 11,
+            color: resolved === 'accepted' ? 'var(--success)' : 'var(--text-tertiary)',
+            fontWeight: 500,
+          }}
+        >
+          {resolved === 'accepted' ? '✓ 승인됨' : '✕ 거부됨'}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+const PHASE_LABELS: Record<string, string> = {
+  queued: '대기',
+  syncing_source: '소스 동기화',
+  running_agent: 'AI 실행',
+  capturing_screenshot: '스크린샷 캡처',
+  preview_ready: '완료',
+  error: '오류',
+};
+const PHASE_ORDER = [
+  'queued',
+  'syncing_source',
+  'running_agent',
+  'capturing_screenshot',
+  'preview_ready',
+];
+
+function ExecutionCard({
+  execution,
+  activeSha,
+  onCheckoutCommit,
+}: {
+  execution: ExecutionState;
+  activeSha: string | null;
+  onCheckoutCommit: (sha: string) => void;
+}) {
+  const done =
+    execution.phase === 'preview_ready' ||
+    execution.status === 'approved' ||
+    execution.status === 'preview';
+  const errored = execution.status === 'error' || execution.phase === 'error';
+  const canRewind =
+    done &&
+    !errored &&
+    !!execution.commitSha &&
+    execution.commitSha !== activeSha;
+  const isCurrent = !!execution.commitSha && execution.commitSha === activeSha;
+  // Collapsed once the run is either finished or errored — expanded by
+  // default while work is in flight so the user can watch progress.
+  const [open, setOpen] = useState(!done && !errored);
+
+  const phaseLabel = errored
+    ? '실행 실패'
+    : done
+      ? '실행 완료'
+      : execution.phase
+        ? (PHASE_LABELS[execution.phase] ?? execution.phase)
+        : '대기';
+
+  const accent = errored
+    ? 'var(--error)'
+    : done
+      ? 'var(--success)'
+      : 'var(--accent)';
+
+  return (
+    <div
+      style={{
+        borderRadius: 10,
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border-secondary)',
+      }}
+    >
+      {/* Disclosure header — click to expand/collapse */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '10px 12px',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          textAlign: 'left',
+        }}
+      >
+        <span
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            background: accent,
+            opacity: errored ? 1 : done ? 1 : 0.25,
+            display: 'inline-block',
+            flex: '0 0 auto',
+          }}
+          aria-hidden
+        />
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--text-primary)',
+            flex: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {phaseLabel}
+          {execution.changedFiles && execution.changedFiles.length > 0
+            ? ` · ${execution.changedFiles.length}개 파일`
+            : ''}
+        </span>
+        {execution.requestId && (
+          <span
+            style={{
+              fontSize: 11,
+              color: 'var(--text-tertiary)',
+              fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+            }}
+          >
+            #{execution.requestId.slice(0, 8)}
+          </span>
+        )}
+        <span
+          style={{
+            color: 'var(--text-tertiary)',
+            fontSize: 12,
+            transform: open ? 'rotate(180deg)' : 'none',
+            transition: 'transform 0.15s ease',
+          }}
+          aria-hidden
+        >
+          ⌄
+        </span>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            padding: '0 12px 12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {PHASE_ORDER.map((p) => {
+              const seen = execution.phasesSeen.includes(p);
+              const current = execution.phase === p && !done && !errored;
+              const color = current
+                ? 'var(--accent)'
+                : seen
+                  ? 'var(--success)'
+                  : 'var(--text-tertiary)';
+              const bg = current
+                ? 'var(--accent-light)'
+                : seen
+                  ? 'var(--success-light)'
+                  : 'var(--bg-primary)';
+              return (
+                <span
+                  key={p}
+                  style={{
+                    padding: '2px 7px',
+                    fontSize: 10,
+                    color,
+                    border: `1px solid ${color}40`,
+                    borderRadius: 10,
+                    fontWeight: current ? 600 : 500,
+                    background: bg,
+                  }}
+                >
+                  {seen && !current ? '✓ ' : current ? '⋯ ' : ''}
+                  {PHASE_LABELS[p] ?? p}
+                </span>
+              );
+            })}
+          </div>
+
+          {execution.latestLog && (
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--text-secondary)',
+                padding: '6px 8px',
+                background: 'var(--bg-primary)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-primary)',
+                lineHeight: 1.4,
+                wordBreak: 'break-word',
+              }}
+            >
+              {execution.latestLog}
+            </div>
+          )}
+
+          {execution.error && (
+            <div
+              style={{
+                fontSize: 12,
+                color: 'var(--error)',
+                padding: 8,
+                background: 'var(--error-light)',
+                borderRadius: 'var(--radius-sm)',
+              }}
+            >
+              {execution.error}
+            </div>
+          )}
+
+          {execution.changedFiles && execution.changedFiles.length > 0 && (
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                {execution.changedFiles.map((f) => (
+                  <li
+                    key={f}
+                    style={{
+                      fontSize: 10,
+                      color: 'var(--text-tertiary)',
+                      fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                      padding: '1px 0',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={f}
+                  >
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              {execution.diffUrl && (
+                <a
+                  href={execution.diffUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--link, #0043ce)',
+                    textDecoration: 'none',
+                  }}
+                >
+                  diff 보기 →
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {(canRewind || isCurrent) && execution.commitSha && (
+        <div
+          style={{
+            padding: '8px 12px',
+            borderTop: '1px solid var(--border-secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+              fontSize: 10,
+              color: 'var(--text-tertiary)',
+            }}
+          >
+            {execution.commitSha.slice(0, 7)}
+          </span>
+          {isCurrent ? (
+            <span
+              style={{
+                fontSize: 11,
+                color: 'var(--accent)',
+                fontWeight: 600,
+              }}
+            >
+              🔄 현재 이 시점
+            </span>
+          ) : (
+            <button
+              onClick={() => onCheckoutCommit(execution.commitSha!)}
+              style={{
+                padding: '4px 10px',
+                fontSize: 11,
+                border: '1px solid var(--border-primary)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+              title="샌드박스를 이 커밋으로 checkout합니다. 새 요청은 최신으로 돌아온 뒤 가능."
+            >
+              📍 이 시점으로 돌아가기
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 2 }}>
+      <div
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: '50%',
+          background: 'var(--accent-light)',
+          color: 'var(--accent)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 12,
+        }}
+        aria-hidden
+      >
+        ✦
+      </div>
+      <div style={{ display: 'flex', gap: 3 }}>
+        <Dot delay={0} />
+        <Dot delay={160} />
+        <Dot delay={320} />
+      </div>
+    </div>
+  );
+}
+
+function Dot({ delay }: { delay: number }) {
+  return (
+    <span
+      style={{
+        width: 6,
+        height: 6,
+        borderRadius: '50%',
+        background: 'var(--text-tertiary)',
+        animation: `aipanel-dot 1.2s infinite ${delay}ms`,
+      }}
+    />
+  );
+}
+
+// ── Helpers ────────────────────────────────────────────
+
+function rawToPlan(raw: RawPlan): { meta: PlanMeta; items: PlanItem[] } {
+  return {
+    meta: {
+      intent: raw.intent,
+      targetEntity: raw.target_entity,
+      summary: raw.summary,
+      targetClient: (raw.target?.client ?? undefined) as TargetClient | undefined,
+      targetRoute: raw.target?.route_or_page,
+      visualConstraints: raw.visual_constraints ?? [],
+    },
+    items: (raw.plan_items ?? []).map((it) => ({
+      id: it.id,
+      title: it.title,
+      description: it.description,
+      patternId: it.pattern_id ?? undefined,
+      targetFile: it.target_file ?? undefined,
+      dependsOn: it.depends_on,
+      enabled: true,
+    })),
+  };
+}
+
+// Inject keyframes once
+if (typeof document !== 'undefined' && !document.getElementById('aipanel-keyframes')) {
+  const style = document.createElement('style');
+  style.id = 'aipanel-keyframes';
+  style.textContent = `@keyframes aipanel-dot { 0%,60%,100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }`;
+  document.head.appendChild(style);
+}

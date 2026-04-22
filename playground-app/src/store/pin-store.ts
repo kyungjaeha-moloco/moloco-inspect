@@ -1,0 +1,224 @@
+/**
+ * Pin comment store — absolute-positioned comments on top of the live
+ * iframe, scoped per playground. Replaces the old canvas feedback-store.
+ *
+ * Persistence: localStorage, keyed `moloco-playground:v3:pins:<playgroundId>`.
+ * We keep pins local-only for MVP — multi-user sharing arrives in Phase 2
+ * along with the rest of the playground SaaSification.
+ */
+
+import { create } from 'zustand';
+
+/**
+ * Identifier bundle pulled from the sandbox's React tree via the Vite
+ * picker plugin. Shipped in M3; current coordinates-only pins leave this
+ * undefined and fall back to `x, y`. See v3 plan §5.2 and spike A4.
+ */
+export interface ElementContext {
+  /** `data-testid` — cheap, stable, best when present. */
+  testId?: string;
+  /** React fiber `displayName` — walker output. */
+  displayName?: string;
+  /** CSS selector path (nth-child included). Last-resort fallback. */
+  selector?: string;
+  /** `_debugSource` → "src/apps/tving/.../X.tsx:123". Dev-only. */
+  sourceFile?: string;
+  /** Human-readable label assembled by the picker for UI display. */
+  label?: string;
+}
+
+export interface PinReply {
+  id: string;
+  text: string;
+  createdAt: number;
+}
+
+export interface PinComment {
+  id: string;
+  playgroundId: string;
+  /** Overlay-relative coordinates in CSS pixels. Captured from the mouse
+   * event at the time the user placed the pin in Pin mode. */
+  x: number;
+  y: number;
+  /** Commit sha the sandbox was on when this pin was dropped. Used to
+   * annotate stale pins once HEAD moves past it. */
+  commitSha?: string;
+  /**
+   * iframe pathname at placement time. For SPA navigation we can't detect
+   * route changes from the parent (cross-origin), so this is best-effort
+   * and tracks only full-loads. M3 swaps this for a postMessage-driven
+   * live route captured by the Vite picker plugin.
+   */
+  route?: string;
+  /**
+   * Semantic target the pin refers to. Populated by the Vite picker in
+   * M3. Until then pins rely on `(x, y)` alone and this stays undefined.
+   */
+  element?: ElementContext;
+  text: string;
+  replies?: PinReply[];
+  createdAt: number;
+  resolvedAt?: number;
+}
+
+interface PinStoreState {
+  /** All pins loaded for the currently open playground. */
+  pins: PinComment[];
+  /** Pin currently being edited (focused input), or null. */
+  editingPinId: string | null;
+
+  loadForPlayground(playgroundId: string): void;
+  addPin(input: {
+    playgroundId: string;
+    x: number;
+    y: number;
+    commitSha?: string;
+    route?: string;
+  }): PinComment;
+  updatePinText(id: string, text: string): void;
+  deletePin(id: string): void;
+  toggleResolved(id: string): void;
+  setEditing(id: string | null): void;
+
+  /** Append a reply under an existing pin. */
+  addReply(pinId: string, text: string): void;
+  /** Replace a reply's text (in-place edit). */
+  updateReplyText(pinId: string, replyId: string, text: string): void;
+  /** Remove a reply from its pin. */
+  deleteReply(pinId: string, replyId: string): void;
+
+  reset(): void;
+}
+
+const STORAGE_PREFIX = 'moloco-playground:v3:pins:';
+
+function storageKey(playgroundId: string) {
+  return `${STORAGE_PREFIX}${playgroundId}`;
+}
+
+function readPins(playgroundId: string): PinComment[] {
+  try {
+    const raw = localStorage.getItem(storageKey(playgroundId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.warn('[pin-store] failed to read pins:', err);
+    return [];
+  }
+}
+
+function writePins(playgroundId: string, pins: PinComment[]) {
+  try {
+    localStorage.setItem(storageKey(playgroundId), JSON.stringify(pins));
+  } catch (err) {
+    console.warn('[pin-store] failed to persist pins:', err);
+  }
+}
+
+function nextId() {
+  return `pin-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+export const usePinStore = create<PinStoreState>((set, get) => ({
+  pins: [],
+  editingPinId: null,
+
+  loadForPlayground: (playgroundId) => {
+    const pins = readPins(playgroundId);
+    set({ pins, editingPinId: null });
+  },
+
+  addPin: ({ playgroundId, x, y, commitSha, route }) => {
+    const pin: PinComment = {
+      id: nextId(),
+      playgroundId,
+      x,
+      y,
+      commitSha,
+      route,
+      text: '',
+      createdAt: Date.now(),
+    };
+    const next = [...get().pins, pin];
+    writePins(playgroundId, next);
+    set({ pins: next, editingPinId: pin.id });
+    return pin;
+  },
+
+  updatePinText: (id, text) => {
+    const pins = get().pins.map((p) => (p.id === id ? { ...p, text } : p));
+    const first = pins.find((p) => p.id === id);
+    if (first) writePins(first.playgroundId, pins);
+    set({ pins });
+  },
+
+  deletePin: (id) => {
+    const target = get().pins.find((p) => p.id === id);
+    const next = get().pins.filter((p) => p.id !== id);
+    if (target) writePins(target.playgroundId, next);
+    set({
+      pins: next,
+      editingPinId: get().editingPinId === id ? null : get().editingPinId,
+    });
+  },
+
+  toggleResolved: (id) => {
+    const pins = get().pins.map((p) =>
+      p.id === id
+        ? { ...p, resolvedAt: p.resolvedAt ? undefined : Date.now() }
+        : p,
+    );
+    const first = pins.find((p) => p.id === id);
+    if (first) writePins(first.playgroundId, pins);
+    set({ pins });
+  },
+
+  setEditing: (id) => set({ editingPinId: id }),
+
+  addReply: (pinId, text) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const reply: PinReply = {
+      id: nextId().replace(/^pin-/, 'reply-'),
+      text: trimmed,
+      createdAt: Date.now(),
+    };
+    const pins = get().pins.map((p) =>
+      p.id === pinId ? { ...p, replies: [...(p.replies ?? []), reply] } : p,
+    );
+    const first = pins.find((p) => p.id === pinId);
+    if (first) writePins(first.playgroundId, pins);
+    set({ pins });
+  },
+
+  updateReplyText: (pinId, replyId, text) => {
+    const pins = get().pins.map((p) => {
+      if (p.id !== pinId || !p.replies) return p;
+      return {
+        ...p,
+        replies: p.replies.map((r) =>
+          r.id === replyId ? { ...r, text } : r,
+        ),
+      };
+    });
+    const first = pins.find((p) => p.id === pinId);
+    if (first) writePins(first.playgroundId, pins);
+    set({ pins });
+  },
+
+  deleteReply: (pinId, replyId) => {
+    const pins = get().pins.map((p) => {
+      if (p.id !== pinId || !p.replies) return p;
+      return {
+        ...p,
+        replies: p.replies.filter((r) => r.id !== replyId),
+      };
+    });
+    const first = pins.find((p) => p.id === pinId);
+    if (first) writePins(first.playgroundId, pins);
+    set({ pins });
+  },
+
+  reset: () => set({ pins: [], editingPinId: null }),
+}));

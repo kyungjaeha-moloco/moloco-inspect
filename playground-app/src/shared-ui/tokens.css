@@ -1,0 +1,167 @@
+/**
+ * Moloco Inspect shared design tokens (Carbon-based).
+ *
+ * Used by both the Canvas AI panel and (future) the Chrome extension
+ * sidepanel. Keep this the single source of truth for colors, spacing,
+ * and semantic tokens across surfaces.
+ *
+ * Applied via `data-theme="light"` (default) or `data-theme="dark"`
+ * on any ancestor element.
+ */
+
+:root,
+[data-theme='light'] {
+  /* Cool blue-tinted palette. Chrome surfaces pick up a soft bluish
+   * off-white; iframe / canvas keeps pure white (`--bg-canvas`). */
+  --bg-primary: #f3f6fb;
+  --bg-secondary: #e8edf5;
+  --bg-tertiary: #d9e0ec;
+  --bg-elevated: #fafbfd;
+  --bg-hover: #e0e7f2;
+  --bg-active: #c9d3e3;
+  --bg-canvas: #ffffff; /* For iframe / pure-white surfaces */
+
+  --text-primary: #0f1d33;
+  --text-secondary: #4a5a72;
+  --text-tertiary: #8594a8;
+  --text-inverse: #ffffff;
+
+  --border-primary: #d2dae6;
+  --border-secondary: #e8edf5;
+  --border-focus: rgba(37, 99, 235, 0.45);
+
+  /* Crisp blue accent */
+  --accent: #2563eb;
+  --accent-light: rgba(37, 99, 235, 0.1);
+  --accent-text: #1d4ed8;
+  --accent-hover: #1d4ed8;
+
+  --success: #2e9e6a;
+  --success-light: rgba(46, 158, 106, 0.12);
+  --warning: #d48b1a;
+  --warning-light: rgba(212, 139, 26, 0.14);
+  --error: #d43f3a;
+  --error-light: rgba(212, 63, 58, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(15, 29, 51, 0.05);
+  --shadow-md: 0 4px 12px rgba(15, 29, 51, 0.08);
+  --shadow-lg: 0 8px 24px rgba(15, 29, 51, 0.12);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Legacy chat-bubble tokens kept for any unmigrated surfaces */
+  --msg-user-bg: #2563eb;
+  --msg-user-text: #ffffff;
+  --msg-system-bg: #e8edf5;
+  --msg-system-text: #0f1d33;
+  --msg-border: rgba(15, 29, 51, 0.06);
+
+  /* Chips / badges */
+  --chip-bg: rgba(37, 99, 235, 0.1);
+  --chip-border: rgba(37, 99, 235, 0.25);
+  --chip-text: #1d4ed8;
+  --badge-bg: #d9e0ec;
+  --badge-text: #4a5a72;
+
+  /* Buttons */
+  --approve-bg: #2563eb;
+  --approve-hover: #1d4ed8;
+  --reject-bg: #d9e0ec;
+  --reject-text: #4a5a72;
+  --reject-hover: #c9d3e3;
+
+  --input-placeholder: #8594a8;
+  --scrollbar-thumb: #c9d3e3;
+
+  --link: #1d4ed8;
+  --link-hover: #1e3a8a;
+}
+
+[data-theme='dark'] {
+  --bg-primary: #161616;
+  --bg-secondary: #262626;
+  --bg-tertiary: #393939;
+  --bg-elevated: #262626;
+  --bg-hover: #353535;
+  --bg-active: #525252;
+
+  --text-primary: #f4f4f4;
+  --text-secondary: #c6c6c6;
+  --text-tertiary: #6f6f6f;
+  --text-inverse: #161616;
+
+  --border-primary: #393939;
+  --border-secondary: #262626;
+  --border-focus: rgba(69, 137, 255, 0.5);
+
+  --accent: #4589ff;
+  --accent-light: rgba(69, 137, 255, 0.14);
+  --accent-text: #a6c8ff;
+  --accent-hover: #6ea6ff;
+
+  --success: #42be65;
+  --success-light: rgba(66, 190, 101, 0.14);
+  --warning: #f1c21b;
+  --warning-light: rgba(241, 194, 27, 0.14);
+  --error: #fa4d56;
+  --error-light: rgba(250, 77, 86, 0.14);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  --msg-user-bg: #0f62fe;
+  --msg-user-text: #ffffff;
+  --msg-system-bg: #262626;
+  --msg-system-text: #f4f4f4;
+  --msg-border: rgba(255, 255, 255, 0.06);
+
+  --chip-bg: rgba(69, 137, 255, 0.14);
+  --chip-border: rgba(69, 137, 255, 0.3);
+  --chip-text: #a6c8ff;
+  --badge-bg: #393939;
+  --badge-text: #c6c6c6;
+
+  --approve-bg: #24a148;
+  --approve-hover: #198038;
+  --reject-bg: #393939;
+  --reject-text: #c6c6c6;
+  --reject-hover: #525252;
+
+  --input-placeholder: #6f6f6f;
+  --scrollbar-thumb: #525252;
+
+  --link: #4589ff;
+  --link-hover: #a6c8ff;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans KR', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Utility classes consumed by shared components */
+.ui-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.ui-scroll::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+.ui-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
