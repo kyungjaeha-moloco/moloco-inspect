@@ -1,0 +1,35 @@
+{
+  "name": "vite-plugin-playground-picker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Injects the Moloco Inspect Playground picker runtime into a sandbox Vite dev server and bridges picks / SPA route changes to the parent playground UI via a nonce-authenticated postMessage channel.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "peerDependencies": {
+    "vite": "^5.0.0 || ^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^5.5.0"
+  }
+}
