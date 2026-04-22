@@ -24,7 +24,8 @@ const execAsync = promisify(exec);
 const STATE_DIR = new URL('../state/playground/', import.meta.url).pathname;
 const PATCHES_DIR = new URL('../state/playground-archived/', import.meta.url).pathname;
 const PLAYGROUND_IMAGE =
-  process.env.SANDBOX_IMAGE_PLAYGROUND || 'moloco-inspect-sandbox:v3-playground';
+  process.env.SANDBOX_IMAGE_PLAYGROUND ||
+  'moloco-inspect-sandbox:v3-playground-m3';
 const SOURCE_WORKSPACE_ROOT =
   process.env.SOURCE_WORKSPACE_ROOT || '/Users/kyungjae.ha/Documents/Agent-Design-System';
 
@@ -90,6 +91,49 @@ function nowMs() {
 function makeShortId() {
   // 8 hex chars — matches existing change-request id style
   return randomUUID().replace(/-/g, '').slice(0, 8);
+}
+
+/**
+ * Write the playground Vite wrapper config into the sandbox. The wrapper
+ * lives *inside* msm-portal-web so the relative `./vite.config` import
+ * resolves; its playground-picker import is absolute because the plugin
+ * package is baked into the sandbox image at a known path (see
+ * `sandbox/Dockerfile`). Adding the file to `.git/info/exclude` keeps
+ * change-request diffs clean.
+ *
+ * @param {string} containerId
+ */
+async function writePlaygroundViteConfig(containerId) {
+  const configBody = `import { defineConfig } from 'vite';
+import base from './vite.config';
+// @ts-ignore — plugin lives outside node_modules at a container-fixed path.
+import playgroundPicker from '/workspace/plugins/vite-plugin-playground-picker/dist/index.js';
+
+export default defineConfig(async (env) => {
+  const b: any = base;
+  const resolved = await (typeof b === 'function' ? b(env) : b);
+  return {
+    ...resolved,
+    plugins: [...(resolved?.plugins ?? []), playgroundPicker()],
+  };
+});
+`;
+  // Base64 pipe to avoid any shell/quote escaping on TS syntax.
+  const b64 = Buffer.from(configBody, 'utf8').toString('base64');
+  await execAsync(
+    `docker exec ${containerId} sh -c "echo '${b64}' | base64 -d > /workspace/msm-portal/js/msm-portal-web/vite.config.playground.ts"`,
+    { timeout: 10_000 },
+  );
+  // Local ignore — never lands in playground commits or promote patches.
+  // Includes vite's temporary transpile artifacts (`.timestamp-*.mjs`)
+  // so they don't sneak into change-request diffs either.
+  const excludeLines =
+    'js/msm-portal-web/vite.config.playground.ts\\n' +
+    'js/msm-portal-web/vite.config.playground.ts.timestamp-*.mjs';
+  await execAsync(
+    `docker exec ${containerId} sh -c "printf '%b\\n' '${excludeLines}' >> /workspace/msm-portal/.git/info/exclude"`,
+    { timeout: 5_000 },
+  );
 }
 
 // ── CRUD ────────────────────────────────────────────────────────────
@@ -193,6 +237,25 @@ export async function createPlayground({
     `docker exec ${sandbox.containerId} sh -c "cd /workspace/msm-portal && git checkout -b playground-${id}"`,
     { timeout: 10_000 },
   );
+
+  // Drop the playground Vite wrapper config next to msm-portal's own
+  // vite.config. start-vite.sh picks it up via `--config` so the picker
+  // plugin is loaded. Locally excluded from git so change-request diffs
+  // never sweep our shim into the real promote patches.
+  await writePlaygroundViteConfig(sandbox.containerId);
+
+  // Kick Vite over supervisor — autostart is disabled in supervisord.conf
+  // so the wrapper config lands first. Errors here are warnings only;
+  // the UI already shows "Vite 포트 미할당" until it comes up, and
+  // `resume` runs the same start sequence with retry/readiness polling.
+  await execAsync(
+    `docker exec ${sandbox.containerId} supervisorctl start vite`,
+    { timeout: 20_000 },
+  ).catch((err) => {
+    console.warn(
+      `[playground] initial supervisorctl start vite failed for ${id}: ${err.message}`,
+    );
+  });
 
   const pg = /** @type {Playground} */ ({
     id,

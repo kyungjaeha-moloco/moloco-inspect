@@ -1,18 +1,21 @@
 # Moloco Inspect — Sandbox Container Image
 # Base: OpenCode official image (Alpine) — ensures opencode binary works natively
-# Added: Node.js + pnpm + Chromium + msm-portal + design-system
+# Added: Node.js + pnpm + Chromium + msm-portal + design-system + supervisor + picker plugin
 
 FROM ghcr.io/anomalyco/opencode
 
 # ─── System dependencies ─────────────────────────────────────────────
 # Alpine apk needs --allow-untrusted due to corporate proxy TLS interception
+# tini + supervisor manage opencode + vite as two separate processes (v3 §2.1)
 RUN apk add --no-cache --allow-untrusted \
   nodejs npm git curl bash ca-certificates \
+  tini supervisor \
   chromium nss freetype harfbuzz ttf-freefont font-noto-cjk \
   || (echo "Retrying with http repos..." \
   && sed -i 's|https://|http://|g' /etc/apk/repositories \
   && apk add --no-cache \
     nodejs npm git curl bash ca-certificates \
+    tini supervisor \
     chromium nss freetype harfbuzz ttf-freefont font-noto-cjk)
 
 # Inject host CA bundle
@@ -45,6 +48,17 @@ WORKDIR /workspace/msm-portal
 # ─── design-system ───────────────────────────────────────────────────
 COPY design-system /workspace/design-system
 
+# ─── Playground picker plugin ────────────────────────────────────────
+# Built inside the image so hosts don't need to run `pnpm build` first.
+# Runtime-only dependencies of dist/ are zero (see vite-plugin-playground-picker
+# README + M3 verification); we drop node_modules after build to keep the
+# image small.
+COPY sandbox/vite-plugin-playground-picker /workspace/plugins/vite-plugin-playground-picker
+RUN cd /workspace/plugins/vite-plugin-playground-picker \
+  && pnpm install --ignore-workspace \
+  && pnpm build \
+  && rm -rf node_modules
+
 # ─── OpenCode config (provider timeout = 20min) ─────────────────────
 RUN mkdir -p /workspace/msm-portal/.opencode/agents
 COPY sandbox/opencode.json /workspace/msm-portal/opencode.json
@@ -55,6 +69,12 @@ COPY sandbox/agents /workspace/msm-portal/.opencode/agents/
 # ─── Internal scripts ────────────────────────────────────────────────
 COPY sandbox/scripts /workspace/scripts/
 RUN chmod +x /workspace/scripts/*.sh 2>/dev/null || true
+
+# ─── Supervisor config (v3 §2.1) ─────────────────────────────────────
+# tini becomes PID 1 so signals propagate correctly; supervisord manages
+# opencode (autostart) and vite (started by orchestrator via `supervisorctl
+# start vite` after source copy — see orchestrator/lib/playground.js).
+COPY sandbox/supervisord.conf /etc/supervisord.conf
 
 # ─── Results directory ───────────────────────────────────────────────
 RUN mkdir -p /workspace/results
@@ -67,5 +87,5 @@ EXPOSE 4096 5173
 
 WORKDIR /workspace/msm-portal
 
-ENTRYPOINT []
-CMD ["opencode", "serve", "--port", "4096", "--hostname", "0.0.0.0"]
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisord.conf"]
