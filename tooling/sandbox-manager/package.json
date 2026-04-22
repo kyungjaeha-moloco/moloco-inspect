@@ -4,6 +4,7 @@
   "description": "Docker container sandbox lifecycle manager for moloco-inspect",
   "type": "module",
   "dependencies": {
-    "@opencode-ai/sdk": "^1.4.3"
+    "@opencode-ai/sdk": "^1.4.3",
+    "undici": "^8.1.0"
   }
 }

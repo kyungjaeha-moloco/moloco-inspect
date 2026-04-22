@@ -34,6 +34,14 @@ import {
   createSandboxClient, waitForServerReady, runAgentPrompt,
   buildSandboxPrompt,
 } from '../tooling/sandbox-manager/src/index.js';
+import {
+  listPlaygrounds, getPlayground, createPlayground,
+  hibernatePlayground, resumePlayground, archivePlayground,
+  updatePlaygroundHead, serializePlayground,
+  checkoutCommit, restorePlaygroundHead, revertCommit, promotePlayground,
+  reattachOnStartup,
+} from './lib/playground.js';
+import { enqueue as enqueueJob, QueueFullError, queueDepth } from './lib/playground-queue.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -825,33 +833,66 @@ async function runPipeline(id) {
   const state = requests.get(id);
   if (!state) return;
 
-  try {
-    updateRequest(id, { status: 'processing', phase: 'creating_sandbox' });
-    appendAnalyticsEvent(state, 'pipeline_start', { summary: 'Pipeline started', phase: 'creating_sandbox' });
-    appendLog(id, 'Creating sandbox container...');
-    const openCodePort = await allocatePort();
-    const vitePort = await allocatePort();
-    const sandboxApiKey = SANDBOX_PROVIDER === 'opencode' ? (OPENCODE_API_KEY || SANDBOX_API_KEY) : SANDBOX_API_KEY;
-    const sandbox = await createSandbox({
-      requestId: id, imageName: SANDBOX_IMAGE,
-      openCodePort, vitePort, apiKey: sandboxApiKey, provider: SANDBOX_PROVIDER,
-    });
-    state.sandbox = sandbox;
-    appendAnalyticsEvent(state, 'sandbox_created', { summary: `Container ${sandbox.containerName}`, phase: 'creating_sandbox', ports: { openCode: openCodePort, vite: vitePort } });
-    appendLog(id, `Sandbox: ${sandbox.containerName} (oc:${openCodePort} vite:${vitePort})`);
+  // M1b: if the request names a Playground, reuse its container + branch
+  // instead of spawning a fresh sandbox. Otherwise legacy one-shot flow.
+  const playgroundId = state.payload?.playgroundId || state.request?.playgroundId;
+  const pg = playgroundId ? getPlayground(playgroundId) : null;
 
-    updateRequest(id, { phase: 'syncing_source' });
-    if (fs.existsSync(DEFAULT_PRODUCT_REPO_ROOT)) {
-      await copyFilesIn({ containerId: sandbox.containerId, sourceDir: DEFAULT_PRODUCT_REPO_ROOT });
-      // Remove macOS resource fork files (._*) that break esbuild/vite
-      await execInContainer({ containerId: sandbox.containerId, command: 'find /workspace -name "._*" -delete 2>/dev/null || true', timeout: 10000 }).catch(() => {});
-      // Inject Zscaler CA cert for corporate proxy SSL (SSL_CERT_FILE=/tmp/ca-bundle.crt set at container creation)
-      const zscalerCaPath = path.join(__dirname, '..', 'sandbox', 'zscaler-ca.pem');
-      if (fs.existsSync(zscalerCaPath)) {
-        await execAsync(`docker cp "${zscalerCaPath}" "${sandbox.containerId}:/tmp/zscaler-ca.pem"`, { timeout: 5000 }).catch(() => {});
-        await execInContainer({ containerId: sandbox.containerId, command: 'cp /etc/ssl/certs/ca-certificates.crt /tmp/ca-bundle.crt && cat /tmp/zscaler-ca.pem >> /tmp/ca-bundle.crt', timeout: 5000 }).catch(() => {});
+  try {
+    let sandbox;
+    let openCodePort;
+    let vitePort;
+
+    if (pg) {
+      if (pg.status === 'archived') {
+        throw new Error(`playground ${playgroundId} is archived`);
       }
-      appendLog(id, 'Source synced into sandbox');
+      if (pg.status === 'hibernated') {
+        appendLog(id, `Resuming playground ${playgroundId}...`);
+        await resumePlayground(pg.id);
+      }
+      const fresh = getPlayground(pg.id);
+      sandbox = {
+        containerId: fresh.sandboxContainerName,
+        containerName: fresh.sandboxContainerName,
+        openCodePort: fresh.opencodePort,
+        vitePort: fresh.vitePort,
+      };
+      openCodePort = fresh.opencodePort;
+      vitePort = fresh.vitePort;
+      state.sandbox = sandbox;
+      state.playgroundId = fresh.id;
+      updateRequest(id, { status: 'processing', phase: 'running_agent' });
+      appendLog(id, `Reusing playground ${fresh.id} container ${fresh.sandboxContainerName}`);
+      appendAnalyticsEvent(state, 'playground_attached', { summary: `Playground ${fresh.id}`, phase: 'running_agent' });
+    } else {
+      updateRequest(id, { status: 'processing', phase: 'creating_sandbox' });
+      appendAnalyticsEvent(state, 'pipeline_start', { summary: 'Pipeline started', phase: 'creating_sandbox' });
+      appendLog(id, 'Creating sandbox container...');
+      openCodePort = await allocatePort();
+      vitePort = await allocatePort();
+      const sandboxApiKey = SANDBOX_PROVIDER === 'opencode' ? (OPENCODE_API_KEY || SANDBOX_API_KEY) : SANDBOX_API_KEY;
+      sandbox = await createSandbox({
+        requestId: id, imageName: SANDBOX_IMAGE,
+        openCodePort, vitePort, apiKey: sandboxApiKey, provider: SANDBOX_PROVIDER,
+      });
+      state.sandbox = sandbox;
+      appendAnalyticsEvent(state, 'sandbox_created', { summary: `Container ${sandbox.containerName}`, phase: 'creating_sandbox', ports: { openCode: openCodePort, vite: vitePort } });
+      appendLog(id, `Sandbox: ${sandbox.containerName} (oc:${openCodePort} vite:${vitePort})`);
+
+      updateRequest(id, { phase: 'syncing_source' });
+      if (fs.existsSync(DEFAULT_PRODUCT_REPO_ROOT)) {
+        await copyFilesIn({ containerId: sandbox.containerId, sourceDir: DEFAULT_PRODUCT_REPO_ROOT });
+        // Remove macOS resource fork files (._*) that break esbuild/vite
+        await execInContainer({ containerId: sandbox.containerId, command: 'find /workspace -name "._*" -delete 2>/dev/null || true', timeout: 10000 }).catch(() => {});
+        // Inject Zscaler CA cert for corporate proxy SSL (SSL_CERT_FILE=/tmp/ca-bundle.crt set at container creation)
+        const zscalerCaPath = path.join(__dirname, '..', 'sandbox', 'zscaler-ca.pem');
+        if (fs.existsSync(zscalerCaPath)) {
+          await execAsync(`docker cp "${zscalerCaPath}" "${sandbox.containerId}:/tmp/zscaler-ca.pem"`, { timeout: 5000 }).catch(() => {});
+          await execInContainer({ containerId: sandbox.containerId, command: 'cp /etc/ssl/certs/ca-certificates.crt /tmp/ca-bundle.crt && cat /tmp/zscaler-ca.pem >> /tmp/ca-bundle.crt', timeout: 5000 }).catch(() => {});
+        }
+        appendLog(id, 'Source synced into sandbox');
+      }
     }
     // Copy opencode auth for OAuth-based providers
     if (fs.existsSync(OPENCODE_AUTH_PATH)) {
@@ -868,7 +909,39 @@ async function runPipeline(id) {
     appendAnalyticsEvent(state, 'agent_start', { summary: `Running ${SANDBOX_PROVIDER}/${SANDBOX_MODEL}`, phase: 'running_agent', provider: SANDBOX_PROVIDER, model: SANDBOX_MODEL });
     appendLog(id, `Running agent (${SANDBOX_PROVIDER}/${SANDBOX_MODEL})...`);
     const prompt = buildSandboxPrompt(state.payload);
-    const agentResult = await runAgentPrompt(client, { prompt, provider: SANDBOX_PROVIDER, model: SANDBOX_MODEL });
+
+    // Live event stream from OpenCode /global/event — translate to log lines
+    // so Canvas AIPanel shows tool calls, text snippets, diff progress in
+    // near-real-time instead of a silent 30–300 s gap.
+    let lastLoggedText = '';
+    const onAgentEvent = (payload) => {
+      try {
+        const t = payload?.type;
+        const props = payload?.properties ?? {};
+        if (t === 'message.part.updated') {
+          const part = props.part ?? {};
+          if (part.type === 'tool' && part.tool) {
+            appendLog(id, `🛠️ ${part.tool}`);
+          } else if (part.type === 'text' && part.text && part.text !== lastLoggedText) {
+            const snippet = part.text.slice(0, 160).replace(/\n/g, ' ');
+            appendLog(id, `💬 ${snippet}`);
+            lastLoggedText = part.text;
+          }
+        } else if (t === 'session.diff') {
+          const count = props.diff?.length ?? 0;
+          if (count > 0) appendLog(id, `📝 ${count} file${count > 1 ? 's' : ''} touched`);
+        }
+      } catch {
+        // ignore any malformed event — logging is best-effort
+      }
+    };
+
+    const agentResult = await runAgentPrompt(client, {
+      prompt,
+      provider: SANDBOX_PROVIDER,
+      model: SANDBOX_MODEL,
+      onEvent: onAgentEvent,
+    });
     if (agentResult.error) {
       throw new Error(`Agent: ${agentResult.error.name}: ${agentResult.error.data?.message || ''}`);
     }
@@ -891,7 +964,53 @@ async function runPipeline(id) {
       return;
     }
 
-    // Start live preview in sandbox + diff viewer
+    // M1b: for playground-attached requests, persist change as a real commit
+    // so timeline ("이 시점으로 돌아가기") and revert semantics can land on a
+    // sha. `--no-verify` skips husky+lint-staged (spike A1: saves 3-5s/req).
+    if (state.playgroundId) {
+      try {
+        const prompt = state.payload?.userPrompt || 'playground change';
+        const msg = prompt.split('\n')[0].slice(0, 72).replace(/"/g, '\\"');
+        await execInContainer({
+          containerId: sandbox.containerId,
+          command: [
+            'cd /workspace/msm-portal',
+            'git add -A',
+            `git commit --no-verify -m "${msg}" --allow-empty`,
+          ].join(' && '),
+          timeout: 15_000,
+        });
+        const shaRes = await execInContainer({
+          containerId: sandbox.containerId,
+          command: 'cd /workspace/msm-portal && git rev-parse HEAD',
+          timeout: 5_000,
+        });
+        const sha = (shaRes.stdout || '').trim();
+        if (sha) {
+          state.commitSha = sha;
+          updatePlaygroundHead(state.playgroundId, sha);
+          appendLog(id, `Committed ${sha.slice(0, 8)}`);
+        }
+      } catch (err) {
+        console.warn(`[pipeline] playground commit failed: ${err.message}`);
+      }
+    }
+
+    // M1b: playground-attached requests already have Vite running (supervisorctl)
+    // and node_modules pre-baked. Skip the whole one-shot preview setup block
+    // and just record preview URLs pointing at the live playground.
+    if (state.playgroundId) {
+      const pagePath = state.request?.pagePath || state.payload?.pagePath || '/';
+      const diffViewUrl = `http://127.0.0.1:${PORT}/api/diff-view/${id}`;
+      const livePreviewUrl = vitePort ? `http://127.0.0.1:${vitePort}${pagePath}` : null;
+      updateRequest(id, { previewUrl: diffViewUrl, livePreviewUrl });
+      updateRequest(id, { status: 'preview', phase: 'preview_ready' });
+      appendAnalyticsEvent(state, 'preview_ready', { summary: 'Playground change applied', previewUrl: diffViewUrl });
+      appendLog(id, 'Change applied to playground');
+      return;
+    }
+
+    // Start live preview in sandbox + diff viewer (legacy one-shot path)
     try {
       const pagePath = state.request?.pagePath || state.payload?.pagePath || '/';
       const clientEnv = state.request?.client || state.payload?.client || 'tving';
@@ -1271,7 +1390,13 @@ async function handleReject(id, feedback) {
 async function cleanup(id) {
   const state = requests.get(id);
   if (!state) return;
-  // No local patch to revert — preview is sandbox-only
+  // Playground-attached requests must NOT destroy the shared container.
+  // The playground owns its sandbox lifecycle (hibernate/archive via its own API).
+  if (state.playgroundId) {
+    state.sandbox = null;
+    return;
+  }
+  // Legacy one-shot flow: tear down the per-request container.
   if (state.sandbox) {
     await removeSandbox({ containerId: state.sandbox.containerId });
     releasePort(state.sandbox.openCodePort);
@@ -1852,6 +1977,474 @@ Return ONLY valid JSON (no markdown, no explanation). Every value MUST be in Eng
     }
   }
 
+  // Canvas AI Wizard — chat interface. Takes message history, returns either
+  // a clarifying question or a structured plan.
+  if (pathname === '/api/chat' && req.method === 'POST') {
+    try {
+      const payload = await parseBody(req);
+      const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+
+      if (messages.length === 0) {
+        return json(res, 400, { ok: false, error: 'messages array required' });
+      }
+
+      const apiKey =
+        process.env.ANTHROPIC_API_KEY ||
+        (SANDBOX_PROVIDER === 'anthropic' ? SANDBOX_API_KEY : null);
+      if (!apiKey) {
+        return json(res, 503, {
+          ok: false,
+          error: 'ANTHROPIC_API_KEY not configured. Set env var and restart orchestrator.',
+        });
+      }
+
+      const patternsPath = path.join(DESIGN_SYSTEM_ROOT, 'src', 'patterns.json');
+      const apiContractsPath = path.join(DESIGN_SYSTEM_ROOT, 'src', 'api-ui-contracts.json');
+      const patterns = readJsonFile(patternsPath, {});
+      const apiContracts = readJsonFile(apiContractsPath, {});
+      const requestSchema = readJsonFile(REQUEST_SCHEMA_PATH, {});
+
+      const systemPrompt = `You are an AI assistant embedded in Moloco Canvas that helps PMs/SAs plan UI changes for the MSM Portal.
+
+## How you respond
+You respond to the user in Korean, in a friendly conversational tone — like a thoughtful PM collaborator, not a form-filling bot.
+
+You have TWO response modes:
+
+**Mode A — Ask a short clarifying question (plain text, Korean):**
+Use this when critical info is missing. Ask only ONE focused question at a time. Keep it short (1-2 sentences).
+Critical info the plan needs:
+- Target client (from enum: msm-default, tving, shortmax, onboard-demo)
+- Target page or route (or "new page")
+- Specific goal / what should change
+- A SINGLE concrete target file/component — if multiple files could reasonably match the user's description, you MUST ask which one rather than guessing
+
+Do NOT ask about client if the user has already implied it (e.g. mentioned "TVING"). Do NOT ask more questions than necessary.
+
+### Disambiguating target files (mandatory)
+Many MSM Portal pages render two or more similar tables/sections/views (e.g. "주문에 포함된 소재" tab vs "모든 소재" tab, "예약형" vs "경매형", nested table vs summary card). If the user's request is about "the X page" and X has multiple sub-views/tabs/tables that plausibly match, ask a clarifying question BEFORE emitting a plan. Format:
+- List 2–3 concrete candidates, each with a short Korean label AND the specific file/component name in parentheses
+- Example:
+  "광고 소재 리뷰 페이지에는 테이블이 두 개 있어요. 어느 쪽을 수정할까요?
+  (a) '주문에 포함된 소재' 탭 — MCCreativeReviewTable
+  (b) '모든 소재' 탭 — MCPublisherCreativeReviewTable"
+- Example (예약형 vs 경매형):
+  "주문 관리 화면에는 예약형과 경매형 주문이 있어요. 어느 쪽인가요?"
+
+Better to ask one extra round than to silently edit the wrong file — PMs/SAs strongly prefer being asked.
+
+**Mode B — Produce a plan:**
+When you have enough info, output a structured plan wrapped in a JSON code fence:
+
+\`\`\`json
+{
+  "intent": "<copy_update|spacing_adjustment|token_alignment|component_swap|layout_adjustment|state_handling|accessibility_improvement|new_page|new_feature|data_display_change|form_field_addition|bulk_operation>",
+  "target": { "client": "<enum>", "route_or_page": "<URL path starting with />" },
+  "target_entity": "<Creative|Order|Advertiser|Product|AuctionOrder|PublisherTarget|null>",
+  "summary": "<1-2 sentence Korean summary>",
+  "visual_constraints": ["<string>"],
+  "plan_items": [
+    {
+      "id": "<kebab-case>",
+      "title": "<Korean>",
+      "description": "<Korean, 1-2 sentences>",
+      "pattern_id": "<pattern id or null>",
+      "target_file": "<path or pattern template form or null>",
+      "depends_on": []
+    }
+  ]
+}
+\`\`\`
+
+You MAY also write a short Korean one-liner BEFORE the JSON block (e.g. "네, 아래 계획으로 진행할 수 있습니다:"). Do NOT write explanatory text AFTER the JSON block.
+
+## Grounding rules (strict)
+- ONLY reference pattern_id values that exist in patterns.json. Never invent.
+- ONLY reference entity names from api-ui-contracts.json. Use null if unsure.
+- ONLY reference feature flags, route keys, i18n keys, and component names that appear in the provided JSON. Never invent.
+- target_file should use patterns.json location templates when the exact file is unknown (e.g. "src/apps/{client}/container/...").
+
+## target.route_or_page (strict format)
+- MUST be a real URL path that begins with "/" (e.g. "/", "/orders", "/campaigns/new", "/settings/users").
+- NEVER a pattern name, component name, or prose description. Invalid examples: "navbar (app-shell)", "MCOmsMainNavbarContainer", "home page".
+- When the change affects chrome that appears on every page (top nav, side nav, footer), choose a page where that chrome is clearly rendered — usually "/" or the client's main landing route. Do NOT invent a route the app doesn't have.
+- This value is passed directly to Playwright as \`http://localhost:5173{route_or_page}\` to capture the post-change screenshot. A wrong value means the PM will see the wrong page.
+
+## visual_constraints (always include when producing a plan)
+These propagate to downstream execution agents so generated screens match the existing product:
+- "Follow the existing visual vocabulary of the target client (color, typography, spacing, density, shadow, radius)."
+- "Use tokens from design-system/src/tokens.json only. No hardcoded hex/px/font."
+- "No aggressive gradient backgrounds."
+- "No emoji unless the brand already uses them."
+- "No rounded-container-with-left-border-accent tropes."
+- "Do not draw icons/imagery as freehand SVG. Use icons from components.json icon catalog, or a placeholder box."
+- "Do not substitute overused fonts (Inter, Roboto, Arial, system). Use the DS typography tokens."
+- "A correct placeholder is better than a bad attempt at the real component."
+
+## Design system resources (reference these when planning)
+
+pm-sa-request-schema.json:
+${JSON.stringify(requestSchema, null, 2)}
+
+patterns.json:
+${JSON.stringify(patterns, null, 2)}
+
+api-ui-contracts.json:
+${JSON.stringify(apiContracts, null, 2)}`;
+
+      const model = process.env.PLAN_MODEL || 'claude-sonnet-4-20250514';
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 4096,
+          system: systemPrompt,
+          messages: messages.map((m) => ({
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content: String(m.content || ''),
+          })),
+        }),
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        console.error(`[Chat] Anthropic ${resp.status}:`, errText.slice(0, 400));
+        return json(res, 502, {
+          ok: false,
+          error: `LLM error: ${resp.status}`,
+          detail: errText.slice(0, 400),
+        });
+      }
+
+      const result = await resp.json();
+      const text = (result.content?.[0]?.text || '').trim();
+      if (!text) {
+        return json(res, 502, { ok: false, error: 'Empty LLM response' });
+      }
+
+      // Look for JSON fence — plan mode
+      const planMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/i);
+      let plan = null;
+      let prefix = text;
+      if (planMatch) {
+        try {
+          plan = JSON.parse(planMatch[1]);
+          prefix = text.slice(0, planMatch.index).trim();
+        } catch (parseErr) {
+          console.error('[Chat] Plan JSON parse failed:', parseErr.message);
+        }
+      }
+
+      console.log(
+        `[Chat] Replied (${plan ? 'plan' : 'question'}) after ${messages.length} messages`,
+      );
+      return json(res, 200, {
+        ok: true,
+        reply: plan
+          ? { type: 'plan', content: prefix, plan }
+          : { type: 'question', content: text },
+      });
+    } catch (error) {
+      console.error('[Chat] Unexpected error:', error);
+      return json(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  // Canvas AI Wizard — generate a structured change plan from a PM goal
+  // Reads design-system JSON (patterns, api-ui-contracts, pm-sa-request-schema)
+  // and asks Claude for a checklist of plan items grounded in real DS patterns.
+  if (pathname === '/api/plan' && req.method === 'POST') {
+    try {
+      const payload = await parseBody(req);
+      const { goal, client, routeOrPage, jiraUrl, prdUrl } = payload || {};
+
+      if (!goal || !client || !routeOrPage) {
+        return json(res, 400, {
+          ok: false,
+          error: 'goal, client, routeOrPage are required',
+        });
+      }
+
+      const apiKey =
+        process.env.ANTHROPIC_API_KEY ||
+        (SANDBOX_PROVIDER === 'anthropic' ? SANDBOX_API_KEY : null);
+      if (!apiKey) {
+        return json(res, 503, {
+          ok: false,
+          error:
+            'ANTHROPIC_API_KEY not configured. Set env var and restart orchestrator.',
+        });
+      }
+
+      // Load DS context from local design-system
+      const patternsPath = path.join(DESIGN_SYSTEM_ROOT, 'src', 'patterns.json');
+      const apiContractsPath = path.join(
+        DESIGN_SYSTEM_ROOT,
+        'src',
+        'api-ui-contracts.json',
+      );
+      const patterns = readJsonFile(patternsPath, {});
+      const apiContracts = readJsonFile(apiContractsPath, {});
+      const requestSchema = readJsonFile(REQUEST_SCHEMA_PATH, {});
+
+      const systemPrompt = `You help PMs at Moloco plan UI changes for the MSM Portal.
+
+You have access to a structured design system:
+- patterns.json: composition patterns (app-shell, list-page, detail-page, form-basic, etc.)
+- api-ui-contracts.json: entity definitions (Creative, Order, Advertiser, Product, AuctionOrder, PublisherTarget)
+- pm-sa-request-schema.json: structured request contract with a change_intent enum
+
+Your task: given a PM's goal, output a concrete plan as JSON. Ground your plan in real patterns, entities, and file paths from the DS resources provided.
+
+## Grounding rules (strict)
+- ONLY reference pattern_id values that exist in patterns.json. Never invent a pattern name.
+- ONLY reference entity names that exist in api-ui-contracts.json. Use null if unsure.
+- ONLY reference feature flag names, route keys, i18n keys, and component names that appear in the provided JSON. Never invent them.
+- For target_file, prefer the file paths or location templates that appear in patterns.json (layer_structure.location, file_checklist). When the exact file is unknown, use the pattern's template form (e.g. "src/apps/{client}/container/{entity}/list/MC{Entity}ListContainer.tsx") — do not guess a concrete filename.
+- If the request can't be met with the provided DS, say so in summary and mark affected plan_items with pattern_id: null.
+
+## Visual/UX constraints to carry forward (for downstream execution)
+Include the following in an array field "visual_constraints" at the top level. Downstream agents will use these when generating actual screens so the output matches the existing product:
+- "Follow the existing visual vocabulary of the target client (color, typography, spacing, density, shadow, radius)."
+- "Use tokens from design-system/src/tokens.json only. No hardcoded hex/px/font."
+- "No aggressive gradient backgrounds."
+- "No emoji unless the brand already uses them."
+- "No rounded-container-with-left-border-accent tropes."
+- "Do not draw icons/imagery as freehand SVG. Use icons from components.json icon catalog, or a placeholder box."
+- "Do not substitute overused fonts (Inter, Roboto, Arial, system). Use the DS typography tokens."
+- "A correct placeholder is better than a bad attempt at the real component."
+
+Output MUST be valid JSON only (no markdown, no prose). Schema:
+{
+  "intent": "<one of: copy_update|spacing_adjustment|token_alignment|component_swap|layout_adjustment|state_handling|accessibility_improvement|new_page|new_feature|data_display_change|form_field_addition|bulk_operation>",
+  "target_entity": "<Creative|Order|Advertiser|Product|AuctionOrder|PublisherTarget|null>",
+  "summary": "<1-2 sentence summary of what will change, in Korean>",
+  "visual_constraints": ["<string>", "..."],
+  "plan_items": [
+    {
+      "id": "<unique kebab-case id>",
+      "title": "<Short action description in Korean>",
+      "description": "<1-2 sentence technical detail in Korean>",
+      "pattern_id": "<pattern id from patterns.json or null>",
+      "target_file": "<relative file path or template form from patterns.json, or null>",
+      "depends_on": []
+    }
+  ]
+}
+
+Generate 3-8 plan items covering the full scope — nav changes, route registration, i18n keys, container/component files, feature flags, etc.`;
+
+      const userPrompt = `PM 요청:
+Goal: ${goal}
+Client: ${client}
+Target page: ${routeOrPage}
+${jiraUrl ? `Jira: ${jiraUrl}\n` : ''}${prdUrl ? `PRD: ${prdUrl}\n` : ''}
+---
+
+pm-sa-request-schema:
+${JSON.stringify(requestSchema, null, 2)}
+
+---
+
+patterns.json:
+${JSON.stringify(patterns, null, 2)}
+
+---
+
+api-ui-contracts.json:
+${JSON.stringify(apiContracts, null, 2)}
+
+---
+
+위 DS 리소스를 근거로 계획을 JSON으로 출력하세요.`;
+
+      const model = process.env.PLAN_MODEL || 'claude-sonnet-4-20250514';
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 4096,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
+        }),
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        console.error(
+          `[Plan] Anthropic ${resp.status}:`,
+          errText.slice(0, 400),
+        );
+        return json(res, 502, {
+          ok: false,
+          error: `LLM error: ${resp.status}`,
+          detail: errText.slice(0, 400),
+        });
+      }
+
+      const result = await resp.json();
+      const text = (result.content?.[0]?.text || '').trim();
+      if (!text) {
+        return json(res, 502, { ok: false, error: 'Empty LLM response' });
+      }
+
+      const cleaned = text
+        .replace(/^```json?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('[Plan] No JSON in response:', cleaned.slice(0, 200));
+        return json(res, 502, {
+          ok: false,
+          error: 'LLM response not JSON',
+          raw: cleaned.slice(0, 500),
+        });
+      }
+
+      let plan;
+      try {
+        plan = JSON.parse(jsonMatch[0]);
+      } catch (parseErr) {
+        console.error('[Plan] JSON parse failed:', parseErr.message);
+        return json(res, 502, {
+          ok: false,
+          error: 'LLM returned invalid JSON',
+          raw: jsonMatch[0].slice(0, 500),
+        });
+      }
+
+      console.log(
+        `[Plan] Generated ${plan.plan_items?.length || 0} items for client=${client} route=${routeOrPage}`,
+      );
+      return json(res, 200, { ok: true, plan });
+    } catch (error) {
+      console.error('[Plan] Unexpected error:', error);
+      return json(res, 500, { ok: false, error: error.message });
+    }
+  }
+
+  // Canvas Tweak — generate alternative variant prompts from an approved plan.
+  // Returns 2 variations: a layout/placement alternative and a more novel approach.
+  if (pathname === '/api/generate-variations' && req.method === 'POST') {
+    try {
+      const payload = await parseBody(req);
+      const { originalPrompt, plan, visualConstraints } = payload || {};
+      if (!originalPrompt || !plan) {
+        return json(res, 400, {
+          ok: false,
+          error: 'originalPrompt and plan are required',
+        });
+      }
+
+      const apiKey =
+        process.env.ANTHROPIC_API_KEY ||
+        (SANDBOX_PROVIDER === 'anthropic' ? SANDBOX_API_KEY : null);
+      if (!apiKey) {
+        return json(res, 503, {
+          ok: false,
+          error: 'ANTHROPIC_API_KEY not configured.',
+        });
+      }
+
+      const systemPrompt = `You generate UI design variations for Moloco PMs.
+
+Given an approved change plan (intent, target, plan_items), output exactly 2 variant prompts that a code-generation agent will execute in parallel with the original (v1).
+
+Both variants must achieve the same goal but explore DIFFERENT design choices:
+- **v2 — layout/placement alternative**: same components, reordered or repositioned. By-the-book DS pattern.
+- **v3 — novel approach**: a more creative interaction pattern, different information architecture, or alternative UX metaphor. Still grounded in the DS — no hallucinated components.
+
+Each variant should include a short Korean title, a 1-sentence Korean approach description, and a "promptDelta" — additional instructions (in English) that steer Codex toward that alternative when appended to the original prompt.
+
+Output MUST be valid JSON only (no markdown, no prose). Schema:
+{
+  "variations": [
+    {
+      "id": "v2",
+      "title": "<Korean, < 20 chars>",
+      "approach": "<Korean 1-sentence approach>",
+      "promptDelta": "<English additional instructions for Codex>"
+    },
+    {
+      "id": "v3",
+      "title": "<Korean>",
+      "approach": "<Korean>",
+      "promptDelta": "<English>"
+    }
+  ]
+}`;
+
+      const userPrompt = `Original request: ${originalPrompt}
+
+Approved plan:
+${JSON.stringify(plan, null, 2)}
+
+Visual constraints to carry forward:
+${(visualConstraints || []).map((c) => `- ${c}`).join('\n')}
+
+Generate 2 variations (v2, v3).`;
+
+      const model = process.env.PLAN_MODEL || 'claude-sonnet-4-20250514';
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 2048,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
+        }),
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        console.error(`[Variations] Anthropic ${resp.status}:`, errText.slice(0, 400));
+        return json(res, 502, { ok: false, error: `LLM error: ${resp.status}` });
+      }
+
+      const result = await resp.json();
+      const text = (result.content?.[0]?.text || '').trim();
+      const cleaned = text
+        .replace(/^```json?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (!match) {
+        return json(res, 502, { ok: false, error: 'LLM response not JSON' });
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(match[0]);
+      } catch (err) {
+        console.error('[Variations] JSON parse failed:', err.message);
+        return json(res, 502, { ok: false, error: 'LLM returned invalid JSON' });
+      }
+
+      const variations = Array.isArray(parsed?.variations) ? parsed.variations : [];
+      console.log(`[Variations] Generated ${variations.length} variant prompts`);
+      return json(res, 200, { ok: true, variations });
+    } catch (error) {
+      console.error('[Variations] Unexpected error:', error);
+      return json(res, 500, { ok: false, error: error.message });
+    }
+  }
+
   if (pathname === '/api/analytics/requests') {
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '200', 10) || 200, 500);
     const records = readAnalyticsHistory(limit * 4);
@@ -1919,13 +2512,133 @@ Return ONLY valid JSON (no markdown, no explanation). Every value MUST be in Eng
   }
 
   // Submit change request
+  // ──────────── Playground API (M1a) ────────────
+  // Plan: docs/superpowers/plans/2026-04-22-playground-architecture-v3.md
+  // CRUD + lifecycle only — does NOT touch /api/change-request pipeline.
+
+  if (pathname === '/api/playground' && req.method === 'POST') {
+    try {
+      const body = await parseBody(req);
+      const { projectId, title, prdUrl, jiraUrl } = body || {};
+      if (!projectId || !title) {
+        return json(res, 400, { ok: false, error: 'projectId and title required' });
+      }
+      const apiKey =
+        process.env.ANTHROPIC_API_KEY ||
+        (SANDBOX_PROVIDER === 'anthropic' ? SANDBOX_API_KEY : null);
+      if (!apiKey) {
+        return json(res, 503, { ok: false, error: 'ANTHROPIC_API_KEY not configured' });
+      }
+      const pg = await createPlayground({
+        projectId, title, prdUrl, jiraUrl,
+        apiKey, provider: SANDBOX_PROVIDER,
+      });
+      return json(res, 201, { ok: true, playground: serializePlayground(pg) });
+    } catch (err) {
+      console.error('[playground] create error:', err);
+      return json(res, 500, { ok: false, error: err.message });
+    }
+  }
+
+  if (pathname === '/api/playground' && req.method === 'GET') {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const projectId = url.searchParams.get('projectId') || undefined;
+    const status = url.searchParams.get('status') || undefined;
+    const items = listPlaygrounds({ projectId, status }).map(serializePlayground);
+    return json(res, 200, { ok: true, playgrounds: items });
+  }
+
+  const pgMatch = pathname.match(
+    /^\/api\/playground\/([a-zA-Z0-9_-]+)(?:\/(resume|hibernate|archive|checkout|restore-head|revert|promote))?$/,
+  );
+  if (pgMatch) {
+    const [, pgId, action] = pgMatch;
+    if (!action && req.method === 'GET') {
+      const pg = getPlayground(pgId);
+      if (!pg) return json(res, 404, { ok: false, error: 'playground not found' });
+      return json(res, 200, { ok: true, playground: serializePlayground(pg) });
+    }
+    if (action && req.method === 'POST') {
+      try {
+        let updated;
+        let extra = {};
+        if (action === 'resume') updated = await resumePlayground(pgId);
+        else if (action === 'hibernate') updated = await hibernatePlayground(pgId);
+        else if (action === 'archive') updated = await archivePlayground(pgId);
+        else if (action === 'checkout') {
+          const body = await parseBody(req);
+          updated = await checkoutCommit(pgId, body?.sha);
+        }
+        else if (action === 'restore-head') updated = await restorePlaygroundHead(pgId);
+        else if (action === 'revert') {
+          const body = await parseBody(req);
+          updated = await revertCommit(pgId, body?.sha);
+        }
+        else if (action === 'promote') {
+          const { patches, dir } = await promotePlayground(pgId);
+          updated = getPlayground(pgId);
+          extra = { patches, patchesDir: dir };
+        }
+        return json(res, 200, { ok: true, playground: serializePlayground(updated), ...extra });
+      } catch (err) {
+        console.error(`[playground] ${action} error:`, err);
+        return json(res, 500, { ok: false, error: err.message });
+      }
+    }
+  }
+
   if (pathname === '/api/change-request' && req.method === 'POST') {
     const payload = maybePersistSelectionScreenshot(await parseBody(req));
     if (!payload.userPrompt) {
       return json(res, 400, { error: 'userPrompt is required' });
     }
+    const rawPath = String(payload.pagePath ?? '').trim();
+    const looksLikeUrl = /^\/[A-Za-z0-9/_\-.?=&#%+:]*$/.test(rawPath);
+    if (!looksLikeUrl) {
+      if (rawPath) {
+        console.warn(`[change-request] rejecting non-URL pagePath=${JSON.stringify(rawPath)} — falling back to "/"`);
+      }
+      payload.pagePath = '/';
+    }
+
+    // M1b #3: if playground-attached, serialize through the per-playground
+    // queue so concurrent requests don't corrupt the shared git working tree.
+    const pgId = payload.playgroundId || null;
+    if (pgId) {
+      const pg = getPlayground(pgId);
+      if (!pg) return json(res, 404, { ok: false, error: `playground not found: ${pgId}` });
+      if (pg.status === 'archived') {
+        return json(res, 409, { ok: false, error: 'playground archived' });
+      }
+      if (pg.checkedOutSha) {
+        return json(res, 409, {
+          ok: false,
+          error: 'playground is in time-travel state; restore head before new requests',
+        });
+      }
+      const state = createRequest(payload);
+      // Enqueue; run in background (do not await) so HTTP response is immediate.
+      enqueueJob(pgId, state.id, async () => {
+        await runPipeline(state.id);
+      }).catch((err) => {
+        if (err instanceof QueueFullError) {
+          updateRequest(state.id, {
+            status: 'error',
+            phase: 'queue_full',
+            error: err.message,
+          });
+        } else {
+          console.error('[change-request] enqueue error:', err);
+        }
+      });
+      return json(res, 201, {
+        id: state.id,
+        status: state.status,
+        queueDepth: queueDepth(pgId),
+      });
+    }
+
     const state = createRequest(payload);
-    // Start pipeline in background
     runPipeline(state.id);
     return json(res, 201, { id: state.id, status: state.status });
   }
@@ -1965,7 +2678,9 @@ Return ONLY valid JSON (no markdown, no explanation). Every value MUST be in Eng
       'Access-Control-Allow-Origin': '*',
     });
 
-    // Send current state immediately
+    // Send current state immediately — include every field the in-flight
+    // broadcast path (updateRequest) emits so a subscriber that attaches
+    // AFTER the request finished still sees the preview URLs and artifacts.
     const event = JSON.stringify({
       id,
       status: state.status,
@@ -1973,6 +2688,10 @@ Return ONLY valid JSON (no markdown, no explanation). Every value MUST be in Eng
       latestLog: state.latestLog,
       updatedAt: state.updatedAt,
       diff: state.diff,
+      changedFiles: state.changedFiles,
+      screenshotPath: state.screenshotPath,
+      previewUrl: state.previewUrl,
+      livePreviewUrl: state.livePreviewUrl || null,
       prUrl: state.prUrl,
       error: state.error,
     });
@@ -2056,4 +2775,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Orchestrator] Design system root: ${DESIGN_SYSTEM_ROOT}`);
   console.log(`[Orchestrator] Sandbox: ${SANDBOX_IMAGE}`);
   console.log(`[Orchestrator] Agent: ${SANDBOX_PROVIDER}/${SANDBOX_MODEL}`);
+  // M1b #5: reconcile playground state with docker after a restart — some
+  // containers may have been stopped while the orchestrator was down.
+  reattachOnStartup().catch((err) => console.warn('[Orchestrator] reattach failed:', err.message));
 });

@@ -361,7 +361,161 @@
         "Table container uses MCI18nTable with columns, data, filters, hiddenColumns",
         "Error states handled with useEffect watching query.error and fireCollapsibleError",
         "Cell renderers are pure components — no hooks, no side effects"
+      ],
+      "preview_entity": "Creative",
+      "preview_props": {
+        "title": "광고 소재 리뷰",
+        "createButton": false,
+        "tabs": false,
+        "filterBar": {
+          "dateRange": { "enabled": true, "default": "today_to_today" },
+          "addFilterButton": true,
+          "search": { "enabled": true, "placeholder": "검색" }
+        },
+        "table": {
+          "bulkSelection": true,
+          "columns": [
+            { "id": "creative_id", "label": "소재 아이디", "renderer": "text" },
+            { "id": "app_name", "label": "앱 이름", "renderer": "text" },
+            { "id": "account", "label": "광고 계정", "renderer": "text" },
+            { "id": "impressions", "label": "총 노출수", "renderer": "number", "sortable": true, "defaultSort": "desc" },
+            { "id": "first_served_at", "label": "최초 노출일", "renderer": "getDateStringRenderer" },
+            { "id": "creative", "label": "소재", "renderer": "getCreativeImageRenderer" },
+            { "id": "resolution", "label": "해상도", "renderer": "dimension ({w} x {h})" },
+            { "id": "landing_url", "label": "랜딩 URL", "renderer": "url" },
+            { "id": "video_length", "label": "영상 길이", "renderer": "seconds format" },
+            { "id": "status", "label": "상태", "renderer": "getCreativeReviewStatusRendererForCreativeList" },
+            { "id": "actions", "label": "액션", "renderer": "action buttons" }
+          ],
+          "emptyState": { "icon": "x-circle", "label": "데이터 없음" },
+          "pagination": { "pageSizeOptions": [10, 25, 50], "default": 10 }
+        },
+        "note": "Creative review 변형 — 표준 list-page와 달리 tabs/createButton 없음. 대신 bulk selection + review 상태 컬럼 포함."
+      },
+      "tweakable": [
+        "title",
+        "createButton.visible",
+        "tabs.enabled",
+        "filterBar.search.placeholder",
+        "filterBar.addFilter",
+        "table.bulkSelection",
+        "table.columns",
+        "table.columns.order",
+        "table.columns.visible",
+        "table.density",
+        "table.emptyState.variant",
+        "table.pagination.pageSize"
       ]
+    },
+    {
+      "id": "app-shell",
+      "name": "App Shell Pattern",
+      "description": "전체 앱 레이아웃 — top bar + side nav + content area. 모든 어드민 페이지의 최상위 레이아웃이며 list-page/detail-page/create-page/edit-page 가 컨텐츠 슬롯으로 들어간다.",
+      "when": "새 앱/클라이언트 스캐폴딩, 또는 기존 앱의 네비게이션 구조 수정 (섹션/아이템 추가·삭제·재정렬)",
+      "structure": {
+        "topBar": {
+          "slots": ["logo", "productTitle", "workspaceTitle", "customAccessory", "profileButton"],
+          "config_source": "layoutConfig.header (MTLayoutConfig from @msm-portal/builder/layout/types)",
+          "height": 56
+        },
+        "sideNav": {
+          "component": "MCNavbarItems",
+          "items_type": "MTNavBarSection[] { labelKey?, items: MTCommonNavbarItem[] }",
+          "item_shape": "{ labelKey, icon, routeKey }",
+          "collapsible": true,
+          "widthExpanded": 220,
+          "widthCollapsed": 64
+        },
+        "content": {
+          "slot": "컨텐츠 패턴 (list-page / detail-page / create-page / edit-page)"
+        }
+      },
+      "components_used": ["MCNavbarItems", "MCContentLayout", "MTLayoutConfig (builder)"],
+      "layer_structure": {
+        "config": {
+          "location": "src/apps/{client}/config/layout.tsx",
+          "responsibility": "MTLayoutConfig — logo, title, header accessories, per-mode NavbarComponent 매핑",
+          "imports": ["MTLayoutConfig from @msm-portal/builder/layout/types", "client logo/assets", "MC{Mode}NavbarContainer"]
+        },
+        "container": {
+          "location": "src/apps/{client}/container/navbar/{mode}/MC{Client}{Mode}NavbarContainer.tsx",
+          "responsibility": "MTNavBarSection[] 선언, feature-flag 기반 조건부 items, advertiser selector 등 동적 섹션",
+          "imports": ["MCNavbarItems", "MTNavBarSection", "MTCommonNavbarItem", "MERouteKey", "useFeatureEnabled"]
+        }
+      },
+      "file_checklist": [
+        "src/apps/{client}/config/layout.tsx",
+        "src/apps/{client}/container/navbar/{mode}/MC{Client}{Mode}NavbarContainer.tsx",
+        "src/i18n/locales/en/container.navbar.json"
+      ],
+      "validation_checklist": [
+        "모든 nav item은 MERouteKey enum의 routeKey를 참조 (문자열 하드코딩 금지)",
+        "모든 label은 labelKey(i18n key)로 참조하며 직접 문자열 금지",
+        "feature flag 조건부 item은 useFeatureEnabled 훅으로 토글",
+        "AdOps / MediaRep 모드별로 서로 다른 itemsSections 반환",
+        "첫 섹션은 labelKey 생략 가능 (헤더 없는 섹션)"
+      ],
+      "preview_entity": "tving-ad-system (oms, AdOps mode, 모든 feature flag 활성)",
+      "preview_props": {
+        "header": {
+          "logo": "TVING client logo (#ff153c)",
+          "productTitle": "TVING Ad System",
+          "workspaceTitle": "TVING_OMS_DEV",
+          "user": "kyungjae ha"
+        },
+        "itemsSections": [
+          {
+            "labelKey": null,
+            "items": [
+              { "labelKey": "oms.adPacingDashboard", "label_ko": "AD Pacing", "icon": "ad-pacing", "routeKey": "OMS_AD_PACING_DASHBOARD_MAIN" },
+              { "labelKey": "oms.lookerDashboard", "label_ko": "대시보드", "icon": "chart", "routeKey": "OMS_LOOKER_DASHBOARD_MAIN", "conditional": "isTvingOms()" },
+              { "labelKey": "oms.report", "label_ko": "리포트", "icon": "report", "routeKey": "OMS_REPORT_MAIN" }
+            ]
+          },
+          {
+            "labelKey": "section.orderManagement",
+            "label_ko": "주문 관리",
+            "items": [
+              { "labelKey": "oms.reservedOrder", "label_ko": "예약형 주문", "icon": "calendar-days", "routeKey": "OMS_ORDER_MAIN" },
+              { "labelKey": "oms.reservedOrderReview", "label_ko": "예약형 주문 리뷰", "icon": "review", "routeKey": "OMS_ORDER_REVIEW_MAIN" },
+              { "labelKey": "oms.auctionOrder", "label_ko": "경매형 주문", "icon": "gavel", "routeKey": "AUCTION_ORDER_MAIN" }
+            ]
+          },
+          {
+            "labelKey": "section.assetManagement",
+            "label_ko": "에셋 관리",
+            "items": [
+              { "labelKey": "oms.creative", "label_ko": "광고 소재", "icon": "creative", "routeKey": "OMS_CREATIVE_MAIN" },
+              { "labelKey": "oms.creativeReview", "label_ko": "광고 소재 리뷰", "icon": "creative-review", "routeKey": "CREATIVE_REVIEW_MAIN", "conditional": "CREATIVE_REVIEW flag" },
+              { "labelKey": "oms.lineItem", "label_ko": "캠페인 템플릿", "icon": "template", "routeKey": "OMS_LINE_ITEM_MAIN" },
+              { "labelKey": "oms.target", "label_ko": "타겟", "icon": "targeting", "routeKey": "OMS_TARGETING_MAIN" },
+              { "labelKey": "oms.publisherUserList", "label_ko": "사용자 목록", "icon": "user-group", "routeKey": "USER_LIST_MAIN", "conditional": "MCT_818_PUBLISHER_USER_LIST flag" },
+              { "labelKey": "oms.appPixel", "label_ko": "앱 & 픽셀", "icon": "creative", "routeKey": "OMS_APP_PIXEL_MAIN", "conditional": "MCT_889_TRACKING_LINK flag" }
+            ]
+          },
+          {
+            "labelKey": "section.molocoAds",
+            "label_ko": "Moloco Ads",
+            "conditional": "CAS_141_PUBLISHER_CREATIVE_REVIEW flag",
+            "items": [
+              { "labelKey": "oms.publisherCreativeReview", "label_ko": "광고 소재 리뷰", "icon": "creative-review", "routeKey": "PUBLISHER_CREATIVE_REVIEW_MAIN" }
+            ]
+          }
+        ],
+        "activeRouteKey": "PUBLISHER_CREATIVE_REVIEW_MAIN"
+      },
+      "tweakable": [
+        "itemsSections.order",
+        "itemsSections.items.order",
+        "section.add",
+        "section.remove",
+        "item.add",
+        "item.remove",
+        "item.icon",
+        "item.label",
+        "sideNav.collapsed"
+      ],
+      "note": "TVING OMS AdOps 프로덕션 nav 풀 상태 (모든 feature flag on). Canvas AI는 이 구조의 diff(섹션/아이템 add·remove·reorder) 로 nav 변경을 제안하고, MCOmsMainNavbarContainer.tsx + i18n 키 추가로 실제 구현을 유도한다."
     },
     {
       "id": "detail-page",

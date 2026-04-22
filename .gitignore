@@ -35,6 +35,12 @@ sandbox/host-ca.pem
 # Sisyphus plans
 .sisyphus/
 
+# Superpowers brainstorm artifacts
+.superpowers/
+
+# Orchestrator runtime state (per-request JSON snapshots)
+orchestrator/state/
+
 # Editor
 .idea/
 .vscode/

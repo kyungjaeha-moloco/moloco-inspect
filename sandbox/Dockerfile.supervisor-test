@@ -1,0 +1,8 @@
+FROM moloco-inspect-sandbox:latest
+RUN apk add --no-cache supervisor tini
+COPY sandbox/supervisord.conf /etc/supervisord.conf
+COPY sandbox/scripts/start-vite.sh /workspace/scripts/start-vite.sh
+RUN chmod +x /workspace/scripts/start-vite.sh
+RUN mkdir -p /var/log /var/run
+ENTRYPOINT ["/sbin/tini","--"]
+CMD ["/usr/bin/supervisord","-c","/etc/supervisord.conf","-n"]

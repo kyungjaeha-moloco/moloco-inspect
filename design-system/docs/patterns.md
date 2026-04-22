@@ -258,6 +258,48 @@ Full provider hierarchy at app root. Order matters.
 1. MCInAppAlertProvider
 1. MCRootLayout
 
+```tsx
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ThemeProvider } from 'styled-components';
+import { I18nextProvider } from 'react-i18next';
+import { BrowserRouter } from 'react-router-dom';
+
+import MCTRPCProvider from '@msm-portal/common/trpc/MCTRPCProvider';
+import MCInAppAlertProvider from '@msm-portal/common/alert/MCInAppAlertProvider';
+import MCGlobalStyle from '@msm-portal/common/style/MCGlobalStyle';
+import MCRootLayout from '@msm-portal/common/component/layout/MCRootLayout';
+import { FeatureGuardProvider } from '@msm-portal/common/feature-guard';
+import { AuthProvider } from '@msm-portal/common/auth';
+import { AppConfigProvider } from '@msm-portal/common/config';
+import { theme } from '@msm-portal/common/style/theme';
+import i18n from '@msm-portal/i18n';
+
+const queryClient = new QueryClient();
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <FeatureGuardProvider>
+      <AuthProvider>
+        <MCTRPCProvider>
+          <AppConfigProvider>
+            <I18nextProvider i18n={i18n}>
+              <ThemeProvider theme={theme}>
+                <MCGlobalStyle />
+                <MCInAppAlertProvider>
+                  <BrowserRouter>
+                    <MCRootLayout />
+                  </BrowserRouter>
+                </MCInAppAlertProvider>
+              </ThemeProvider>
+            </I18nextProvider>
+          </AppConfigProvider>
+        </MCTRPCProvider>
+      </AuthProvider>
+    </FeatureGuardProvider>
+  </QueryClientProvider>
+);
+```
+
 ---
 
 ## List Page Pattern
@@ -310,6 +352,14 @@ const MC{Entity}ListContainer = () => {
 
 export default MC{Entity}ListContainer;
 ```
+
+---
+
+## App Shell Pattern
+
+전체 앱 레이아웃 — top bar + side nav + content area. 모든 어드민 페이지의 최상위 레이아웃이며 list-page/detail-page/create-page/edit-page 가 컨텐츠 슬롯으로 들어간다.
+
+**When to use**: 새 앱/클라이언트 스캐폴딩, 또는 기존 앱의 네비게이션 구조 수정 (섹션/아이템 추가·삭제·재정렬)
 
 ---
 

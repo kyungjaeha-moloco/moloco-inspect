@@ -830,156 +830,6 @@ I18n wrapper around Moloco's MCWeeklyTimeTablePicker. Injects localized weekday,
 
 ---
 
-## Form Shared
-
-Shared building blocks used by form input components. Import from '@msm-portal/common/component/form/shared'.
-
-**Import from**: `@msm-portal/common/component/form/shared`
-
-### MCFormFieldLabel
-
-**Path**: `form/shared/MCFormFieldLabel.tsx`
-
-Form field label with optional/required state, tooltip, and description.
-
-| Prop | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `htmlFor` | `string` |  |  | Associates label with input |
-| `error` | `boolean` |  |  | Turns label red |
-| `required` | `boolean` |  |  | When false, shows (Optional) suffix |
-| `tooltip` | `string` |  |  | Markdown tooltip on info icon |
-| `description` | `string | ReactNode` |  |  | Sub-label below main label |
-| `rightAccessory` | `ReactNode` |  |  | Right-aligned accessory node |
-
-- required=false shows (Optional) in placeholder color
-- Focus-within on parent MCFormField: label turns palette.foundation.assent
-- error=true: label turns palette.foundation.negative
-
-### MCFormTooltip
-
-**Path**: `form/shared/MCFormTooltip.tsx`
-
-Info icon that shows a markdown tooltip on hover.
-
-| Prop | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `markdownText` | `string` | ✓ |  | Markdown content for tooltip |
-
-```tsx
-<MCFormTooltip markdownText="**Bold** and _italic_ supported" />
-```
-
-### MCCollapsibleFormFieldGroup
-
-**Path**: `form/collapsible-field/MCCollapsibleFormFieldGroup.tsx`
-
-Collapsible wrapper for grouped form fields. Provides a clickable title row with an expand icon and animated body using MCCollapse.
-
-| Prop | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `title` | `string` | ✓ |  | Clickable title shown in the summary row |
-| `defaultExpanded` | `boolean` |  | true | Initial expanded/collapsed state |
-| `onChange` | `() => void` |  |  | Called after the expanded state toggles |
-| `children` | `ReactNode` | ✓ |  | Form fields rendered inside the collapsible body |
-
-```tsx
-<MCCollapsibleFormFieldGroup title="Advanced settings" defaultExpanded={false}>
-  <MCFormTextInput name="campaignName" fieldLabel="Campaign name" />
-</MCCollapsibleFormFieldGroup>
-```
-
-**States:**
-
-| State | Description |
-|-------|-------------|
-| `expanded` | Form fields are visible |
-| `collapsed` | Form fields are hidden behind the summary row |
-
-**Do:**
-- ✅ Use for advanced or optional form subsections
-- ✅ Choose a clear title that explains what is hidden
-
-**Don't:**
-- ❌ Don't nest many collapsible groups inside each other
-
-### MCFormAccordion
-
-**Path**: `form/shared/MCFormAccordion.tsx`
-
-Formik-aware accordion wrapper that combines MCAccordion with MCFormFieldLabel so summary text reflects form required/tooltip/error semantics.
-
-| Prop | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `name` | `string` | ✓ |  | Formik field name used to read touched/error state |
-| `summary` | `string` | ✓ |  | Accordion title text rendered through MCFormFieldLabel |
-| `required` | `boolean` |  |  | Marks the section label as required |
-| `tooltip` | `string` |  |  | Tooltip content shown from the summary label |
-| `...rest` | `MCAccordionProps` |  |  | Remaining MCAccordion props such as defaultExpanded and children |
-
-```tsx
-<MCFormAccordion name="targeting" summary="Targeting" tooltip="Audience filters" defaultExpanded>
-  <MCFormTextInput name="campaignName" fieldLabel="Campaign name" />
-</MCFormAccordion>
-```
-
-**States:**
-
-| State | Description |
-|-------|-------------|
-| `collapsed` | Section body hidden |
-| `expanded` | Section body visible |
-| `error` | Summary label shows error styling when the bound field is touched and invalid |
-
-**Do:**
-- ✅ Use when a collapsible form section should mirror Formik error state in the header
-- ✅ Keep the summary text short and descriptive
-
-**Don't:**
-- ❌ Don't use this as a shortcut for non-form accordions
-
-### Styled Components
-
-| Component | Props | Description |
-|-----------|-------|-------------|
-| `MCFormField` | $width?: MEFormFieldWidth, $direction?: 'row' | 'column' | Wrapper for a single field. Default direction: column. |
-| `MCFormFieldError` | — | Red error message. Uses BODY_2_SPECIAL, content.negative. |
-| `MCFormFieldGroup` | $direction?: 'row' | 'col', $spacing?: number | Groups multiple fields. Default spacing: spacing(2) row, spacing(4) col. |
-| `MCFormPanel` | — | White card. padding: spacing(6), border: border.primary, border-radius: 2px. |
-| `MCFormPanelTitle` | — | H_3 title inside panel. margin-bottom: spacing(3) when followed by body. |
-| `MCFormPanelSubTitle` | — | BODY_2 secondary subtitle. color: content.secondary. |
-| `MCFormPanelBody` | — | Body content wrapper inside a panel. |
-| `MCFormBody` | — | Top-level form body wrapper. |
-| `MCFormTitle` | — | H_3 form title placed outside panels. |
-| `MCFormActions` | — | Right-aligned flex row for action buttons. padding-bottom: spacing(4). |
-| `MCFormGuideMessage` | $marginTop?: number, $marginBottom?: number | Info box with background.tertiary fill. Uses BODY_2. |
-| `MCFormBorderWrapper` | — | Border box with padding: spacing(1.5). |
-| `MCFormHint` | — | Secondary hint text below inputs. BODY_2, content.secondary. |
-| `MCFormDescription` | — | BODY_3 description text. |
-| `MCFormDivider` | — | Horizontal border divider using border.primary. |
-
-**MCFormField:**
-- ✅ Wrap every form input in MCFormField for consistent spacing
-
-**MCFormFieldGroup:**
-- ✅ Use $direction='row' for side-by-side fields
-- ✅ Use $direction='col' with $spacing for vertical stacking
-
-**MCFormPanel:**
-- ✅ Use as the primary container for form sections
-- ✅ Add MCFormPanelTitle as the first child
-
-### `MEFormFieldWidth`
-
-| Key | Value | CSS Value |
-|-----|-------|----------|
-| `SMALL` | `'small'` | `40%` |
-| `MEDIUM` | `'medium'` | `70%` |
-| `FULL` | `'full'` | `100%` |
-| `FIT_CONTENT` | `'fit-content'` | `fit-content` |
-| `UNSET` | `'unset'` | `unset` |
-
----
-
 ## Form Scaffold
 
 Structural components that compose the form page layout. Used in patterns.json form patterns. Must be used inside MCFormLayout.
@@ -2931,6 +2781,189 @@ Generic debounced input wrapper. Wraps any input element with debounce behavior.
 | `onChange` | `(event: React.ChangeEvent) => void` |  |  | Debounced change handler |
 
 - Also accepts all standard input/textarea HTML attributes
+
+### MCDateRangePicker
+
+Standalone date range picker for selecting start and end dates. Not Formik-integrated.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `startDate` | `Date` |  |  | Currently selected start date |
+| `endDate` | `Date` |  |  | Currently selected end date |
+| `placeholder` | `string` |  |  | Input placeholder text |
+| `onChangeDates` | `(start: Date, end: Date) => void` |  |  | Callback when dates change |
+
+### MCDialog
+
+Generic low-level dialog container. Wraps react-modal with Moloco styling. Use MCCommonDialog or MCConfirmDialog for standard use cases.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `isOpen` | `boolean` | ✓ |  | Controls dialog visibility |
+| `onRequestClose` | `() => void` | ✓ |  | Close request handler (Escape key or overlay click) |
+| `children` | `ReactNode` |  |  | Dialog content |
+| `style` | `object` |  |  | Custom overlay and content style overrides |
+
+### MCFilterWithApplyButton
+
+Multi-dimension filter component that holds filter state locally until the user explicitly clicks Apply. Use when filter changes should not immediately trigger data fetching.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `dimensions` | `MTDimension[]` | ✓ |  | Available filter dimensions |
+| `initialFilters` | `MTFilter[]` |  |  | Initial filter state |
+| `singleFilterPerDimension` | `boolean` |  |  | Allow only one filter per dimension |
+
+### MCCheckBoxInput
+
+Raw standalone checkbox input without Formik integration. Provides direct controlled checkbox behavior.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `label` | `string` |  |  | Checkbox label text |
+| `checked` | `boolean` |  |  | Controlled checked state |
+| `onChange` | `(event: React.ChangeEvent<HTMLInputElement>) => void` |  |  | Change handler |
+| `disabled` | `boolean` |  |  | Disabled state |
+
+### MCChipInput
+
+Multi-value chip/tag input allowing users to enter and remove multiple values as chips.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `value` | `string[]` |  |  | Array of current chip values |
+| `onChange` | `(values: string[]) => void` |  |  | Change handler called with updated values array |
+
+### MCRadioInput
+
+Raw standalone radio button input without Formik integration. Use directly for controlled radio groups outside forms.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `label` | `string` |  |  | Radio button label |
+| `checked` | `boolean` |  |  | Controlled checked state |
+| `onChange` | `(event: React.ChangeEvent<HTMLInputElement>) => void` |  |  | Change handler |
+| `name` | `string` |  |  | Input name attribute for grouping radio buttons |
+
+### MCCardSelect
+
+Grid-based card selection component. Renders options as clickable cards in a configurable grid layout.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `options` | `Array<{ key: string; value: any; label: string; disabled?: boolean }>` |  |  | Card options to render |
+| `onChange` | `(value: any) => void` |  |  | Selection change handler |
+| `cardsPerRow` | `number` |  |  | Number of cards per grid row |
+| `value` | `any` |  |  | Currently selected value |
+
+### MCCustomRichSelect
+
+Highly customizable rich select dropdown with support for custom option and selected-option renderers, search, and sort configuration.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `options` | `array` |  |  | Select options array |
+| `value` | `any` |  |  | Currently selected value |
+| `onChange` | `(value: any) => void` |  |  | Change handler |
+| `searchable` | `boolean` |  |  | Enable search/filter within options |
+| `components` | `{ option?: ComponentType; selectedOption?: ComponentType }` |  |  | Custom render components for option rows and selected display |
+| `sortProps` | `object` |  |  | Sort configuration for options |
+
+### MCInlineChipRichSelect
+
+Multi-select dropdown that displays selected values as inline chips within the input trigger. Supports search and select-all.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `options` | `Array<{ key: string; label: string; value: any }>` |  |  | Select options |
+| `values` | `any[]` |  |  | Currently selected values |
+| `onChange` | `(values: any[]) => void` |  |  | Change handler |
+| `searchable` | `boolean` |  |  | Enable search within options |
+| `selectAll` | `boolean` |  |  | Show select-all option |
+
+### MCMultiRichSelect
+
+Multi-select dropdown with optional search, OK button for batch confirmation, and left footer content slot.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `options` | `array` |  |  | Select options array |
+| `onChange` | `(values: any[]) => void` |  |  | Change handler |
+| `value` | `any[]` |  |  | Currently selected values |
+| `searchable` | `boolean` |  |  | Enable search within options |
+| `enableOkButton` | `boolean` |  |  | Show OK button to batch-confirm selections |
+| `leftFooterContent` | `ReactNode` |  |  | Custom content in the left footer slot |
+
+### MCSingleRichSelect
+
+Single-value select dropdown with optional search. Standalone version without Formik integration.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `options` | `Array<{ label: string; value: any }>` |  |  | Select options |
+| `onChange` | `(value: any) => void` |  |  | Change handler |
+| `value` | `any` |  |  | Currently selected value |
+| `searchable` | `boolean` |  |  | Enable search/filter within options |
+
+### MCSwitch
+
+Toggle switch for binary on/off states. Not Formik-integrated.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `checked` | `boolean` | ✓ |  | Controlled checked/on state |
+| `onChange` | `(checked: boolean) => void` | ✓ |  | Toggle change handler |
+
+### MCTable
+
+Data table built on react-table. Supports selectable rows, click-to-select, and row-level disable conditions.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `columns` | `MTTableColumn[]` |  |  | Column definitions using react-table column spec |
+| `data` | `array` |  |  | Row data array |
+| `selectableRow` | `boolean` |  |  | Enable row selection checkboxes |
+| `clickRowToSelect` | `boolean` |  |  | Allow clicking a row to select it |
+| `rowDisabledCondition` | `(row: any) => boolean` |  |  | Function to determine if a row should be disabled/non-selectable |
+
+### MCBetaTag
+
+Beta label tag for marking features or components in beta. Supports outline and filled display variants.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `outline` | `boolean` |  |  | Render tag with outline style |
+| `filled` | `boolean` |  |  | Render tag with filled background style |
+
+### MCTooltip
+
+Hover tooltip that wraps any element. Displays a title on hover with configurable placement.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `title` | `ReactNode` | ✓ |  | Tooltip content shown on hover |
+| `children` | `ReactNode` | ✓ |  | Trigger element wrapped by the tooltip |
+| `placement` | `string` |  |  | Tooltip placement relative to trigger (e.g. top, bottom, left, right) |
+
+### MCActionTitleTooltip
+
+Tooltip variant that combines a title with an action trigger. Shows tooltip content linked to a title string.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `children` | `string` |  |  | Trigger text or label |
+| `title` | `string` |  |  | Tooltip title text shown in the overlay |
+
+### MCWeeklyTimeTablePicker
+
+Weekly schedule picker for selecting time slots across a 7-day grid. Supports 12-hour and 24-hour clock modes and custom slot labels.
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `events` | `array` |  |  | Array of currently selected time slot events |
+| `onChange` | `(events: array) => void` |  |  | Change handler called with updated events |
+| `customLabel` | `object` |  |  | Custom label overrides for days and time slots |
+| `clockTime` | `'12hour' | '24hour'` |  |  | Clock format: 12-hour or 24-hour display |
 
 ---
 
