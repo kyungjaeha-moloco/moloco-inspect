@@ -266,6 +266,8 @@ export interface Playground {
   checkedOutSha?: string;
   prdUrl?: string;
   jiraUrl?: string;
+  /** Human name from whoever kicked the playground off. Display-only. */
+  createdBy?: string;
   hibernatedAt?: number;
   createdAt: number;
   updatedAt: number;
@@ -278,6 +280,8 @@ export interface CreatePlaygroundInput {
   title: string;
   prdUrl?: string;
   jiraUrl?: string;
+  /** Shown in the list; not an auth signal. */
+  createdBy?: string;
 }
 
 export interface ListPlaygroundsQuery {

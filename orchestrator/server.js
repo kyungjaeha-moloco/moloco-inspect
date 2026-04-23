@@ -2519,7 +2519,7 @@ Generate 2 variations (v2, v3).`;
   if (pathname === '/api/playground' && req.method === 'POST') {
     try {
       const body = await parseBody(req);
-      const { projectId, title, prdUrl, jiraUrl } = body || {};
+      const { projectId, title, prdUrl, jiraUrl, createdBy } = body || {};
       if (!projectId || !title) {
         return json(res, 400, { ok: false, error: 'projectId and title required' });
       }
@@ -2530,7 +2530,7 @@ Generate 2 variations (v2, v3).`;
         return json(res, 503, { ok: false, error: 'ANTHROPIC_API_KEY not configured' });
       }
       const pg = await createPlayground({
-        projectId, title, prdUrl, jiraUrl,
+        projectId, title, prdUrl, jiraUrl, createdBy,
         apiKey, provider: SANDBOX_PROVIDER,
       });
       return json(res, 201, { ok: true, playground: serializePlayground(pg) });

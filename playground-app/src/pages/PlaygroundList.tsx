@@ -198,6 +198,10 @@ export function PlaygroundList() {
                         ? ` · ${pg.headCommitSha.slice(0, 7)}`
                         : ''}
                     </div>
+                    <div style={{ color: 'var(--text-tertiary)', fontSize: 11, marginTop: 2 }}>
+                      {pg.createdBy ? `by ${pg.createdBy} · ` : ''}
+                      {formatRelativeTime(pg.createdAt)}
+                    </div>
                   </Link>
                 </li>
               ))}
@@ -222,4 +226,21 @@ function groupByStatus(items: Playground[]): Partial<Record<PlaygroundStatus, Pl
     bucket.push(pg);
   }
   return out;
+}
+
+/**
+ * Compact Korean relative-time formatter — scales from seconds to months
+ * before falling back to an absolute date. Rendered in list rows, so we
+ * deliberately avoid "정확히 X분 전" and similar verbosity.
+ */
+function formatRelativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  if (diff < 45_000) return '방금 전';
+  const min = Math.round(diff / 60_000);
+  if (min < 60) return `${min}분 전`;
+  const hr = Math.round(diff / 3_600_000);
+  if (hr < 24) return `${hr}시간 전`;
+  const day = Math.round(diff / 86_400_000);
+  if (day < 30) return `${day}일 전`;
+  return new Date(ts).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }

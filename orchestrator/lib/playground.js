@@ -72,6 +72,10 @@ console.log(`[playground] restored ${playgrounds.size} playgrounds from disk`);
  * @property {string | undefined} imageTag
  * @property {string | undefined} prdUrl
  * @property {string | undefined} jiraUrl
+ * @property {string | undefined} createdBy  Human name supplied by the
+ *   client (playground-app prompt or chrome-extension settings). Purely
+ *   informational — surfaced in lists so teammates can tell who kicked
+ *   a playground off, but never used as an auth signal.
  */
 
 // ── Persistence ─────────────────────────────────────────────────────
@@ -203,6 +207,7 @@ export async function createPlayground({
   title,
   prdUrl,
   jiraUrl,
+  createdBy,
   client = 'tving',
   apiKey,
   provider = 'anthropic',
@@ -278,6 +283,7 @@ export async function createPlayground({
     client,
     prdUrl,
     jiraUrl,
+    createdBy: (createdBy ?? '').trim() || undefined,
   });
 
   playgrounds.set(id, pg);
@@ -655,5 +661,6 @@ export function serializePlayground(pg) {
     updatedAt: pg.updatedAt,
     lastActivityAt: pg.lastActivityAt,
     archivedDiffPath: pg.archivedDiffPath,
+    createdBy: pg.createdBy,
   };
 }
