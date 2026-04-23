@@ -15,7 +15,7 @@
  * outside the scrollable chat.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 const AIPANEL_WIDTH_STORAGE_KEY = 'playground-app.aipanel-width';
@@ -23,6 +23,7 @@ const AIPANEL_WIDTH_MIN = 280;
 const AIPANEL_WIDTH_MAX = 720;
 const AIPANEL_WIDTH_DEFAULT = 360;
 import {
+  checkoutPlaygroundCommit,
   getPlayground,
   promotePlayground,
   restorePlaygroundHead,
@@ -30,6 +31,7 @@ import {
 } from '../services/orchestrator-client';
 import {
   usePlaygroundStore,
+  type ChatMessage,
   type IframeMode,
 } from '../store/playground-store';
 import { LivePreview } from '../editor/LivePreview';
@@ -46,6 +48,7 @@ export function PlaygroundDetail() {
   const { id } = useParams<{ id: string }>();
   const current = usePlaygroundStore((s) => s.current);
   const mode = usePlaygroundStore((s) => s.mode);
+  const messages = usePlaygroundStore((s) => s.messages);
   const setCurrent = usePlaygroundStore((s) => s.setCurrent);
   const mergeCurrent = usePlaygroundStore((s) => s.mergeCurrent);
   const setMode = usePlaygroundStore((s) => s.setMode);
@@ -81,6 +84,32 @@ export function PlaygroundDetail() {
     } catch (err) {
       console.error('[PlaygroundDetail] restore head failed', err);
     }
+  };
+
+  const handleCheckoutSha = async (sha: string) => {
+    if (!id) return;
+    try {
+      const pg = await checkoutPlaygroundCommit(id, sha);
+      mergeCurrent(pg);
+    } catch (err) {
+      console.error('[PlaygroundDetail] checkout failed', err);
+    }
+  };
+
+  // Tabs the user has explicitly dismissed. Stored in a Set and scoped
+  // to this playground (cleared on `reset()` via unmount). The underlying
+  // commit still exists — this only removes the tab from the bar.
+  const [hiddenShas, setHiddenShas] = useState<Set<string>>(() => new Set());
+  const tabs = useMemo(
+    () => buildCommitTabs(messages, hiddenShas),
+    [messages, hiddenShas],
+  );
+  const handleCloseTab = (sha: string) => {
+    setHiddenShas((prev) => {
+      const next = new Set(prev);
+      next.add(sha);
+      return next;
+    });
   };
 
   const [leftPaneWidth, setLeftPaneWidth] = useState<number>(() => {
@@ -205,12 +234,6 @@ export function PlaygroundDetail() {
           !!current.checkedOutSha || promote.kind === 'running'
         }
       />
-      {current.checkedOutSha && (
-        <TimeTravelBanner
-          sha={current.checkedOutSha}
-          onRestoreHead={handleRestoreHead}
-        />
-      )}
       <div style={twoPaneStyle}>
         <aside style={{ ...leftPaneStyle, width: leftPaneWidth }}>
           <AIPanel />
@@ -225,6 +248,15 @@ export function PlaygroundDetail() {
           <div style={resizerGripStyle} aria-hidden />
         </div>
         <main style={rightPaneStyle}>
+          <CommitTabBar
+            tabs={tabs}
+            baselineSha={current.baselineCommitSha}
+            headSha={current.headCommitSha}
+            checkedOutSha={current.checkedOutSha}
+            onSelectSha={handleCheckoutSha}
+            onSelectLatest={handleRestoreHead}
+            onCloseTab={handleCloseTab}
+          />
           <ModeToolbar mode={mode} onChange={setMode} onReload={handleReload} />
           <div style={previewAreaStyle}>
             <LivePreview
@@ -616,26 +648,6 @@ function StatusDot({ status }: { status: string }) {
   );
 }
 
-function TimeTravelBanner({
-  sha,
-  onRestoreHead,
-}: {
-  sha: string;
-  onRestoreHead: () => void;
-}) {
-  return (
-    <div style={bannerStyle}>
-      <span>
-        🕐 <strong>시간 여행 중</strong> — {sha.slice(0, 7)} 으로 checkout됨. 새 요청을
-        하려면 최신으로 복귀해야 합니다.
-      </span>
-      <button onClick={onRestoreHead} style={bannerButtonStyle}>
-        최신으로 복귀 →
-      </button>
-    </div>
-  );
-}
-
 interface ModeToolbarProps {
   mode: IframeMode;
   onChange: (mode: IframeMode) => void;
@@ -691,6 +703,259 @@ function ModeToolbar({ mode, onChange, onReload }: ModeToolbarProps) {
     </div>
   );
 }
+
+// ── Commit Tab Bar ───────────────────────────────────────────────────
+
+interface CommitTab {
+  sha: string;
+  label: string;
+}
+
+/**
+ * Derive one tab per successful execution from the chat transcript.
+ * `label` defaults to the preceding user prompt (first line, trimmed)
+ * because that's what caused the change — when no user message is
+ * available (agent-initiated, or legacy state) we fall back to the
+ * intent from the plan meta, then to a short sha prefix.
+ */
+function buildCommitTabs(
+  messages: ChatMessage[],
+  hidden: Set<string>,
+): CommitTab[] {
+  const out: CommitTab[] = [];
+  const seenShas = new Set<string>();
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    const sha = m.execution?.commitSha;
+    if (!sha || seenShas.has(sha) || hidden.has(sha)) continue;
+    seenShas.add(sha);
+
+    // Walk backwards for the nearest preceding user prompt.
+    let label = '';
+    for (let j = i - 1; j >= 0; j--) {
+      const prev = messages[j];
+      if (prev.role === 'user') {
+        label = prev.content.split('\n')[0].trim();
+        break;
+      }
+    }
+    if (!label && m.plan?.meta?.intent) label = m.plan.meta.intent;
+    if (!label) label = sha.slice(0, 7);
+
+    const trimmed = label.length > 28 ? label.slice(0, 27) + '…' : label;
+    out.push({ sha, label: trimmed });
+  }
+  return out;
+}
+
+interface CommitTabBarProps {
+  tabs: CommitTab[];
+  baselineSha?: string;
+  headSha?: string;
+  checkedOutSha?: string;
+  onSelectSha: (sha: string) => void;
+  onSelectLatest: () => void;
+  onCloseTab: (sha: string) => void;
+}
+
+function CommitTabBar({
+  tabs,
+  baselineSha,
+  headSha,
+  checkedOutSha,
+  onSelectSha,
+  onSelectLatest,
+  onCloseTab,
+}: CommitTabBarProps) {
+  const activeIsLatest = !checkedOutSha;
+  const activeSha = checkedOutSha ?? null;
+  const hasDivergedHead =
+    headSha && baselineSha && headSha !== baselineSha;
+
+  return (
+    <div style={tabBarStyle} className="ui-scroll">
+      {baselineSha && (
+        <TabPill
+          label="Baseline"
+          icon="●"
+          active={activeSha === baselineSha}
+          onClick={() => onSelectSha(baselineSha)}
+        />
+      )}
+      {tabs.map((t) => (
+        <TabPill
+          key={t.sha}
+          label={t.label}
+          icon={<code style={{ fontFamily: 'ui-monospace, monospace', fontSize: 10, color: 'var(--text-tertiary)' }}>{t.sha.slice(0, 7)}</code>}
+          active={activeSha === t.sha}
+          onClick={() => onSelectSha(t.sha)}
+          onClose={() => onCloseTab(t.sha)}
+        />
+      ))}
+      {hasDivergedHead && (
+        <TabPill
+          label="Latest"
+          icon="●"
+          iconColor="var(--success)"
+          active={activeIsLatest}
+          onClick={onSelectLatest}
+        />
+      )}
+    </div>
+  );
+}
+
+function TabPill({
+  label,
+  icon,
+  iconColor,
+  active,
+  onClick,
+  onClose,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  iconColor?: string;
+  active: boolean;
+  onClick: () => void;
+  onClose?: () => void;
+}) {
+  // Trick: active tab paints over the bar's bottom border with the same
+  // color as the content shelf beneath, so it looks attached to the
+  // preview area — like a proper IDE/browser tab.
+  const activeStyle: React.CSSProperties = active
+    ? {
+        background: 'var(--bg-primary)',
+        border: '1px solid var(--border-primary)',
+        borderBottomColor: 'var(--bg-primary)',
+        color: 'var(--text-primary)',
+        fontWeight: 600,
+        zIndex: 2,
+      }
+    : {
+        background: 'transparent',
+        border: '1px solid transparent',
+        color: 'var(--text-secondary)',
+        fontWeight: 500,
+      };
+
+  return (
+    <div
+      role="tab"
+      aria-selected={active}
+      className={active ? 'pg-tab pg-tab-active' : 'pg-tab'}
+      style={{
+        ...tabPillStyle,
+        ...activeStyle,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        style={tabMainButtonStyle}
+        title={label}
+      >
+        {icon && (
+          <span
+            aria-hidden
+            style={{
+              color: iconColor ?? undefined,
+              display: 'inline-flex',
+              alignItems: 'center',
+              lineHeight: 1,
+            }}
+          >
+            {icon}
+          </span>
+        )}
+        <span
+          style={{
+            maxWidth: 200,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {label}
+        </span>
+      </button>
+      {onClose && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          title="탭 닫기 (커밋은 남음)"
+          aria-label={`"${label}" 탭 닫기`}
+          className="pg-tab-close"
+          style={tabCloseStyle}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
+const tabBarStyle: React.CSSProperties = {
+  position: 'relative',
+  display: 'flex',
+  alignItems: 'flex-end',
+  gap: 2,
+  padding: '8px 12px 0',
+  background: 'var(--bg-secondary)',
+  borderBottom: '1px solid var(--border-primary)',
+  overflowX: 'auto',
+  overflowY: 'hidden',
+  flex: '0 0 auto',
+  minHeight: 40,
+};
+
+const tabPillStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '0 4px 0 12px',
+  height: 32,
+  borderTopLeftRadius: 8,
+  borderTopRightRadius: 8,
+  transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
+  flexShrink: 0,
+  position: 'relative',
+  marginBottom: -1,
+  boxSizing: 'border-box',
+};
+
+const tabMainButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '0 4px',
+  height: '100%',
+  background: 'transparent',
+  border: 'none',
+  color: 'inherit',
+  fontFamily: 'inherit',
+  fontSize: 12,
+  cursor: 'pointer',
+};
+
+const tabCloseStyle: React.CSSProperties = {
+  width: 20,
+  height: 20,
+  marginLeft: 4,
+  border: 'none',
+  borderRadius: 4,
+  background: 'transparent',
+  color: 'var(--text-tertiary)',
+  fontSize: 16,
+  lineHeight: 1,
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontFamily: 'inherit',
+};
 
 const rootStyle: React.CSSProperties = {
   display: 'flex',
@@ -774,30 +1039,6 @@ const previewAreaStyle: React.CSSProperties = {
   flex: 1,
   minHeight: 0,
   background: 'var(--bg-secondary)',
-};
-
-const bannerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-  padding: '8px 16px',
-  background: 'var(--warning-light)',
-  borderBottom: '1px solid var(--warning)',
-  color: 'var(--text-primary)',
-  fontSize: 12,
-};
-
-const bannerButtonStyle: React.CSSProperties = {
-  padding: '4px 10px',
-  fontSize: 12,
-  fontWeight: 600,
-  border: '1px solid var(--accent)',
-  borderRadius: 'var(--radius-md)',
-  background: 'var(--accent)',
-  color: 'var(--text-inverse)',
-  cursor: 'pointer',
-  fontFamily: 'inherit',
 };
 
 const promoteButtonStyle: React.CSSProperties = {

@@ -194,3 +194,13 @@ details > summary {
 details[open] > summary [data-chevron] {
   transform: rotate(90deg);
 }
+
+/* Commit tab bar — inline styles can't do :hover */
+.pg-tab:not(.pg-tab-active):hover {
+  background: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+}
+.pg-tab-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}

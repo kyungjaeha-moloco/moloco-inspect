@@ -551,12 +551,39 @@ export const AIPanel = React.memo(function AIPanel() {
             hint="Enter 전송 · Shift+Enter 줄바꿈"
             sendLabel={isSending ? '⋯' : '전송'}
             aboveInput={
-              lastPickedElement ? (
-                <PickedElementChip
-                  element={lastPickedElement}
-                  onClear={() => setLastPickedElement(null)}
-                />
-              ) : null
+              <>
+                {checkedOutSha && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '6px 8px',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-secondary)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 11,
+                      color: 'var(--text-secondary)',
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    <span aria-hidden>🕐</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      과거 시점 미리보기 중 — 새 요청은{' '}
+                      <strong style={{ color: 'var(--text-primary)' }}>
+                        Latest
+                      </strong>{' '}
+                      탭에서 가능합니다
+                    </span>
+                  </div>
+                )}
+                {lastPickedElement && (
+                  <PickedElementChip
+                    element={lastPickedElement}
+                    onClear={() => setLastPickedElement(null)}
+                  />
+                )}
+              </>
             }
             footer={
               <>
