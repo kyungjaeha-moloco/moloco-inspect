@@ -99,16 +99,27 @@ export function PlaygroundList() {
               활성 {active.length} · 대기 {hibernated.length} · 보관 {archived.length}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            style={primaryCtaStyle}
-          >
-            <span aria-hidden style={{ fontSize: 14, marginRight: 6 }}>
-              +
-            </span>
-            새 Playground
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <a
+              href="http://127.0.0.1:4174/"
+              target="_blank"
+              rel="noreferrer"
+              title="Ops Dashboard 열기 (포트 4174)"
+              style={ghostLinkStyle}
+            >
+              Dashboard ↗
+            </a>
+            <button
+              type="button"
+              onClick={() => setCreateOpen(true)}
+              style={primaryCtaStyle}
+            >
+              <span aria-hidden style={{ fontSize: 14, marginRight: 6 }}>
+                +
+              </span>
+              새 Playground
+            </button>
+          </div>
         </header>
 
         {legacyProjects.length > 0 && (

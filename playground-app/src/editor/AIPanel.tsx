@@ -2034,6 +2034,25 @@ function ExecutionCard({
             </div>
           )}
 
+          {execution.requestId && (
+            <a
+              href={`http://127.0.0.1:4174/requests/${execution.requestId}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                fontSize: 11,
+                fontWeight: 500,
+                color: 'var(--accent-text)',
+                alignSelf: 'flex-start',
+                textDecoration: 'none',
+                padding: '4px 0',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              대시보드에서 자세히 보기 →
+            </a>
+          )}
+
           {execution.error && (
             <div
               style={{
