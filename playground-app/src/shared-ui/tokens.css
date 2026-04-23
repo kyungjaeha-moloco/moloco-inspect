@@ -171,3 +171,26 @@ body {
     transform: rotate(360deg);
   }
 }
+
+/* PlaygroundList card hover — inline styles can't do :hover */
+.playground-card:hover {
+  border-color: var(--accent) !important;
+  box-shadow: var(--shadow-md) !important;
+  transform: translateY(-1px);
+}
+
+.playground-card:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* Collapsible <details> summary: hide native marker, rotate our chevron */
+details > summary::-webkit-details-marker {
+  display: none;
+}
+details > summary {
+  list-style: none;
+}
+details[open] > summary [data-chevron] {
+  transform: rotate(90deg);
+}
