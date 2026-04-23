@@ -34,6 +34,7 @@ import {
   type InputAreaToolbarButton,
 } from '../shared-ui';
 import { usePinStore, type PinComment } from '../store/pin-store';
+import type { BridgeElementContext } from '../services/playground-bridge';
 
 /**
  * AIPanel — left-pane conversational interface for the Playground editor.
@@ -55,6 +56,8 @@ export const AIPanel = React.memo(function AIPanel() {
     playgroundClient,
     checkedOutSha,
     headCommitSha,
+    lastPickedElement,
+    setLastPickedElement,
     addUserMessage,
     addAssistantMessage,
     updateExecution,
@@ -73,6 +76,8 @@ export const AIPanel = React.memo(function AIPanel() {
       playgroundClient: s.current?.client ?? null,
       checkedOutSha: s.current?.checkedOutSha ?? null,
       headCommitSha: s.current?.headCommitSha ?? null,
+      lastPickedElement: s.lastPickedElement,
+      setLastPickedElement: s.setLastPickedElement,
       addUserMessage: s.addUserMessage,
       addAssistantMessage: s.addAssistantMessage,
       updateExecution: s.updateExecution,
@@ -254,7 +259,20 @@ export const AIPanel = React.memo(function AIPanel() {
 
     setError(null);
     setInput('');
-    addUserMessage(trimmed);
+
+    // Prefix the outbound message with the picked element's identifier
+    // bundle when present. Keeps the agent honest about *which* element
+    // the user is talking about — especially important when the prompt
+    // is terse ("여기 여백 줄여줘") and the element label disambiguates
+    // between similarly-named React components.
+    const promptText = lastPickedElement
+      ? `${formatElementContext(lastPickedElement)}\n\n${trimmed}`
+      : trimmed;
+    addUserMessage(promptText);
+    // Clear the picked-element chip as soon as the message is queued —
+    // the user expects "press send" to consume the selection. Mode was
+    // already flipped back to 'view' by LivePreview on pick.
+    if (lastPickedElement) setLastPickedElement(null);
 
     const current = usePlaygroundStore.getState().messages;
     const apiMessages = current.map((m) => ({
@@ -304,6 +322,8 @@ export const AIPanel = React.memo(function AIPanel() {
     setError,
     addUserMessage,
     addAssistantMessage,
+    lastPickedElement,
+    setLastPickedElement,
   ]);
 
   const toolbarButtons: InputAreaToolbarButton[] = useMemo(
@@ -486,6 +506,14 @@ export const AIPanel = React.memo(function AIPanel() {
             toolbarButtons={toolbarButtons}
             hint="Enter 전송 · Shift+Enter 줄바꿈"
             sendLabel={isSending ? '⋯' : '전송'}
+            aboveInput={
+              lastPickedElement ? (
+                <PickedElementChip
+                  element={lastPickedElement}
+                  onClear={() => setLastPickedElement(null)}
+                />
+              ) : null
+            }
             footer={
               <>
                 <span
@@ -536,7 +564,113 @@ export const AIPanel = React.memo(function AIPanel() {
   );
 });
 
+// ── Helpers ─────────────────────────────────────────────────
+
+/**
+ * Format the picked-element bundle as a short, human-readable context
+ * line prepended to the outgoing chat prompt.
+ *
+ * Falls through in priority order — label (picker's own compose) →
+ * displayName → testId → selector — so the agent always has something
+ * to latch onto, even on stacks where fiber displayNames are mangled.
+ *
+ * `sourceFile` lands as a trailing `@ path:line` hint when available;
+ * keep it concise so the rest of the user's prompt dominates the LLM
+ * context budget.
+ */
+function formatElementContext(el: BridgeElementContext): string {
+  const name =
+    el.label ??
+    el.displayName ??
+    (el.testId ? `[${el.testId}]` : undefined) ??
+    el.selector ??
+    '?';
+  const suffix = el.sourceFile ? ` @ ${el.sourceFile}` : '';
+  return `[선택된 요소: ${name}${suffix}]`;
+}
+
 // ── Sub-components ─────────────────────────────────────────
+
+function PickedElementChip({
+  element,
+  onClear,
+}: {
+  element: BridgeElementContext;
+  onClear: () => void;
+}) {
+  const primary =
+    element.label ??
+    element.displayName ??
+    (element.testId ? `[${element.testId}]` : undefined) ??
+    element.selector ??
+    '선택된 요소';
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '6px 8px',
+        fontSize: 11,
+        color: 'var(--text-secondary)',
+        background: 'var(--bg-elevated)',
+        borderTop: '1px solid var(--border-primary)',
+        borderBottom: '1px solid var(--border-primary)',
+      }}
+    >
+      <span style={{ color: 'var(--accent)', fontWeight: 600 }}>📍</span>
+      <span
+        style={{
+          fontWeight: 500,
+          color: 'var(--text-primary)',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          flex: '0 1 auto',
+          minWidth: 0,
+        }}
+        title={primary}
+      >
+        {primary}
+      </span>
+      {element.sourceFile && (
+        <span
+          style={{
+            color: 'var(--text-tertiary)',
+            fontSize: 10,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            flex: '1 1 auto',
+            minWidth: 0,
+          }}
+          title={element.sourceFile}
+        >
+          {element.sourceFile}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={onClear}
+        aria-label="선택 해제"
+        title="선택 해제"
+        style={{
+          marginLeft: 'auto',
+          padding: '2px 6px',
+          fontSize: 10,
+          color: 'var(--text-tertiary)',
+          background: 'transparent',
+          border: '1px solid var(--border-primary)',
+          borderRadius: 'var(--radius-sm)',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
 
 function CommentsList({
   playgroundId,

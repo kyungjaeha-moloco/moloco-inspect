@@ -103,6 +103,7 @@ function LivePreviewInner({ playground, mode }: LivePreviewProps) {
   const setLastPickedElement = usePlaygroundStore(
     (s) => s.setLastPickedElement,
   );
+  const setMode = usePlaygroundStore((s) => s.setMode);
 
   // Load this playground's pin history on mount.
   useEffect(() => {
@@ -146,6 +147,11 @@ function LivePreviewInner({ playground, mode }: LivePreviewProps) {
             });
           } else if (m === 'pick') {
             setLastPickedElement(msg.element);
+            // Natural flow: once the user has picked a target, drop
+            // back to view so the mode toolbar reflects "I'm done
+            // selecting, now talk to the AI". AIPanel reads
+            // `lastPickedElement` and prefixes the chat prompt.
+            setMode('view');
           }
         },
         onRoute: (msg) => setCurrentRoute(msg.route),
