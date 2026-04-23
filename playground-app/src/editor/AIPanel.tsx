@@ -2010,56 +2010,11 @@ function ExecutionCard({
             gap: 8,
           }}
         >
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {PHASE_ORDER.map((p) => {
-              const seen = execution.phasesSeen.includes(p);
-              const current = execution.phase === p && !done && !errored;
-              const color = current
-                ? 'var(--accent)'
-                : seen
-                  ? 'var(--success)'
-                  : 'var(--text-tertiary)';
-              const bg = current
-                ? 'var(--accent-light)'
-                : seen
-                  ? 'var(--success-light)'
-                  : 'var(--bg-primary)';
-              return (
-                <span
-                  key={p}
-                  style={{
-                    padding: '2px 7px',
-                    fontSize: 10,
-                    color,
-                    border: `1px solid ${color}40`,
-                    borderRadius: 10,
-                    fontWeight: current ? 600 : 500,
-                    background: bg,
-                  }}
-                >
-                  {seen && !current ? '✓ ' : current ? '⋯ ' : ''}
-                  {PHASE_LABELS[p] ?? p}
-                </span>
-              );
-            })}
-          </div>
-
-          {execution.latestLog && (
-            <div
-              style={{
-                fontSize: 11,
-                color: 'var(--text-secondary)',
-                padding: '6px 8px',
-                background: 'var(--bg-primary)',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border-primary)',
-                lineHeight: 1.4,
-                wordBreak: 'break-word',
-              }}
-            >
-              {execution.latestLog}
-            </div>
-          )}
+          <PhaseTimeline
+            execution={execution}
+            done={done}
+            errored={errored}
+          />
 
           {execution.requestId && (
             <a
@@ -2187,6 +2142,214 @@ function ExecutionCard({
     </div>
   );
 }
+
+// ── Phase Timeline (vertical sandbox log view) ──────────────────────
+
+function PhaseTimeline({
+  execution,
+  done,
+  errored,
+}: {
+  execution: ExecutionState;
+  done: boolean;
+  errored: boolean;
+}) {
+  // Show every canonical phase, but also any phase the server reported
+  // that isn't in PHASE_ORDER (e.g. `no_change_needed`) — appended at
+  // the end so users always see the final beat even when it's a
+  // non-standard termination.
+  const rows = [
+    ...PHASE_ORDER,
+    ...execution.phasesSeen.filter((p) => !PHASE_ORDER.includes(p)),
+  ];
+  if (execution.phase && !rows.includes(execution.phase)) {
+    rows.push(execution.phase);
+  }
+
+  return (
+    <ol style={timelineListStyle}>
+      {rows.map((p, i) => {
+        const seen = execution.phasesSeen.includes(p);
+        const current = execution.phase === p && !done && !errored;
+        const isLast = i === rows.length - 1;
+        const state: 'done' | 'current' | 'pending' | 'error' = errored && current
+          ? 'error'
+          : current
+            ? 'current'
+            : seen
+              ? 'done'
+              : 'pending';
+
+        return (
+          <li key={p} style={timelineRowStyle}>
+            <div style={timelineMarkerColumnStyle}>
+              <PhaseMarker state={state} />
+              {!isLast && (
+                <div
+                  style={{
+                    ...timelineConnectorStyle,
+                    background: seen
+                      ? 'var(--success)'
+                      : 'var(--border-primary)',
+                  }}
+                />
+              )}
+            </div>
+            <div style={timelineContentStyle}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: state === 'current' ? 600 : 500,
+                  color:
+                    state === 'pending'
+                      ? 'var(--text-tertiary)'
+                      : state === 'error'
+                        ? 'var(--error)'
+                        : 'var(--text-primary)',
+                }}
+              >
+                {PHASE_LABELS[p] ?? p}
+              </div>
+              {state === 'current' && execution.latestLog && (
+                <div style={timelineLogStyle}>{execution.latestLog}</div>
+              )}
+              {state === 'done' && p === execution.phase && execution.latestLog && (
+                <div style={timelineLogStyle}>{execution.latestLog}</div>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function PhaseMarker({ state }: { state: 'done' | 'current' | 'pending' | 'error' }) {
+  const size = 14;
+  if (state === 'done') {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          background: 'var(--success)',
+          color: 'var(--text-inverse)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 9,
+          fontWeight: 700,
+          flex: '0 0 auto',
+        }}
+        aria-label="완료"
+      >
+        ✓
+      </div>
+    );
+  }
+  if (state === 'current') {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          border: '2px solid var(--accent)',
+          borderTopColor: 'transparent',
+          animation: 'spin 1s linear infinite',
+          flex: '0 0 auto',
+        }}
+        aria-label="진행 중"
+      />
+    );
+  }
+  if (state === 'error') {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          background: 'var(--error)',
+          color: 'var(--text-inverse)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 10,
+          fontWeight: 700,
+          flex: '0 0 auto',
+        }}
+        aria-label="실패"
+      >
+        ×
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        border: '1px solid var(--border-primary)',
+        background: 'var(--bg-primary)',
+        flex: '0 0 auto',
+      }}
+      aria-label="대기"
+    />
+  );
+}
+
+const timelineListStyle: React.CSSProperties = {
+  listStyle: 'none',
+  padding: 0,
+  margin: 0,
+  display: 'flex',
+  flexDirection: 'column',
+};
+
+const timelineRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 10,
+  position: 'relative',
+};
+
+const timelineMarkerColumnStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  flex: '0 0 auto',
+  minHeight: 24,
+};
+
+const timelineConnectorStyle: React.CSSProperties = {
+  width: 2,
+  flex: 1,
+  minHeight: 12,
+  marginTop: 2,
+  marginBottom: -2,
+};
+
+const timelineContentStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  paddingBottom: 10,
+  paddingTop: 0,
+};
+
+const timelineLogStyle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 11,
+  color: 'var(--text-secondary)',
+  padding: '6px 8px',
+  background: 'var(--bg-primary)',
+  borderRadius: 'var(--radius-sm)',
+  border: '1px solid var(--border-secondary)',
+  lineHeight: 1.5,
+  wordBreak: 'break-word',
+};
 
 function TypingIndicator() {
   return (
