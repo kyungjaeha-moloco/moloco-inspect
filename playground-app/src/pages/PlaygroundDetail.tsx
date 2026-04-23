@@ -79,6 +79,11 @@ export function PlaygroundDetail() {
     try {
       const pg = await restorePlaygroundHead(id);
       mergeCurrent(pg);
+      // Force iframe reload — the sandboxed app may have drifted to
+      // an auth / error route after HMR, and a checkout alone wouldn't
+      // navigate it home. Bumping the nonce gives the app a fresh "/"
+      // against the just-reset git tree.
+      setReloadNonce((n) => n + 1);
     } catch (err) {
       console.error('[PlaygroundDetail] restore head failed', err);
     }
@@ -89,6 +94,7 @@ export function PlaygroundDetail() {
     try {
       const pg = await checkoutPlaygroundCommit(id, sha);
       mergeCurrent(pg);
+      setReloadNonce((n) => n + 1);
     } catch (err) {
       console.error('[PlaygroundDetail] checkout failed', err);
     }
