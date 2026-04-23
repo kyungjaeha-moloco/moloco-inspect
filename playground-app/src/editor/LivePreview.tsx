@@ -130,7 +130,7 @@ function LivePreviewInner({ playground, mode }: LivePreviewProps) {
         },
         onPicked: (msg) => {
           const m = modeRef.current;
-          if (m === 'pin') {
+          if (m === 'comment') {
             // bbox is viewport-relative from the iframe, which matches
             // the overlay-relative coordinate space the pin store uses
             // (the iframe fills the container). Centroid lands a marker
@@ -148,10 +148,10 @@ function LivePreviewInner({ playground, mode }: LivePreviewProps) {
           } else if (m === 'pick') {
             setLastPickedElement(msg.element);
             // Natural flow: once the user has picked a target, drop
-            // back to view so the mode toolbar reflects "I'm done
-            // selecting, now talk to the AI". AIPanel reads
+            // back to the interactive baseline so the toolbar reflects
+            // "I'm done selecting, now talk to the AI". AIPanel reads
             // `lastPickedElement` and prefixes the chat prompt.
-            setMode('view');
+            setMode('interactive');
           }
         },
         onRoute: (msg) => setCurrentRoute(msg.route),
@@ -175,10 +175,18 @@ function LivePreviewInner({ playground, mode }: LivePreviewProps) {
   // Propagate parent mode → child picker. Fires once when the child
   // becomes ready (since `bridgeReady` flips then) and again on every
   // subsequent user-driven mode change. The child ignores no-op flips.
+  //
+  // The store uses `'interactive' | 'pick' | 'comment'` but the bridge
+  // protocol (baked into the sandbox image) still speaks the legacy
+  // `'view' | 'pick' | 'pin'` dialect. Translate at the boundary so we
+  // don't have to rebuild the Docker image every time the UI reshuffles.
   useEffect(() => {
     if (!bridge || !bridgeReady) return;
     const iframe = iframeRef.current;
-    if (iframe) bridge.setMode(iframe, mode);
+    if (!iframe) return;
+    const bridgeMode =
+      mode === 'pick' ? 'pick' : mode === 'comment' ? 'pin' : 'view';
+    bridge.setMode(iframe, bridgeMode);
   }, [mode, bridge, bridgeReady]);
 
   // Compose iframe src with handshake query. Bridge is guaranteed to be
@@ -222,7 +230,7 @@ function LivePreviewInner({ playground, mode }: LivePreviewProps) {
   // Once the bridge is ready the overlay is removed and the picker
   // inside the iframe owns pin-mode clicks.
   const handleFallbackOverlayClick = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (mode !== 'pin') return;
+    if (mode !== 'comment') return;
     const target = e.target as HTMLElement;
     if (target.closest('[data-pin-marker]')) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -284,9 +292,15 @@ function LivePreviewInner({ playground, mode }: LivePreviewProps) {
     );
   }
 
-  // Overlay shows in view mode (swallow clicks + proxy wheel) and as a
-  // pin-mode fallback until the picker handshake completes.
-  const showOverlay = mode === 'view' || (mode === 'pin' && !bridgeReady);
+  // Default `interactive` mode has NO parent overlay — clicks pass
+  // straight through to the sandboxed app so the user can browse it
+  // naturally. The only overlay we still need is the pre-bridge
+  // comment fallback: if the picker runtime hasn't handshaked yet
+  // (legacy image or transient load state) we let the user drop
+  // coord-only pins via a parent layer. Once bridge is ready the
+  // picker inside the iframe owns click capture in both pick and
+  // comment modes.
+  const showOverlay = mode === 'comment' && !bridgeReady;
 
   return (
     <div style={wrapperStyle}>
@@ -302,17 +316,17 @@ function LivePreviewInner({ playground, mode }: LivePreviewProps) {
           onClick={handleFallbackOverlayClick}
           style={{
             ...overlayStyle,
-            cursor: mode === 'pin' ? 'crosshair' : 'default',
+            cursor: mode === 'comment' ? 'crosshair' : 'default',
           }}
           aria-hidden
         />
       )}
       {/* Pin markers live above the iframe directly — the overlay is
-          absent in pin mode (when the bridge is ready) so the picker
+          absent in comment mode (when the bridge is ready) so the picker
           catches clicks inside the iframe. Marker pointerEvents remain
           auto so the parent still handles edit / delete interactions
           with existing pins. */}
-      {mode === 'pin' && (
+      {mode === 'comment' && (
         <div style={pinLayerStyle}>
           {pins.map((pin, idx) => (
             <PinMarker
@@ -333,7 +347,7 @@ function LivePreviewInner({ playground, mode }: LivePreviewProps) {
       )}
       {/* Subtle count chip so the user knows there are pins even when
           view / pick modes hide them. */}
-      {pins.length > 0 && mode !== 'pin' && (
+      {pins.length > 0 && mode !== 'comment' && (
         <div
           aria-hidden
           style={{

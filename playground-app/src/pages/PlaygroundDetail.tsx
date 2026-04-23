@@ -545,29 +545,38 @@ interface ModeToolbarProps {
 }
 
 function ModeToolbar({ mode, onChange, onReload }: ModeToolbarProps) {
-  const modes: Array<{ value: IframeMode; label: string; hint: string }> = [
-    { value: 'view', label: '🔒 View', hint: '클릭 차단 · 스크롤만 프록시' },
-    { value: 'pick', label: '🖱 Pick', hint: '요소 선택 (M3)' },
-    { value: 'pin', label: '📍 Pin', hint: '좌표 클릭해 핀 코멘트' },
-  ];
+  const commentActive = mode === 'comment';
+  const toggleComment = () =>
+    onChange(commentActive ? 'interactive' : 'comment');
+
   return (
     <div style={toolbarStyle}>
-      {modes.map((m) => (
-        <button
-          key={m.value}
-          type="button"
-          onClick={() => onChange(m.value)}
-          title={m.hint}
-          style={{
-            ...modeButtonStyle,
-            background: mode === m.value ? 'var(--text-primary)' : 'var(--bg-elevated)',
-            color: mode === m.value ? 'var(--text-inverse)' : 'var(--text-primary)',
-            borderColor: mode === m.value ? 'var(--text-primary)' : 'var(--border-primary)',
-          }}
-        >
-          {m.label}
-        </button>
-      ))}
+      <button
+        type="button"
+        onClick={toggleComment}
+        title={
+          commentActive
+            ? '코멘트 모드 끄기 (앱 상호작용으로 복귀)'
+            : '코멘트 모드 — 화면을 클릭해 핀 메모를 남깁니다'
+        }
+        style={{
+          ...modeButtonStyle,
+          background: commentActive
+            ? 'var(--accent)'
+            : 'var(--bg-elevated)',
+          color: commentActive
+            ? 'var(--text-inverse)'
+            : 'var(--text-primary)',
+          borderColor: commentActive
+            ? 'var(--accent)'
+            : 'var(--border-primary)',
+        }}
+      >
+        <span aria-hidden style={{ marginRight: 4 }}>
+          💬
+        </span>
+        Comment
+      </button>
       <button
         type="button"
         onClick={onReload}

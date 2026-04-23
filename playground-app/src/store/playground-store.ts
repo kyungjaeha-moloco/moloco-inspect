@@ -79,13 +79,26 @@ export interface ExecutionProgress {
   timestamp: number;
 }
 
-/** Live-preview interaction mode over the iframe. See v3 plan §7.2. */
-export type IframeMode = 'view' | 'pick' | 'pin';
+/**
+ * Live-preview interaction mode over the iframe.
+ *
+ * - `interactive` (default): no overlay, iframe receives native clicks
+ *   and scrolls. The user browses the sandboxed app naturally.
+ * - `pick`: element picker runtime captures hover/click inside the
+ *   iframe and reports back via the postMessage bridge. Toggled from
+ *   the AIPanel input toolbar.
+ * - `comment`: parent overlay captures clicks to drop pin comments
+ *   (formerly the "pin" mode). Toggled from the right-pane toolbar.
+ *
+ * All three are mutually exclusive. Switching into one always leaves
+ * the others off.
+ */
+export type IframeMode = 'interactive' | 'pick' | 'comment';
 
 interface PlaygroundStoreState {
   /** Playground whose detail page is open, or null before load. */
   current: Playground | null;
-  /** Iframe-overlay mode — view (block clicks) / pick / pin. */
+  /** Iframe-overlay mode — interactive (default) / pick / comment. */
   mode: IframeMode;
   messages: ChatMessage[];
   isSending: boolean;
@@ -150,7 +163,7 @@ const initial: Pick<
   | 'lastPickedElement'
 > = {
   current: null,
-  mode: 'view',
+  mode: 'interactive',
   messages: [],
   isSending: false,
   error: null,
@@ -170,12 +183,12 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
     ),
   setMode: (mode) =>
     // Leaving Pick clears `lastPickedElement` — it's only meaningful while
-    // the user is actively picking. Pin keeps it so the next pin attaches
+    // the user is actively picking. Comment keeps it so the next pin attaches
     // to whatever was last highlighted, if the user swapped modes mid-pick.
     set((state) => ({
       mode,
       lastPickedElement:
-        mode === 'pick' || mode === 'pin' ? state.lastPickedElement : null,
+        mode === 'pick' || mode === 'comment' ? state.lastPickedElement : null,
     })),
   setSending: (isSending) => set({ isSending }),
   setError: (error) => set({ error }),
