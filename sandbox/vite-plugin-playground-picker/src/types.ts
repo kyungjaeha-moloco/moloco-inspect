@@ -58,7 +58,12 @@ export interface PickerPluginOptions {
 
 interface Envelope {
   source: 'playground-picker';
-  /** Monotonic counter — parent can drop out-of-order messages. */
+  /**
+   * Monotonic counter that starts at 1 on the first message (ready) and
+   * increments by one on every outbound message within the iframe's
+   * session. The parent drops any message whose seq is not strictly
+   * greater than the last one it accepted.
+   */
   seq: number;
   /** Nonce returned by the parent during `playground.ready`. */
   nonce: string;

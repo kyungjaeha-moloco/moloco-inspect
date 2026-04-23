@@ -48,17 +48,6 @@ WORKDIR /workspace/msm-portal
 # ─── design-system ───────────────────────────────────────────────────
 COPY design-system /workspace/design-system
 
-# ─── Playground picker plugin ────────────────────────────────────────
-# Built inside the image so hosts don't need to run `pnpm build` first.
-# Runtime-only dependencies of dist/ are zero (see vite-plugin-playground-picker
-# README + M3 verification); we drop node_modules after build to keep the
-# image small.
-COPY sandbox/vite-plugin-playground-picker /workspace/plugins/vite-plugin-playground-picker
-RUN cd /workspace/plugins/vite-plugin-playground-picker \
-  && pnpm install --ignore-workspace \
-  && pnpm build \
-  && rm -rf node_modules
-
 # ─── OpenCode config (provider timeout = 20min) ─────────────────────
 RUN mkdir -p /workspace/msm-portal/.opencode/agents
 COPY sandbox/opencode.json /workspace/msm-portal/opencode.json
@@ -81,6 +70,18 @@ RUN mkdir -p /workspace/results
 
 # ─── Git init (needed for OpenCode and diff collection) ──────────────
 RUN cd /workspace/msm-portal && git init && git config user.email "sandbox@local" && git config user.name "Sandbox"
+
+# ─── Playground picker plugin ────────────────────────────────────────
+# Built inside the image so hosts don't need to run `pnpm build` first.
+# Runtime-only dependencies of dist/ are zero (see vite-plugin-playground-picker
+# README + M3 verification); node_modules is dropped after build. This
+# layer sits last so iterating on the plugin doesn't invalidate the
+# expensive msm-portal pnpm-install cache above.
+COPY sandbox/vite-plugin-playground-picker /workspace/plugins/vite-plugin-playground-picker
+RUN cd /workspace/plugins/vite-plugin-playground-picker \
+  && pnpm install --ignore-workspace \
+  && pnpm build \
+  && rm -rf node_modules
 
 # ─── Ports ───────────────────────────────────────────────────────────
 EXPOSE 4096 5173

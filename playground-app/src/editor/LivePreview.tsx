@@ -11,12 +11,19 @@
  *    turned into a pin here (Pin → `pin-store.addPin` with `element`).
  *
  * M3 bridge wiring: `createPlaygroundBridge` opens a nonce-authenticated
- * postMessage channel with the iframe. The bridge rotates its nonce with
- * every (playground, vitePort, reloadNonce) tuple so a new iframe can
- * never read events meant for an old one. SPA route changes arrive via
- * `onRoute` and update `playground-store.currentRoute`; pins are filtered
- * against that route so a pin placed on `/creative-review` does not
- * visually smear across the app when the user navigates away.
+ * postMessage channel with the iframe. The outer component re-keys the
+ * inner on every (playground.id, status, vitePort, reloadNonce) tuple
+ * so React fully unmounts — disposing the old bridge and rotating the
+ * nonce — before remounting with a fresh one. That key-bound lifecycle
+ * is what lets the inner component create the bridge synchronously via
+ * `useState` lazy init, which is critical: the iframe's `src` must
+ * carry the handshake query on its very first paint, otherwise the
+ * runtime bails into standalone mode.
+ *
+ * SPA route changes arrive via `onRoute` and update
+ * `playground-store.currentRoute`; pins are filtered against that route
+ * so a pin placed on `/creative-review` does not visually smear across
+ * the app when the user navigates away.
  *
  * `vitePort` is ephemeral (spike addendum A2); callers re-read playground
  * state on mount and pass the fresh port in — this component just renders.
@@ -34,9 +41,6 @@ import type { Playground } from '../services/orchestrator-client';
 import {
   createPlaygroundBridge,
   type PlaygroundBridge,
-  type BridgePicked,
-  type BridgeReady,
-  type BridgeRoute,
 } from '../services/playground-bridge';
 import { usePlaygroundStore, type IframeMode } from '../store/playground-store';
 import { usePinStore, type PinComment } from '../store/pin-store';
@@ -52,29 +56,39 @@ interface LivePreviewProps {
   reloadNonce?: number;
 }
 
-export function LivePreview({
-  playground,
-  mode,
-  reloadNonce = 0,
-}: LivePreviewProps) {
+/**
+ * Outer wrapper: stable mount point whose only job is to re-key the
+ * inner component whenever the bridge-affecting inputs change. React's
+ * reconciler will unmount the old inner (firing the bridge cleanup) and
+ * mount a fresh one — letting the inner safely use `useState` for the
+ * bridge without worrying about stale closures on prop changes.
+ */
+export function LivePreview(props: LivePreviewProps) {
+  const { playground, reloadNonce = 0 } = props;
+  const key = `${playground.id}:${playground.status}:${playground.vitePort ?? 'none'}:${reloadNonce}`;
+  return <LivePreviewInner key={key} {...props} />;
+}
+
+function LivePreviewInner({ playground, mode }: LivePreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const bridgeRef = useRef<PlaygroundBridge | null>(null);
+
   // Mirror of the parent `mode` prop so bridge callbacks always read the
-  // latest value without forcing a bridge re-creation on every mode flip.
+  // latest value without forcing bridge re-creation on every mode flip.
   const modeRef = useRef<IframeMode>(mode);
   modeRef.current = mode;
 
-  // Has the picker runtime inside the iframe handshaked yet? Used to
-  // swap pin-mode between the old coordinate-overlay fallback (works
-  // with pre-M3 sandbox images) and the picker-driven flow. Flipped by
-  // the bridge's `onReady` handler.
+  // Picks are stamped with the playground HEAD at pick time. Props
+  // change when a change-request commit lands; the ref lets the bridge
+  // handlers keep picking up the right sha without being recreated.
+  const headCommitShaRef = useRef<string | undefined>(playground.headCommitSha);
+  headCommitShaRef.current = playground.headCommitSha;
+
+  // Has the picker runtime inside the iframe handshaked yet? Gates both
+  // (a) sending mode commands — no point posting to a runtime that
+  // isn't listening — and (b) the pin-mode fallback overlay below.
   const [bridgeReady, setBridgeReady] = useState(false);
 
   const { vitePort, status, id: playgroundId, headCommitSha } = playground;
-
-  // Bump iframe key whenever port changes (new resume) OR the parent
-  // asks for a reload. Both paths go through React's normal remount.
-  const iframeKey = `${playgroundId}:${vitePort ?? 'none'}:${reloadNonce}`;
 
   const allPins = usePinStore((s) => s.pins);
   const editingPinId = usePinStore((s) => s.editingPinId);
@@ -90,109 +104,92 @@ export function LivePreview({
     (s) => s.setLastPickedElement,
   );
 
-  // Load this playground's pin history on mount / playground switch.
+  // Load this playground's pin history on mount.
   useEffect(() => {
     loadForPlayground(playgroundId);
   }, [playgroundId, loadForPlayground]);
 
-  // ─── Bridge lifecycle ─────────────────────────────────────────────
+  // ─── Bridge creation ──────────────────────────────────────────────
   //
-  // One bridge per (playground, vitePort, reloadNonce) tuple. Disposing
-  // on cleanup guarantees the nonce rotates with the iframe. Handlers
-  // capture the current `playgroundId`/`headCommitSha` so pinned events
-  // get stamped with the right commit.
+  // Created synchronously via `useState` lazy init so `src` below can
+  // read `bridge.buildIframeSrc(...)` on the very first render. Any
+  // later change to the input tuple (port, status, reloadNonce) goes
+  // through the outer component's `key` prop, which unmounts this
+  // inner and re-invokes the init — with the new inputs — on remount.
+  // StrictMode double-invoke is fine because the useEffect cleanup
+  // below disposes the first bridge before the second init fires.
 
-  useEffect(() => {
-    if (!vitePort || status !== 'active') {
-      return;
-    }
-
-    const handleReady = (msg: BridgeReady) => {
-      setBridgeReady(true);
-      setCurrentRoute(msg.route);
-      const iframe = iframeRef.current;
-      if (iframe) bridge.setMode(iframe, modeRef.current);
-    };
-
-    const handlePicked = (msg: BridgePicked) => {
-      const m = modeRef.current;
-      if (m === 'pin') {
-        // Drop a pin at the picked element's bbox centroid. The bbox is
-        // viewport-relative from the iframe — which is exactly what the
-        // overlay-relative pin coordinates expect, since the iframe
-        // fills the same container. Fast-follow clicks that land while
-        // the pin textarea is open still create pins; if users ask for
-        // the old "one-shot" behavior we can flip back to view here.
-        const x = Math.round(msg.bbox.x + msg.bbox.width / 2);
-        const y = Math.round(msg.bbox.y + msg.bbox.height / 2);
-        addPin({
-          playgroundId,
-          x,
-          y,
-          commitSha: headCommitSha,
-          route: msg.route,
-          element: msg.element,
-        });
-      } else if (m === 'pick') {
-        setLastPickedElement(msg.element);
-      }
-    };
-
-    const handleRoute = (msg: BridgeRoute) => {
-      setCurrentRoute(msg.route);
-    };
-
-    const bridge = createPlaygroundBridge(
+  const [bridge] = useState<PlaygroundBridge | null>(() => {
+    if (!vitePort || status !== 'active') return null;
+    return createPlaygroundBridge(
       {
-        onReady: handleReady,
-        onPicked: handlePicked,
-        onRoute: handleRoute,
+        onReady: (msg) => {
+          setBridgeReady(true);
+          setCurrentRoute(msg.route);
+        },
+        onPicked: (msg) => {
+          const m = modeRef.current;
+          if (m === 'pin') {
+            // bbox is viewport-relative from the iframe, which matches
+            // the overlay-relative coordinate space the pin store uses
+            // (the iframe fills the container). Centroid lands a marker
+            // in the middle of the picked element.
+            const x = Math.round(msg.bbox.x + msg.bbox.width / 2);
+            const y = Math.round(msg.bbox.y + msg.bbox.height / 2);
+            addPin({
+              playgroundId,
+              x,
+              y,
+              commitSha: headCommitShaRef.current,
+              route: msg.route,
+              element: msg.element,
+            });
+          } else if (m === 'pick') {
+            setLastPickedElement(msg.element);
+          }
+        },
+        onRoute: (msg) => setCurrentRoute(msg.route),
         onError: (m) =>
           console.warn('[playground] runtime error', m.message, m.stack),
       },
       { debug: false },
     );
-    bridgeRef.current = bridge;
+  });
 
+  // Dispose the bridge on unmount. Runs only when this inner component
+  // unmounts — which, because of the outer key, is exactly when the
+  // bridge-affecting inputs change.
+  useEffect(() => {
+    if (!bridge) return;
     return () => {
       bridge.dispose();
-      bridgeRef.current = null;
-      setBridgeReady(false);
     };
-  }, [
-    playgroundId,
-    vitePort,
-    status,
-    reloadNonce,
-    headCommitSha,
-    addPin,
-    setCurrentRoute,
-    setLastPickedElement,
-  ]);
+  }, [bridge]);
 
-  // Propagate parent mode → child picker. When ready hasn't fired yet,
-  // the ready handler will flush `modeRef.current` on arrival, so we
-  // don't queue anything here.
+  // Propagate parent mode → child picker. Fires once when the child
+  // becomes ready (since `bridgeReady` flips then) and again on every
+  // subsequent user-driven mode change. The child ignores no-op flips.
   useEffect(() => {
-    const bridge = bridgeRef.current;
+    if (!bridge || !bridgeReady) return;
     const iframe = iframeRef.current;
-    if (!bridge || !iframe || !bridge.isReady) return;
-    bridge.setMode(iframe, mode);
-  }, [mode]);
+    if (iframe) bridge.setMode(iframe, mode);
+  }, [mode, bridge, bridgeReady]);
 
-  // Compose iframe src with handshake query. Bridge identity tracks
-  // `iframeKey`, so re-deriving src whenever that changes is correct.
+  // Compose iframe src with handshake query. Bridge is guaranteed to be
+  // non-null here when vitePort + status are ready, because both go
+  // through the `useState` init — and the outer key forces a remount
+  // when they change, so this memo always tracks the live bridge.
   const src = useMemo(() => {
-    if (!vitePort) return null;
+    if (!vitePort || !bridge) return null;
     const raw = `http://127.0.0.1:${vitePort}/`;
-    const bridge = bridgeRef.current;
-    return bridge ? bridge.buildIframeSrc(raw) : raw;
-  }, [vitePort, iframeKey]);
+    return bridge.buildIframeSrc(raw);
+  }, [vitePort, bridge]);
 
-  // Scope + route-filter pins for the rendered overlay.
-  // Pins without a route pre-date M3 route tracking and always show,
-  // so the user isn't surprised by a regression when the bridge rolls
-  // out. Pins with a route only show on that route.
+  // Scope + route-filter pins for the rendered overlay. Pins without a
+  // route pre-date M3 route tracking and always show. Pins with a
+  // route only show on that route; while currentRoute is still null
+  // (pre-handshake) we show everything to avoid a blank pin layer on
+  // legacy sandbox images.
   const pins = useMemo(
     () =>
       allPins.filter((p) => {
@@ -214,10 +211,10 @@ export function LivePreview({
     }
   };
 
-  // Legacy coord-only pin fallback. Fires only when the picker runtime
-  // hasn't handshaked yet — e.g. viewing an old sandbox image that was
-  // built before M3. Once the bridge is ready the overlay is removed
-  // and the picker inside the iframe owns pin-mode clicks.
+  // Legacy coord-only pin fallback — fires only when the picker runtime
+  // hasn't handshaked yet (pre-M3 sandbox image, or handshake lost).
+  // Once the bridge is ready the overlay is removed and the picker
+  // inside the iframe owns pin-mode clicks.
   const handleFallbackOverlayClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (mode !== 'pin') return;
     const target = e.target as HTMLElement;
@@ -288,7 +285,6 @@ export function LivePreview({
   return (
     <div style={wrapperStyle}>
       <iframe
-        key={iframeKey}
         ref={iframeRef}
         src={src}
         title={`playground-${playgroundId}`}
@@ -306,9 +302,10 @@ export function LivePreview({
         />
       )}
       {/* Pin markers live above the iframe directly — the overlay is
-          absent in pin mode so the picker catches clicks inside the
-          iframe. Marker pointerEvents remain auto so the parent still
-          handles edit / delete interactions with existing pins. */}
+          absent in pin mode (when the bridge is ready) so the picker
+          catches clicks inside the iframe. Marker pointerEvents remain
+          auto so the parent still handles edit / delete interactions
+          with existing pins. */}
       {mode === 'pin' && (
         <div style={pinLayerStyle}>
           {pins.map((pin, idx) => (
@@ -374,8 +371,6 @@ function PinMarker({
 }) {
   const resolved = !!pin.resolvedAt;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  // Label prefers the picker's own label; falls back to displayName /
-  // testId / selector in the priority order baked into the runtime.
   const identityLabel =
     pin.element?.label ??
     pin.element?.displayName ??
