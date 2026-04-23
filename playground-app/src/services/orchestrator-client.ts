@@ -423,6 +423,26 @@ export async function revertPlaygroundCommit(
   return data.playground;
 }
 
+/**
+ * Restore to a checkpoint — reverts every commit after `sha` in a
+ * single "Restore to <short>" commit. Non-destructive: history is
+ * preserved so the user can go back.
+ */
+export async function restorePlaygroundToSha(
+  id: string,
+  sha: string,
+): Promise<Playground> {
+  const data = await playgroundJson<{ playground: Playground }>(
+    `/api/playground/${encodeURIComponent(id)}/restore-to-sha`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sha }),
+    },
+  );
+  return data.playground;
+}
+
 export async function promotePlayground(
   id: string,
   opts: { dryRun?: boolean } = {},

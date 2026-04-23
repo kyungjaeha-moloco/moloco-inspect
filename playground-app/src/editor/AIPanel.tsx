@@ -22,6 +22,7 @@ import {
   changeRequestDiffUrl,
   getPlayground,
   checkoutPlaygroundCommit,
+  restorePlaygroundToSha,
   OrchestratorError,
   type ChangeRequestEvent,
   type RawPlan,
@@ -252,6 +253,40 @@ export const AIPanel = React.memo(function AIPanel() {
     },
     [playgroundId, mergeCurrent, setError],
   );
+
+  const handleRestoreToSha = useCallback(
+    async (sha: string, labelHint?: string) => {
+      if (!playgroundId) return;
+      const label = labelHint ?? `체크포인트 ${sha.slice(0, 7)}`;
+      const ok = window.confirm(
+        `"${label}" 로 되돌릴까요?\n\n이 체크포인트 이후의 변경은 Restore 커밋으로 되돌려집니다 (히스토리는 유지됩니다).`,
+      );
+      if (!ok) return;
+      try {
+        const pg = await restorePlaygroundToSha(playgroundId, sha);
+        mergeCurrent(pg);
+      } catch (err) {
+        console.error('[AIPanel] restore-to-sha failed', err);
+        setError(err instanceof Error ? err.message : 'Restore 실패');
+      }
+    },
+    [playgroundId, mergeCurrent, setError],
+  );
+
+  // Checkpoint numbering: scan messages in order and assign a sequential
+  // index (1-based) to each execution that produced a real commit. A
+  // map keyed by messageId keeps the lookup O(1) from MessageRow.
+  const checkpointByMessageId = useMemo(() => {
+    const out: Record<string, number> = {};
+    let n = 0;
+    for (const m of messages) {
+      if (m.execution?.commitSha) {
+        n += 1;
+        out[m.id] = n;
+      }
+    }
+    return out;
+  }, [messages]);
 
   const sendPrompt = useCallback(async (rawText: string) => {
     const trimmed = rawText.trim();
@@ -524,6 +559,7 @@ export const AIPanel = React.memo(function AIPanel() {
                 activeSha={activeSha}
                 onChoice={handleChoice}
                 isSending={isSending}
+                checkpointNumber={checkpointByMessageId[m.id]}
                 onTogglePlanItem={(itemId) => togglePlanItem(m.id, itemId)}
                 onAcceptPlan={() => {
                   resolvePlan(m.id, 'accepted');
@@ -531,6 +567,7 @@ export const AIPanel = React.memo(function AIPanel() {
                 }}
                 onRejectPlan={() => resolvePlan(m.id, 'rejected')}
                 onCheckoutCommit={handleCheckoutCommit}
+                onRestoreToSha={handleRestoreToSha}
               />
             ))}
             {isSending && <TypingIndicator />}
@@ -1307,19 +1344,23 @@ function MessageRow({
   activeSha,
   onChoice,
   isSending,
+  checkpointNumber,
   onTogglePlanItem,
   onAcceptPlan,
   onRejectPlan,
   onCheckoutCommit,
+  onRestoreToSha,
 }: {
   message: ChatMessage;
   activeSha: string | null;
   onChoice: (text: string) => void;
   isSending: boolean;
+  checkpointNumber?: number;
   onTogglePlanItem: (itemId: string) => void;
   onAcceptPlan: () => void;
   onRejectPlan: () => void;
   onCheckoutCommit: (sha: string) => void;
+  onRestoreToSha: (sha: string, labelHint?: string) => void;
 }) {
   const isUser = message.role === 'user';
   const parsed = useMemo(
@@ -1363,7 +1404,9 @@ function MessageRow({
         <ExecutionCard
           execution={message.execution}
           activeSha={activeSha}
+          checkpointNumber={checkpointNumber}
           onCheckoutCommit={onCheckoutCommit}
+          onRestoreToSha={onRestoreToSha}
         />
       )}
     </div>
@@ -1888,11 +1931,15 @@ const PHASE_ORDER = [
 function ExecutionCard({
   execution,
   activeSha,
+  checkpointNumber,
   onCheckoutCommit,
+  onRestoreToSha,
 }: {
   execution: ExecutionState;
   activeSha: string | null;
+  checkpointNumber?: number;
   onCheckoutCommit: (sha: string) => void;
+  onRestoreToSha: (sha: string, labelHint?: string) => void;
 }) {
   const done =
     execution.phase === 'preview_ready' ||
@@ -1908,6 +1955,10 @@ function ExecutionCard({
   // Collapsed once the run is either finished or errored — expanded by
   // default while work is in flight so the user can watch progress.
   const [open, setOpen] = useState(!done && !errored);
+  // Inner "Action history" — same default, but decouples from outer
+  // so the user can expand the card to see the checkpoint footer
+  // without re-showing the full phase log once it's all green.
+  const [historyOpen, setHistoryOpen] = useState(!done && !errored);
 
   const phaseLabel = errored
     ? '실행 실패'
@@ -2010,29 +2061,47 @@ function ExecutionCard({
             gap: 8,
           }}
         >
-          <PhaseTimeline
-            execution={execution}
-            done={done}
-            errored={errored}
-          />
-
-          {execution.requestId && (
-            <a
-              href={`http://127.0.0.1:4174/requests/${execution.requestId}`}
-              target="_blank"
-              rel="noreferrer"
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 8px',
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-secondary)',
+              borderRadius: 'var(--radius-sm)',
+              fontFamily: 'inherit',
+              fontSize: 11,
+              fontWeight: 500,
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              width: '100%',
+            }}
+          >
+            <span
+              aria-hidden
               style={{
-                fontSize: 11,
-                fontWeight: 500,
-                color: 'var(--accent-text)',
-                alignSelf: 'flex-start',
-                textDecoration: 'none',
-                padding: '4px 0',
+                color: 'var(--text-tertiary)',
+                transform: historyOpen ? 'rotate(90deg)' : 'none',
+                transition: 'transform 120ms ease',
+                display: 'inline-block',
               }}
-              onClick={(e) => e.stopPropagation()}
             >
-              대시보드에서 자세히 보기 →
-            </a>
+              ▸
+            </span>
+            <span>Action history</span>
+          </button>
+          {historyOpen && (
+            <div style={{ padding: '4px 4px 0' }}>
+              <PhaseTimeline
+                execution={execution}
+                done={done}
+                errored={errored}
+              />
+            </div>
           )}
 
           {execution.error && (
@@ -2089,52 +2158,59 @@ function ExecutionCard({
         </div>
       )}
 
-      {(canRewind || isCurrent) && execution.commitSha && (
-        <div
-          style={{
-            padding: '8px 12px',
-            borderTop: '1px solid var(--border-secondary)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8,
-          }}
-        >
-          <span
-            style={{
-              fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-              fontSize: 10,
-              color: 'var(--text-tertiary)',
-            }}
-          >
-            {execution.commitSha.slice(0, 7)}
-          </span>
-          {isCurrent ? (
-            <span
-              style={{
-                fontSize: 11,
-                color: 'var(--accent)',
-                fontWeight: 600,
-              }}
-            >
-              🔄 현재 이 시점
+      {execution.commitSha && (
+        <div style={checkpointFooterStyle}>
+          <span style={checkpointBadgeStyle}>
+            <span aria-hidden style={{ marginRight: 4 }}>
+              ⚑
             </span>
-          ) : (
+            {checkpointNumber != null
+              ? `체크포인트 ${checkpointNumber}`
+              : 'Checkpoint'}
+          </span>
+          <code style={checkpointShaStyle}>
+            {execution.commitSha.slice(0, 7)}
+          </code>
+          <div style={{ flex: 1 }} />
+          {isCurrent ? (
+            <span style={checkpointCurrentBadgeStyle}>현재 시점</span>
+          ) : canRewind ? (
             <button
+              type="button"
               onClick={() => onCheckoutCommit(execution.commitSha!)}
-              style={{
-                padding: '4px 10px',
-                fontSize: 11,
-                border: '1px solid var(--border-primary)',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-primary)',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-                fontWeight: 500,
-              }}
-              title="샌드박스를 이 커밋으로 checkout합니다. 새 요청은 최신으로 돌아온 뒤 가능."
+              style={checkpointGhostButtonStyle}
+              title="이 체크포인트를 미리 봅니다 (복원 아님)"
             >
-              📍 이 시점으로 돌아가기
+              보기
+            </button>
+          ) : null}
+          {execution.requestId && (
+            <a
+              href={`http://127.0.0.1:4174/requests/${execution.requestId}`}
+              target="_blank"
+              rel="noreferrer"
+              style={checkpointGhostLinkStyle}
+              title="대시보드에서 이 요청의 변경 내역 상세"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View changes ↗
+            </a>
+          )}
+          {done && !errored && !isCurrent && (
+            <button
+              type="button"
+              onClick={() =>
+                onRestoreToSha(
+                  execution.commitSha!,
+                  checkpointNumber != null
+                    ? `체크포인트 ${checkpointNumber}`
+                    : undefined,
+                )
+              }
+              style={checkpointRestoreButtonStyle}
+              title="이 체크포인트 이후의 변경을 되돌립니다 (히스토리는 유지됨)"
+            >
+              ↺ Restore
             </button>
           )}
         </div>
@@ -2142,6 +2218,77 @@ function ExecutionCard({
     </div>
   );
 }
+
+const checkpointFooterStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '8px 12px',
+  borderTop: '1px solid var(--border-secondary)',
+  background: 'var(--bg-primary)',
+  borderBottomLeftRadius: 10,
+  borderBottomRightRadius: 10,
+};
+
+const checkpointBadgeStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: 'var(--text-secondary)',
+  display: 'inline-flex',
+  alignItems: 'center',
+};
+
+const checkpointShaStyle: React.CSSProperties = {
+  fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+  fontSize: 10,
+  color: 'var(--text-tertiary)',
+  padding: '1px 6px',
+  background: 'var(--bg-elevated)',
+  border: '1px solid var(--border-secondary)',
+  borderRadius: 4,
+};
+
+const checkpointCurrentBadgeStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: 'var(--success)',
+  fontWeight: 600,
+  padding: '2px 8px',
+  background: 'var(--success-light)',
+  borderRadius: 999,
+};
+
+const checkpointGhostButtonStyle: React.CSSProperties = {
+  padding: '4px 10px',
+  fontSize: 11,
+  fontWeight: 500,
+  border: '1px solid var(--border-primary)',
+  borderRadius: 'var(--radius-sm)',
+  background: 'var(--bg-elevated)',
+  color: 'var(--text-primary)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+};
+
+const checkpointGhostLinkStyle: React.CSSProperties = {
+  padding: '4px 10px',
+  fontSize: 11,
+  fontWeight: 500,
+  color: 'var(--text-secondary)',
+  textDecoration: 'none',
+  borderRadius: 'var(--radius-sm)',
+};
+
+const checkpointRestoreButtonStyle: React.CSSProperties = {
+  padding: '4px 10px',
+  fontSize: 11,
+  fontWeight: 600,
+  border: '1px solid var(--border-primary)',
+  borderRadius: 'var(--radius-sm)',
+  background: 'var(--bg-elevated)',
+  color: 'var(--text-primary)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+};
 
 // ── Phase Timeline (vertical sandbox log view) ──────────────────────
 

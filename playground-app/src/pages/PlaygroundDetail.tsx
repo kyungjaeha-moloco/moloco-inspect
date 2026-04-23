@@ -15,7 +15,7 @@
  * outside the scrollable chat.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 const AIPANEL_WIDTH_STORAGE_KEY = 'playground-app.aipanel-width';
@@ -31,7 +31,6 @@ import {
 } from '../services/orchestrator-client';
 import {
   usePlaygroundStore,
-  type ChatMessage,
   type IframeMode,
 } from '../store/playground-store';
 import { LivePreview } from '../editor/LivePreview';
@@ -48,7 +47,6 @@ export function PlaygroundDetail() {
   const { id } = useParams<{ id: string }>();
   const current = usePlaygroundStore((s) => s.current);
   const mode = usePlaygroundStore((s) => s.mode);
-  const messages = usePlaygroundStore((s) => s.messages);
   const setCurrent = usePlaygroundStore((s) => s.setCurrent);
   const mergeCurrent = usePlaygroundStore((s) => s.mergeCurrent);
   const setMode = usePlaygroundStore((s) => s.setMode);
@@ -96,21 +94,6 @@ export function PlaygroundDetail() {
     }
   };
 
-  // Tabs the user has explicitly dismissed. Stored in a Set and scoped
-  // to this playground (cleared on `reset()` via unmount). The underlying
-  // commit still exists — this only removes the tab from the bar.
-  const [hiddenShas, setHiddenShas] = useState<Set<string>>(() => new Set());
-  const tabs = useMemo(
-    () => buildCommitTabs(messages, hiddenShas),
-    [messages, hiddenShas],
-  );
-  const handleCloseTab = (sha: string) => {
-    setHiddenShas((prev) => {
-      const next = new Set(prev);
-      next.add(sha);
-      return next;
-    });
-  };
 
   const [leftPaneWidth, setLeftPaneWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return AIPANEL_WIDTH_DEFAULT;
@@ -249,13 +232,11 @@ export function PlaygroundDetail() {
         </div>
         <main style={rightPaneStyle}>
           <CommitTabBar
-            tabs={tabs}
             baselineSha={current.baselineCommitSha}
             headSha={current.headCommitSha}
             checkedOutSha={current.checkedOutSha}
             onSelectSha={handleCheckoutSha}
             onSelectLatest={handleRestoreHead}
-            onCloseTab={handleCloseTab}
           />
           <ModeToolbar mode={mode} onChange={setMode} onReload={handleReload} />
           <div style={previewAreaStyle}>
@@ -706,106 +687,41 @@ function ModeToolbar({ mode, onChange, onReload }: ModeToolbarProps) {
 
 // ── Commit Tab Bar ───────────────────────────────────────────────────
 
-interface CommitTab {
-  sha: string;
-  label: string;
-}
-
-/**
- * Derive one tab per successful execution from the chat transcript.
- * `label` defaults to the preceding user prompt (first line, trimmed)
- * because that's what caused the change — when no user message is
- * available (agent-initiated, or legacy state) we fall back to the
- * intent from the plan meta, then to a short sha prefix.
- */
-function buildCommitTabs(
-  messages: ChatMessage[],
-  hidden: Set<string>,
-): CommitTab[] {
-  const out: CommitTab[] = [];
-  const seenShas = new Set<string>();
-  for (let i = 0; i < messages.length; i++) {
-    const m = messages[i];
-    const sha = m.execution?.commitSha;
-    if (!sha || seenShas.has(sha) || hidden.has(sha)) continue;
-    seenShas.add(sha);
-
-    // Walk backwards for the nearest preceding user prompt.
-    let label = '';
-    for (let j = i - 1; j >= 0; j--) {
-      const prev = messages[j];
-      if (prev.role === 'user') {
-        label = prev.content.split('\n')[0].trim();
-        break;
-      }
-    }
-    if (!label && m.plan?.meta?.intent) label = m.plan.meta.intent;
-    if (!label) label = sha.slice(0, 7);
-
-    const trimmed = label.length > 28 ? label.slice(0, 27) + '…' : label;
-    out.push({ sha, label: trimmed });
-  }
-  return out;
-}
-
 interface CommitTabBarProps {
-  tabs: CommitTab[];
   baselineSha?: string;
   headSha?: string;
   checkedOutSha?: string;
   onSelectSha: (sha: string) => void;
   onSelectLatest: () => void;
-  onCloseTab: (sha: string) => void;
 }
 
 function CommitTabBar({
-  tabs,
   baselineSha,
   headSha,
   checkedOutSha,
   onSelectSha,
   onSelectLatest,
-  onCloseTab,
 }: CommitTabBarProps) {
   const activeIsLatest = !checkedOutSha;
   const activeSha = checkedOutSha ?? null;
-  // Hide Baseline only when it's identical to HEAD (no commits yet) —
-  // Latest alone is enough in that case. Otherwise Baseline is a real
-  // time-travel target.
+  // Hide Baseline only when it's identical to HEAD (no commits yet).
+  // Intermediate checkpoints now live inline in the chat (see
+  // ExecutionCard → Checkpoint footer), so the tab bar stays a compact
+  // "원본 ↔ 현재" toggle rather than a growing strip.
   const showBaseline = !!baselineSha && baselineSha !== headSha;
 
   return (
     <div style={tabBarStyle} className="ui-scroll">
       {showBaseline && (
         <TabPill
-          label="Baseline"
+          label="원본"
           icon="●"
           active={activeSha === baselineSha}
           onClick={() => onSelectSha(baselineSha!)}
         />
       )}
-      {tabs.map((t) => (
-        <TabPill
-          key={t.sha}
-          label={t.label}
-          icon={
-            <code
-              style={{
-                fontFamily: 'ui-monospace, monospace',
-                fontSize: 10,
-                color: 'var(--text-tertiary)',
-              }}
-            >
-              {t.sha.slice(0, 7)}
-            </code>
-          }
-          active={activeSha === t.sha}
-          onClick={() => onSelectSha(t.sha)}
-          onClose={() => onCloseTab(t.sha)}
-        />
-      ))}
       <TabPill
-        label="Latest"
+        label="현재"
         icon="●"
         iconColor="var(--success)"
         active={activeIsLatest}

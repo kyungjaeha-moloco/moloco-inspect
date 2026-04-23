@@ -490,6 +490,48 @@ export async function restorePlaygroundHead(id) {
 }
 
 /**
+ * Restore to a checkpoint — create revert commits for every commit
+ * after `sha` so the tree matches that checkpoint's state, while
+ * preserving full history (no destructive reset). Writes a single
+ * "Restore to <shortsha>" commit on top. Updates `headCommitSha`.
+ */
+export async function restoreToSha(id, sha) {
+  const pg = getPlayground(id);
+  if (!pg) throw new Error(`playground not found: ${id}`);
+  if (pg.status !== 'active') throw new Error(`playground not active: ${pg.status}`);
+  if (pg.checkedOutSha) throw new Error('restore head before restoring to a checkpoint');
+  if (!sha || !/^[0-9a-f]{7,40}$/i.test(sha)) throw new Error('invalid sha');
+
+  // Guard: already at that sha → nothing to do.
+  const { stdout: headOut } = await execAsync(
+    `docker exec ${pg.sandboxContainerName} sh -c "cd /workspace/msm-portal && git rev-parse HEAD"`,
+    { timeout: 5_000 },
+  );
+  const currentHead = headOut.trim();
+  if (currentHead === sha || currentHead.startsWith(sha)) {
+    return pg;
+  }
+
+  // `git revert <sha>..HEAD --no-commit` stages the inverse of every
+  // commit after `sha`, then we seal it with one commit so the log
+  // gets a single "Restore" marker instead of N noisy revert commits.
+  await execAsync(
+    `docker exec ${pg.sandboxContainerName} sh -c "cd /workspace/msm-portal && git revert --no-commit ${sha}..HEAD && git commit --no-verify -m 'Restore to ${sha.slice(0, 8)}'"`,
+    { timeout: 30_000 },
+  );
+  const { stdout: newHead } = await execAsync(
+    `docker exec ${pg.sandboxContainerName} sh -c "cd /workspace/msm-portal && git rev-parse HEAD"`,
+    { timeout: 5_000 },
+  );
+  pg.headCommitSha = newHead.trim();
+  pg.updatedAt = nowMs();
+  pg.lastActivityAt = nowMs();
+  persist(pg);
+  console.log(`[playground] ${id} restored to ${sha.slice(0, 8)} → ${pg.headCommitSha.slice(0, 8)}`);
+  return pg;
+}
+
+/**
  * Revert a specific commit by creating a new revert commit. Updates
  * `headCommitSha` to the new revert commit sha.
  */

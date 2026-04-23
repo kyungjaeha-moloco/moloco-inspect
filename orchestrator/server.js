@@ -38,7 +38,7 @@ import {
   listPlaygrounds, getPlayground, createPlayground,
   hibernatePlayground, resumePlayground, archivePlayground,
   updatePlaygroundHead, serializePlayground,
-  checkoutCommit, restorePlaygroundHead, revertCommit, promotePlayground,
+  checkoutCommit, restorePlaygroundHead, revertCommit, restoreToSha, promotePlayground,
   reattachOnStartup,
 } from './lib/playground.js';
 import { enqueue as enqueueJob, QueueFullError, queueDepth } from './lib/playground-queue.js';
@@ -2549,7 +2549,7 @@ Generate 2 variations (v2, v3).`;
   }
 
   const pgMatch = pathname.match(
-    /^\/api\/playground\/([a-zA-Z0-9_-]+)(?:\/(resume|hibernate|archive|checkout|restore-head|revert|promote))?$/,
+    /^\/api\/playground\/([a-zA-Z0-9_-]+)(?:\/(resume|hibernate|archive|checkout|restore-head|restore-to-sha|revert|promote))?$/,
   );
   if (pgMatch) {
     const [, pgId, action] = pgMatch;
@@ -2570,6 +2570,10 @@ Generate 2 variations (v2, v3).`;
           updated = await checkoutCommit(pgId, body?.sha);
         }
         else if (action === 'restore-head') updated = await restorePlaygroundHead(pgId);
+        else if (action === 'restore-to-sha') {
+          const body = await parseBody(req);
+          updated = await restoreToSha(pgId, body?.sha);
+        }
         else if (action === 'revert') {
           const body = await parseBody(req);
           updated = await revertCommit(pgId, body?.sha);
