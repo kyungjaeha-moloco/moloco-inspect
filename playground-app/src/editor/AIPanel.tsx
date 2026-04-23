@@ -1300,9 +1300,16 @@ function MessageRow({
     [message.content, isUser],
   );
 
+  // When an ExecutionCard is attached the placeholder content
+  // ("샌드박스에서 실행 시작…") becomes stale the moment the run
+  // advances past that phase — the card itself shows live status, so
+  // rendering both makes finished runs look hung. Skip the text bubble
+  // whenever the message carries an execution.
+  const showContent = !!message.content && !message.execution;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {message.content && (
+      {showContent && (
         isUser ? (
           <UserBubble content={message.content} />
         ) : (

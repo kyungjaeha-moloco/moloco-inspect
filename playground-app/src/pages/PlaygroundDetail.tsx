@@ -15,8 +15,13 @@
  * outside the scrollable chat.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+
+const AIPANEL_WIDTH_STORAGE_KEY = 'playground-app.aipanel-width';
+const AIPANEL_WIDTH_MIN = 280;
+const AIPANEL_WIDTH_MAX = 720;
+const AIPANEL_WIDTH_DEFAULT = 360;
 import {
   getPlayground,
   promotePlayground,
@@ -78,6 +83,52 @@ export function PlaygroundDetail() {
     }
   };
 
+  const [leftPaneWidth, setLeftPaneWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return AIPANEL_WIDTH_DEFAULT;
+    const raw = window.localStorage.getItem(AIPANEL_WIDTH_STORAGE_KEY);
+    const parsed = raw ? parseInt(raw, 10) : NaN;
+    if (!Number.isFinite(parsed)) return AIPANEL_WIDTH_DEFAULT;
+    return Math.min(AIPANEL_WIDTH_MAX, Math.max(AIPANEL_WIDTH_MIN, parsed));
+  });
+  const draggingRef = useRef(false);
+
+  const handleResizeStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    draggingRef.current = true;
+    const root = document.body;
+    const prevCursor = root.style.cursor;
+    const prevSelect = root.style.userSelect;
+    root.style.cursor = 'col-resize';
+    root.style.userSelect = 'none';
+
+    const onMove = (ev: PointerEvent) => {
+      if (!draggingRef.current) return;
+      const next = Math.min(
+        AIPANEL_WIDTH_MAX,
+        Math.max(AIPANEL_WIDTH_MIN, ev.clientX),
+      );
+      setLeftPaneWidth(next);
+    };
+    const onUp = () => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      root.style.cursor = prevCursor;
+      root.style.userSelect = prevSelect;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      AIPANEL_WIDTH_STORAGE_KEY,
+      String(leftPaneWidth),
+    );
+  }, [leftPaneWidth]);
+
   const [promote, setPromote] = useState<PromoteStage>({ kind: 'idle' });
 
   const handlePromoteOpen = () =>
@@ -123,9 +174,18 @@ export function PlaygroundDetail() {
         />
       )}
       <div style={twoPaneStyle}>
-        <aside style={leftPaneStyle}>
+        <aside style={{ ...leftPaneStyle, width: leftPaneWidth }}>
           <AIPanel />
         </aside>
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="AIPanel 너비 조절"
+          onPointerDown={handleResizeStart}
+          style={resizerStyle}
+        >
+          <div style={resizerGripStyle} aria-hidden />
+        </div>
         <main style={rightPaneStyle}>
           <ModeToolbar mode={mode} onChange={setMode} onReload={handleReload} />
           <div style={previewAreaStyle}>
@@ -621,12 +681,30 @@ const twoPaneStyle: React.CSSProperties = {
 };
 
 const leftPaneStyle: React.CSSProperties = {
-  width: 320,
-  borderRight: '1px solid var(--border-primary)',
+  flex: '0 0 auto',
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
   background: 'var(--bg-primary)',
+};
+
+const resizerStyle: React.CSSProperties = {
+  flex: '0 0 auto',
+  width: 6,
+  cursor: 'col-resize',
+  background: 'var(--border-primary)',
+  position: 'relative',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const resizerGripStyle: React.CSSProperties = {
+  width: 2,
+  height: 28,
+  borderRadius: 1,
+  background: 'var(--text-tertiary)',
+  opacity: 0.4,
 };
 
 const rightPaneStyle: React.CSSProperties = {
