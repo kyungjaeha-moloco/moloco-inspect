@@ -732,7 +732,7 @@ function CommitTabBar({
         />
       )}
       <TabPill
-        label="현재"
+        label="작업중"
         icon="●"
         iconColor="var(--success)"
         active={activeIsLatest}

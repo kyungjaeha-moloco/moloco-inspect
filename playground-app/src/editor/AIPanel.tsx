@@ -608,7 +608,7 @@ export const AIPanel = React.memo(function AIPanel() {
                     <span style={{ flex: 1, minWidth: 0 }}>
                       과거 시점 미리보기 중 — 새 요청은{' '}
                       <strong style={{ color: 'var(--text-primary)' }}>
-                        Latest
+                        작업중
                       </strong>{' '}
                       탭에서 가능합니다
                     </span>
@@ -2170,7 +2170,7 @@ function ExecutionCard({
           </code>
           <div style={{ flex: 1 }} />
           {isCurrent ? (
-            <span style={checkpointCurrentBadgeStyle}>현재 시점</span>
+            <span style={checkpointCurrentBadgeStyle}>작업중</span>
           ) : canRewind ? (
             <button
               type="button"
