@@ -1914,20 +1914,17 @@ function PlanCard({
 
 const PHASE_LABELS: Record<string, string> = {
   queued: '대기',
+  starting_agent: '에이전트 시작',
   syncing_source: '소스 동기화',
   running_agent: 'AI 실행',
+  collecting_diff: '변경 수집',
   capturing_screenshot: '스크린샷 캡처',
+  applying_local_patch: '패치 적용',
   preview_ready: '완료',
+  no_change_needed: '변경 불필요',
+  pipeline_error: '파이프라인 오류',
   error: '오류',
 };
-const PHASE_ORDER = [
-  'queued',
-  'syncing_source',
-  'running_agent',
-  'capturing_screenshot',
-  'preview_ready',
-];
-
 function ExecutionCard({
   execution,
   activeSha,
@@ -2221,9 +2218,11 @@ function ExecutionCard({
 
 const checkpointFooterStyle: React.CSSProperties = {
   display: 'flex',
+  flexWrap: 'wrap',
   alignItems: 'center',
-  gap: 8,
-  padding: '8px 12px',
+  gap: 6,
+  rowGap: 4,
+  padding: '8px 10px',
   borderTop: '1px solid var(--border-secondary)',
   background: 'var(--bg-primary)',
   borderBottomLeftRadius: 10,
@@ -2236,6 +2235,8 @@ const checkpointBadgeStyle: React.CSSProperties = {
   color: 'var(--text-secondary)',
   display: 'inline-flex',
   alignItems: 'center',
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
 };
 
 const checkpointShaStyle: React.CSSProperties = {
@@ -2246,6 +2247,8 @@ const checkpointShaStyle: React.CSSProperties = {
   background: 'var(--bg-elevated)',
   border: '1px solid var(--border-secondary)',
   borderRadius: 4,
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
 };
 
 const checkpointCurrentBadgeStyle: React.CSSProperties = {
@@ -2255,6 +2258,8 @@ const checkpointCurrentBadgeStyle: React.CSSProperties = {
   padding: '2px 8px',
   background: 'var(--success-light)',
   borderRadius: 999,
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
 };
 
 const checkpointGhostButtonStyle: React.CSSProperties = {
@@ -2267,15 +2272,19 @@ const checkpointGhostButtonStyle: React.CSSProperties = {
   color: 'var(--text-primary)',
   cursor: 'pointer',
   fontFamily: 'inherit',
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
 };
 
 const checkpointGhostLinkStyle: React.CSSProperties = {
-  padding: '4px 10px',
+  padding: '4px 8px',
   fontSize: 11,
   fontWeight: 500,
   color: 'var(--text-secondary)',
   textDecoration: 'none',
   borderRadius: 'var(--radius-sm)',
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
 };
 
 const checkpointRestoreButtonStyle: React.CSSProperties = {
@@ -2288,6 +2297,8 @@ const checkpointRestoreButtonStyle: React.CSSProperties = {
   color: 'var(--text-primary)',
   cursor: 'pointer',
   fontFamily: 'inherit',
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
 };
 
 // ── Phase Timeline (vertical sandbox log view) ──────────────────────
@@ -2301,43 +2312,44 @@ function PhaseTimeline({
   done: boolean;
   errored: boolean;
 }) {
-  // Show every canonical phase, but also any phase the server reported
-  // that isn't in PHASE_ORDER (e.g. `no_change_needed`) — appended at
-  // the end so users always see the final beat even when it's a
-  // non-standard termination.
-  const rows = [
-    ...PHASE_ORDER,
-    ...execution.phasesSeen.filter((p) => !PHASE_ORDER.includes(p)),
-  ];
+  // Render exactly what the server reported, in arrival order. No
+  // hardcoded "expected" future phases — agents choose different
+  // pipelines (`starting_agent` → `collecting_diff` vs `syncing_source`
+  // → `running_agent` → `capturing_screenshot` etc.) and showing
+  // pre-baked greyed-out steps for a pipeline that isn't running is
+  // misleading. The current phase lands at the end when it hasn't
+  // joined `phasesSeen` yet (the server emits it via a separate field
+  // and flushes on phase transitions).
+  const rows: string[] = [...execution.phasesSeen];
   if (execution.phase && !rows.includes(execution.phase)) {
     rows.push(execution.phase);
   }
+  if (rows.length === 0) rows.push('queued');
 
   return (
     <ol style={timelineListStyle}>
       {rows.map((p, i) => {
-        const seen = execution.phasesSeen.includes(p);
-        const current = execution.phase === p && !done && !errored;
+        const isCurrent = execution.phase === p && !done && !errored;
         const isLast = i === rows.length - 1;
-        const state: 'done' | 'current' | 'pending' | 'error' = errored && current
+        const state: 'done' | 'current' | 'error' = errored && isCurrent
           ? 'error'
-          : current
+          : isCurrent
             ? 'current'
-            : seen
-              ? 'done'
-              : 'pending';
+            : 'done';
 
         return (
-          <li key={p} style={timelineRowStyle}>
+          <li key={`${p}-${i}`} style={timelineRowStyle}>
             <div style={timelineMarkerColumnStyle}>
               <PhaseMarker state={state} />
               {!isLast && (
                 <div
                   style={{
                     ...timelineConnectorStyle,
-                    background: seen
+                    background: state === 'done'
                       ? 'var(--success)'
-                      : 'var(--border-primary)',
+                      : state === 'error'
+                        ? 'var(--error)'
+                        : 'var(--accent)',
                   }}
                 />
               )}
@@ -2348,14 +2360,12 @@ function PhaseTimeline({
                   fontSize: 12,
                   fontWeight: state === 'current' ? 600 : 500,
                   color:
-                    state === 'pending'
-                      ? 'var(--text-tertiary)'
-                      : state === 'error'
-                        ? 'var(--error)'
-                        : 'var(--text-primary)',
+                    state === 'error'
+                      ? 'var(--error)'
+                      : 'var(--text-primary)',
                 }}
               >
-                {PHASE_LABELS[p] ?? p}
+                {PHASE_LABELS[p] ?? humanizePhase(p)}
               </div>
               {state === 'current' && execution.latestLog && (
                 <div style={timelineLogStyle}>{execution.latestLog}</div>
@@ -2369,6 +2379,12 @@ function PhaseTimeline({
       })}
     </ol>
   );
+}
+
+/** Lightweight humanizer for server-side phase names we don't have a
+ *  Korean label for. Turns `starting_agent` → `starting agent`. */
+function humanizePhase(raw: string): string {
+  return raw.replace(/_/g, ' ');
 }
 
 function PhaseMarker({ state }: { state: 'done' | 'current' | 'pending' | 'error' }) {
