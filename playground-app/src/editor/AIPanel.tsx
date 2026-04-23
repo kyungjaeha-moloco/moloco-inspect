@@ -67,6 +67,8 @@ export const AIPanel = React.memo(function AIPanel() {
     togglePlanItem,
     resolvePlan,
     mergeCurrent,
+    iframeMode,
+    setIframeMode,
   } = usePlaygroundStore(
     useShallow((s) => ({
       messages: s.messages,
@@ -87,6 +89,8 @@ export const AIPanel = React.memo(function AIPanel() {
       togglePlanItem: s.togglePlanItem,
       resolvePlan: s.resolvePlan,
       mergeCurrent: s.mergeCurrent,
+      iframeMode: s.mode,
+      setIframeMode: s.setMode,
     })),
   );
 
@@ -249,8 +253,8 @@ export const AIPanel = React.memo(function AIPanel() {
     [playgroundId, mergeCurrent, setError],
   );
 
-  const handleSend = useCallback(async () => {
-    const trimmed = input.trim();
+  const sendPrompt = useCallback(async (rawText: string) => {
+    const trimmed = rawText.trim();
     if (!trimmed || isSending) return;
 
     epochRef.current += 1;
@@ -258,7 +262,6 @@ export const AIPanel = React.memo(function AIPanel() {
     const sentPlaygroundId = playgroundId;
 
     setError(null);
-    setInput('');
 
     // Prefix the outbound message with the picked element's identifier
     // bundle when present. Keeps the agent honest about *which* element
@@ -315,7 +318,6 @@ export const AIPanel = React.memo(function AIPanel() {
       if (isStillActive()) setSending(false);
     }
   }, [
-    input,
     isSending,
     playgroundId,
     setSending,
@@ -326,8 +328,48 @@ export const AIPanel = React.memo(function AIPanel() {
     setLastPickedElement,
   ]);
 
+  const handleSend = useCallback(() => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    setInput('');
+    void sendPrompt(trimmed);
+  }, [input, sendPrompt]);
+
+  const handleChoice = useCallback(
+    (text: string) => {
+      if (!text || isSending) return;
+      void sendPrompt(text);
+    },
+    [sendPrompt, isSending],
+  );
+
+  const pickActive = iframeMode === 'pick';
   const toolbarButtons: InputAreaToolbarButton[] = useMemo(
     () => [
+      {
+        id: 'pick',
+        title: pickActive
+          ? '요소 선택 모드 끄기 (View로 복귀)'
+          : '요소 선택 — 화면 위 요소 클릭해서 컨텍스트 첨부',
+        active: pickActive,
+        onClick: () => setIframeMode(pickActive ? 'interactive' : 'pick'),
+        icon: (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M11 3a8 8 0 108 8" />
+            <circle cx="11" cy="11" r="3" />
+            <path d="M21 21l-4.3-4.3" />
+          </svg>
+        ),
+      },
       {
         id: 'attach',
         title: '첨부 (곧 지원)',
@@ -339,7 +381,7 @@ export const AIPanel = React.memo(function AIPanel() {
         ),
       },
     ],
-    [],
+    [pickActive, setIframeMode],
   );
 
   const isEmpty = messages.length === 0;
@@ -480,6 +522,8 @@ export const AIPanel = React.memo(function AIPanel() {
                 key={m.id}
                 message={m}
                 activeSha={activeSha}
+                onChoice={handleChoice}
+                isSending={isSending}
                 onTogglePlanItem={(itemId) => togglePlanItem(m.id, itemId)}
                 onAcceptPlan={() => {
                   resolvePlan(m.id, 'accepted');
@@ -1234,6 +1278,8 @@ function EmptyState() {
 function MessageRow({
   message,
   activeSha,
+  onChoice,
+  isSending,
   onTogglePlanItem,
   onAcceptPlan,
   onRejectPlan,
@@ -1241,39 +1287,33 @@ function MessageRow({
 }: {
   message: ChatMessage;
   activeSha: string | null;
+  onChoice: (text: string) => void;
+  isSending: boolean;
   onTogglePlanItem: (itemId: string) => void;
   onAcceptPlan: () => void;
   onRejectPlan: () => void;
   onCheckoutCommit: (sha: string) => void;
 }) {
-  const roleLabel = message.role === 'user' ? 'You' : 'Moloco';
+  const isUser = message.role === 'user';
+  const parsed = useMemo(
+    () => (message.content && !isUser ? parseAssistantContent(message.content) : null),
+    [message.content, isUser],
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div
-          style={{
-            fontSize: 13,
-            fontWeight: 700,
-            color: 'var(--text-primary)',
-            letterSpacing: '-0.01em',
-          }}
-        >
-          {roleLabel}
-        </div>
-        {message.content && (
-          <div
-            style={{
-              fontSize: 14,
-              lineHeight: 1.55,
-              color: 'var(--text-primary)',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}
-          >
-            {message.content}
-          </div>
-        )}
-      </div>
+      {message.content && (
+        isUser ? (
+          <UserBubble content={message.content} />
+        ) : (
+          <AssistantBubble
+            parsed={parsed}
+            fallbackContent={message.content}
+            onChoice={onChoice}
+            isSending={isSending}
+          />
+        )
+      )}
 
       {message.plan && (
         <PlanCard
@@ -1295,6 +1335,311 @@ function MessageRow({
     </div>
   );
 }
+
+// ── Chat bubbles + markdown + choice parser ─────────────────────────
+
+interface ParsedChoice {
+  /** The raw label sent back to the agent when clicked. */
+  value: string;
+  /** Letter or number marker e.g. 'a', 'b', '1'. */
+  marker: string;
+  /** Description text that followed the bold label, or empty. */
+  description: string;
+}
+
+interface ParsedAssistantContent {
+  lead: string;
+  choices: ParsedChoice[];
+  tail: string;
+}
+
+/**
+ * Extract a block of (a)/(b)/(c) or 1./2./3. style choices from an
+ * assistant message. A choice is recognized as a line matching one of:
+ *   - `(a) **Label** — description`
+ *   - `a) **Label** — description`
+ *   - `1. **Label** — description`
+ * A choice block requires at least 2 such lines (possibly separated by
+ * blank lines) appearing consecutively. Text before/after is returned
+ * as `lead`/`tail` so the prose context survives.
+ */
+function parseAssistantContent(content: string): ParsedAssistantContent {
+  const lines = content.split('\n');
+  const CHOICE_RE =
+    /^\s*\(?([a-zA-Z]|\d+)\)?\s*[.\)]\s*\*\*([^*]+)\*\*\s*(?:[—\-:]\s*)?(.*)$/;
+  const matches: Array<{ idx: number; marker: string; label: string; desc: string }> = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = CHOICE_RE.exec(lines[i]);
+    if (m) {
+      matches.push({ idx: i, marker: m[1].toLowerCase(), label: m[2].trim(), desc: m[3].trim() });
+    }
+  }
+
+  // Find the longest consecutive run (allowing blank-line gaps of 1)
+  if (matches.length < 2) {
+    return { lead: content, choices: [], tail: '' };
+  }
+  let bestStart = 0;
+  let bestEnd = 0;
+  let curStart = 0;
+  let curEnd = 0;
+  for (let i = 1; i < matches.length; i++) {
+    const gap = matches[i].idx - matches[i - 1].idx;
+    // Allow up to 2 blank/non-choice lines between — agents often insert them.
+    if (gap <= 3) {
+      curEnd = i;
+    } else {
+      if (curEnd - curStart > bestEnd - bestStart) {
+        bestStart = curStart;
+        bestEnd = curEnd;
+      }
+      curStart = i;
+      curEnd = i;
+    }
+  }
+  if (curEnd - curStart > bestEnd - bestStart) {
+    bestStart = curStart;
+    bestEnd = curEnd;
+  }
+  if (bestEnd - bestStart < 1) {
+    return { lead: content, choices: [], tail: '' };
+  }
+
+  const block = matches.slice(bestStart, bestEnd + 1);
+  const firstLine = block[0].idx;
+  const lastLine = block[block.length - 1].idx;
+  const lead = lines.slice(0, firstLine).join('\n').trim();
+  const tail = lines.slice(lastLine + 1).join('\n').trim();
+  const choices: ParsedChoice[] = block.map((b) => ({
+    value: b.label,
+    marker: b.marker,
+    description: b.desc,
+  }));
+  return { lead, choices, tail };
+}
+
+/**
+ * Render a minimal markdown subset: `**bold**`, `` `code` ``, and line breaks.
+ * Avoids pulling in a full markdown library — assistant replies in this app
+ * are short conversational prose, not full documents.
+ */
+function renderInlineMarkdown(text: string): React.ReactNode {
+  const lines = text.split('\n');
+  return lines.map((line, li) => (
+    <React.Fragment key={li}>
+      {renderInlineSegments(line)}
+      {li < lines.length - 1 && <br />}
+    </React.Fragment>
+  ));
+}
+
+function renderInlineSegments(line: string): React.ReactNode[] {
+  // Tokenize on **bold** and `code` in a single pass. Greedy enough for
+  // short assistant replies; not a full CommonMark parser.
+  const parts: React.ReactNode[] = [];
+  const re = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = re.exec(line)) !== null) {
+    if (match.index > lastIdx) {
+      parts.push(line.slice(lastIdx, match.index));
+    }
+    const token = match[0];
+    if (token.startsWith('**')) {
+      parts.push(
+        <strong key={`b${key++}`} style={{ fontWeight: 600 }}>
+          {token.slice(2, -2)}
+        </strong>,
+      );
+    } else {
+      parts.push(
+        <code
+          key={`c${key++}`}
+          style={{
+            fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+            fontSize: '0.88em',
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border-secondary)',
+            padding: '0 4px',
+            borderRadius: 4,
+          }}
+        >
+          {token.slice(1, -1)}
+        </code>,
+      );
+    }
+    lastIdx = match.index + token.length;
+  }
+  if (lastIdx < line.length) parts.push(line.slice(lastIdx));
+  return parts;
+}
+
+function UserBubble({ content }: { content: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div
+        style={{
+          maxWidth: '85%',
+          background: 'var(--msg-user-bg)',
+          color: 'var(--msg-user-text)',
+          padding: '9px 13px',
+          borderRadius: '14px 14px 3px 14px',
+          fontSize: 13,
+          lineHeight: 1.55,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
+        {content}
+      </div>
+    </div>
+  );
+}
+
+function AssistantBubble({
+  parsed,
+  fallbackContent,
+  onChoice,
+  isSending,
+}: {
+  parsed: ParsedAssistantContent | null;
+  fallbackContent: string;
+  onChoice: (text: string) => void;
+  isSending: boolean;
+}) {
+  const lead = parsed?.lead ?? fallbackContent;
+  const choices = parsed?.choices ?? [];
+  const tail = parsed?.tail ?? '';
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+      <div
+        aria-hidden
+        style={{
+          flex: '0 0 auto',
+          width: 24,
+          height: 24,
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #b9ceff 0%, #4f86ff 100%)',
+          color: '#ffffff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 12,
+          marginTop: 2,
+        }}
+      >
+        ◎
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {lead && (
+          <div style={assistantTextStyle}>{renderInlineMarkdown(lead)}</div>
+        )}
+        {choices.length > 0 && (
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: 'var(--text-tertiary)',
+                marginBottom: 2,
+              }}
+            >
+              옵션 선택
+            </div>
+            {choices.map((c) => (
+              <button
+                key={c.marker + c.value}
+                type="button"
+                onClick={() => onChoice(c.value)}
+                disabled={isSending}
+                style={choiceButtonStyle(isSending)}
+              >
+                <span style={choiceMarkerStyle}>
+                  {c.marker.toUpperCase()}
+                </span>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {c.value}
+                  </span>
+                  {c.description && (
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      {renderInlineMarkdown(c.description)}
+                    </span>
+                  )}
+                </span>
+                <span
+                  aria-hidden
+                  style={{ color: 'var(--text-tertiary)', fontSize: 13, flexShrink: 0 }}
+                >
+                  →
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        {tail && (
+          <div style={{ ...assistantTextStyle, marginTop: 10 }}>
+            {renderInlineMarkdown(tail)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const assistantTextStyle: React.CSSProperties = {
+  fontSize: 13,
+  lineHeight: 1.6,
+  color: 'var(--text-primary)',
+  wordBreak: 'break-word',
+};
+
+function choiceButtonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 10,
+    width: '100%',
+    padding: '10px 12px',
+    textAlign: 'left',
+    background: 'var(--bg-elevated)',
+    border: '1px solid var(--border-primary)',
+    borderRadius: 'var(--radius-md)',
+    color: 'var(--text-primary)',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.55 : 1,
+    fontFamily: 'inherit',
+    fontSize: 13,
+    transition: 'border-color 120ms ease, background 120ms ease',
+  };
+}
+
+const choiceMarkerStyle: React.CSSProperties = {
+  flex: '0 0 auto',
+  width: 24,
+  height: 24,
+  borderRadius: '50%',
+  background: 'var(--chip-bg)',
+  border: '1px solid var(--chip-border)',
+  color: 'var(--chip-text)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 11,
+  fontWeight: 700,
+  marginTop: 1,
+};
 
 function PlanCard({
   plan,
