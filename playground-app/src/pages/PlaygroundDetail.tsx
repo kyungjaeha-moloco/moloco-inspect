@@ -15,7 +15,7 @@
  * outside the scrollable chat.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 const AIPANEL_WIDTH_STORAGE_KEY = 'playground-app.aipanel-width';
@@ -90,36 +90,74 @@ export function PlaygroundDetail() {
     if (!Number.isFinite(parsed)) return AIPANEL_WIDTH_DEFAULT;
     return Math.min(AIPANEL_WIDTH_MAX, Math.max(AIPANEL_WIDTH_MIN, parsed));
   });
-  const draggingRef = useRef(false);
+  const handleResizeStart = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const handle = e.currentTarget;
+      const pointerId = e.pointerId;
 
-  const handleResizeStart = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    draggingRef.current = true;
-    const root = document.body;
-    const prevCursor = root.style.cursor;
-    const prevSelect = root.style.userSelect;
-    root.style.cursor = 'col-resize';
-    root.style.userSelect = 'none';
+      // Pointer capture keeps move events flowing to this element even
+      // when the cursor drifts over the sandboxed iframe (which lives
+      // in its own cross-origin context and would otherwise swallow
+      // the pointermove stream, making the drag look like it "released"
+      // mid-way).
+      try {
+        handle.setPointerCapture(pointerId);
+      } catch {
+        // setPointerCapture throws if the browser already released the
+        // pointer — nothing to recover here, fall through.
+      }
 
-    const onMove = (ev: PointerEvent) => {
-      if (!draggingRef.current) return;
-      const next = Math.min(
-        AIPANEL_WIDTH_MAX,
-        Math.max(AIPANEL_WIDTH_MIN, ev.clientX),
-      );
-      setLeftPaneWidth(next);
-    };
-    const onUp = () => {
-      if (!draggingRef.current) return;
-      draggingRef.current = false;
-      root.style.cursor = prevCursor;
-      root.style.userSelect = prevSelect;
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-  }, []);
+      const prevCursor = document.body.style.cursor;
+      const prevSelect = document.body.style.userSelect;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+
+      // Coalesce pointer moves into a single rAF-scheduled state update.
+      // Without this, pulling the handle quickly fires dozens of
+      // setState calls per frame and the whole 2-pane layout re-renders
+      // on every one — which is what looked like "버벅임".
+      let pendingX = 0;
+      let rafId: number | null = null;
+      const flush = () => {
+        rafId = null;
+        const next = Math.min(
+          AIPANEL_WIDTH_MAX,
+          Math.max(AIPANEL_WIDTH_MIN, pendingX),
+        );
+        setLeftPaneWidth(next);
+      };
+
+      const onMove = (ev: PointerEvent) => {
+        pendingX = ev.clientX;
+        if (rafId == null) rafId = requestAnimationFrame(flush);
+      };
+
+      const finish = () => {
+        handle.removeEventListener('pointermove', onMove);
+        handle.removeEventListener('pointerup', finish);
+        handle.removeEventListener('pointercancel', finish);
+        if (rafId != null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        document.body.style.cursor = prevCursor;
+        document.body.style.userSelect = prevSelect;
+        try {
+          if (handle.hasPointerCapture(pointerId)) {
+            handle.releasePointerCapture(pointerId);
+          }
+        } catch {
+          // already released
+        }
+      };
+
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', finish);
+      handle.addEventListener('pointercancel', finish);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
