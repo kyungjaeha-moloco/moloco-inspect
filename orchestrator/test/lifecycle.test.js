@@ -310,6 +310,91 @@ describe('Playground lifecycle', () => {
     },
   );
 
+  // ─── Scenario 8 — dry-run promote extracts + applies patches locally ─
+
+  test(
+    '8. promote(dryRun) extracts patches and applies them to host clone',
+    { timeout: TEST_TIMEOUT_MS },
+    async () => {
+      const pg = await createTestPlayground('promote');
+      createdPlaygroundIds.add(pg.id);
+
+      const container = pg.sandboxContainerName;
+      // One deterministic commit so format-patch produces exactly one file.
+      await dockerExec(
+        container,
+        `cd /workspace/msm-portal && echo '// promote-${pg.id}' >> README.md && git add -A && git commit --no-verify -m 'promote-test ${pg.id}'`,
+      );
+
+      const result = await postJson(`/api/playground/${pg.id}/promote`, {
+        dryRun: true,
+      });
+
+      assert.ok(result.ok, 'response.ok should be true');
+      assert.equal(result.dryRun, true, 'dryRun flag should round-trip');
+      assert.ok(
+        Array.isArray(result.patches) && result.patches.length >= 1,
+        `expected at least 1 patch, got ${result.patches?.length}`,
+      );
+      assert.ok(
+        Array.isArray(result.applied) && result.applied.length === result.patches.length,
+        `expected all patches applied cleanly — got applied=${result.applied?.length}/${result.patches?.length} skipped=${result.skipped?.length}`,
+      );
+      assert.equal(
+        result.skipped?.length ?? 0,
+        0,
+        `expected no skipped patches, got ${JSON.stringify(result.skipped)}`,
+      );
+      assert.equal(result.prUrl, undefined, 'dryRun should not produce a PR');
+      assert.match(
+        result.branch,
+        new RegExp(`^playground-${pg.id}-\\d{8}-\\d{4}$`),
+        `branch name should match playground-<id>-<YYYYMMDD-HHmm>, got ${result.branch}`,
+      );
+
+      // Verify the branch exists locally in host msm-portal, then clean up.
+      const hostRepo = process.env.SOURCE_WORKSPACE_ROOT
+        ? `${process.env.SOURCE_WORKSPACE_ROOT}/msm-portal`
+        : '/Users/kyungjae.ha/Documents/Agent-Design-System/msm-portal';
+      const branches = await execFileAsync(
+        'git',
+        ['branch', '--list', result.branch],
+        { cwd: hostRepo, timeout: 10_000 },
+      );
+      assert.ok(
+        branches.stdout.includes(result.branch),
+        `branch ${result.branch} should exist in ${hostRepo}; got: ${branches.stdout}`,
+      );
+      try {
+        // Leave main as the active branch so we don't strand the test on
+        // a promote branch that's about to be deleted.
+        await execFileAsync('git', ['checkout', '-q', 'main'], {
+          cwd: hostRepo,
+          timeout: 10_000,
+        });
+        await execFileAsync('git', ['branch', '-D', result.branch], {
+          cwd: hostRepo,
+          timeout: 10_000,
+        });
+      } catch (err) {
+        console.warn(`[lifecycle] promote cleanup warning: ${err.message}`);
+      }
+
+      // Playground metadata should reflect the promote on the server side.
+      const fresh = await getJson(`/api/playground/${pg.id}`);
+      assert.equal(
+        fresh.playground?.promotedBranch,
+        result.branch,
+        'playground.promotedBranch should persist',
+      );
+      assert.equal(
+        fresh.playground?.promotedPrUrl,
+        undefined,
+        'dry-run should not persist a promotedPrUrl',
+      );
+    },
+  );
+
   // ─── TODO: scenarios 2, 3, 4 (require live agent) ────────────────────
   //
   // 2. Three sequential change-requests → commits land, HEAD advances
