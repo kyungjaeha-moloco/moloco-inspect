@@ -67,6 +67,10 @@
     <input type="text" id="serverUrl" placeholder="http://localhost:3847" />
     <div class="settings-hint">Orchestrator server address</div>
 
+    <label>내 이름</label>
+    <input type="text" id="userName" placeholder="예: kyungjae" />
+    <div class="settings-hint">플레이그라운드 생성 시 누가 만들었는지 리스트에 표시됩니다.</div>
+
     <label>Project Path</label>
     <input type="text" id="projectRoot" placeholder="/Users/you/project" />
     <div class="settings-hint">Path where request files will be saved in Native mode</div>
@@ -100,6 +104,26 @@
       <a class="settings-link" href="#" id="openDashboard">Open Ops Dashboard</a>
       <a class="settings-link" href="#" id="openDesignSystem">Design System Docs</a>
     </div>
+  </div>
+
+  <!-- Playground selector (M4) ─────────────────────────────
+       Pick an existing active playground to route change-requests to,
+       or create a new one right from the extension. Selection is
+       persisted in chrome.storage.local.selectedPlaygroundId and
+       injected into /api/change-request calls by background.js. -->
+  <div class="playground-card" id="playgroundCard">
+    <div class="playground-header">
+      <span class="element-card-label">Playground</span>
+      <div class="playground-header-actions">
+        <button class="playground-icon-btn" id="playgroundRefreshBtn" title="목록 새로고침">⟳</button>
+        <button class="playground-icon-btn" id="playgroundOpenBtn" title="브라우저에서 열기" disabled>↗</button>
+      </div>
+    </div>
+    <select id="playgroundSelect" class="playground-select">
+      <option value="">Stateless (no playground)</option>
+    </select>
+    <div class="playground-meta" id="playgroundMeta"></div>
+    <button type="button" class="playground-new-btn" id="playgroundNewBtn">+ New playground</button>
   </div>
 
   <!-- Selected element card (hidden by default) -->

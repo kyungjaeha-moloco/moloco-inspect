@@ -558,9 +558,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const config = await getConfig();
       if (config.mode === 'http') {
         try {
-          const result = await sendHttp('/api/change-request', msg.payload);
+          // M4: when the user has picked a playground in the sidepanel,
+          // route the request into that playground's queue. The payload
+          // shape otherwise matches the pre-M4 stateless path — the
+          // orchestrator's /api/change-request handler branches on the
+          // presence of `playgroundId`.
+          const { selectedPlaygroundId } = await new Promise((resolve) =>
+            chrome.storage.local.get(['selectedPlaygroundId'], resolve),
+          );
+          const payload = selectedPlaygroundId
+            ? { ...msg.payload, playgroundId: selectedPlaygroundId }
+            : msg.payload;
+          const result = await sendHttp('/api/change-request', payload);
           setIconState('sent');
-          sendResponse({ ok: true, requestId: result.id, mode: 'http' });
+          sendResponse({
+            ok: true,
+            requestId: result.id,
+            mode: 'http',
+            playgroundId: selectedPlaygroundId || null,
+          });
         } catch (e) {
           sendResponse({ ok: false, error: e.message });
         }

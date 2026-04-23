@@ -1550,10 +1550,12 @@
   }
 
   // ─── Settings ───────────────────────────────────────────────────────
-  chrome.storage.local.get(['projectRoot', 'serverUrl', 'mode'], (result) => {
+  const userNameInput = document.getElementById('userName');
+  chrome.storage.local.get(['projectRoot', 'serverUrl', 'mode', 'userName'], (result) => {
     if (result.projectRoot) projectRootInput.value = result.projectRoot;
     if (serverUrlInput && result.serverUrl) serverUrlInput.value = result.serverUrl;
     if (modeSelect && result.mode) modeSelect.value = result.mode;
+    if (userNameInput && result.userName) userNameInput.value = result.userName;
   });
 
   settingsBtn.addEventListener('click', () => {
@@ -1625,6 +1627,169 @@
       chrome.runtime.sendMessage({ type: 'set-mode', mode: value });
     });
   }
+
+  if (userNameInput) {
+    userNameInput.addEventListener('change', () => {
+      chrome.storage.local.set({ userName: userNameInput.value.trim() });
+    });
+  }
+
+  // ─── Playground selector (M4) ───────────────────────────────────────
+  // Lets the user pick which playground /api/change-request writes to,
+  // or spin up a fresh one without leaving the extension. Selection is
+  // persisted in chrome.storage.local.selectedPlaygroundId; background.js
+  // reads it and injects `playgroundId` into the change-request payload.
+  //
+  // UI is intentionally small — one select + "new" + "open in browser"
+  // + a refresh glyph. No inline list of requests yet; that's Step B.
+  const playgroundSelect = document.getElementById('playgroundSelect');
+  const playgroundMeta = document.getElementById('playgroundMeta');
+  const playgroundNewBtn = document.getElementById('playgroundNewBtn');
+  const playgroundRefreshBtn = document.getElementById('playgroundRefreshBtn');
+  const playgroundOpenBtn = document.getElementById('playgroundOpenBtn');
+
+  // Playground-app dev server URL. Keeps the sidepanel honest about
+  // where "open in browser" actually points — could become a setting
+  // later if someone runs playground-app on a non-default port.
+  const PLAYGROUND_APP_URL = 'http://localhost:4180';
+  // Shared projectId for ext-created playgrounds. Consistent tag lets
+  // teammates filter later; per-tab derivation is not worth it at MVP.
+  const EXT_PROJECT_ID = 'chrome-ext';
+
+  /** Format a playground option label — `title · by kyungjae · 2h`. */
+  function labelPlayground(pg) {
+    const parts = [pg.title];
+    if (pg.createdBy) parts.push(`by ${pg.createdBy}`);
+    const diff = Date.now() - (pg.createdAt || 0);
+    const min = Math.round(diff / 60_000);
+    const rel =
+      diff < 45_000 ? 'now' :
+      min < 60 ? `${min}m` :
+      min < 1440 ? `${Math.round(min / 60)}h` :
+      `${Math.round(min / 1440)}d`;
+    parts.push(rel);
+    return parts.join(' · ');
+  }
+
+  async function loadPlaygrounds() {
+    if (!playgroundSelect) return;
+    const baseUrl = await getServerUrl();
+    let pgs = [];
+    try {
+      const res = await fetch(`${baseUrl}/api/playground?status=active`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        pgs = Array.isArray(data.playgrounds) ? data.playgrounds : [];
+      }
+    } catch (err) {
+      console.warn('[Moloco Inspect] loadPlaygrounds failed:', err);
+    }
+
+    const { selectedPlaygroundId } = await new Promise((resolve) =>
+      chrome.storage.local.get(['selectedPlaygroundId'], resolve),
+    );
+
+    // Repaint <select>. "Stateless" always first; then active playgrounds.
+    playgroundSelect.innerHTML = '';
+    const stateless = document.createElement('option');
+    stateless.value = '';
+    stateless.textContent = 'Stateless (no playground)';
+    playgroundSelect.appendChild(stateless);
+    for (const pg of pgs) {
+      const opt = document.createElement('option');
+      opt.value = pg.id;
+      opt.textContent = labelPlayground(pg);
+      opt.dataset.client = pg.client || '';
+      playgroundSelect.appendChild(opt);
+    }
+
+    // Restore last selection if still present. Silently downgrade to
+    // stateless if the playground was archived/removed between sessions.
+    const stillExists = pgs.some((p) => p.id === selectedPlaygroundId);
+    playgroundSelect.value = stillExists ? selectedPlaygroundId : '';
+    updatePlaygroundMeta();
+  }
+
+  function updatePlaygroundMeta() {
+    if (!playgroundSelect || !playgroundMeta || !playgroundOpenBtn) return;
+    const id = playgroundSelect.value;
+    if (!id) {
+      playgroundMeta.textContent = 'No playground selected — change-requests run stateless.';
+      playgroundOpenBtn.disabled = true;
+      return;
+    }
+    const opt = playgroundSelect.options[playgroundSelect.selectedIndex];
+    const client = opt?.dataset?.client ? ` · client=${opt.dataset.client}` : '';
+    playgroundMeta.textContent = `${id}${client}`;
+    playgroundOpenBtn.disabled = false;
+  }
+
+  if (playgroundSelect) {
+    playgroundSelect.addEventListener('change', () => {
+      chrome.storage.local.set({
+        selectedPlaygroundId: playgroundSelect.value || null,
+      });
+      updatePlaygroundMeta();
+    });
+  }
+
+  if (playgroundRefreshBtn) {
+    playgroundRefreshBtn.addEventListener('click', () => loadPlaygrounds());
+  }
+
+  if (playgroundOpenBtn) {
+    playgroundOpenBtn.addEventListener('click', () => {
+      const id = playgroundSelect?.value;
+      if (!id) return;
+      chrome.runtime.sendMessage({
+        type: 'inspect-open-url',
+        url: `${PLAYGROUND_APP_URL}/p/${id}`,
+      });
+    });
+  }
+
+  if (playgroundNewBtn) {
+    playgroundNewBtn.addEventListener('click', async () => {
+      const title = window.prompt('새 Playground 제목');
+      if (!title || !title.trim()) return;
+      const { userName } = await new Promise((resolve) =>
+        chrome.storage.local.get(['userName'], resolve),
+      );
+      const baseUrl = await getServerUrl();
+      try {
+        const res = await fetch(`${baseUrl}/api/playground`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: EXT_PROJECT_ID,
+            title: title.trim(),
+            createdBy: (userName || '').trim() || undefined,
+          }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (!res.ok) {
+          const err = await res.text().catch(() => '');
+          throw new Error(`HTTP ${res.status} ${err}`);
+        }
+        const data = await res.json();
+        const newId = data?.playground?.id;
+        if (newId) {
+          chrome.storage.local.set({ selectedPlaygroundId: newId });
+        }
+        await loadPlaygrounds();
+      } catch (err) {
+        console.error('[Moloco Inspect] create playground failed', err);
+        window.alert(`Playground 생성 실패: ${err.message}`);
+      }
+    });
+  }
+
+  // Initial fetch + periodic refresh so newly-created playgrounds from
+  // other surfaces (playground-app) show up without a manual click.
+  loadPlaygrounds();
+  setInterval(loadPlaygrounds, 30_000);
 
   // ─── Element Card ───────────────────────────────────────────────────
   function showElementCard(data, append = false) {
