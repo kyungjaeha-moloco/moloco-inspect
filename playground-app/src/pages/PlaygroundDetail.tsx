@@ -78,7 +78,12 @@ export function PlaygroundDetail() {
     if (!id) return;
     try {
       const pg = await restorePlaygroundHead(id);
-      mergeCurrent(pg);
+      // `setCurrent` (full replace) rather than `mergeCurrent`: the
+      // orchestrator drops `checkedOutSha` from its response when it
+      // clears it, and JSON.stringify strips undefined keys — so a
+      // merge would leave the stale sha in place and the 현재 tab
+      // would never light up.
+      setCurrent(pg);
       // Force iframe reload — the sandboxed app may have drifted to
       // an auth / error route after HMR, and a checkout alone wouldn't
       // navigate it home. Bumping the nonce gives the app a fresh "/"
@@ -93,7 +98,7 @@ export function PlaygroundDetail() {
     if (!id) return;
     try {
       const pg = await checkoutPlaygroundCommit(id, sha);
-      mergeCurrent(pg);
+      setCurrent(pg);
       setReloadNonce((n) => n + 1);
     } catch (err) {
       console.error('[PlaygroundDetail] checkout failed', err);

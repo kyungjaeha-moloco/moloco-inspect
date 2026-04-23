@@ -67,7 +67,7 @@ export const AIPanel = React.memo(function AIPanel() {
     reset,
     togglePlanItem,
     resolvePlan,
-    mergeCurrent,
+    setCurrent,
     iframeMode,
     setIframeMode,
   } = usePlaygroundStore(
@@ -89,7 +89,7 @@ export const AIPanel = React.memo(function AIPanel() {
       reset: s.reset,
       togglePlanItem: s.togglePlanItem,
       resolvePlan: s.resolvePlan,
-      mergeCurrent: s.mergeCurrent,
+      setCurrent: s.setCurrent,
       iframeMode: s.mode,
       setIframeMode: s.setMode,
     })),
@@ -200,7 +200,7 @@ export const AIPanel = React.memo(function AIPanel() {
               getPlayground(sentPlaygroundId)
                 .then((pg) => {
                   if (!isStillActive()) return;
-                  mergeCurrent(pg);
+                  setCurrent(pg);
                   if (pg.headCommitSha) {
                     updateExecution(execMsg.id, { commitSha: pg.headCommitSha });
                   }
@@ -236,7 +236,7 @@ export const AIPanel = React.memo(function AIPanel() {
       addAssistantMessage,
       updateExecution,
       setError,
-      mergeCurrent,
+      setCurrent,
     ],
   );
 
@@ -245,13 +245,13 @@ export const AIPanel = React.memo(function AIPanel() {
       if (!playgroundId) return;
       try {
         const pg = await checkoutPlaygroundCommit(playgroundId, sha);
-        mergeCurrent(pg);
+        setCurrent(pg);
       } catch (err) {
         console.error('[AIPanel] checkout failed', err);
         setError(err instanceof Error ? err.message : '시점 복원 실패');
       }
     },
-    [playgroundId, mergeCurrent, setError],
+    [playgroundId, setCurrent, setError],
   );
 
   const handleRestoreToSha = useCallback(
@@ -264,13 +264,13 @@ export const AIPanel = React.memo(function AIPanel() {
       if (!ok) return;
       try {
         const pg = await restorePlaygroundToSha(playgroundId, sha);
-        mergeCurrent(pg);
+        setCurrent(pg);
       } catch (err) {
         console.error('[AIPanel] restore-to-sha failed', err);
         setError(err instanceof Error ? err.message : 'Restore 실패');
       }
     },
-    [playgroundId, mergeCurrent, setError],
+    [playgroundId, setCurrent, setError],
   );
 
   // Checkpoint numbering: scan messages in order and assign a sequential
