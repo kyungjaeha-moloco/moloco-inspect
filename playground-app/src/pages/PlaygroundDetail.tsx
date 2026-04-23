@@ -769,38 +769,48 @@ function CommitTabBar({
 }: CommitTabBarProps) {
   const activeIsLatest = !checkedOutSha;
   const activeSha = checkedOutSha ?? null;
-  const hasDivergedHead =
-    headSha && baselineSha && headSha !== baselineSha;
+  // Hide Baseline only when it's identical to HEAD (no commits yet) —
+  // Latest alone is enough in that case. Otherwise Baseline is a real
+  // time-travel target.
+  const showBaseline = !!baselineSha && baselineSha !== headSha;
 
   return (
     <div style={tabBarStyle} className="ui-scroll">
-      {baselineSha && (
+      {showBaseline && (
         <TabPill
           label="Baseline"
           icon="●"
           active={activeSha === baselineSha}
-          onClick={() => onSelectSha(baselineSha)}
+          onClick={() => onSelectSha(baselineSha!)}
         />
       )}
       {tabs.map((t) => (
         <TabPill
           key={t.sha}
           label={t.label}
-          icon={<code style={{ fontFamily: 'ui-monospace, monospace', fontSize: 10, color: 'var(--text-tertiary)' }}>{t.sha.slice(0, 7)}</code>}
+          icon={
+            <code
+              style={{
+                fontFamily: 'ui-monospace, monospace',
+                fontSize: 10,
+                color: 'var(--text-tertiary)',
+              }}
+            >
+              {t.sha.slice(0, 7)}
+            </code>
+          }
           active={activeSha === t.sha}
           onClick={() => onSelectSha(t.sha)}
           onClose={() => onCloseTab(t.sha)}
         />
       ))}
-      {hasDivergedHead && (
-        <TabPill
-          label="Latest"
-          icon="●"
-          iconColor="var(--success)"
-          active={activeIsLatest}
-          onClick={onSelectLatest}
-        />
-      )}
+      <TabPill
+        label="Latest"
+        icon="●"
+        iconColor="var(--success)"
+        active={activeIsLatest}
+        onClick={onSelectLatest}
+      />
     </div>
   );
 }
