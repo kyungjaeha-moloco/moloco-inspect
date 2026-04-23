@@ -165,3 +165,9 @@ body {
 .ui-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -273,6 +273,12 @@ export interface Playground {
   updatedAt: number;
   lastActivityAt: number;
   archivedDiffPath?: string;
+  /** ms since epoch of the most recent promote run (any outcome). */
+  promotedAt?: number;
+  /** Branch name pushed to the host `msm-portal` origin on last promote. */
+  promotedBranch?: string;
+  /** GitHub PR URL from last `gh pr create`. Absent on dry-run. */
+  promotedPrUrl?: string;
 }
 
 export interface CreatePlaygroundInput {
@@ -289,10 +295,25 @@ export interface ListPlaygroundsQuery {
   status?: PlaygroundStatus;
 }
 
+export interface PromoteAppliedPatch {
+  file: string;
+  commit: string;
+}
+
+export interface PromoteSkippedPatch {
+  file: string;
+  reason: string;
+}
+
 export interface PromoteResult {
   playground: Playground;
   patches: string[];
   patchesDir: string;
+  branch: string;
+  applied: PromoteAppliedPatch[];
+  skipped: PromoteSkippedPatch[];
+  prUrl?: string;
+  dryRun: boolean;
 }
 
 async function playgroundJson<T extends object>(
@@ -402,15 +423,32 @@ export async function revertPlaygroundCommit(
   return data.playground;
 }
 
-export async function promotePlayground(id: string): Promise<PromoteResult> {
+export async function promotePlayground(
+  id: string,
+  opts: { dryRun?: boolean } = {},
+): Promise<PromoteResult> {
   const data = await playgroundJson<{
     playground: Playground;
     patches: string[];
     patchesDir: string;
-  }>(`/api/playground/${encodeURIComponent(id)}/promote`, { method: 'POST' });
+    branch: string;
+    applied: PromoteAppliedPatch[];
+    skipped: PromoteSkippedPatch[];
+    prUrl?: string;
+    dryRun: boolean;
+  }>(`/api/playground/${encodeURIComponent(id)}/promote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dryRun: Boolean(opts.dryRun) }),
+  });
   return {
     playground: data.playground,
     patches: data.patches,
     patchesDir: data.patchesDir,
+    branch: data.branch,
+    applied: data.applied,
+    skipped: data.skipped,
+    prUrl: data.prUrl,
+    dryRun: data.dryRun,
   };
 }
