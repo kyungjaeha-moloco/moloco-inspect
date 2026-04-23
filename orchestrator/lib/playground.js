@@ -76,6 +76,15 @@ console.log(`[playground] restored ${playgrounds.size} playgrounds from disk`);
  *   client (playground-app prompt or chrome-extension settings). Purely
  *   informational — surfaced in lists so teammates can tell who kicked
  *   a playground off, but never used as an auth signal.
+ * @property {number | undefined} promotedAt  Wall-clock ms of the last
+ *   successful (or partially successful) promote run.
+ * @property {string | undefined} promotedBranch  Branch pushed to the
+ *   host `msm-portal` origin during the last promote. Kept even when the
+ *   push step was skipped (dry-run) so the UI can still link to the local
+ *   branch if needed.
+ * @property {string | undefined} promotedPrUrl  GitHub PR URL from the
+ *   last `gh pr create`. Absent on dry-run or when all patches were
+ *   skipped.
  */
 
 // ── Persistence ─────────────────────────────────────────────────────
@@ -509,25 +518,56 @@ export async function revertCommit(id, sha) {
 }
 
 /**
- * Promote (M1b skeleton): export `baselineCommitSha..HEAD` as .patch files to
- * `state/playground-promoted/<id>/`. Full host-msm-portal rebase + PR creation
- * is scheduled for M5. Returns `{ patches, dir }`.
+ * Promote (M5): extract `baselineCommitSha..HEAD` as .patch files from the
+ * sandbox, then — on the host `msm-portal` clone — create a fresh branch
+ * off `origin/main`, `git am` each patch in sequence (skipping any that
+ * fail to apply), optionally push to `origin`, and open a PR via `gh`.
+ *
+ * Options:
+ *   - `dryRun`: extract + `git am` locally, but skip `git push` and
+ *     `gh pr create`. Leaves the local branch behind so callers can
+ *     inspect it; cleanup is the test harness's responsibility.
+ *
+ * Returns:
+ *   {
+ *     patches: string[],    // patch filenames extracted from the sandbox
+ *     patchesDir: string,   // absolute path on the host where patches live
+ *     branch: string,       // newly created branch in host msm-portal
+ *     applied: Array<{ file: string, commit: string }>,
+ *     skipped: Array<{ file: string, reason: string }>,
+ *     prUrl?: string,       // present when push + gh pr create succeeded
+ *     dryRun: boolean,
+ *   }
+ *
+ * The playground's `promotedAt`, `promotedBranch`, and (when non-dry-run)
+ * `promotedPrUrl` fields are persisted.
+ *
+ * IMPORTANT: this function writes to a **real** host clone of msm-portal.
+ * Husky hooks are bypassed with `--no-verify`; the push and PR steps land
+ * on `github.com/moloco/msm-portal` unless `dryRun` is set.
  */
-export async function promotePlayground(id) {
+export async function promotePlayground(id, opts = {}) {
+  const { dryRun = false } = opts;
   const pg = getPlayground(id);
   if (!pg) throw new Error(`playground not found: ${id}`);
   if (pg.status !== 'active') throw new Error(`playground not active: ${pg.status}`);
   if (pg.checkedOutSha) throw new Error('restore head before promoting');
+  if (!pg.baselineCommitSha) throw new Error('playground has no baselineCommitSha');
 
+  // ── Step 1: extract patches from the sandbox container ────────────
   const outDir = path.join(
     new URL('../state/playground-promoted/', import.meta.url).pathname,
     id,
   );
   fs.mkdirSync(outDir, { recursive: true });
+  // Wipe any leftovers from a previous promote so the index is clean.
+  for (const f of fs.readdirSync(outDir)) {
+    if (f.endsWith('.patch')) fs.unlinkSync(path.join(outDir, f));
+  }
 
   await execAsync(
     `docker exec ${pg.sandboxContainerName} sh -c "cd /workspace/msm-portal && rm -rf /tmp/pg-promote && mkdir -p /tmp/pg-promote && git format-patch ${pg.baselineCommitSha}..HEAD -o /tmp/pg-promote"`,
-    { timeout: 30_000 },
+    { timeout: 60_000 },
   );
   await execAsync(
     `docker cp ${pg.sandboxContainerName}:/tmp/pg-promote/. ${outDir}/`,
@@ -537,10 +577,182 @@ export async function promotePlayground(id) {
     .readdirSync(outDir)
     .filter((f) => f.endsWith('.patch'))
     .sort();
-  console.log(`[playground] ${id} promoted — ${patches.length} patches → ${outDir}`);
+
+  if (patches.length === 0) {
+    throw new Error(
+      `no patches to promote (baseline ${pg.baselineCommitSha.slice(0, 8)}..HEAD is empty)`,
+    );
+  }
+
+  // ── Step 2: host msm-portal clone — fetch + fresh branch ──────────
+  const hostRepo = path.join(SOURCE_WORKSPACE_ROOT, 'msm-portal');
+  if (!fs.existsSync(path.join(hostRepo, '.git'))) {
+    throw new Error(`host msm-portal not found: ${hostRepo}`);
+  }
+  const stamp = formatBranchStamp(new Date());
+  const branch = `playground-${id}-${stamp}`;
+
+  if (!dryRun) {
+    // Real promote: refresh origin/main so patches stack on the latest
+    // tip. Must succeed — if the host can't reach origin, pushing won't
+    // work either. In dry-run we skip this step and use whatever
+    // `origin/main` ref is already cached locally; this keeps dry-runs
+    // usable on laptops without git auth set up for `moloco/msm-portal`
+    // (e.g. personal `gh` account active vs. SSO account).
+    await execFileAsync('git', ['fetch', 'origin', 'main'], {
+      cwd: hostRepo,
+      timeout: 60_000,
+    });
+  }
+  await execFileAsync('git', ['checkout', '-B', branch, 'origin/main'], {
+    cwd: hostRepo,
+    timeout: 15_000,
+  });
+
+  // ── Step 3: git am each patch, skipping failures ──────────────────
+  // `git am` needs a committer identity even though it preserves the
+  // author from the patch's `From:` header. Inject stable defaults via
+  // `-c user.*` so the host clone works even when no global git identity
+  // is configured on the machine. Author info is untouched so the
+  // resulting PR still credits whoever wrote the sandbox commit.
+  const committerFlags = [
+    '-c',
+    `user.name=Playground (${pg.createdBy || 'unknown'})`,
+    '-c',
+    'user.email=playground@moloco.inspect',
+  ];
+  const applied = [];
+  const skipped = [];
+  for (const file of patches) {
+    const abs = path.join(outDir, file);
+    try {
+      await execFileAsync(
+        'git',
+        [...committerFlags, 'am', '--no-verify', abs],
+        { cwd: hostRepo, timeout: 30_000 },
+      );
+      const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+        cwd: hostRepo,
+        timeout: 5_000,
+      });
+      applied.push({ file, commit: stdout.trim() });
+    } catch (err) {
+      // Abort the half-applied patch so the next one can try clean.
+      await execFileAsync('git', ['am', '--abort'], {
+        cwd: hostRepo,
+        timeout: 10_000,
+      }).catch(() => {});
+      const reason = String(err.stderr || err.message || err).split('\n').slice(0, 3).join(' | ');
+      skipped.push({ file, reason });
+      console.warn(`[playground] promote ${id} skipped ${file}: ${reason}`);
+    }
+  }
+
+  let prUrl;
+  if (applied.length === 0) {
+    console.warn(`[playground] promote ${id} — every patch failed to apply; skipping push/PR`);
+  } else if (!dryRun) {
+    // ── Step 4: push branch ─────────────────────────────────────────
+    await execFileAsync('git', ['push', '--no-verify', '-u', 'origin', branch], {
+      cwd: hostRepo,
+      timeout: 120_000,
+    });
+
+    // ── Step 5: open PR via gh ──────────────────────────────────────
+    const bodyFile = path.join(outDir, 'PR_BODY.md');
+    fs.writeFileSync(bodyFile, buildPrBody(pg, { applied, skipped, branch }), 'utf8');
+    try {
+      const { stdout } = await execFileAsync(
+        'gh',
+        [
+          'pr',
+          'create',
+          '--base',
+          'main',
+          '--head',
+          branch,
+          '--title',
+          `Playground: ${pg.title}`,
+          '--body-file',
+          bodyFile,
+        ],
+        { cwd: hostRepo, timeout: 60_000 },
+      );
+      prUrl = stdout.trim().split('\n').find((l) => l.startsWith('http'))?.trim();
+    } catch (err) {
+      console.warn(`[playground] gh pr create failed for ${id}: ${err.stderr || err.message}`);
+    }
+  }
+
+  // ── Step 6: persist promote metadata ────────────────────────────────
+  pg.promotedAt = nowMs();
+  pg.promotedBranch = branch;
+  if (prUrl) pg.promotedPrUrl = prUrl;
   pg.lastActivityAt = nowMs();
   persist(pg);
-  return { patches, dir: outDir };
+
+  console.log(
+    `[playground] promote ${id} — patches=${patches.length} applied=${applied.length} skipped=${skipped.length} dryRun=${dryRun} branch=${branch}${prUrl ? ` pr=${prUrl}` : ''}`,
+  );
+
+  return {
+    patches,
+    patchesDir: outDir,
+    branch,
+    applied,
+    skipped,
+    prUrl,
+    dryRun,
+  };
+}
+
+/** Build a `YYYYMMDD-HHmm` timestamp suffix for promote branch names. */
+function formatBranchStamp(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return (
+    d.getFullYear().toString() +
+    pad(d.getMonth() + 1) +
+    pad(d.getDate()) +
+    '-' +
+    pad(d.getHours()) +
+    pad(d.getMinutes())
+  );
+}
+
+/** Compose the GitHub PR body for a promote. */
+function buildPrBody(pg, { applied, skipped, branch }) {
+  const lines = [];
+  lines.push(`# Playground: ${pg.title}`);
+  lines.push('');
+  lines.push(`- **Playground id:** \`${pg.id}\``);
+  if (pg.createdBy) lines.push(`- **Created by:** ${pg.createdBy}`);
+  if (pg.prdUrl) lines.push(`- **PRD:** ${pg.prdUrl}`);
+  if (pg.jiraUrl) lines.push(`- **Jira:** ${pg.jiraUrl}`);
+  lines.push(`- **Branch:** \`${branch}\``);
+  lines.push(`- **Local UI:** http://localhost:4180/p/${pg.id}`);
+  lines.push('');
+  lines.push(`## Applied patches (${applied.length})`);
+  if (applied.length === 0) {
+    lines.push('_none_');
+  } else {
+    for (const a of applied) {
+      lines.push(`- \`${a.file}\` → \`${a.commit.slice(0, 8)}\``);
+    }
+  }
+  lines.push('');
+  lines.push(`## Skipped patches (${skipped.length})`);
+  if (skipped.length === 0) {
+    lines.push('_none — all patches applied cleanly_');
+  } else {
+    lines.push('These patches failed `git am` and need manual resolution:');
+    for (const s of skipped) {
+      lines.push(`- \`${s.file}\` — ${s.reason}`);
+    }
+  }
+  lines.push('');
+  lines.push('---');
+  lines.push('_Generated by the Playground (moloco-inspect) M5 promote flow._');
+  return lines.join('\n');
 }
 
 // ── Startup Reattach ────────────────────────────────────────────────
@@ -662,5 +874,8 @@ export function serializePlayground(pg) {
     lastActivityAt: pg.lastActivityAt,
     archivedDiffPath: pg.archivedDiffPath,
     createdBy: pg.createdBy,
+    promotedAt: pg.promotedAt,
+    promotedBranch: pg.promotedBranch,
+    promotedPrUrl: pg.promotedPrUrl,
   };
 }

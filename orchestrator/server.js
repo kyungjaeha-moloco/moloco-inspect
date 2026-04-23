@@ -2575,9 +2575,20 @@ Generate 2 variations (v2, v3).`;
           updated = await revertCommit(pgId, body?.sha);
         }
         else if (action === 'promote') {
-          const { patches, dir } = await promotePlayground(pgId);
+          const body = await parseBody(req);
+          const result = await promotePlayground(pgId, {
+            dryRun: Boolean(body?.dryRun),
+          });
           updated = getPlayground(pgId);
-          extra = { patches, patchesDir: dir };
+          extra = {
+            patches: result.patches,
+            patchesDir: result.patchesDir,
+            branch: result.branch,
+            applied: result.applied,
+            skipped: result.skipped,
+            prUrl: result.prUrl,
+            dryRun: result.dryRun,
+          };
         }
         return json(res, 200, { ok: true, playground: serializePlayground(updated), ...extra });
       } catch (err) {
