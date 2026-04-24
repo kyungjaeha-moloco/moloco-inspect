@@ -61,6 +61,9 @@ export function buildSandboxPrompt(payload) {
   parts.push(`3. Do not install dependencies, modify package.json, lockfiles, or opencode.json. Do not create commits.`);
   parts.push(`4. If a file path is given, start there. Otherwise search by testId or component name.`);
   parts.push(`5. Finish within 5 tool calls when possible. Do not over-explore.`);
+  parts.push(
+    `6. CLIENT SCOPING — CRITICAL: the live preview renders the '${client}' app. Multiple apps (msm-default, tving, shortmax, onboard-demo) keep parallel copies of the same component filename (e.g. MCPublisherCreativeReviewTable.tsx exists in 4 places, one per app). You MUST edit the copy under src/apps/${client}/... — editing another app's copy has zero visible effect and is the #1 source of "my change didn't show up" bugs. If grep returns matches outside src/apps/${client}/, src/components/, or src/i18n/, ignore them.`,
+  );
 
   if (/\b(text|copy|label|placeholder|번역|문구|텍스트)\b/i.test(payload.userPrompt || '')) {
     parts.push('\n6. This is a copy change. Check useTranslation namespace before editing locale files.');
