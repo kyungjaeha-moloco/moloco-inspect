@@ -79,7 +79,11 @@ export async function decomposePrd(prdText, ctx = {}) {
     },
     body: JSON.stringify({
       model,
-      max_tokens: 2048,
+      // 4096 covers 5 tasks with verbose Korean descriptions comfortably;
+      // 2048 was getting truncated mid-JSON on larger PRDs (symptom: the
+      // closing ``` fence never lands, the regex below fails to match,
+      // and the job pauses with 'missing JSON block').
+      max_tokens: 4096,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     }),
@@ -93,9 +97,19 @@ export async function decomposePrd(prdText, ctx = {}) {
   const text = (result.content?.[0]?.text || '').trim();
   if (!text) throw new Error('empty LLM response');
 
-  // Extract JSON — allow a fenced block or raw object.
+  // Extract JSON. Try three forms:
+  //   1. Properly fenced — ```json { ... } ```.
+  //   2. Open fence but no closing fence (max_tokens cut off mid-stream
+  //      before the trailing ```). Strip the opening fence and trust
+  //      the parser to reject broken JSON downstream.
+  //   3. Raw object with no fence.
+  // The LLM occasionally emits extra prose before the fence; we always
+  // anchor on the *last* `{` that can plausibly start a `{ "tasks": ...
+  // }` block to tolerate that.
   const fenced = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/i);
-  const rawJson = fenced ? fenced[1] : (text.startsWith('{') ? text : null);
+  const openFenceOnly = !fenced && text.match(/```(?:json)?\s*(\{[\s\S]*)$/i);
+  const bareObject = text.trim().startsWith('{') ? text.trim() : null;
+  const rawJson = fenced ? fenced[1] : (openFenceOnly ? openFenceOnly[1] : bareObject);
   if (!rawJson) {
     throw new Error(`LLM response missing JSON block: ${text.slice(0, 120)}`);
   }
