@@ -97,7 +97,13 @@ export function PlaygroundDetail() {
   const handleCheckoutSha = async (sha: string) => {
     if (!id) return;
     try {
-      const pg = await checkoutPlaygroundCommit(id, sha);
+      // Checking out the working-branch tip is a no-op except for the
+      // `checkedOutSha` flag it sets — call restore-head instead so
+      // the UI stays in its normal "작업중" state.
+      const pg =
+        current?.headCommitSha && sha === current.headCommitSha
+          ? await restorePlaygroundHead(id)
+          : await checkoutPlaygroundCommit(id, sha);
       setCurrent(pg);
       setReloadNonce((n) => n + 1);
     } catch (err) {
@@ -713,8 +719,11 @@ function CommitTabBar({
   onSelectSha,
   onSelectLatest,
 }: CommitTabBarProps) {
-  const activeIsLatest = !checkedOutSha;
-  const activeSha = checkedOutSha ?? null;
+  // A checkout whose sha matches HEAD is functionally the working
+  // branch — light up 작업중 instead of the mid-history tab that
+  // happens to share the same sha.
+  const activeIsLatest = !checkedOutSha || checkedOutSha === headSha;
+  const activeSha = activeIsLatest ? null : checkedOutSha ?? null;
   // Hide Baseline only when it's identical to HEAD (no commits yet).
   // Intermediate checkpoints now live inline in the chat (see
   // ExecutionCard → Checkpoint footer), so the tab bar stays a compact

@@ -22,6 +22,7 @@ import {
   changeRequestDiffUrl,
   getPlayground,
   checkoutPlaygroundCommit,
+  restorePlaygroundHead,
   restorePlaygroundToSha,
   OrchestratorError,
   type ChangeRequestEvent,
@@ -243,8 +244,16 @@ export const AIPanel = React.memo(function AIPanel() {
   const handleCheckoutCommit = useCallback(
     async (sha: string) => {
       if (!playgroundId) return;
+      const currentHead = usePlaygroundStore.getState().current?.headCommitSha;
       try {
-        const pg = await checkoutPlaygroundCommit(playgroundId, sha);
+        // Viewing the latest checkpoint is indistinguishable from
+        // being on the working branch — avoid a detached-HEAD checkout
+        // that would only serve to flip UI into "time-travel" mode and
+        // block new requests.
+        const pg =
+          currentHead && sha === currentHead
+            ? await restorePlaygroundHead(playgroundId)
+            : await checkoutPlaygroundCommit(playgroundId, sha);
         setCurrent(pg);
       } catch (err) {
         console.error('[AIPanel] checkout failed', err);
@@ -420,8 +429,14 @@ export const AIPanel = React.memo(function AIPanel() {
   );
 
   const isEmpty = messages.length === 0;
+  // A checkout whose sha matches the working-branch tip is effectively
+  // no time travel — unblock new requests in that case (the tabs and
+  // the hint both use the same signal so they stay consistent).
+  const isTimeTravel =
+    !!checkedOutSha && checkedOutSha !== headCommitSha;
+
   const canSubmit =
-    input.trim().length > 0 && !isSending && !!playgroundId && !checkedOutSha;
+    input.trim().length > 0 && !isSending && !!playgroundId && !isTimeTravel;
 
   return (
     <div
@@ -589,7 +604,7 @@ export const AIPanel = React.memo(function AIPanel() {
             sendLabel={isSending ? '⋯' : '전송'}
             aboveInput={
               <>
-                {checkedOutSha && (
+                {isTimeTravel && (
                   <div
                     style={{
                       display: 'flex',
