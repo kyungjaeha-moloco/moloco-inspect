@@ -47,6 +47,7 @@ import {
   setJobTasks, approvePlan, retryTask, skipTask, unblockTask,
   cancelJob, resumeJob,
 } from './lib/job.js';
+import { runJob as runJobRunner } from './lib/job-runner.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -422,6 +423,86 @@ function normalizePayload(payload) {
       },
     },
   };
+}
+
+/**
+ * Job-pipeline adapter (J3b): run a single task as a change-request in
+ * the current process and wait for the pipeline to land a commit. The
+ * job runner in `job-runner.js` invokes this serially per task, so we
+ * deliberately bypass `enqueueJob` — the runner is already the
+ * serializer. Also bypasses the queue-full error surface since only
+ * one inflight task per playground is possible under this contract.
+ *
+ * The tagged `jobId` / `taskId` survives into request state analytics
+ * so downstream UI can filter the per-task events.
+ *
+ * @param {{ playgroundId: string, userPrompt: string, client?: string,
+ *          jobId: string, taskId: string }} args
+ * @returns {Promise<{ commitSha: string, baseSha: string, diff: string }>}
+ */
+async function runChangeRequestForTask(args) {
+  const pg = getPlayground(args.playgroundId);
+  if (!pg) throw new Error(`playground not found: ${args.playgroundId}`);
+  if (pg.status !== 'active') {
+    throw new Error(`playground not active: ${pg.status}`);
+  }
+  const baseSha = pg.headCommitSha ?? pg.baselineCommitSha ?? '';
+  const state = createRequest({
+    playgroundId: args.playgroundId,
+    userPrompt: args.userPrompt,
+    client: args.client ?? pg.client,
+    pagePath: '/',
+    jobId: args.jobId,
+    taskId: args.taskId,
+  });
+  await runPipeline(state.id);
+  const final = requests.get(state.id);
+  if (!final) throw new Error(`request state vanished: ${state.id}`);
+  if (final.status === 'error') {
+    throw new Error(final.error || 'change-request pipeline errored');
+  }
+  // Pipeline wrote the commit via `updatePlaygroundHead`; re-read to
+  // grab the fresh sha. On `no_change_needed`, HEAD is unchanged and
+  // we return baseSha as commitSha so the runner still marks the task
+  // committed (it'll show as an empty diff at review time).
+  const updatedPg = getPlayground(args.playgroundId);
+  const commitSha = final.commitSha ?? updatedPg?.headCommitSha ?? baseSha;
+  return {
+    commitSha,
+    baseSha,
+    diff: final.diff ?? '',
+  };
+}
+
+/**
+ * Fire-and-forget runner kick. Called after approve-plan, retry-task,
+ * unblock-task, resume — any user action that unblocks the runner to
+ * pick up where it left off. The runner itself loops until pause /
+ * complete / cancel so calling it again while already running is safe
+ * in theory but wasteful; we guard with a per-job lock.
+ *
+ * @type {Map<string, Promise<unknown>>}
+ */
+const runningJobs = new Map();
+
+/** @param {string} jobId */
+function runJobInBackground(jobId) {
+  if (runningJobs.has(jobId)) return;
+  const p = runJobRunner(jobId, {
+    adapter: (task, ctx) => runChangeRequestForTask({
+      playgroundId: ctx.playgroundId,
+      userPrompt: task.description,
+      jobId: ctx.jobId,
+      taskId: task.id,
+    }),
+    // Reviewer defaults to stub (always-pass) for now; J4 wires the
+    // real LLM diff reviewer.
+  }).catch((err) => {
+    console.error(`[job-runner] ${jobId} crashed:`, err);
+  }).finally(() => {
+    runningJobs.delete(jobId);
+  });
+  runningJobs.set(jobId, p);
 }
 
 function createRequest(payload) {
@@ -2663,23 +2744,32 @@ Generate 2 variations (v2, v3).`;
           }
           updated = setJobTasks(jobId, body.tasks);
         }
-        else if (action === 'approve-plan') updated = approvePlan(jobId);
+        else if (action === 'approve-plan') {
+          updated = approvePlan(jobId);
+          // Kick off the runner in the background — HTTP response is
+          // immediate; the UI polls `/api/job/:id` for progress.
+          runJobInBackground(jobId);
+        }
         else if (action === 'retry-task') {
           const body = await parseBody(req);
           updated = retryTask(jobId, body?.taskId);
+          runJobInBackground(jobId);
         }
         else if (action === 'skip-task') {
           const body = await parseBody(req);
           updated = skipTask(jobId, body?.taskId);
+          runJobInBackground(jobId);
         }
         else if (action === 'unblock-task') {
           const body = await parseBody(req);
           updated = unblockTask(jobId, body?.taskId);
+          runJobInBackground(jobId);
         }
         else if (action === 'cancel') updated = cancelJob(jobId);
         else if (action === 'resume') {
           const body = await parseBody(req);
           updated = resumeJob(jobId, body?.target ?? 'delegating');
+          runJobInBackground(jobId);
         }
         return json(res, 200, { ok: true, job: updated });
       } catch (err) {
