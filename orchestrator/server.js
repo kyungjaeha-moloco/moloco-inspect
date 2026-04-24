@@ -45,9 +45,10 @@ import { enqueue as enqueueJob, QueueFullError, queueDepth } from './lib/playgro
 import {
   createJob, getJob, listJobs, activeJobForPlayground,
   setJobTasks, approvePlan, retryTask, skipTask, unblockTask,
-  cancelJob, resumeJob,
+  cancelJob, resumeJob, setJobStatus,
 } from './lib/job.js';
 import { runJob as runJobRunner } from './lib/job-runner.js';
+import { decomposePrd } from './lib/job-decomposer.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -484,6 +485,41 @@ async function runChangeRequestForTask(args) {
  * @type {Map<string, Promise<unknown>>}
  */
 const runningJobs = new Map();
+
+/**
+ * Fire-and-forget decomposer. Called right after a job is created and
+ * as the body of an explicit \`/decompose\` retry route. On success,
+ * the job flips \`decomposing → planning\`; on failure, it pauses with
+ * the LLM error surfaced so the user can retry or cancel.
+ *
+ * @param {string} jobId
+ */
+function decomposeJobInBackground(jobId) {
+  (async () => {
+    const job = getJob(jobId);
+    if (!job) return;
+    if (job.status !== 'decomposing') return; // race / idempotency
+    try {
+      const pg = getPlayground(job.playgroundId);
+      const tasks = await decomposePrd(job.prdText, {
+        client: pg?.client,
+        // We don't persist currentRoute on the server; it's known only
+        // to the iframe's bridge. Route hint is optional — PRDs usually
+        // mention the page explicitly.
+      });
+      setJobTasks(jobId, tasks); // auto-transitions decomposing → planning
+    } catch (err) {
+      console.warn(`[job-decomposer] ${jobId} failed:`, err.message);
+      try {
+        setJobStatus(jobId, 'paused', {
+          pausedReason: `decompose failed: ${err.message}`,
+        });
+      } catch (stateErr) {
+        console.error(`[job-decomposer] ${jobId} status update failed:`, stateErr.message);
+      }
+    }
+  })();
+}
 
 /** @param {string} jobId */
 function runJobInBackground(jobId) {
@@ -2713,6 +2749,9 @@ Generate 2 variations (v2, v3).`;
       try {
         const body = await parseBody(req);
         const job = createJob({ playgroundId: pgId, prdText: body?.prdText ?? '' });
+        // Kick off decompose in background — client polls /api/job/:id
+        // and flips the UI when status transitions to `planning`.
+        decomposeJobInBackground(job.id);
         return json(res, 200, { ok: true, job });
       } catch (err) {
         return json(res, 400, { ok: false, error: err.message });
@@ -2725,7 +2764,7 @@ Generate 2 variations (v2, v3).`;
   }
 
   const jobMatch = pathname.match(
-    /^\/api\/job\/([a-zA-Z0-9_-]+)(?:\/(tasks|approve-plan|retry-task|skip-task|unblock-task|cancel|resume))?$/,
+    /^\/api\/job\/([a-zA-Z0-9_-]+)(?:\/(decompose|tasks|approve-plan|retry-task|skip-task|unblock-task|cancel|resume))?$/,
   );
   if (jobMatch) {
     const [, jobId, action] = jobMatch;
@@ -2737,7 +2776,24 @@ Generate 2 variations (v2, v3).`;
     if (action && req.method === 'POST') {
       try {
         let updated;
-        if (action === 'tasks') {
+        if (action === 'decompose') {
+          // Retry path — re-enter decomposing if the job was paused
+          // after an LLM failure, then kick the decomposer again.
+          const job = getJob(jobId);
+          if (!job) return json(res, 404, { ok: false, error: 'job not found' });
+          if (job.status === 'paused') {
+            updated = setJobStatus(jobId, 'decomposing');
+          } else if (job.status !== 'decomposing') {
+            return json(res, 400, {
+              ok: false,
+              error: `cannot decompose from status ${job.status}`,
+            });
+          } else {
+            updated = job;
+          }
+          decomposeJobInBackground(jobId);
+        }
+        else if (action === 'tasks') {
           const body = await parseBody(req);
           if (!Array.isArray(body?.tasks)) {
             return json(res, 400, { ok: false, error: 'tasks array required' });
