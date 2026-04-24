@@ -599,24 +599,45 @@ export const AIPanel = React.memo(function AIPanel() {
             }}
           >
             {isEmpty && <EmptyState />}
-            {messages.map((m) => (
-              <MessageRow
-                key={m.id}
-                message={m}
-                activeSha={activeSha}
-                onChoice={handleChoice}
-                isSending={isSending}
-                checkpointNumber={checkpointByMessageId[m.id]}
-                onTogglePlanItem={(itemId) => togglePlanItem(m.id, itemId)}
-                onAcceptPlan={() => {
-                  resolvePlan(m.id, 'accepted');
-                  void executePlan(m);
-                }}
-                onRejectPlan={() => resolvePlan(m.id, 'rejected')}
-                onCheckoutCommit={handleCheckoutCommit}
-                onRestoreToSha={handleRestoreToSha}
-              />
-            ))}
+            {(() => {
+              // Time-travel dimming: when the playground is checked
+              // out at an older sha, find the message whose execution
+              // committed that sha and dim every message below it.
+              // Everything after was produced on top of a state the
+              // working tree has now rewound past. See JobCard for the
+              // same idea applied to individual tasks inside a job.
+              const anchorSha = checkedOutSha;
+              const anchorIdx =
+                anchorSha &&
+                anchorSha !== headCommitSha &&
+                messages.findIndex(
+                  (m) =>
+                    !!m.execution?.commitSha &&
+                    (m.execution.commitSha === anchorSha ||
+                      m.execution.commitSha.startsWith(anchorSha)),
+                );
+              const dimFromIdx =
+                typeof anchorIdx === 'number' && anchorIdx >= 0 ? anchorIdx : -1;
+              return messages.map((m, idx) => (
+                <MessageRow
+                  key={m.id}
+                  message={m}
+                  activeSha={activeSha}
+                  onChoice={handleChoice}
+                  isSending={isSending}
+                  checkpointNumber={checkpointByMessageId[m.id]}
+                  dimmed={dimFromIdx >= 0 && idx > dimFromIdx}
+                  onTogglePlanItem={(itemId) => togglePlanItem(m.id, itemId)}
+                  onAcceptPlan={() => {
+                    resolvePlan(m.id, 'accepted');
+                    void executePlan(m);
+                  }}
+                  onRejectPlan={() => resolvePlan(m.id, 'rejected')}
+                  onCheckoutCommit={handleCheckoutCommit}
+                  onRestoreToSha={handleRestoreToSha}
+                />
+              ));
+            })()}
             {isSending && <TypingIndicator />}
           </div>
 
@@ -1665,6 +1686,7 @@ function MessageRow({
   onChoice,
   isSending,
   checkpointNumber,
+  dimmed = false,
   onTogglePlanItem,
   onAcceptPlan,
   onRejectPlan,
@@ -1676,6 +1698,7 @@ function MessageRow({
   onChoice: (text: string) => void;
   isSending: boolean;
   checkpointNumber?: number;
+  dimmed?: boolean;
   onTogglePlanItem: (itemId: string) => void;
   onAcceptPlan: () => void;
   onRejectPlan: () => void;
@@ -1696,7 +1719,16 @@ function MessageRow({
   const showContent = !!message.content && !message.execution;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        opacity: dimmed ? 0.45 : 1,
+        transition: 'opacity 120ms ease-out',
+      }}
+      title={dimmed ? '과거 시점으로 돌아간 뒤에 생성된 항목 — 현재 작업 트리에는 없음' : undefined}
+    >
       {showContent && (
         isUser ? (
           <UserBubble
