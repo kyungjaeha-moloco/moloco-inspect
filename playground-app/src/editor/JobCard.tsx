@@ -463,6 +463,35 @@ const listItemStyle: React.CSSProperties = {
 // + short label so the scan-eye finds the interesting rows first.
 
 function TaskLeading({ task, index }: { task: JobTask; index: number }) {
+  if (task.status === 'running' || task.status === 'committed') {
+    // Pixel agent walking — makes in-flight tasks feel alive instead of
+    // a dead "RUNNING" pill. Sprite is char_0 from pablodelucca/pixel-
+    // agents (MIT, bundled in public/pixel-agents/).
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          flexShrink: 0,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <PixelAgentSprite />
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: 0.4,
+            color: 'var(--text-info, #1453b6)',
+            textTransform: 'uppercase',
+          }}
+        >
+          {task.status === 'committed' ? 'reviewing' : 'working'}
+        </span>
+      </span>
+    );
+  }
   if (task.status === 'pending') {
     return (
       <span
@@ -507,6 +536,32 @@ function TaskLeading({ task, index }: { task: JobTask; index: number }) {
       <span aria-hidden>{icon}</span>
       <span>{label}</span>
     </span>
+  );
+}
+
+/**
+ * 16×24 sprite-sheet window from char_0.png, scaled 2x (→ 32×48) and
+ * animated through the first row (4 walk frames, 150ms each). Pixel-
+ * perfect rendering via `image-rendering: pixelated` keeps the retro
+ * feel. Credit: pablodelucca/pixel-agents (MIT) → JIK-A-4 / Metro City
+ * free top-down character pack.
+ */
+function PixelAgentSprite() {
+  return (
+    <span
+      aria-label="작업 중인 에이전트"
+      role="img"
+      style={{
+        display: 'inline-block',
+        width: 32,
+        height: 48,
+        backgroundImage: "url('/pixel-agents/char_0.png')",
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: '224px 192px', // 2× the original 112×96 sheet
+        imageRendering: 'pixelated',
+        animation: 'pixelAgentWalk 0.6s steps(4) infinite',
+      }}
+    />
   );
 }
 
