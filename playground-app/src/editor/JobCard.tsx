@@ -313,14 +313,13 @@ function TaskRow({
       {expanded && (
         <div
           style={{
-            marginTop: 6,
-            fontSize: 11,
-            color: 'var(--text-secondary)',
-            whiteSpace: 'pre-wrap',
-            lineHeight: 1.5,
+            marginTop: 8,
+            fontSize: 13,
+            color: 'var(--text-primary)',
+            lineHeight: 1.7,
           }}
         >
-          {task.description}
+          <FormattedDescription text={task.description} />
         </div>
       )}
       {task.review && (
@@ -366,6 +365,95 @@ function TaskRow({
     </div>
   );
 }
+
+// ── Description formatter ────────────────────────────────────────────
+//
+// Task descriptions come back from the LLM as dense single-paragraph
+// runs. Three patterns we can autodetect and reformat into something
+// scannable:
+//
+//   - `(1) ... (2) ... (3) ...` enumerations → ordered list.
+//   - Lines starting with `- ` or `* ` → unordered list.
+//   - `\n\n` paragraph breaks → paragraphs.
+//
+// Nothing detected → render as a single paragraph with preserved
+// whitespace, but with real typography spacing. The point is to never
+// stare at a 6-line wall of dense 11px text again.
+
+function FormattedDescription({ text }: { text: string }) {
+  const trimmed = text.trim();
+
+  // (1) (2) (3) ... enumerations — match the opening "(1)" and split on
+  // each subsequent "(N)" boundary. Preserves the prefix before "(1)".
+  const enumMatch = trimmed.match(/\(1\)/);
+  if (enumMatch) {
+    const intro = trimmed.slice(0, enumMatch.index).trim();
+    const rest = trimmed.slice(enumMatch.index);
+    const parts = rest.split(/\s*\((\d+)\)\s+/).filter((s) => s.length > 0);
+    // After split: [number, text, number, text, ...]
+    /** @type {Array<{ n: string, body: string }>} */
+    const items: Array<{ n: string; body: string }> = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      if (parts[i + 1] == null) continue;
+      items.push({ n: parts[i], body: parts[i + 1].trim() });
+    }
+    if (items.length >= 2) {
+      return (
+        <>
+          {intro && <p style={paragraphStyle}>{intro}</p>}
+          <ol style={listStyle}>
+            {items.map((it, idx) => (
+              <li key={idx} style={listItemStyle}>
+                {it.body}
+              </li>
+            ))}
+          </ol>
+        </>
+      );
+    }
+  }
+
+  // Lines starting with "- " / "* " → unordered list.
+  const lines = trimmed.split(/\n+/);
+  const allBulleted = lines.length > 1 && lines.every((l) => /^[-*]\s+/.test(l.trim()));
+  if (allBulleted) {
+    return (
+      <ul style={listStyle}>
+        {lines.map((l, idx) => (
+          <li key={idx} style={listItemStyle}>
+            {l.trim().replace(/^[-*]\s+/, '')}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  // Otherwise render each \n\n-delimited chunk as its own paragraph.
+  // Single-paragraph case just renders one <p> with the whole text.
+  const paragraphs = trimmed.split(/\n\s*\n/);
+  return (
+    <>
+      {paragraphs.map((p, idx) => (
+        <p key={idx} style={paragraphStyle}>
+          {p}
+        </p>
+      ))}
+    </>
+  );
+}
+
+const paragraphStyle: React.CSSProperties = {
+  margin: '0 0 8px',
+};
+
+const listStyle: React.CSSProperties = {
+  margin: '4px 0 8px',
+  paddingLeft: 20,
+};
+
+const listItemStyle: React.CSSProperties = {
+  marginBottom: 4,
+};
 
 // ── Task leading indicator ───────────────────────────────────────────
 //

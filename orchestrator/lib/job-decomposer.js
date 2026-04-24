@@ -24,6 +24,8 @@ Rules:
 4. \`dependsOn\` lists prior task IDs that must land first. Use sparingly — only when the later task *reads* or *mutates* what the earlier one produced. UI wiring after data layer is a legit dep; cosmetic tweaks in different files are independent.
 5. IDs must be short kebab-case (t1, t2, ...), unique, and referenced correctly in dependsOn.
 6. Descriptions are written in the user's language (detect from the PRD) and include enough context for a fresh agent: what file/area if obvious, what behavior to change, what to leave alone.
+   - When a task has 2+ distinct sub-requirements, structure the description as enumerated bullets using \`(1) ... (2) ... (3) ...\` markers so the UI can render them as a readable list. A single narrative paragraph is fine for simple tasks.
+   - Use \`\\n\\n\` between logically separate paragraphs (context / requirements / explicit out-of-scope notes). Avoid wall-of-text runs.
 7. No task may touch package.json / lockfiles / CI config — those are out of scope for the sandbox pipeline.
 
 Schema:
