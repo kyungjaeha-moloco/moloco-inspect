@@ -277,9 +277,21 @@ export function retryTask(jobId, taskId) {
   if (!job) throw new Error(`job not found: ${jobId}`);
   const task = job.tasks.find((t) => t.id === taskId);
   if (!task) throw new Error(`task not found: ${taskId}`);
-  // Retry from failed → running bumps attempt counter; runJob picks
-  // up from there.
-  return setTaskStatus(jobId, taskId, 'running', { attempt: task.attempt + 1 });
+  if (task.status !== 'failed') {
+    throw new Error(`task ${taskId} not in failed state (${task.status})`);
+  }
+  // Leave status at 'failed' — the runner's pickNextTask treats
+  // (failed + attempt < maxAttempts) as retry-eligible and handles
+  // the failed → running transition + attempt bump itself. If this
+  // action sets 'running' prematurely, pickNextTask no longer picks
+  // the task (it filters to pending/failed only) and the job pauses
+  // thinking it's stuck.
+  //
+  // We do, however, need to unpause the job if review-fail paused it.
+  if (job.status === 'paused') {
+    return setJobStatus(jobId, 'delegating');
+  }
+  return job;
 }
 
 /** @param {string} jobId @param {string} taskId */

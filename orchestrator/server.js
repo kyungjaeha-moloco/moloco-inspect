@@ -526,12 +526,23 @@ function decomposeJobInBackground(jobId) {
 function runJobInBackground(jobId) {
   if (runningJobs.has(jobId)) return;
   const p = runJobRunner(jobId, {
-    adapter: (task, ctx) => runChangeRequestForTask({
-      playgroundId: ctx.playgroundId,
-      userPrompt: task.description,
-      jobId: ctx.jobId,
-      taskId: task.id,
-    }),
+    adapter: (task, ctx) => {
+      // On retry (attempt > 0) after a review-fail, inject the prior
+      // reviewer's notes into the prompt so the agent actually learns
+      // from the last miss. Without this the agent reran the exact
+      // same prompt and usually reproduced the same mistake, which
+      // made the retry button feel decorative.
+      const prevFail = task.attempt > 0 && task.review?.verdict === 'fail';
+      const userPrompt = prevFail
+        ? `[이전 시도 리뷰 실패 (attempt ${task.attempt}): ${task.review?.notes ?? ''}]\n\n중요: 위 리뷰 피드백을 반드시 반영해서 이번엔 통과시키세요. 원래 요구사항은 아래와 같습니다:\n\n${task.description}`
+        : task.description;
+      return runChangeRequestForTask({
+        playgroundId: ctx.playgroundId,
+        userPrompt,
+        jobId: ctx.jobId,
+        taskId: task.id,
+      });
+    },
     reviewer: (task, diff) => reviewTaskDiff(task, diff),
   }).catch((err) => {
     console.error(`[job-runner] ${jobId} crashed:`, err);
