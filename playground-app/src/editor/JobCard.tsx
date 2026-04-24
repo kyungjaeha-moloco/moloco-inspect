@@ -256,12 +256,17 @@ function TaskRow({
     task.status === 'blocked';
   const canUnblock = task.status === 'blocked';
 
+  // Keep individual task rows collapsed by default. The 1-line snippet
+  // below the title is enough for users to decide whether to open the
+  // full description. Keeping descriptions expanded by default produced
+  // wall-of-text cards that were impossible to scan.
   const [expanded, setExpanded] = useState(false);
+  const hasActions = canRetry || canUnblock || canSkip;
 
   return (
     <div
       style={{
-        padding: 8,
+        padding: '6px 8px',
         border: '1px solid var(--border-primary)',
         borderRadius: 6,
         background: 'var(--bg-surface, #ffffff)',
@@ -283,25 +288,41 @@ function TaskRow({
             fontWeight: 500,
             fontSize: 12,
             color: 'var(--text-primary)',
+            flex: 1,
+            minWidth: 0,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            flex: 1,
-            minWidth: 0,
           }}
           title={task.title}
         >
           {task.title}
         </span>
         {task.dependsOn.length > 0 && (
-          <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
-            after: {task.dependsOn.join(', ')}
+          <span style={{ fontSize: 9, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
+            ← {task.dependsOn.join(',')}
           </span>
         )}
-        <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+        <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>
           {expanded ? '▾' : '▸'}
         </span>
       </div>
+      {!expanded && (
+        <div
+          style={{
+            fontSize: 10,
+            color: 'var(--text-tertiary)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            paddingLeft: 58, // align under title (past pill width)
+            marginTop: 2,
+          }}
+          title={task.description}
+        >
+          {task.description}
+        </div>
+      )}
       {expanded && (
         <div
           style={{
@@ -309,6 +330,7 @@ function TaskRow({
             fontSize: 11,
             color: 'var(--text-secondary)',
             whiteSpace: 'pre-wrap',
+            lineHeight: 1.5,
           }}
         >
           {task.description}
@@ -318,7 +340,7 @@ function TaskRow({
         <div
           style={{
             marginTop: 6,
-            padding: '4px 6px',
+            padding: '3px 6px',
             borderRadius: 4,
             background:
               task.review.verdict === 'pass'
@@ -329,12 +351,13 @@ function TaskRow({
               task.review.verdict === 'pass'
                 ? 'var(--text-success, #1b7a43)'
                 : 'var(--text-danger, #c62828)',
+            lineHeight: 1.4,
           }}
         >
           <strong>review {task.review.verdict}:</strong> {task.review.notes}
         </div>
       )}
-      {(canRetry || canUnblock || canSkip) && (
+      {expanded && hasActions && (
         <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
           {canRetry && (
             <button disabled={disabled} onClick={onRetry} style={tinyBtn}>
