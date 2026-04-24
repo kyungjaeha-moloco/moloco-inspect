@@ -15,7 +15,7 @@
  * outside the scrollable chat.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 const AIPANEL_WIDTH_STORAGE_KEY = 'playground-app.aipanel-width';
@@ -73,6 +73,22 @@ export function PlaygroundDetail() {
 
   const [reloadNonce, setReloadNonce] = useState(0);
   const handleReload = () => setReloadNonce((n) => n + 1);
+
+  // Force iframe reload whenever HEAD advances — Vite HMR sometimes
+  // misses sandbox file writes (especially when several files change
+  // in a single commit and the app has been idle for a while), and
+  // the user ends up staring at pre-change UI thinking the agent did
+  // nothing. Bumping the nonce remounts the iframe against the new
+  // git state. Initial mount doesn't trigger — only a real HEAD
+  // transition.
+  const prevHeadRef = useRef<string | undefined>(current?.headCommitSha);
+  useEffect(() => {
+    const head = current?.headCommitSha;
+    if (head && prevHeadRef.current && head !== prevHeadRef.current) {
+      setReloadNonce((n) => n + 1);
+    }
+    prevHeadRef.current = head;
+  }, [current?.headCommitSha]);
 
   const handleRestoreHead = async () => {
     if (!id) return;
