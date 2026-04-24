@@ -540,22 +540,30 @@ export async function restoreToSha(id, sha) {
     return pg;
   }
 
-  // `git revert <sha>..HEAD --no-commit` stages the inverse of every
-  // commit after `sha`, then we seal it with one commit so the log
-  // gets a single "Restore" marker instead of N noisy revert commits.
+  // Tree-swap restore — immune to revert conflicts.
   //
-  // Revert can halt mid-way with conflicts (e.g. when two commits after
-  // `sha` touch the same region and reverting them produces textual
-  // collisions). If that happens we MUST `--abort` the partial revert,
-  // otherwise the sandbox is left in a "reverting commit X" state and
-  // every subsequent git op inside the container fails. We detect
-  // mid-revert via `.git/REVERT_HEAD` and surface a clean error so the
-  // UI can tell the user to skip the bad hop.
+  // Conceptually we want HEAD's *tree* to match the anchor's tree,
+  // while preserving history. `git revert <sha>..HEAD` tried to do
+  // this by replaying inverse patches, which breaks the moment two
+  // commits after `sha` touch overlapping regions (playground runs
+  // regularly produce exactly that kind of overlap — same files,
+  // successive commits).
+  //
+  // Instead we:
+  //   1. Resolve the anchor's tree via `rev-parse <sha>^{tree}`.
+  //   2. Create a new commit whose tree = that tree, parent = HEAD.
+  //      `git commit-tree` does this without touching the index.
+  //   3. Move HEAD to the new commit + `reset --hard` to materialise
+  //      the tree on disk.
+  //
+  // No patch replay, no textual collision surface. If the anchor sha
+  // is not resolvable we fail loud before mutating state.
   const script = [
     'cd /workspace/msm-portal',
-    `git revert --no-commit ${sha}..HEAD || { git revert --abort 2>/dev/null; echo "__REVERT_FAILED__"; exit 2; }`,
-    '[ -f .git/REVERT_HEAD ] && { git revert --abort; echo "__REVERT_CONFLICT__"; exit 3; }',
-    `git commit --no-verify -m 'Restore to ${sha.slice(0, 8)}'`,
+    `TREE=$(git rev-parse --verify ${sha}^{tree}) || { echo "__ANCHOR_UNRESOLVED__"; exit 2; }`,
+    `NEW=$(git commit-tree "$TREE" -p HEAD -m 'Restore to ${sha.slice(0, 8)}') || { echo "__COMMIT_TREE_FAILED__"; exit 3; }`,
+    'git update-ref HEAD "$NEW"',
+    'git reset --hard HEAD',
   ].join(' && ');
   try {
     await execAsync(
@@ -563,18 +571,9 @@ export async function restoreToSha(id, sha) {
       { timeout: 30_000 },
     );
   } catch (err) {
-    const stdout = err.stdout || '';
-    const stderr = err.stderr || '';
-    const combined = `${stdout}\n${stderr}`;
-    if (combined.includes('__REVERT_CONFLICT__')) {
-      throw new Error(
-        `restore to ${sha.slice(0, 8)} hit revert conflicts (aborted cleanly) — try a different checkpoint or restore-head first`,
-      );
-    }
-    if (combined.includes('__REVERT_FAILED__')) {
-      throw new Error(
-        `restore to ${sha.slice(0, 8)} failed during revert (aborted cleanly) — sandbox is clean`,
-      );
+    const combined = `${err.stdout ?? ''}\n${err.stderr ?? ''}`;
+    if (combined.includes('__ANCHOR_UNRESOLVED__')) {
+      throw new Error(`restore target ${sha.slice(0, 8)} not found in sandbox history`);
     }
     throw err;
   }
