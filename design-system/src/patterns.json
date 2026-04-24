@@ -446,15 +446,26 @@
       "file_checklist": [
         "src/apps/{client}/config/layout.tsx",
         "src/apps/{client}/container/navbar/{mode}/MC{Client}{Mode}NavbarContainer.tsx",
-        "src/i18n/locales/en/container.navbar.json"
+        "src/i18n/locales/en/container.navbar.json",
+        "src/apps/{client}/feature-config/{deployEnv}.feature.ts  (feature-gated 섹션/아이템을 노출할 때만)"
       ],
       "validation_checklist": [
         "모든 nav item은 MERouteKey enum의 routeKey를 참조 (문자열 하드코딩 금지)",
         "모든 label은 labelKey(i18n key)로 참조하며 직접 문자열 금지",
         "feature flag 조건부 item은 useFeatureEnabled 훅으로 토글",
         "AdOps / MediaRep 모드별로 서로 다른 itemsSections 반환",
-        "첫 섹션은 labelKey 생략 가능 (헤더 없는 섹션)"
+        "첫 섹션은 labelKey 생략 가능 (헤더 없는 섹션)",
+        "feature-gated 섹션/아이템을 화면에 노출하려면 feature-config/{deployEnv}.feature.ts 의 FEATURE_CONFIG.includes 에 해당 flag 를 추가해야 함 — 누락 시 런타임에 말없이 숨겨짐. 샌드박스는 기본 'test' env 를 로드하므로 playground-only 변경이라도 최소 test.feature.ts 는 건드려야 함."
       ],
+      "feature_config": {
+        "source_path": "src/apps/{client}/feature-config/{deployEnv}.feature.ts",
+        "env_files": ["test.feature.ts", "staging.feature.ts", "prod.feature.ts"],
+        "sandbox_default_env": "test",
+        "loader": "readFeatureConfig (src/apps/{client}/feature-config/utils.ts) — getDeployEnv() 로 동적 import",
+        "rule": "nav item 의 `conditional` 에 명시된 flag 는 `FEATURE_CONFIG.includes` 배열에 반드시 존재해야 렌더링됨. 없으면 조건부 블록이 통째로 skip 되어 UI 에 변화가 없다. 플랜에서 feature-gated 섹션을 '추가' 하거나 '처음 노출' 할 때, 해당 flag 를 includes[] 에 append 하는 것을 한 스텝으로 포함시켜야 한다.",
+        "example": "'Moloco Ads' 섹션 (gated by CAS_141_PUBLISHER_CREATIVE_REVIEW) 을 보이게 하려면 `src/apps/tving/feature-config/test.feature.ts` 의 FEATURE_CONFIG.includes 에 'CAS_141_PUBLISHER_CREATIVE_REVIEW' 문자열을 추가. 추가 코드 변경 없이 샌드박스에서 바로 반영된다.",
+        "scope_guidance": "Playground 단일 검증용이면 test.feature.ts 만으로 충분. 실제 릴리즈까지 가는 변경이라면 staging/prod 에도 동일 추가 필요 (환경 간 parity)."
+      },
       "preview_entity": "tving-ad-system (oms, AdOps mode, 모든 feature flag 활성)",
       "preview_props": {
         "header": {
@@ -515,7 +526,7 @@
         "item.label",
         "sideNav.collapsed"
       ],
-      "note": "TVING OMS AdOps 프로덕션 nav 풀 상태 (모든 feature flag on). Canvas AI는 이 구조의 diff(섹션/아이템 add·remove·reorder) 로 nav 변경을 제안하고, MCOmsMainNavbarContainer.tsx + i18n 키 추가로 실제 구현을 유도한다."
+      "note": "TVING OMS AdOps 프로덕션 nav 풀 상태 — 위 preview_props 는 모든 feature flag 가 켜진 상태를 가정한다. 실제 샌드박스는 `test.feature.ts` 의 includes 배열에 없는 flag 를 OFF 로 간주하므로, feature-gated 섹션(예: Moloco Ads) 은 flag 추가 없이는 보이지 않는다. Canvas AI 는 이 구조의 diff(섹션/아이템 add·remove·reorder) 로 nav 변경을 제안할 때 (1) MCOmsMainNavbarContainer.tsx 수정 (2) i18n 키 추가 (3) 노출 대상 섹션이 feature-gated 면 feature-config/{deployEnv}.feature.ts 의 includes[] 에 flag 추가 — 이 세 가지를 한 플랜에 묶어야 한다."
     },
     {
       "id": "detail-page",
