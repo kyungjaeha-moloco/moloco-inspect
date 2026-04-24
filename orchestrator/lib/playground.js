@@ -197,6 +197,12 @@ export function updatePlaygroundHead(id, commitSha) {
   const pg = playgrounds.get(id);
   if (!pg) return;
   pg.headCommitSha = commitSha;
+  // Once the user does forward work past a restore, the restore
+  // anchor is no longer the "current branch off" — clear it so the
+  // UI stops dimming / labeling.
+  if (pg.restoredFromSha) {
+    pg.restoredFromSha = undefined;
+  }
   pg.lastActivityAt = nowMs();
   pg.updatedAt = nowMs();
   persist(pg);
@@ -589,6 +595,11 @@ export async function restoreToSha(id, sha) {
     { timeout: 5_000 },
   );
   pg.headCommitSha = newHead.trim();
+  // Track the anchor sha so the UI can show a "restored" indicator
+  // and dim every chat message / job-task whose commitSha sits between
+  // `sha` and the pre-restore HEAD. Cleared when the user does forward
+  // work (checked via the commit pipeline's updatePlaygroundHead).
+  pg.restoredFromSha = sha;
   pg.updatedAt = nowMs();
   pg.lastActivityAt = nowMs();
   persist(pg);
@@ -975,6 +986,7 @@ export function serializePlayground(pg) {
     imageTag: pg.imageTag,
     client: pg.client,
     checkedOutSha: pg.checkedOutSha,
+    restoredFromSha: pg.restoredFromSha,
     prdUrl: pg.prdUrl,
     jiraUrl: pg.jiraUrl,
     hibernatedAt: pg.hibernatedAt,

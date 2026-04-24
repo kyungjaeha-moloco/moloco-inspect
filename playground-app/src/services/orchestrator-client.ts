@@ -264,6 +264,13 @@ export interface Playground {
   client?: string;
   /** Set iff time-travelling (checkout to an older sha). Block new requests. */
   checkedOutSha?: string;
+  /**
+   * The anchor sha the user restored to via `restoreToSha`. Present
+   * until forward work (new commit via change-request / job) lands on
+   * top. Drives a "restored" indicator + dimming of chat/task rows
+   * that sit between this sha and the pre-restore HEAD.
+   */
+  restoredFromSha?: string;
   prdUrl?: string;
   jiraUrl?: string;
   /** Human name from whoever kicked the playground off. Display-only. */

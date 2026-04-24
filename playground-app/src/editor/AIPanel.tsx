@@ -60,6 +60,7 @@ export const AIPanel = React.memo(function AIPanel() {
     playgroundClient,
     currentRoute,
     checkedOutSha,
+    restoredFromSha,
     headCommitSha,
     lastPickedElement,
     setLastPickedElement,
@@ -84,6 +85,7 @@ export const AIPanel = React.memo(function AIPanel() {
       playgroundClient: s.current?.client ?? null,
       currentRoute: s.currentRoute,
       checkedOutSha: s.current?.checkedOutSha ?? null,
+      restoredFromSha: s.current?.restoredFromSha ?? null,
       headCommitSha: s.current?.headCommitSha ?? null,
       lastPickedElement: s.lastPickedElement,
       setLastPickedElement: s.setLastPickedElement,
@@ -314,26 +316,31 @@ export const AIPanel = React.memo(function AIPanel() {
 
     setError(null);
 
-    // Time-travel → archive + restore: if the user is viewing a past
-    // checkpoint and then asks for new work, fold everything below the
-    // anchor into the archive accordion and bring the sandbox HEAD
-    // back to the live branch so the change-request can land. Git
-    // history still holds the rewound commits — archive is purely a
-    // UI cleanup of the chat timeline.
-    if (checkedOutSha && playgroundId && checkedOutSha !== headCommitSha) {
+    // Time-travel / restore → archive + (for time-travel) restore head:
+    // if the user is viewing a past checkpoint *or* on a restored
+    // snapshot, archive everything below the anchor so the new work
+    // stands alone. For the live-checkout case we also need to bring
+    // HEAD back to the work branch before sending; for a restore,
+    // HEAD is already advanced past the anchor so the next commit
+    // naturally supersedes it (and updatePlaygroundHead clears the
+    // restoredFromSha flag for us).
+    const anchorShaForSend = checkedOutSha ?? restoredFromSha;
+    if (anchorShaForSend && playgroundId && anchorShaForSend !== headCommitSha) {
       const anchor = messages.find(
         (m) =>
           !!m.execution?.commitSha &&
-          (m.execution.commitSha === checkedOutSha ||
-            m.execution.commitSha.startsWith(checkedOutSha)),
+          (m.execution.commitSha === anchorShaForSend ||
+            m.execution.commitSha.startsWith(anchorShaForSend)),
       );
       if (anchor) archiveMessagesAfter(anchor.id);
-      try {
-        const pg = await restorePlaygroundHead(playgroundId);
-        setCurrent(pg);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-        return;
+      if (checkedOutSha) {
+        try {
+          const pg = await restorePlaygroundHead(playgroundId);
+          setCurrent(pg);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+          return;
+        }
       }
     }
 
@@ -636,7 +643,12 @@ export const AIPanel = React.memo(function AIPanel() {
               // Runs of consecutive archived messages collapse into
               // one `<ArchivedGroup>` node; non-archived messages
               // render individually with optional dim.
-              const anchorSha = checkedOutSha;
+              // Time-travel anchor: either a live checkout (user
+              // clicked 보기) or a restored sha (user clicked Restore
+              // and the forward-work clock hasn't ticked yet). Either
+              // way, everything below this message is conceptually
+              // superseded and should dim.
+              const anchorSha = checkedOutSha ?? restoredFromSha;
               const anchorIdx =
                 anchorSha &&
                 anchorSha !== headCommitSha &&
@@ -2523,6 +2535,14 @@ function ExecutionCard({
   onCheckoutCommit: (sha: string) => void;
   onRestoreToSha: (sha: string, labelHint?: string) => void;
 }) {
+  const restoredFromSha = usePlaygroundStore(
+    (s) => s.current?.restoredFromSha ?? null,
+  );
+  const isRestoreAnchor =
+    !!execution.commitSha &&
+    !!restoredFromSha &&
+    (execution.commitSha === restoredFromSha ||
+      execution.commitSha.startsWith(restoredFromSha));
   const done =
     execution.phase === 'preview_ready' ||
     execution.status === 'approved' ||
@@ -2754,6 +2774,23 @@ function ExecutionCard({
             {execution.commitSha.slice(0, 7)}
           </code>
           <div style={{ flex: 1 }} />
+          {isRestoreAnchor && (
+            <span
+              style={{
+                fontSize: 9,
+                padding: '2px 8px',
+                borderRadius: 999,
+                background: 'rgba(27, 122, 67, 0.15)',
+                color: 'var(--text-success, #1b7a43)',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}
+              title="이 체크포인트로 복원된 상태 — 이후 메시지는 현재 작업 트리에 반영되지 않습니다."
+            >
+              ↺ RESTORED
+            </span>
+          )}
           {isCurrent ? (
             <span style={checkpointCurrentBadgeStyle}>작업중</span>
           ) : canRewind ? (
