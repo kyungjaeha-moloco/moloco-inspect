@@ -448,7 +448,12 @@ async function runChangeRequestForTask(args) {
   if (pg.status !== 'active') {
     throw new Error(`playground not active: ${pg.status}`);
   }
-  const baseSha = pg.headCommitSha ?? pg.baselineCommitSha ?? '';
+  // Retry path needs the *original* baseSha so the review diff covers
+  // every attempt's commit, not just the latest tweak. The runner
+  // stamps task.baseSha on the first committed run and preserves it
+  // across failures. Fresh tasks fall back to the current playground
+  // HEAD.
+  const baseSha = args.taskBaseSha ?? pg.headCommitSha ?? pg.baselineCommitSha ?? '';
   const state = createRequest({
     playgroundId: args.playgroundId,
     userPrompt: args.userPrompt,
@@ -469,10 +474,31 @@ async function runChangeRequestForTask(args) {
   // committed (it'll show as an empty diff at review time).
   const updatedPg = getPlayground(args.playgroundId);
   const commitSha = final.commitSha ?? updatedPg?.headCommitSha ?? baseSha;
+
+  // Compute the *cumulative* diff across all attempts for this task
+  // (baseSha..commitSha) rather than relying on the change-request
+  // pipeline's single-run diff. On first attempt they're identical; on
+  // retries the cumulative form is what the reviewer needs to judge
+  // whether the whole task has been satisfied, not just the latest
+  // tweak.
+  let cumulativeDiff = final.diff ?? '';
+  if (baseSha && commitSha && baseSha !== commitSha && updatedPg?.sandboxContainerName) {
+    try {
+      const { stdout } = await execAsync(
+        `docker exec ${updatedPg.sandboxContainerName} sh -c "cd /workspace/msm-portal && git diff ${baseSha}..${commitSha}"`,
+        { timeout: 15_000, maxBuffer: 10 * 1024 * 1024 },
+      );
+      if (stdout && stdout.trim()) cumulativeDiff = stdout;
+    } catch (err) {
+      console.warn(`[job-adapter] cumulative diff failed for ${args.taskId}: ${err.message}`);
+      // fall back to the pipeline's single-run diff.
+    }
+  }
+
   return {
     commitSha,
     baseSha,
-    diff: final.diff ?? '',
+    diff: cumulativeDiff,
   };
 }
 
@@ -532,15 +558,33 @@ function runJobInBackground(jobId) {
       // from the last miss. Without this the agent reran the exact
       // same prompt and usually reproduced the same mistake, which
       // made the retry button feel decorative.
+      //
+      // We also explicitly remind the agent that the prior attempt's
+      // commit is still on the branch and the goal is to produce a
+      // diff that satisfies the *entire* original requirement — a
+      // narrow \"just fix the feedback bullet\" interpretation was the
+      // common failure mode before this wording.
       const prevFail = task.attempt > 0 && task.review?.verdict === 'fail';
       const userPrompt = prevFail
-        ? `[이전 시도 리뷰 실패 (attempt ${task.attempt}): ${task.review?.notes ?? ''}]\n\n중요: 위 리뷰 피드백을 반드시 반영해서 이번엔 통과시키세요. 원래 요구사항은 아래와 같습니다:\n\n${task.description}`
+        ? [
+            `[이전 시도 리뷰 실패 (attempt ${task.attempt})]`,
+            `리뷰 피드백: ${task.review?.notes ?? ''}`,
+            '',
+            '중요:',
+            '- 이전 시도의 커밋은 이미 브랜치에 있습니다. 그 결과물에 필요한 변경을 *추가*하세요.',
+            '- 단순히 위 피드백 한 줄만 고치면 안 됩니다. 원래 요구사항 *전체*가 구현되어 있는지 검토하고, 빠진 부분을 모두 채우세요.',
+            '- 최종 diff (baseline..HEAD) 가 원래 요구사항을 모두 만족해야 통과입니다.',
+            '',
+            '원래 요구사항:',
+            task.description,
+          ].join('\n')
         : task.description;
       return runChangeRequestForTask({
         playgroundId: ctx.playgroundId,
         userPrompt,
         jobId: ctx.jobId,
         taskId: task.id,
+        taskBaseSha: task.baseSha,
       });
     },
     reviewer: (task, diff) => reviewTaskDiff(task, diff),
