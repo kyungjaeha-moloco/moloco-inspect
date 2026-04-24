@@ -150,6 +150,42 @@ function nextId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+// ── Chat persistence (per-playground) ────────────────────────────────
+//
+// Keyed by playgroundId so each playground has its own thread. Stored
+// as a plain JSON array of ChatMessage. Missing / malformed entries are
+// treated as an empty thread — never throw on corrupt data.
+const CHAT_STORAGE_PREFIX = 'moloco-playground:v3:chat:';
+
+function chatStorageKey(playgroundId: string) {
+  return `${CHAT_STORAGE_PREFIX}${playgroundId}`;
+}
+
+function loadChatFromStorage(playgroundId: string): ChatMessage[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(chatStorageKey(playgroundId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as ChatMessage[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveChatToStorage(playgroundId: string, messages: ChatMessage[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      chatStorageKey(playgroundId),
+      JSON.stringify(messages),
+    );
+  } catch {
+    // Quota or serialization failure — silent drop is fine, the thread
+    // will just re-fill from the in-memory store on this session.
+  }
+}
+
 const initial: Pick<
   PlaygroundStoreState,
   | 'current'
@@ -176,7 +212,18 @@ const initial: Pick<
 export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
   ...initial,
 
-  setCurrent: (current) => set({ current }),
+  setCurrent: (current) =>
+    // Switching playgrounds must pull that playground's thread back
+    // into memory — otherwise the prior thread (or an empty array)
+    // would leak across /p/:id navigation. When clearing (null), drop
+    // the thread too so the next mount starts fresh.
+    set((state) => {
+      if (!current) return { current: null, messages: [] };
+      const sameId = state.current?.id === current.id;
+      return sameId
+        ? { current }
+        : { current, messages: loadChatFromStorage(current.id) };
+    }),
   mergeCurrent: (patch) =>
     set((state) =>
       state.current ? { current: { ...state.current, ...patch } } : {},
@@ -273,3 +320,12 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
 
   reset: () => set({ ...initial }),
 }));
+
+// Persist chat on every change, keyed by the currently-open playground.
+// Skipping when `current` is null avoids clobbering another playground's
+// thread during the brief window between reset() and setCurrent().
+usePlaygroundStore.subscribe((state, prev) => {
+  if (!state.current) return;
+  if (state.messages === prev.messages) return;
+  saveChatToStorage(state.current.id, state.messages);
+});
