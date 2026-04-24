@@ -131,16 +131,17 @@ export function JobCard({ jobId }: { jobId: string }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {job.tasks.length === 0 && (
           <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
             {job.status === 'decomposing' ? 'AI 가 작업을 쪼개는 중…' : '(태스크 없음)'}
           </div>
         )}
-        {job.tasks.map((task) => (
+        {job.tasks.map((task, idx) => (
           <TaskRow
             key={task.id}
             task={task}
+            index={idx + 1}
             disabled={acting}
             onRetry={() => runAction(() => retryJobTask(job.id, task.id))}
             onSkip={() => runAction(() => skipJobTask(job.id, task.id))}
@@ -237,12 +238,14 @@ export function JobCard({ jobId }: { jobId: string }) {
 
 function TaskRow({
   task,
+  index,
   disabled,
   onRetry,
   onSkip,
   onUnblock,
 }: {
   task: JobTask;
+  index: number;
   disabled: boolean;
   onRetry: () => void;
   onSkip: () => void;
@@ -276,17 +279,17 @@ function TaskRow({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
+          gap: 10,
           minWidth: 0,
           cursor: 'pointer',
         }}
         onClick={() => setExpanded((v) => !v)}
       >
-        <StatusPill status={task.status} />
+        <TaskLeading task={task} index={index} />
         <span
           style={{
             fontWeight: 500,
-            fontSize: 12,
+            fontSize: 13,
             color: 'var(--text-primary)',
             flex: 1,
             minWidth: 0,
@@ -299,30 +302,14 @@ function TaskRow({
           {task.title}
         </span>
         {task.dependsOn.length > 0 && (
-          <span style={{ fontSize: 9, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 10, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
             ← {task.dependsOn.join(',')}
           </span>
         )}
-        <span style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>
-          {expanded ? '▾' : '▸'}
+        <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+          {expanded ? '▾' : '›'}
         </span>
       </div>
-      {!expanded && (
-        <div
-          style={{
-            fontSize: 10,
-            color: 'var(--text-tertiary)',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            paddingLeft: 58, // align under title (past pill width)
-            marginTop: 2,
-          }}
-          title={task.description}
-        >
-          {task.description}
-        </div>
-      )}
       {expanded && (
         <div
           style={{
@@ -378,6 +365,80 @@ function TaskRow({
       )}
     </div>
   );
+}
+
+// ── Task leading indicator ───────────────────────────────────────────
+//
+// Pending tasks are the scan-over bulk; showing a PENDING pill for
+// every one of four tasks was pure noise. For those we render the
+// task index in a subtle circle. Non-pending statuses get an icon
+// + short label so the scan-eye finds the interesting rows first.
+
+function TaskLeading({ task, index }: { task: JobTask; index: number }) {
+  if (task.status === 'pending') {
+    return (
+      <span
+        aria-hidden
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 20,
+          height: 20,
+          borderRadius: '50%',
+          background: 'var(--bg-elevated, #eef0f3)',
+          color: 'var(--text-tertiary)',
+          fontSize: 10,
+          fontWeight: 600,
+          flexShrink: 0,
+        }}
+      >
+        {index}
+      </span>
+    );
+  }
+  const { icon, bg, fg, label } = leadingFor(task.status);
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '2px 8px',
+        borderRadius: 999,
+        background: bg,
+        color: fg,
+        fontSize: 9,
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+        flexShrink: 0,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span aria-hidden>{icon}</span>
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function leadingFor(status: string) {
+  switch (status) {
+    case 'running':
+      return { icon: '●', bg: 'rgba(20, 83, 182, 0.12)', fg: 'var(--text-info, #1453b6)', label: 'running' };
+    case 'committed':
+      return { icon: '●', bg: 'rgba(20, 83, 182, 0.12)', fg: 'var(--text-info, #1453b6)', label: 'reviewing' };
+    case 'reviewed':
+      return { icon: '✓', bg: 'rgba(27, 122, 67, 0.12)', fg: 'var(--text-success, #1b7a43)', label: 'done' };
+    case 'failed':
+      return { icon: '×', bg: 'rgba(198, 40, 40, 0.1)', fg: 'var(--text-danger, #c62828)', label: 'failed' };
+    case 'skipped':
+      return { icon: '–', bg: 'var(--bg-elevated)', fg: 'var(--text-tertiary)', label: 'skipped' };
+    case 'blocked':
+      return { icon: '⏸', bg: 'rgba(245, 194, 107, 0.2)', fg: 'var(--text-warn, #8a5a00)', label: 'blocked' };
+    default:
+      return { icon: '·', bg: 'var(--bg-elevated)', fg: 'var(--text-secondary)', label: status };
+  }
 }
 
 // ── Status pill ──────────────────────────────────────────────────────
