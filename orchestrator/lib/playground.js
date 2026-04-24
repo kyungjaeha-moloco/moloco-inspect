@@ -543,10 +543,41 @@ export async function restoreToSha(id, sha) {
   // `git revert <sha>..HEAD --no-commit` stages the inverse of every
   // commit after `sha`, then we seal it with one commit so the log
   // gets a single "Restore" marker instead of N noisy revert commits.
-  await execAsync(
-    `docker exec ${pg.sandboxContainerName} sh -c "cd /workspace/msm-portal && git revert --no-commit ${sha}..HEAD && git commit --no-verify -m 'Restore to ${sha.slice(0, 8)}'"`,
-    { timeout: 30_000 },
-  );
+  //
+  // Revert can halt mid-way with conflicts (e.g. when two commits after
+  // `sha` touch the same region and reverting them produces textual
+  // collisions). If that happens we MUST `--abort` the partial revert,
+  // otherwise the sandbox is left in a "reverting commit X" state and
+  // every subsequent git op inside the container fails. We detect
+  // mid-revert via `.git/REVERT_HEAD` and surface a clean error so the
+  // UI can tell the user to skip the bad hop.
+  const script = [
+    'cd /workspace/msm-portal',
+    `git revert --no-commit ${sha}..HEAD || { git revert --abort 2>/dev/null; echo "__REVERT_FAILED__"; exit 2; }`,
+    '[ -f .git/REVERT_HEAD ] && { git revert --abort; echo "__REVERT_CONFLICT__"; exit 3; }',
+    `git commit --no-verify -m 'Restore to ${sha.slice(0, 8)}'`,
+  ].join(' && ');
+  try {
+    await execAsync(
+      `docker exec ${pg.sandboxContainerName} sh -c ${JSON.stringify(script)}`,
+      { timeout: 30_000 },
+    );
+  } catch (err) {
+    const stdout = err.stdout || '';
+    const stderr = err.stderr || '';
+    const combined = `${stdout}\n${stderr}`;
+    if (combined.includes('__REVERT_CONFLICT__')) {
+      throw new Error(
+        `restore to ${sha.slice(0, 8)} hit revert conflicts (aborted cleanly) — try a different checkpoint or restore-head first`,
+      );
+    }
+    if (combined.includes('__REVERT_FAILED__')) {
+      throw new Error(
+        `restore to ${sha.slice(0, 8)} failed during revert (aborted cleanly) — sandbox is clean`,
+      );
+    }
+    throw err;
+  }
   const { stdout: newHead } = await execAsync(
     `docker exec ${pg.sandboxContainerName} sh -c "cd /workspace/msm-portal && git rev-parse HEAD"`,
     { timeout: 5_000 },
