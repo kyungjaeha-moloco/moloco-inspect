@@ -472,3 +472,125 @@ export async function promotePlayground(
     dryRun: data.dryRun,
   };
 }
+
+// ── Job (PRD → delivery pipeline) ────────────────────
+
+export type JobStatus =
+  | 'decomposing'
+  | 'planning'
+  | 'delegating'
+  | 'reviewing'
+  | 'qa'
+  | 'complete'
+  | 'paused'
+  | 'cancelled';
+
+export type JobTaskStatus =
+  | 'pending'
+  | 'running'
+  | 'committed'
+  | 'reviewed'
+  | 'failed'
+  | 'skipped'
+  | 'blocked';
+
+export interface JobTask {
+  id: string;
+  title: string;
+  description: string;
+  dependsOn: string[];
+  status: JobTaskStatus;
+  attempt: number;
+  changeRequestId?: string;
+  commitSha?: string;
+  baseSha?: string;
+  review?: {
+    verdict: 'pass' | 'fail';
+    notes: string;
+  };
+}
+
+export interface Job {
+  id: string;
+  playgroundId: string;
+  prdText: string;
+  status: JobStatus;
+  tasks: JobTask[];
+  currentTaskId?: string;
+  pausedReason?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+async function jobJson<T extends object>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const resp = await fetch(`${ORCHESTRATOR_URL}${path}`, init);
+  let data: { ok?: boolean; error?: string } & Partial<T> = {};
+  try {
+    data = (await resp.json()) as typeof data;
+  } catch {
+    throw new OrchestratorError(
+      `job 응답 파싱 실패 (HTTP ${resp.status})`,
+      resp.status,
+    );
+  }
+  if (!resp.ok || !data.ok) {
+    throw new OrchestratorError(data.error || `HTTP ${resp.status}`, resp.status);
+  }
+  return data as T;
+}
+
+export async function createJob(
+  playgroundId: string,
+  prdText: string,
+): Promise<Job> {
+  const data = await jobJson<{ job: Job }>(
+    `/api/playground/${encodeURIComponent(playgroundId)}/job`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prdText }),
+    },
+  );
+  return data.job;
+}
+
+export async function getJob(id: string): Promise<Job> {
+  const data = await jobJson<{ job: Job }>(`/api/job/${encodeURIComponent(id)}`);
+  return data.job;
+}
+
+export async function listJobs(): Promise<Job[]> {
+  const data = await jobJson<{ jobs: Job[] }>('/api/job');
+  return data.jobs;
+}
+
+async function jobAction(
+  id: string,
+  action: string,
+  body?: object,
+): Promise<Job> {
+  const data = await jobJson<{ job: Job }>(
+    `/api/job/${encodeURIComponent(id)}/${action}`,
+    {
+      method: 'POST',
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    },
+  );
+  return data.job;
+}
+
+export const approveJobPlan = (id: string) => jobAction(id, 'approve-plan');
+export const retryJobTask = (id: string, taskId: string) =>
+  jobAction(id, 'retry-task', { taskId });
+export const skipJobTask = (id: string, taskId: string) =>
+  jobAction(id, 'skip-task', { taskId });
+export const unblockJobTask = (id: string, taskId: string) =>
+  jobAction(id, 'unblock-task', { taskId });
+export const cancelJob = (id: string) => jobAction(id, 'cancel');
+export const resumeJob = (id: string, target: JobStatus = 'delegating') =>
+  jobAction(id, 'resume', { target });
+export const redecomposeJob = (id: string) => jobAction(id, 'decompose');

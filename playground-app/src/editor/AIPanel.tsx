@@ -25,9 +25,11 @@ import {
   restorePlaygroundHead,
   restorePlaygroundToSha,
   OrchestratorError,
+  createJob,
   type ChangeRequestEvent,
   type RawPlan,
 } from '../services/orchestrator-client';
+import { useNavigate } from 'react-router-dom';
 import {
   InputArea,
   Card,
@@ -105,6 +107,8 @@ export const AIPanel = React.memo(function AIPanel() {
 
   const [input, setInput] = useState('');
   const [activeTab, setActiveTab] = useState<'chat' | 'comments'>('chat');
+  const [prdModalOpen, setPrdModalOpen] = useState(false);
+  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new messages
@@ -556,24 +560,50 @@ export const AIPanel = React.memo(function AIPanel() {
             ))}
           </div>
           {activeTab === 'chat' && (
-            <button
-              type="button"
-              onClick={reset}
-              title="새 대화"
-              aria-label="새 대화"
-              style={{
-                border: 'none',
-                background: 'transparent',
-                padding: 4,
-                cursor: 'pointer',
-                color: 'var(--text-secondary)',
-                fontSize: 18,
-                lineHeight: 1,
-                fontFamily: 'inherit',
-              }}
-            >
-              +
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setPrdModalOpen(true)}
+                title="PRD 로 시작 — 큰 요구사항을 태스크로 쪼개서 자동 진행"
+                aria-label="PRD 로 job 시작"
+                disabled={!playgroundId}
+                style={{
+                  border: '1px solid var(--border-primary)',
+                  background: 'var(--bg-elevated)',
+                  padding: '2px 8px',
+                  cursor: playgroundId ? 'pointer' : 'not-allowed',
+                  color: 'var(--text-secondary)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  lineHeight: 1.6,
+                  fontFamily: 'inherit',
+                  borderRadius: 4,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  opacity: playgroundId ? 1 : 0.5,
+                }}
+              >
+                PRD
+              </button>
+              <button
+                type="button"
+                onClick={reset}
+                title="새 대화"
+                aria-label="새 대화"
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 4,
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  fontSize: 18,
+                  lineHeight: 1,
+                  fontFamily: 'inherit',
+                }}
+              >
+                +
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -711,9 +741,145 @@ export const AIPanel = React.memo(function AIPanel() {
       ) : (
         <CommentsList playgroundId={playgroundId} headCommitSha={headCommitSha} />
       )}
+      {prdModalOpen && playgroundId && (
+        <PrdModal
+          onCancel={() => setPrdModalOpen(false)}
+          onSubmit={async (prdText) => {
+            const job = await createJob(playgroundId, prdText);
+            setPrdModalOpen(false);
+            navigate(`/j/${job.id}`);
+          }}
+        />
+      )}
     </div>
   );
 });
+
+/**
+ * PRD paste modal — opens from the `PRD` button in the AIPanel header.
+ * User pastes a PRD / ticket / free-form brief; submit creates a Job
+ * (which auto-decomposes in the background) and we navigate into its
+ * detail route so the user can watch the task list land.
+ */
+function PrdModal({
+  onCancel,
+  onSubmit,
+}: {
+  onCancel: () => void;
+  onSubmit: (prdText: string) => Promise<void>;
+}) {
+  const [text, setText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const canSubmit = text.trim().length >= 10 && !submitting;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal
+      aria-labelledby="prd-modal-title"
+      onClick={onCancel}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.35)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 50,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 560,
+          maxWidth: 'calc(100vw - 48px)',
+          background: 'var(--bg-surface)',
+          borderRadius: 10,
+          boxShadow: 'var(--shadow-md)',
+          padding: 18,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+        }}
+      >
+        <h2 id="prd-modal-title" style={{ margin: 0, fontSize: 15 }}>
+          PRD 로 job 시작
+        </h2>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-tertiary)' }}>
+          큰 요구사항을 붙여 넣으면 AI 가 작은 태스크로 쪼갭니다. 각 태스크는
+          샌드박스에서 순차 실행되고, 커밋 diff 는 LLM 이 검토합니다.
+        </p>
+        <textarea
+          autoFocus
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="PRD 전문 또는 Jira 티켓 내용을 붙여넣으세요..."
+          rows={10}
+          style={{
+            width: '100%',
+            fontSize: 12,
+            fontFamily: 'inherit',
+            padding: 10,
+            borderRadius: 6,
+            border: '1px solid var(--border-primary)',
+            resize: 'vertical',
+            boxSizing: 'border-box',
+          }}
+        />
+        {error && (
+          <div style={{ fontSize: 11, color: 'var(--text-danger, #d33)' }}>{error}</div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            style={{
+              padding: '6px 12px',
+              fontSize: 12,
+              background: 'transparent',
+              border: '1px solid var(--border-primary)',
+              borderRadius: 6,
+              cursor: 'pointer',
+              color: 'var(--text-secondary)',
+              fontFamily: 'inherit',
+            }}
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            disabled={!canSubmit}
+            onClick={async () => {
+              setSubmitting(true);
+              setError(null);
+              try {
+                await onSubmit(text.trim());
+              } catch (err) {
+                setError(err instanceof Error ? err.message : String(err));
+                setSubmitting(false);
+              }
+            }}
+            style={{
+              padding: '6px 12px',
+              fontSize: 12,
+              background: canSubmit ? 'var(--accent)' : 'var(--bg-elevated)',
+              color: canSubmit ? 'var(--text-inverse, #fff)' : 'var(--text-tertiary)',
+              border: 'none',
+              borderRadius: 6,
+              cursor: canSubmit ? 'pointer' : 'not-allowed',
+              fontWeight: 600,
+              fontFamily: 'inherit',
+            }}
+          >
+            {submitting ? '생성 중…' : '시작'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Helpers ─────────────────────────────────────────────────
 
