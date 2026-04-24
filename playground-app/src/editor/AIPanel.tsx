@@ -2774,63 +2774,73 @@ function ExecutionCard({
             {execution.commitSha.slice(0, 7)}
           </code>
           <div style={{ flex: 1 }} />
-          {isRestoreAnchor && (
+          {isRestoreAnchor ? (
+            // Once restored, collapse the action row into a single
+            // green "Restored" indicator — showing 보기 / Restore
+            // alongside would be redundant (already there) and
+            // clickable Restore would be confusing (already done).
             <span
               style={{
-                fontSize: 9,
-                padding: '2px 8px',
-                borderRadius: 999,
-                background: 'rgba(27, 122, 67, 0.15)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '4px 10px',
+                borderRadius: 'var(--radius-sm, 4px)',
+                background: 'rgba(27, 122, 67, 0.14)',
                 color: 'var(--text-success, #1b7a43)',
+                fontSize: 11,
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: 0.5,
               }}
               title="이 체크포인트로 복원된 상태 — 이후 메시지는 현재 작업 트리에 반영되지 않습니다."
             >
-              ↺ RESTORED
+              ↺ Restored
             </span>
-          )}
-          {isCurrent ? (
-            <span style={checkpointCurrentBadgeStyle}>작업중</span>
-          ) : canRewind ? (
-            <button
-              type="button"
-              onClick={() => onCheckoutCommit(execution.commitSha!)}
-              style={checkpointGhostButtonStyle}
-              title="이 체크포인트를 미리 봅니다 (복원 아님)"
-            >
-              보기
-            </button>
-          ) : null}
-          {execution.requestId && (
-            <a
-              href={`http://127.0.0.1:4174/requests/${execution.requestId}`}
-              target="_blank"
-              rel="noreferrer"
-              style={checkpointGhostLinkStyle}
-              title="대시보드에서 이 요청의 변경 내역 상세"
-              onClick={(e) => e.stopPropagation()}
-            >
-              View changes ↗
-            </a>
-          )}
-          {done && !errored && !isCurrent && (
-            <button
-              type="button"
-              onClick={() =>
-                onRestoreToSha(
-                  execution.commitSha!,
-                  checkpointNumber != null
-                    ? `체크포인트 ${checkpointNumber}`
-                    : undefined,
-                )
-              }
-              style={checkpointRestoreButtonStyle}
-              title="이 체크포인트 이후의 변경을 되돌립니다 (히스토리는 유지됨)"
-            >
-              ↺ Restore
-            </button>
+          ) : (
+            <>
+              {isCurrent ? (
+                <span style={checkpointCurrentBadgeStyle}>작업중</span>
+              ) : canRewind ? (
+                <button
+                  type="button"
+                  onClick={() => onCheckoutCommit(execution.commitSha!)}
+                  style={checkpointGhostButtonStyle}
+                  title="이 체크포인트를 미리 봅니다 (복원 아님)"
+                >
+                  보기
+                </button>
+              ) : null}
+              {execution.requestId && (
+                <a
+                  href={`http://127.0.0.1:4174/requests/${execution.requestId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={checkpointGhostLinkStyle}
+                  title="대시보드에서 이 요청의 변경 내역 상세"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  View changes ↗
+                </a>
+              )}
+              {done && !errored && !isCurrent && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onRestoreToSha(
+                      execution.commitSha!,
+                      checkpointNumber != null
+                        ? `체크포인트 ${checkpointNumber}`
+                        : undefined,
+                    )
+                  }
+                  style={checkpointRestoreButtonStyle}
+                  title="이 체크포인트 이후의 변경을 되돌립니다 (히스토리는 유지됨)"
+                >
+                  ↺ Restore
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
