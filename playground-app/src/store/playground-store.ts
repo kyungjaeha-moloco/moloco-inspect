@@ -61,6 +61,12 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  /**
+   * Element the user picked and attached at send time — rendered as a
+   * chip inside the bubble so the visual reference survives in the chat
+   * log (instead of collapsing into the raw "[선택된 요소: ...]" prefix).
+   */
+  attachedElement?: BridgeElementContext;
   /** Present when the assistant message carries a structured plan. */
   plan?: {
     meta: PlanMeta;
@@ -122,6 +128,14 @@ interface PlaygroundStoreState {
    */
   lastPickedElement: BridgeElementContext | null;
 
+  /**
+   * Viewport-relative bounding box of `lastPickedElement`, captured at
+   * pick time. Drives a persistent outline over the iframe so the user
+   * can *see* what they picked after the pick mode drops back to
+   * interactive. Drifts if the iframe scrolls; users can re-pick.
+   */
+  lastPickedBbox: { x: number; y: number; width: number; height: number } | null;
+
   setCurrent(pg: Playground | null): void;
   mergeCurrent(patch: Partial<Playground>): void;
   setMode(mode: IframeMode): void;
@@ -132,8 +146,16 @@ interface PlaygroundStoreState {
 
   setCurrentRoute(route: string | null): void;
   setLastPickedElement(element: BridgeElementContext | null): void;
+  /** Atomic setter used right after a pick so outline + chip land together. */
+  setLastPicked(
+    element: BridgeElementContext | null,
+    bbox: { x: number; y: number; width: number; height: number } | null,
+  ): void;
 
-  addUserMessage(content: string): ChatMessage;
+  addUserMessage(
+    content: string,
+    attachedElement?: BridgeElementContext,
+  ): ChatMessage;
   addAssistantMessage(
     msg: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>,
   ): ChatMessage;
@@ -197,6 +219,7 @@ const initial: Pick<
   | 'progress'
   | 'currentRoute'
   | 'lastPickedElement'
+  | 'lastPickedBbox'
 > = {
   current: null,
   mode: 'interactive',
@@ -207,6 +230,7 @@ const initial: Pick<
   progress: [],
   currentRoute: null,
   lastPickedElement: null,
+  lastPickedBbox: null,
 };
 
 export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
@@ -229,14 +253,11 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
       state.current ? { current: { ...state.current, ...patch } } : {},
     ),
   setMode: (mode) =>
-    // Leaving Pick clears `lastPickedElement` — it's only meaningful while
-    // the user is actively picking. Comment keeps it so the next pin attaches
-    // to whatever was last highlighted, if the user swapped modes mid-pick.
-    set((state) => ({
-      mode,
-      lastPickedElement:
-        mode === 'pick' || mode === 'comment' ? state.lastPickedElement : null,
-    })),
+    // Leaving Pick keeps `lastPickedElement` + `lastPickedBbox` around —
+    // the user needs them to remember *what* they just picked after the
+    // mode bounces back to interactive. They clear on explicit chip
+    // dismissal (setLastPickedElement(null) / setLastPicked(null,null)).
+    set({ mode }),
   setSending: (isSending) => set({ isSending }),
   setError: (error) => set({ error }),
   setQueueDepth: (queueDepth) => set({ queueDepth }),
@@ -244,13 +265,22 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
     set((state) => ({ progress: [...state.progress, entry] })),
 
   setCurrentRoute: (currentRoute) => set({ currentRoute }),
-  setLastPickedElement: (lastPickedElement) => set({ lastPickedElement }),
+  setLastPickedElement: (lastPickedElement) =>
+    // Clearing the element clears its paired bbox too — there's no
+    // sensible case where we'd keep a stale outline after the chip is
+    // dismissed.
+    set(lastPickedElement === null
+      ? { lastPickedElement: null, lastPickedBbox: null }
+      : { lastPickedElement }),
+  setLastPicked: (lastPickedElement, lastPickedBbox) =>
+    set({ lastPickedElement, lastPickedBbox }),
 
-  addUserMessage: (content) => {
+  addUserMessage: (content, attachedElement) => {
     const msg: ChatMessage = {
       id: nextId('u'),
       role: 'user',
       content,
+      ...(attachedElement ? { attachedElement } : {}),
       timestamp: Date.now(),
     };
     set((state) => ({ messages: [...state.messages, msg] }));

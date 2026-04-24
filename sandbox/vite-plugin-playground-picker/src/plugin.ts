@@ -25,6 +25,13 @@ import type { PickerPluginOptions } from './types';
 
 const RUNTIME_VIRTUAL_ID = 'virtual:playground-picker/runtime';
 const RUNTIME_RESOLVED_ID = '\0' + RUNTIME_VIRTUAL_ID;
+// Real URL we serve the runtime from via middleware. Using a real path
+// (instead of the `virtual:` specifier) is what actually works in the
+// injected inline <script type="module">: Vite does not rewrite raw
+// import specifiers inside `transformIndexHtml` children, so the
+// browser would otherwise try to fetch `virtual:…` literally and fail
+// with "unsupported URL".
+const RUNTIME_PUBLIC_URL = '/__playground-picker__/runtime.js';
 
 // Sentinel file the orchestrator `touch`es after each commit / checkout /
 // revert inside the sandbox. The plugin watches this path with polling
@@ -85,17 +92,38 @@ export function playgroundPickerPlugin(options: PickerPluginOptions = {}): Plugi
       if (!activeForMode) return;
       // Inject before any app script so the runtime's double-injection
       // guard fires even if the app somehow also imports the runtime.
+      // Use `src` (real URL served by middleware below) rather than an
+      // inline `import "virtual:…"` — Vite's HTML transform does not
+      // rewrite raw specifiers inside injected inline scripts, so a
+      // virtual-id import would land in the browser verbatim.
       return [
         {
           tag: 'script',
-          attrs: { type: 'module' },
-          children: `import ${JSON.stringify(RUNTIME_VIRTUAL_ID)};`,
+          attrs: { type: 'module', src: RUNTIME_PUBLIC_URL },
           injectTo: 'head-prepend',
         },
       ];
     },
 
     configureServer(server) {
+      // Serve the compiled runtime.js as a real HTTP resource so the
+      // injected <script src="…"> tag can actually fetch it. Using a
+      // dedicated prefix keeps the URL out of the app's import graph.
+      server.middlewares.use(RUNTIME_PUBLIC_URL, (req, res, next) => {
+        if (req.method && req.method !== 'GET' && req.method !== 'HEAD') {
+          return next();
+        }
+        try {
+          const body = loadRuntime();
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.end(body);
+        } catch (err) {
+          res.statusCode = 500;
+          res.end(`// playground-picker runtime load failed: ${(err as Error).message}`);
+        }
+      });
+
       // Polling interval tradeoff: 500ms keeps CPU noise negligible on an
       // idle sandbox while giving the user a near-instant refresh after a
       // commit. The orchestrator writes this file synchronously after the

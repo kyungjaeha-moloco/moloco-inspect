@@ -177,6 +177,10 @@ export function createPlaygroundBridge(
     const data = ev.data as Partial<BridgeMessage> | undefined;
     if (!data || typeof data !== 'object') return;
     if (data.source !== MESSAGE_SOURCE) return;
+    // Drop mismatched nonces silently — with no explicit dispose (see
+    // LivePreview.tsx), stale bridges from prior mounts co-exist and
+    // will legitimately see messages stamped for the new bridge's
+    // nonce. That's the whole point of nonce filtering.
     if (data.nonce !== nonce) return;
     // Out-of-order messages are dropped — they'd confuse state updates.
     // Sequence resets when the iframe reloads (new handshake), but that

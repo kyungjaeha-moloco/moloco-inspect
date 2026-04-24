@@ -100,9 +100,9 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProp
 
   const currentRoute = usePlaygroundStore((s) => s.currentRoute);
   const setCurrentRoute = usePlaygroundStore((s) => s.setCurrentRoute);
-  const setLastPickedElement = usePlaygroundStore(
-    (s) => s.setLastPickedElement,
-  );
+  const setLastPicked = usePlaygroundStore((s) => s.setLastPicked);
+  const lastPickedBbox = usePlaygroundStore((s) => s.lastPickedBbox);
+  const lastPickedElement = usePlaygroundStore((s) => s.lastPickedElement);
   const setMode = usePlaygroundStore((s) => s.setMode);
 
   // Load this playground's pin history on mount.
@@ -146,12 +146,8 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProp
               element: msg.element,
             });
           } else if (m === 'pick') {
-            setLastPickedElement(msg.element);
-            // Natural flow: once the user has picked a target, drop
-            // back to the interactive baseline so the toolbar reflects
-            // "I'm done selecting, now talk to the AI". AIPanel reads
-            // `lastPickedElement` and prefixes the chat prompt.
             setMode('interactive');
+            setLastPicked(msg.element, msg.bbox);
           }
         },
         onRoute: (msg) => setCurrentRoute(msg.route),
@@ -162,15 +158,17 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProp
     );
   });
 
-  // Dispose the bridge on unmount. Runs only when this inner component
-  // unmounts — which, because of the outer key, is exactly when the
-  // bridge-affecting inputs change.
-  useEffect(() => {
-    if (!bridge) return;
-    return () => {
-      bridge.dispose();
-    };
-  }, [bridge]);
+  // No explicit dispose on unmount. React StrictMode's dev-only
+  // mount→cleanup→mount cycle would otherwise dispose the bridge
+  // between the two mounts while useState hands the *same* bridge
+  // object back on the second mount — the re-mounted component would
+  // then see disposed=true and silently drop every incoming message
+  // (including `playground.ready`, which is exactly how we spent an
+  // hour debugging "bridgeReady never flips"). The bridge's listener
+  // nonce-filters, so leaving it attached when this component unmounts
+  // is harmless — messages intended for other bridges just get
+  // dropped at the nonce check. The next key change creates a fresh
+  // bridge with a new nonce; old listeners never see its traffic.
 
   // Propagate parent mode → child picker. Fires once when the child
   // becomes ready (since `bridgeReady` flips then) and again on every
@@ -328,6 +326,31 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProp
             cursor: mode === 'comment' ? 'crosshair' : 'default',
           }}
           aria-hidden
+        />
+      )}
+      {/* Persistent outline of the last picked element. Lives in the
+          parent, not the iframe, so it survives mode changes and
+          iframe-scoped navigation. Viewport-relative bbox means it
+          drifts if the iframe scrolls — acceptable for a "which one
+          did I pick?" reminder; the user re-picks if they lose it. */}
+      {lastPickedBbox && lastPickedElement && (
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute',
+            left: lastPickedBbox.x,
+            top: lastPickedBbox.y,
+            width: lastPickedBbox.width,
+            height: lastPickedBbox.height,
+            pointerEvents: 'none',
+            boxSizing: 'border-box',
+            border: '2px dashed var(--accent)',
+            borderRadius: 4,
+            background: 'rgba(59, 130, 246, 0.06)',
+            boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.6)',
+            transition: 'opacity 120ms ease-out',
+            zIndex: 5,
+          }}
         />
       )}
       {/* Pin markers live above the iframe directly — the overlay is

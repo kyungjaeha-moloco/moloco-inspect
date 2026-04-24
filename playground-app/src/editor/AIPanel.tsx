@@ -56,6 +56,7 @@ export const AIPanel = React.memo(function AIPanel() {
     error,
     playgroundId,
     playgroundClient,
+    currentRoute,
     checkedOutSha,
     headCommitSha,
     lastPickedElement,
@@ -78,6 +79,7 @@ export const AIPanel = React.memo(function AIPanel() {
       error: s.error,
       playgroundId: s.current?.id ?? null,
       playgroundClient: s.current?.client ?? null,
+      currentRoute: s.currentRoute,
       checkedOutSha: s.current?.checkedOutSha ?? null,
       headCommitSha: s.current?.headCommitSha ?? null,
       lastPickedElement: s.lastPickedElement,
@@ -307,27 +309,48 @@ export const AIPanel = React.memo(function AIPanel() {
 
     setError(null);
 
-    // Prefix the outbound message with the picked element's identifier
-    // bundle when present. Keeps the agent honest about *which* element
-    // the user is talking about — especially important when the prompt
-    // is terse ("여기 여백 줄여줘") and the element label disambiguates
-    // between similarly-named React components.
-    const promptText = lastPickedElement
-      ? `${formatElementContext(lastPickedElement)}\n\n${trimmed}`
-      : trimmed;
-    addUserMessage(promptText);
+    // Store the picked element on the message (not concatenated into
+    // text) so the chat bubble can render it as a chip. The outbound
+    // prompt the agent sees still gets the element prefix — we build
+    // that on the fly in `apiMessages` below, keeping the on-screen log
+    // clean while keeping the agent honest about which element the user
+    // referred to.
+    addUserMessage(trimmed, lastPickedElement ?? undefined);
     // Clear the picked-element chip as soon as the message is queued —
     // the user expects "press send" to consume the selection. Mode was
     // already flipped back to 'view' by LivePreview on pick.
     if (lastPickedElement) setLastPickedElement(null);
 
     const current = usePlaygroundStore.getState().messages;
-    const apiMessages = current.map((m) => ({
-      role: m.role,
-      content: m.plan
-        ? `${m.content}\n\n(Plan with ${m.plan.items.length} items)`
-        : m.content,
-    }));
+    // Prepend an implicit context message so the chat model knows which
+    // client and route the user is looking at without having to ask.
+    // Keeps follow-up planning terse ("바꿔줘" → actionable) instead of
+    // triggering a "어느 페이지인가요?" clarification round-trip.
+    const contextLines: string[] = [];
+    if (playgroundClient) contextLines.push(`client: ${playgroundClient}`);
+    if (currentRoute) contextLines.push(`route: ${currentRoute}`);
+    const contextMessage = contextLines.length
+      ? {
+          role: 'user' as const,
+          content: `[Context (do not mention to the user unless asked)]\n${contextLines.join('\n')}`,
+        }
+      : null;
+
+    const apiMessages = [
+      ...(contextMessage ? [contextMessage] : []),
+      ...current.map((m) => {
+        const contextPrefix = m.attachedElement
+          ? `${formatElementContext(m.attachedElement)}\n\n`
+          : '';
+        const planSuffix = m.plan
+          ? `\n\n(Plan with ${m.plan.items.length} items)`
+          : '';
+        return {
+          role: m.role,
+          content: `${contextPrefix}${m.content}${planSuffix}`,
+        };
+      }),
+    ];
 
     const isStillActive = () =>
       sentEpoch === epochRef.current &&
@@ -393,14 +416,17 @@ export const AIPanel = React.memo(function AIPanel() {
       {
         id: 'pick',
         title: pickActive
-          ? '요소 선택 모드 끄기 (View로 복귀)'
-          : '요소 선택 — 화면 위 요소 클릭해서 컨텍스트 첨부',
+          ? '요소 선택 모드 끄기'
+          : '요소 선택 — 화면 위 요소를 클릭해서 컨텍스트 첨부',
         active: pickActive,
         onClick: () => setIframeMode(pickActive ? 'interactive' : 'pick'),
+        // Crosshair — matches the Chrome extension's inspect toggle icon
+        // (sidepanel.html / .inspect-btn) so the affordance is learnable
+        // across both entry points into the picker flow.
         icon: (
           <svg
-            width="16"
-            height="16"
+            width="18"
+            height="18"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -408,9 +434,11 @@ export const AIPanel = React.memo(function AIPanel() {
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <path d="M11 3a8 8 0 108 8" />
-            <circle cx="11" cy="11" r="3" />
-            <path d="M21 21l-4.3-4.3" />
+            <circle cx="12" cy="12" r="7" />
+            <line x1="12" y1="1" x2="12" y2="5" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="1" y1="12" x2="5" y2="12" />
+            <line x1="19" y1="12" x2="23" y2="12" />
           </svg>
         ),
       },
@@ -727,70 +755,111 @@ function PickedElementChip({
     (element.testId ? `[${element.testId}]` : undefined) ??
     element.selector ??
     '선택된 요소';
+  // Shorten source file to last two path segments for a chip-scale hint.
+  const shortSource = element.sourceFile
+    ? (() => {
+        const parts = element.sourceFile.split('/');
+        return parts.slice(-2).join('/');
+      })()
+    : null;
   return (
     <div
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '6px 8px',
-        fontSize: 11,
-        color: 'var(--text-secondary)',
+        margin: '8px 12px 0',
+        padding: '8px 10px',
         background: 'var(--bg-elevated)',
-        borderTop: '1px solid var(--border-primary)',
-        borderBottom: '1px solid var(--border-primary)',
+        border: '1px solid var(--border-primary)',
+        borderRadius: 'var(--radius-md)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        fontSize: 12,
       }}
     >
-      <span style={{ color: 'var(--accent)', fontWeight: 600 }}>📍</span>
-      <span
+      <div
         style={{
-          fontWeight: 500,
-          color: 'var(--text-primary)',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          flex: '0 1 auto',
-          minWidth: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
         }}
-        title={primary}
       >
-        {primary}
-      </span>
-      {element.sourceFile && (
         <span
           style={{
-            color: 'var(--text-tertiary)',
             fontSize: 10,
+            letterSpacing: 0.5,
+            textTransform: 'uppercase',
+            color: 'var(--text-tertiary)',
+            fontWeight: 600,
+          }}
+        >
+          Selected Element
+        </span>
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label="선택 해제"
+          title="선택 해제"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-tertiary)',
+            cursor: 'pointer',
+            fontSize: 14,
+            lineHeight: 1,
+            padding: '0 2px',
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          minWidth: 0,
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: 'var(--accent)',
+            flexShrink: 0,
+          }}
+        />
+        <span
+          style={{
+            fontWeight: 500,
+            color: 'var(--text-primary)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            flex: '1 1 auto',
             minWidth: 0,
           }}
-          title={element.sourceFile}
+          title={primary}
         >
-          {element.sourceFile}
+          {primary}
         </span>
+      </div>
+      {shortSource && (
+        <div
+          style={{
+            fontSize: 10,
+            color: 'var(--text-tertiary)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            fontFamily: 'var(--font-mono, ui-monospace, SFMono-Regular, monospace)',
+          }}
+          title={element.sourceFile ?? undefined}
+        >
+          {shortSource}
+        </div>
       )}
-      <button
-        type="button"
-        onClick={onClear}
-        aria-label="선택 해제"
-        title="선택 해제"
-        style={{
-          marginLeft: 'auto',
-          padding: '2px 6px',
-          fontSize: 10,
-          color: 'var(--text-tertiary)',
-          background: 'transparent',
-          border: '1px solid var(--border-primary)',
-          borderRadius: 'var(--radius-sm)',
-          cursor: 'pointer',
-          fontFamily: 'inherit',
-        }}
-      >
-        ✕
-      </button>
     </div>
   );
 }
@@ -1394,7 +1463,10 @@ function MessageRow({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {showContent && (
         isUser ? (
-          <UserBubble content={message.content} />
+          <UserBubble
+            content={message.content}
+            attachedElement={message.attachedElement}
+          />
         ) : (
           <AssistantBubble
             parsed={parsed}
@@ -1567,7 +1639,13 @@ function renderInlineSegments(line: string): React.ReactNode[] {
   return parts;
 }
 
-function UserBubble({ content }: { content: string }) {
+function UserBubble({
+  content,
+  attachedElement,
+}: {
+  content: string;
+  attachedElement?: BridgeElementContext;
+}) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
       <div
@@ -1582,10 +1660,85 @@ function UserBubble({ content }: { content: string }) {
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
           boxShadow: 'var(--shadow-sm)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
         }}
       >
+        {attachedElement && <UserBubbleAttachmentChip element={attachedElement} />}
         {content}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Chip shown inside a user bubble when that message carried a picked
+ * element. Mirrors the pre-send PickedElementChip styling but inverted
+ * for the accent-on-accent user-bubble background.
+ */
+function UserBubbleAttachmentChip({ element }: { element: BridgeElementContext }) {
+  const primary =
+    element.label ??
+    element.displayName ??
+    (element.testId ? `[${element.testId}]` : undefined) ??
+    element.selector ??
+    '선택된 요소';
+  const shortSource = element.sourceFile
+    ? element.sourceFile.split('/').slice(-2).join('/')
+    : null;
+  return (
+    <div
+      style={{
+        padding: '6px 8px',
+        borderRadius: 8,
+        background: 'rgba(255, 255, 255, 0.18)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+        fontSize: 11,
+        color: 'rgba(255, 255, 255, 0.95)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+        <span
+          aria-hidden
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.95)',
+            flexShrink: 0,
+          }}
+        />
+        <span
+          style={{
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            minWidth: 0,
+          }}
+          title={primary}
+        >
+          {primary}
+        </span>
+      </div>
+      {shortSource && (
+        <div
+          style={{
+            fontSize: 10,
+            color: 'rgba(255, 255, 255, 0.75)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            fontFamily: 'var(--font-mono, ui-monospace, SFMono-Regular, monospace)',
+          }}
+          title={element.sourceFile ?? undefined}
+        >
+          {shortSource}
+        </div>
+      )}
     </div>
   );
 }
