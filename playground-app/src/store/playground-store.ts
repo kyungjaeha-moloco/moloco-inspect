@@ -67,6 +67,15 @@ export interface ChatMessage {
    * log (instead of collapsing into the raw "[선택된 요소: ...]" prefix).
    */
   attachedElement?: BridgeElementContext;
+  /**
+   * Set when the user sends a fresh prompt after time-travelling away
+   * from this message's commit. The UI groups consecutive archived
+   * messages into a single collapsed "old branch" accordion so the
+   * main chat timeline isn't cluttered by work that's been rewound
+   * past. Archive is UI-only; the messages (and their commits on the
+   * git branch) are still here.
+   */
+  archived?: boolean;
   /** Present when the assistant message carries a structured plan. */
   plan?: {
     meta: PlanMeta;
@@ -167,6 +176,8 @@ interface PlaygroundStoreState {
     msg: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>,
   ): ChatMessage;
   updateMessage(messageId: string, patch: Partial<ChatMessage>): void;
+  /** Flip `archived=true` on every message below `anchorMessageId`. */
+  archiveMessagesAfter(anchorMessageId: string): void;
   updateExecution(messageId: string, patch: Partial<ExecutionState>): void;
   resolvePlan(messageId: string, outcome: 'accepted' | 'rejected'): void;
   togglePlanItem(messageId: string, itemId: string): void;
@@ -311,6 +322,16 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
         m.id === messageId ? { ...m, ...patch } : m,
       ),
     })),
+
+  archiveMessagesAfter: (anchorMessageId) =>
+    set((state) => {
+      const idx = state.messages.findIndex((m) => m.id === anchorMessageId);
+      if (idx < 0) return {};
+      const next = state.messages.map((m, i) =>
+        i > idx && !m.archived ? { ...m, archived: true } : m,
+      );
+      return { messages: next };
+    }),
 
   updateExecution: (messageId, patch) =>
     set((state) => ({

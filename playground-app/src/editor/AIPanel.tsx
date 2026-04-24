@@ -65,6 +65,7 @@ export const AIPanel = React.memo(function AIPanel() {
     setLastPickedElement,
     addUserMessage,
     addAssistantMessage,
+    archiveMessagesAfter,
     updateExecution,
     setSending,
     setError,
@@ -88,6 +89,7 @@ export const AIPanel = React.memo(function AIPanel() {
       setLastPickedElement: s.setLastPickedElement,
       addUserMessage: s.addUserMessage,
       addAssistantMessage: s.addAssistantMessage,
+      archiveMessagesAfter: s.archiveMessagesAfter,
       updateExecution: s.updateExecution,
       setSending: s.setSending,
       setError: s.setError,
@@ -311,6 +313,29 @@ export const AIPanel = React.memo(function AIPanel() {
     const sentPlaygroundId = playgroundId;
 
     setError(null);
+
+    // Time-travel → archive + restore: if the user is viewing a past
+    // checkpoint and then asks for new work, fold everything below the
+    // anchor into the archive accordion and bring the sandbox HEAD
+    // back to the live branch so the change-request can land. Git
+    // history still holds the rewound commits — archive is purely a
+    // UI cleanup of the chat timeline.
+    if (checkedOutSha && playgroundId && checkedOutSha !== headCommitSha) {
+      const anchor = messages.find(
+        (m) =>
+          !!m.execution?.commitSha &&
+          (m.execution.commitSha === checkedOutSha ||
+            m.execution.commitSha.startsWith(checkedOutSha)),
+      );
+      if (anchor) archiveMessagesAfter(anchor.id);
+      try {
+        const pg = await restorePlaygroundHead(playgroundId);
+        setCurrent(pg);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        return;
+      }
+    }
 
     // Store the picked element on the message (not concatenated into
     // text) so the chat bubble can render it as a chip. The outbound
@@ -600,12 +625,17 @@ export const AIPanel = React.memo(function AIPanel() {
           >
             {isEmpty && <EmptyState />}
             {(() => {
-              // Time-travel dimming: when the playground is checked
-              // out at an older sha, find the message whose execution
-              // committed that sha and dim every message below it.
-              // Everything after was produced on top of a state the
-              // working tree has now rewound past. See JobCard for the
-              // same idea applied to individual tasks inside a job.
+              // Two concerns composed in one pass:
+              //   1. Dim messages below the time-travel anchor (user
+              //      is viewing a past checkpoint; later work is not
+              //      reflected in the working tree).
+              //   2. Fold *archived* messages (previous branches the
+              //      user moved past by sending a new prompt during
+              //      time-travel) into a single collapsed accordion
+              //      at their original position.
+              // Runs of consecutive archived messages collapse into
+              // one `<ArchivedGroup>` node; non-archived messages
+              // render individually with optional dim.
               const anchorSha = checkedOutSha;
               const anchorIdx =
                 anchorSha &&
@@ -618,25 +648,48 @@ export const AIPanel = React.memo(function AIPanel() {
                 );
               const dimFromIdx =
                 typeof anchorIdx === 'number' && anchorIdx >= 0 ? anchorIdx : -1;
-              return messages.map((m, idx) => (
-                <MessageRow
-                  key={m.id}
-                  message={m}
-                  activeSha={activeSha}
-                  onChoice={handleChoice}
-                  isSending={isSending}
-                  checkpointNumber={checkpointByMessageId[m.id]}
-                  dimmed={dimFromIdx >= 0 && idx > dimFromIdx}
-                  onTogglePlanItem={(itemId) => togglePlanItem(m.id, itemId)}
-                  onAcceptPlan={() => {
-                    resolvePlan(m.id, 'accepted');
-                    void executePlan(m);
-                  }}
-                  onRejectPlan={() => resolvePlan(m.id, 'rejected')}
-                  onCheckoutCommit={handleCheckoutCommit}
-                  onRestoreToSha={handleRestoreToSha}
-                />
-              ));
+
+              const out: React.ReactNode[] = [];
+              let archivedRun: ChatMessage[] = [];
+              const flushArchived = () => {
+                if (archivedRun.length === 0) return;
+                const first = archivedRun[0];
+                out.push(
+                  <ArchivedGroup
+                    key={`archived-${first.id}`}
+                    messages={archivedRun}
+                  />,
+                );
+                archivedRun = [];
+              };
+              messages.forEach((m, idx) => {
+                if (m.archived) {
+                  archivedRun.push(m);
+                  return;
+                }
+                flushArchived();
+                out.push(
+                  <MessageRow
+                    key={m.id}
+                    message={m}
+                    activeSha={activeSha}
+                    onChoice={handleChoice}
+                    isSending={isSending}
+                    checkpointNumber={checkpointByMessageId[m.id]}
+                    dimmed={dimFromIdx >= 0 && idx > dimFromIdx}
+                    onTogglePlanItem={(itemId) => togglePlanItem(m.id, itemId)}
+                    onAcceptPlan={() => {
+                      resolvePlan(m.id, 'accepted');
+                      void executePlan(m);
+                    }}
+                    onRejectPlan={() => resolvePlan(m.id, 'rejected')}
+                    onCheckoutCommit={handleCheckoutCommit}
+                    onRestoreToSha={handleRestoreToSha}
+                  />,
+                );
+              });
+              flushArchived();
+              return out;
             })()}
             {isSending && <TypingIndicator />}
           </div>
@@ -1560,6 +1613,100 @@ const commentsListStyle: React.CSSProperties = {
   overflowY: 'auto',
   background: 'var(--bg-primary)',
 };
+
+/**
+ * Collapsed accordion that wraps a run of archived messages. Archive
+ * fires when the user sends a fresh prompt while the playground was
+ * checked out at a past commit — the intermediate messages are still
+ * here, just folded out of the main timeline so the new work stands
+ * alone. Click to expand in-place; the internal MessageRow renders
+ * with `dimmed` so it's clear these are historical.
+ */
+function ArchivedGroup({ messages }: { messages: ChatMessage[] }) {
+  const [open, setOpen] = useState(false);
+  if (messages.length === 0) return null;
+  const first = messages[0];
+  const last = messages[messages.length - 1];
+  const durationMs = last.timestamp - first.timestamp;
+  return (
+    <div
+      style={{
+        margin: '6px 0',
+        border: '1px dashed var(--border-primary)',
+        borderRadius: 8,
+        background:
+          'repeating-linear-gradient(45deg, var(--bg-elevated, #f5f6f8), var(--bg-elevated, #f5f6f8) 6px, transparent 6px, transparent 12px)',
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '8px 12px',
+          width: '100%',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          textAlign: 'left',
+          fontSize: 11,
+          color: 'var(--text-tertiary)',
+        }}
+        aria-expanded={open}
+      >
+        <span aria-hidden>📦</span>
+        <span style={{ fontWeight: 600 }}>
+          보관된 이전 작업 · {messages.length}개 메시지
+        </span>
+        {durationMs > 0 && (
+          <span>({formatDurationLabel(durationMs)})</span>
+        )}
+        <span style={{ marginLeft: 'auto', fontSize: 10 }}>{open ? '▾ 접기' : '▸ 펼치기'}</span>
+      </button>
+      {open && (
+        <div
+          style={{
+            padding: '0 12px 10px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              style={{ opacity: 0.6 }}
+              title="보관된 이전 작업 — 현재 작업 트리에는 반영되지 않음"
+            >
+              {/* Shallow render — just content text, no actions. Users
+                  who need to dig in can copy the prompt into a fresh
+                  message. Keeping this light avoids re-wiring every
+                  plan/execution handler for archived items. */}
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                <strong style={{ marginRight: 6 }}>
+                  {m.role === 'user' ? '👤' : '◎'}
+                </strong>
+                {m.content || (m.plan ? '(plan)' : m.execution ? '(execution)' : m.jobId ? '(job)' : '')}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatDurationLabel(ms: number): string {
+  const mins = Math.round(ms / 60_000);
+  if (mins < 1) return '<1분';
+  if (mins < 60) return `${mins}분`;
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return remMins ? `${hours}시간 ${remMins}분` : `${hours}시간`;
+}
 
 function EmptyState() {
   const suggestions = [
