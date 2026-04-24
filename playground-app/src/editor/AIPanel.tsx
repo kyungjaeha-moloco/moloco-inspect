@@ -29,7 +29,6 @@ import {
   type ChangeRequestEvent,
   type RawPlan,
 } from '../services/orchestrator-client';
-import { useNavigate } from 'react-router-dom';
 import {
   InputArea,
   Card,
@@ -39,6 +38,7 @@ import {
 } from '../shared-ui';
 import { usePinStore, type PinComment } from '../store/pin-store';
 import type { BridgeElementContext } from '../services/playground-bridge';
+import { JobCard } from './JobCard';
 
 /**
  * AIPanel — left-pane conversational interface for the Playground editor.
@@ -108,7 +108,6 @@ export const AIPanel = React.memo(function AIPanel() {
   const [input, setInput] = useState('');
   const [activeTab, setActiveTab] = useState<'chat' | 'comments'>('chat');
   const [prdModalOpen, setPrdModalOpen] = useState(false);
-  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new messages
@@ -722,7 +721,14 @@ export const AIPanel = React.memo(function AIPanel() {
           onSubmit={async (prdText) => {
             const job = await createJob(playgroundId, prdText);
             setPrdModalOpen(false);
-            navigate(`/j/${job.id}`);
+            // Seed an assistant message that owns the JobCard; the card
+            // polls for live state, so we don't need to stream updates
+            // into additional chat messages afterwards. The content
+            // acts as a brief one-liner above the card.
+            addAssistantMessage({
+              content: 'PRD 를 받았어요. 작업을 나눠서 진행할게요.',
+              jobId: job.id,
+            });
           }}
         />
       )}
@@ -801,9 +807,10 @@ function PrdModal({
         style={{
           width: 560,
           maxWidth: 'calc(100vw - 48px)',
-          background: 'var(--bg-surface)',
+          background: 'var(--bg-surface, #ffffff)',
+          border: '1px solid var(--border-primary, rgba(0,0,0,0.08))',
           borderRadius: 10,
-          boxShadow: 'var(--shadow-md)',
+          boxShadow: 'var(--shadow-md, 0 20px 60px rgba(0, 0, 0, 0.18))',
           padding: 18,
           display: 'flex',
           flexDirection: 'column',
@@ -1725,6 +1732,8 @@ function MessageRow({
           onRestoreToSha={onRestoreToSha}
         />
       )}
+
+      {message.jobId && <JobCard jobId={message.jobId} />}
     </div>
   );
 }

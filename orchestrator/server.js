@@ -45,7 +45,7 @@ import { enqueue as enqueueJob, QueueFullError, queueDepth } from './lib/playgro
 import {
   createJob, getJob, listJobs, activeJobForPlayground,
   setJobTasks, approvePlan, retryTask, skipTask, unblockTask,
-  cancelJob, resumeJob, setJobStatus,
+  cancelJob, resumeJob, setJobStatus, markQaPass,
 } from './lib/job.js';
 import { runJob as runJobRunner } from './lib/job-runner.js';
 import { decomposePrd } from './lib/job-decomposer.js';
@@ -2764,7 +2764,7 @@ Generate 2 variations (v2, v3).`;
   }
 
   const jobMatch = pathname.match(
-    /^\/api\/job\/([a-zA-Z0-9_-]+)(?:\/(decompose|tasks|approve-plan|retry-task|skip-task|unblock-task|cancel|resume))?$/,
+    /^\/api\/job\/([a-zA-Z0-9_-]+)(?:\/(decompose|tasks|approve-plan|retry-task|skip-task|unblock-task|cancel|resume|mark-qa-pass))?$/,
   );
   if (jobMatch) {
     const [, jobId, action] = jobMatch;
@@ -2821,6 +2821,7 @@ Generate 2 variations (v2, v3).`;
           updated = unblockTask(jobId, body?.taskId);
           runJobInBackground(jobId);
         }
+        else if (action === 'mark-qa-pass') updated = markQaPass(jobId);
         else if (action === 'cancel') updated = cancelJob(jobId);
         else if (action === 'resume') {
           const body = await parseBody(req);

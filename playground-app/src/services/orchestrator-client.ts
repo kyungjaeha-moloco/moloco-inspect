@@ -594,3 +594,4 @@ export const cancelJob = (id: string) => jobAction(id, 'cancel');
 export const resumeJob = (id: string, target: JobStatus = 'delegating') =>
   jobAction(id, 'resume', { target });
 export const redecomposeJob = (id: string) => jobAction(id, 'decompose');
+export const markQaPass = (id: string) => jobAction(id, 'mark-qa-pass');

@@ -310,6 +310,21 @@ export function cancelJob(jobId) {
 }
 
 /**
+ * Mark the QA stage as passed — the user has manually verified the
+ * app works as intended in the sandbox and wants to unlock promote.
+ * Explicit human gate (v0 scope-cut keeps automated QA out).
+ * @param {string} jobId
+ */
+export function markQaPass(jobId) {
+  const job = getJob(jobId);
+  if (!job) throw new Error(`job not found: ${jobId}`);
+  if (job.status !== 'qa') {
+    throw new Error(`cannot mark QA pass from status ${job.status}`);
+  }
+  return setJobStatus(jobId, 'complete');
+}
+
+/**
  * Resume a paused job. Caller (or the runner) decides which non-terminal
  * stage to resume into; the FSM allows any valid non-terminal target.
  * @param {string} jobId

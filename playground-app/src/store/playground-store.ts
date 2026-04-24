@@ -76,6 +76,13 @@ export interface ChatMessage {
   planResolved?: 'accepted' | 'rejected';
   /** Present when this message is showing an execution. */
   execution?: ExecutionState;
+  /**
+   * Present when this message represents an ongoing multi-task PRD
+   * job — AIPanel renders a live JobCard inline in place of the usual
+   * text / plan / execution treatment. The JobCard polls the server
+   * for task-level state.
+   */
+  jobId?: string;
   timestamp: number;
 }
 
