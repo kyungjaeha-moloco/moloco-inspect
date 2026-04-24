@@ -990,6 +990,19 @@ async function runPipeline(id) {
           state.commitSha = sha;
           updatePlaygroundHead(state.playgroundId, sha);
           appendLog(id, `Committed ${sha.slice(0, 8)}`);
+          // Poke the in-sandbox Vite plugin so it invalidates its module
+          // graph and pushes a full-reload to the browser. See
+          // `signalInvalidate` in lib/playground.js for why this is needed
+          // (inotify silently misses git-am writes on Docker overlayfs).
+          try {
+            await execInContainer({
+              containerId: sandbox.containerId,
+              command: 'touch /workspace/.playground-invalidate',
+              timeout: 5_000,
+            });
+          } catch (err) {
+            console.warn(`[pipeline] invalidate signal failed: ${err.message}`);
+          }
         }
       } catch (err) {
         console.warn(`[pipeline] playground commit failed: ${err.message}`);

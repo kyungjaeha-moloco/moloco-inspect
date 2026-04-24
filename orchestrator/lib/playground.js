@@ -107,6 +107,32 @@ function makeShortId() {
 }
 
 /**
+ * Poke the in-sandbox Vite plugin's invalidation watcher. The plugin
+ * (vite-plugin-playground-picker, `configureServer` hook) polls
+ * `/workspace/.playground-invalidate` and, on mtime change, clears the
+ * Vite module graph and pushes a `full-reload` to the browser. We touch
+ * the file after any git operation that rewrites the working tree
+ * because Vite's default inotify watcher silently misses those changes
+ * on Docker Desktop overlayfs — the iframe would otherwise keep serving
+ * stale transformed modules even after a browser reload.
+ *
+ * Best-effort: swallow failures so a signal glitch never fails the
+ * underlying git operation.
+ *
+ * @param {string} containerName
+ */
+async function signalInvalidate(containerName) {
+  try {
+    await execAsync(
+      `docker exec ${containerName} touch /workspace/.playground-invalidate`,
+      { timeout: 5_000 },
+    );
+  } catch (err) {
+    console.warn(`[playground] invalidate signal failed: ${err.message}`);
+  }
+}
+
+/**
  * Write the playground Vite wrapper config into the sandbox. The wrapper
  * lives *inside* msm-portal-web so the relative `./vite.config` import
  * resolves; its playground-picker import is absolute because the plugin
@@ -469,6 +495,7 @@ export async function checkoutCommit(id, sha) {
   pg.updatedAt = nowMs();
   pg.lastActivityAt = nowMs();
   persist(pg);
+  await signalInvalidate(pg.sandboxContainerName);
   console.log(`[playground] ${id} checkout ${sha.slice(0, 8)}`);
   return pg;
 }
@@ -485,6 +512,7 @@ export async function restorePlaygroundHead(id) {
   pg.updatedAt = nowMs();
   pg.lastActivityAt = nowMs();
   persist(pg);
+  await signalInvalidate(pg.sandboxContainerName);
   console.log(`[playground] ${id} restored head on ${pg.workBranch}`);
   return pg;
 }
@@ -527,6 +555,7 @@ export async function restoreToSha(id, sha) {
   pg.updatedAt = nowMs();
   pg.lastActivityAt = nowMs();
   persist(pg);
+  await signalInvalidate(pg.sandboxContainerName);
   console.log(`[playground] ${id} restored to ${sha.slice(0, 8)} → ${pg.headCommitSha.slice(0, 8)}`);
   return pg;
 }
@@ -555,6 +584,7 @@ export async function revertCommit(id, sha) {
   pg.updatedAt = nowMs();
   pg.lastActivityAt = nowMs();
   persist(pg);
+  await signalInvalidate(pg.sandboxContainerName);
   console.log(`[playground] ${id} reverted ${sha.slice(0, 8)} → ${pg.headCommitSha.slice(0, 8)}`);
   return pg;
 }

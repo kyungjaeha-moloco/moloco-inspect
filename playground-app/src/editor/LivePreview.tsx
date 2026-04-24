@@ -69,7 +69,7 @@ export function LivePreview(props: LivePreviewProps) {
   return <LivePreviewInner key={key} {...props} />;
 }
 
-function LivePreviewInner({ playground, mode }: LivePreviewProps) {
+function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   // Mirror of the parent `mode` prop so bridge callbacks always read the
@@ -195,9 +195,18 @@ function LivePreviewInner({ playground, mode }: LivePreviewProps) {
   // when they change, so this memo always tracks the live bridge.
   const src = useMemo(() => {
     if (!vitePort || !bridge) return null;
-    const raw = `http://127.0.0.1:${vitePort}/`;
+    // Cache-bust query bumps whenever the playground HEAD advances or the
+    // user forces a reload. Vite's dev server ignores unknown query
+    // params for `/`, but the browser treats each distinct URL as a new
+    // document — which forces the module-script-cache bypass that
+    // `location.reload()` alone could not achieve on Chrome. Without
+    // this, even after invalidating Vite's module graph, the iframe's
+    // ES-module realm happily served stale transformed modules from its
+    // per-realm script cache on subsequent mounts.
+    const cb = `${headCommitSha ?? 'head'}.${reloadNonce}`;
+    const raw = `http://127.0.0.1:${vitePort}/?_cb=${encodeURIComponent(cb)}`;
     return bridge.buildIframeSrc(raw);
-  }, [vitePort, bridge]);
+  }, [vitePort, bridge, headCommitSha, reloadNonce]);
 
   // Scope + route-filter pins for the rendered overlay. Pins without a
   // route pre-date M3 route tracking and always show. Pins with a
