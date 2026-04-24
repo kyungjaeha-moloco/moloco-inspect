@@ -49,6 +49,7 @@ import {
 } from './lib/job.js';
 import { runJob as runJobRunner } from './lib/job-runner.js';
 import { decomposePrd } from './lib/job-decomposer.js';
+import { reviewTaskDiff } from './lib/job-reviewer.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -531,8 +532,7 @@ function runJobInBackground(jobId) {
       jobId: ctx.jobId,
       taskId: task.id,
     }),
-    // Reviewer defaults to stub (always-pass) for now; J4 wires the
-    // real LLM diff reviewer.
+    reviewer: (task, diff) => reviewTaskDiff(task, diff),
   }).catch((err) => {
     console.error(`[job-runner] ${jobId} crashed:`, err);
   }).finally(() => {
