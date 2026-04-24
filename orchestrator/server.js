@@ -42,6 +42,11 @@ import {
   reattachOnStartup,
 } from './lib/playground.js';
 import { enqueue as enqueueJob, QueueFullError, queueDepth } from './lib/playground-queue.js';
+import {
+  createJob, getJob, listJobs, activeJobForPlayground,
+  setJobTasks, approvePlan, retryTask, skipTask, unblockTask,
+  cancelJob, resumeJob,
+} from './lib/job.js';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -2615,10 +2620,89 @@ Generate 2 variations (v2, v3).`;
     }
   }
 
+  // ── Job routes (PRD → delivery thin-slice, J1) ──────────────────
+  if (pathname.startsWith('/api/playground/') && pathname.endsWith('/job') && req.method === 'POST') {
+    const m = pathname.match(/^\/api\/playground\/([a-zA-Z0-9_-]+)\/job$/);
+    if (m) {
+      const [, pgId] = m;
+      const pg = getPlayground(pgId);
+      if (!pg) return json(res, 404, { ok: false, error: 'playground not found' });
+      const existing = activeJobForPlayground(pgId);
+      if (existing) return json(res, 409, { ok: false, error: 'job_active', jobId: existing.id });
+      try {
+        const body = await parseBody(req);
+        const job = createJob({ playgroundId: pgId, prdText: body?.prdText ?? '' });
+        return json(res, 200, { ok: true, job });
+      } catch (err) {
+        return json(res, 400, { ok: false, error: err.message });
+      }
+    }
+  }
+
+  if (pathname === '/api/job' && req.method === 'GET') {
+    return json(res, 200, { ok: true, jobs: listJobs() });
+  }
+
+  const jobMatch = pathname.match(
+    /^\/api\/job\/([a-zA-Z0-9_-]+)(?:\/(tasks|approve-plan|retry-task|skip-task|unblock-task|cancel|resume))?$/,
+  );
+  if (jobMatch) {
+    const [, jobId, action] = jobMatch;
+    if (!action && req.method === 'GET') {
+      const job = getJob(jobId);
+      if (!job) return json(res, 404, { ok: false, error: 'job not found' });
+      return json(res, 200, { ok: true, job });
+    }
+    if (action && req.method === 'POST') {
+      try {
+        let updated;
+        if (action === 'tasks') {
+          const body = await parseBody(req);
+          if (!Array.isArray(body?.tasks)) {
+            return json(res, 400, { ok: false, error: 'tasks array required' });
+          }
+          updated = setJobTasks(jobId, body.tasks);
+        }
+        else if (action === 'approve-plan') updated = approvePlan(jobId);
+        else if (action === 'retry-task') {
+          const body = await parseBody(req);
+          updated = retryTask(jobId, body?.taskId);
+        }
+        else if (action === 'skip-task') {
+          const body = await parseBody(req);
+          updated = skipTask(jobId, body?.taskId);
+        }
+        else if (action === 'unblock-task') {
+          const body = await parseBody(req);
+          updated = unblockTask(jobId, body?.taskId);
+        }
+        else if (action === 'cancel') updated = cancelJob(jobId);
+        else if (action === 'resume') {
+          const body = await parseBody(req);
+          updated = resumeJob(jobId, body?.target ?? 'delegating');
+        }
+        return json(res, 200, { ok: true, job: updated });
+      } catch (err) {
+        console.error(`[job] ${action} error:`, err);
+        return json(res, 400, { ok: false, error: err.message });
+      }
+    }
+  }
+
   if (pathname === '/api/change-request' && req.method === 'POST') {
     const payload = maybePersistSelectionScreenshot(await parseBody(req));
     if (!payload.userPrompt) {
       return json(res, 400, { error: 'userPrompt is required' });
+    }
+    // v2 §2 Q1 — if a job is active on this playground, block ad-hoc
+    // change-requests so the user's prompt can't interleave with the
+    // job's serial task stream (which shares the same git working tree).
+    const maybeJob = payload.playgroundId ? activeJobForPlayground(payload.playgroundId) : null;
+    if (maybeJob) {
+      return json(res, 409, {
+        error: 'job_active',
+        detail: `Job ${maybeJob.id} is currently ${maybeJob.status} on this playground.`,
+      });
     }
     const rawPath = String(payload.pagePath ?? '').trim();
     const looksLikeUrl = /^\/[A-Za-z0-9/_\-.?=&#%+:]*$/.test(rawPath);
