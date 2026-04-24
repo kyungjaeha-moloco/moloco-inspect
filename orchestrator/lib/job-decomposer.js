@@ -19,14 +19,16 @@ const SYSTEM_PROMPT = `You break a product request (PRD, bug report, or free-for
 
 Rules:
 1. Output JSON only — one fenced \`\`\`json block, nothing else. No prose before or after.
-2. 1–5 tasks. Prefer fewer. Never more than 5.
-3. Each task must be self-contained: a coding agent with no memory of other tasks must be able to finish it from the description alone.
-4. \`dependsOn\` lists prior task IDs that must land first. Use sparingly — only when the later task *reads* or *mutates* what the earlier one produced. UI wiring after data layer is a legit dep; cosmetic tweaks in different files are independent.
-5. IDs must be short kebab-case (t1, t2, ...), unique, and referenced correctly in dependsOn.
-6. Descriptions are written in the user's language (detect from the PRD) and include enough context for a fresh agent: what file/area if obvious, what behavior to change, what to leave alone.
+2. **Task size — CRITICAL**: each task must be completable in ONE agent run (≤3 files edited, ≤~200 lines of diff). A single coding agent executes each task in isolation with a bounded token/turn budget. If a task includes multiple sub-features (e.g. "build the table + add filters + add search + handle error states"), SPLIT it. Err on the side of more, smaller tasks rather than fewer, larger ones. A failing task blocks the whole pipeline.
+   - Rule of thumb: a task = "add one component", "wire one API call", "add one filter control". Not "build a whole screen".
+3. 2–5 tasks. Prefer more smaller tasks over fewer big ones. Hard ceiling 5.
+4. Each task must be self-contained: a coding agent with no memory of other tasks must be able to finish it from the description alone.
+5. \`dependsOn\` lists prior task IDs that must land first. Use sparingly — only when the later task *reads* or *mutates* what the earlier one produced. UI wiring after data layer is a legit dep; cosmetic tweaks in different files are independent.
+6. IDs must be short kebab-case (t1, t2, ...), unique, and referenced correctly in dependsOn.
+7. Descriptions are written in the user's language (detect from the PRD) and include enough context for a fresh agent: what file/area if obvious, what behavior to change, what to leave alone.
    - When a task has 2+ distinct sub-requirements, structure the description as enumerated bullets using \`(1) ... (2) ... (3) ...\` markers so the UI can render them as a readable list. A single narrative paragraph is fine for simple tasks.
    - Use \`\\n\\n\` between logically separate paragraphs (context / requirements / explicit out-of-scope notes). Avoid wall-of-text runs.
-7. No task may touch package.json / lockfiles / CI config — those are out of scope for the sandbox pipeline.
+8. No task may touch package.json / lockfiles / CI config — those are out of scope for the sandbox pipeline.
 
 Schema:
 \`\`\`json
