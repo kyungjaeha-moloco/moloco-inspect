@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Job, JobTask } from '../services/orchestrator-client';
+import { usePlaygroundStore } from '../store/playground-store';
 import {
   getJob,
   approveJobPlan,
@@ -35,6 +36,16 @@ export function JobCard({ jobId }: { jobId: string }) {
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
+  // Playground time-travel signal — when a user checks out an older sha
+  // (or restores to a checkpoint), tasks committed after that point are
+  // no longer reflected in the working tree. We dim them so the user
+  // knows "this was done, but you rewound past it."
+  const playgroundCheckedOutSha = usePlaygroundStore(
+    (s) => s.current?.checkedOutSha ?? null,
+  );
+  const playgroundHeadSha = usePlaygroundStore(
+    (s) => s.current?.headCommitSha ?? null,
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -91,6 +102,12 @@ export function JobCard({ jobId }: { jobId: string }) {
 
   const reviewedCount = job.tasks.filter((t) => t.status === 'reviewed').length;
   const skippedCount = job.tasks.filter((t) => t.status === 'skipped').length;
+  const dimmedIds = computeDimmedTaskIds(
+    job.tasks,
+    playgroundCheckedOutSha,
+    playgroundHeadSha,
+  );
+  const inTimeTravel = dimmedIds.size > 0;
 
   return (
     <div style={containerStyle}>
@@ -115,6 +132,21 @@ export function JobCard({ jobId }: { jobId: string }) {
         </div>
       </header>
 
+      {inTimeTravel && (
+        <div
+          style={{
+            padding: '6px 8px',
+            marginBottom: 8,
+            background: 'rgba(245, 194, 107, 0.15)',
+            border: '1px solid var(--border-warn, #f5c26b)',
+            borderRadius: 4,
+            fontSize: 11,
+            color: 'var(--text-warn, #8a5a00)',
+          }}
+        >
+          ⏮ 과거 시점으로 돌아간 상태입니다 — 이후 실행된 태스크는 반영되지 않음 (아래에서 딤 처리).
+        </div>
+      )}
       {job.pausedReason && (
         <div
           style={{
@@ -142,6 +174,7 @@ export function JobCard({ jobId }: { jobId: string }) {
             key={task.id}
             task={task}
             index={idx + 1}
+            dimmed={dimmedIds.has(task.id)}
             disabled={acting}
             onRetry={() => runAction(() => retryJobTask(job.id, task.id))}
             onSkip={() => runAction(() => skipJobTask(job.id, task.id))}
@@ -239,6 +272,7 @@ export function JobCard({ jobId }: { jobId: string }) {
 function TaskRow({
   task,
   index,
+  dimmed = false,
   disabled,
   onRetry,
   onSkip,
@@ -246,6 +280,7 @@ function TaskRow({
 }: {
   task: JobTask;
   index: number;
+  dimmed?: boolean;
   disabled: boolean;
   onRetry: () => void;
   onSkip: () => void;
@@ -273,7 +308,10 @@ function TaskRow({
         border: '1px solid var(--border-primary)',
         borderRadius: 6,
         background: 'var(--bg-surface, #ffffff)',
+        opacity: dimmed ? 0.45 : 1,
+        transition: 'opacity 120ms ease-out',
       }}
+      title={dimmed ? '과거 시점으로 돌아간 상태 — 이 태스크 이후의 커밋은 현재 작업 트리에 반영되지 않습니다.' : undefined}
     >
       <div
         style={{
@@ -364,6 +402,42 @@ function TaskRow({
       )}
     </div>
   );
+}
+
+// ── Time-travel dimming ──────────────────────────────────────────────
+//
+// When the playground is checked out at an older sha (user clicked a
+// checkpoint via \"보기\"), every task whose commit came *after* that
+// sha is no longer reflected in the working tree. We can't run a full
+// git-ancestry check from the browser, but we have a better signal
+// for free: the runner executes tasks serially, so \`job.tasks\` is
+// already in commit order. Find the index of the task whose commitSha
+// matches the checkedOutSha and dim everything after.
+//
+// Restore-to-sha (which creates revert commits and advances HEAD) is
+// not quite the same shape — no task's commitSha matches the resulting
+// HEAD — so we skip the dim for that case. Good enough for v0.
+
+function computeDimmedTaskIds(
+  tasks: JobTask[],
+  checkedOutSha: string | null,
+  headSha: string | null,
+): Set<string> {
+  const anchor = checkedOutSha ?? null;
+  if (!anchor) return new Set();
+  // We're in time-travel only if the anchor differs from the real head
+  // (otherwise \"checkout\" is a no-op and nothing is superseded).
+  if (headSha && anchor === headSha) return new Set();
+
+  const anchorIdx = tasks.findIndex(
+    (t) => !!t.commitSha && (t.commitSha === anchor || t.commitSha.startsWith(anchor)),
+  );
+  if (anchorIdx === -1) return new Set();
+  const dimmed = new Set<string>();
+  for (let i = anchorIdx + 1; i < tasks.length; i += 1) {
+    if (tasks[i].commitSha) dimmed.add(tasks[i].id);
+  }
+  return dimmed;
 }
 
 // ── Description formatter ────────────────────────────────────────────
