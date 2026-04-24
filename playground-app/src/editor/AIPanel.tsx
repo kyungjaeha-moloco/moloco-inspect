@@ -448,8 +448,9 @@ export const AIPanel = React.memo(function AIPanel() {
       },
       {
         id: 'attach',
-        title: '첨부 (곧 지원)',
-        disabled: true,
+        title: 'PRD 첨부 — 텍스트 / Google Docs / Jira 링크로 job 시작',
+        disabled: !playgroundId,
+        onClick: () => setPrdModalOpen(true),
         icon: (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
@@ -457,7 +458,7 @@ export const AIPanel = React.memo(function AIPanel() {
         ),
       },
     ],
-    [pickActive, setIframeMode],
+    [pickActive, setIframeMode, playgroundId],
   );
 
   const isEmpty = messages.length === 0;
@@ -560,50 +561,24 @@ export const AIPanel = React.memo(function AIPanel() {
             ))}
           </div>
           {activeTab === 'chat' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button
-                type="button"
-                onClick={() => setPrdModalOpen(true)}
-                title="PRD 로 시작 — 큰 요구사항을 태스크로 쪼개서 자동 진행"
-                aria-label="PRD 로 job 시작"
-                disabled={!playgroundId}
-                style={{
-                  border: '1px solid var(--border-primary)',
-                  background: 'var(--bg-elevated)',
-                  padding: '2px 8px',
-                  cursor: playgroundId ? 'pointer' : 'not-allowed',
-                  color: 'var(--text-secondary)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  lineHeight: 1.6,
-                  fontFamily: 'inherit',
-                  borderRadius: 4,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  opacity: playgroundId ? 1 : 0.5,
-                }}
-              >
-                PRD
-              </button>
-              <button
-                type="button"
-                onClick={reset}
-                title="새 대화"
-                aria-label="새 대화"
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  padding: 4,
-                  cursor: 'pointer',
-                  color: 'var(--text-secondary)',
-                  fontSize: 18,
-                  lineHeight: 1,
-                  fontFamily: 'inherit',
-                }}
-              >
-                +
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={reset}
+              title="새 대화"
+              aria-label="새 대화"
+              style={{
+                border: 'none',
+                background: 'transparent',
+                padding: 4,
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                fontSize: 18,
+                lineHeight: 1,
+                fontFamily: 'inherit',
+              }}
+            >
+              +
+            </button>
           )}
         </div>
       </div>
@@ -755,11 +730,26 @@ export const AIPanel = React.memo(function AIPanel() {
   );
 });
 
+type PrdSource = 'text' | 'gdoc' | 'jira';
+
+const textareaStyle: React.CSSProperties = {
+  width: '100%',
+  fontSize: 12,
+  fontFamily: 'inherit',
+  padding: 10,
+  borderRadius: 6,
+  border: '1px solid var(--border-primary)',
+  resize: 'vertical',
+  boxSizing: 'border-box',
+};
+
 /**
- * PRD paste modal — opens from the `PRD` button in the AIPanel header.
- * User pastes a PRD / ticket / free-form brief; submit creates a Job
- * (which auto-decomposes in the background) and we navigate into its
- * detail route so the user can watch the task list land.
+ * PRD source modal — opens from the attach (📎) button in the input
+ * bar. Three entry paths: paste text / Google Docs link / Jira ticket
+ * link. Link paths are v0-stubs: we can't fetch OAuth-gated content
+ * yet, so we prepend the URL into the PRD text as a reference line and
+ * submit that as the job body. The user can paste supplementary notes
+ * in the textarea if they want the AI to work off more than the URL.
  */
 function PrdModal({
   onCancel,
@@ -768,10 +758,27 @@ function PrdModal({
   onCancel: () => void;
   onSubmit: (prdText: string) => Promise<void>;
 }) {
+  const [source, setSource] = useState<PrdSource>('text');
   const [text, setText] = useState('');
+  const [url, setUrl] = useState('');
+  const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const canSubmit = text.trim().length >= 10 && !submitting;
+
+  const buildPayload = (): string | null => {
+    if (source === 'text') {
+      const trimmed = text.trim();
+      return trimmed.length >= 10 ? trimmed : null;
+    }
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) return null;
+    if (!/^https?:\/\//i.test(trimmedUrl)) return null;
+    const label = source === 'gdoc' ? 'Google Docs' : 'Jira';
+    const note = notes.trim();
+    return `PRD source (${label}): ${trimmedUrl}${note ? `\n\nNotes:\n${note}` : ''}`;
+  };
+  const payload = buildPayload();
+  const canSubmit = !!payload && !submitting;
 
   return (
     <div
@@ -810,23 +817,78 @@ function PrdModal({
           큰 요구사항을 붙여 넣으면 AI 가 작은 태스크로 쪼갭니다. 각 태스크는
           샌드박스에서 순차 실행되고, 커밋 diff 는 LLM 이 검토합니다.
         </p>
-        <textarea
-          autoFocus
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="PRD 전문 또는 Jira 티켓 내용을 붙여넣으세요..."
-          rows={10}
-          style={{
-            width: '100%',
-            fontSize: 12,
-            fontFamily: 'inherit',
-            padding: 10,
-            borderRadius: 6,
-            border: '1px solid var(--border-primary)',
-            resize: 'vertical',
-            boxSizing: 'border-box',
-          }}
-        />
+        <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border-primary)' }}>
+          {([
+            ['text', '텍스트'],
+            ['gdoc', 'Google Docs'],
+            ['jira', 'Jira 티켓'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSource(key)}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                padding: '6px 10px',
+                fontSize: 12,
+                fontWeight: source === key ? 600 : 500,
+                color: source === key ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                borderBottom:
+                  source === key ? '2px solid var(--text-primary)' : '2px solid transparent',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {source === 'text' ? (
+          <textarea
+            autoFocus
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="PRD 전문을 붙여넣으세요..."
+            rows={10}
+            style={textareaStyle}
+          />
+        ) : (
+          <>
+            <input
+              autoFocus
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder={
+                source === 'gdoc'
+                  ? 'https://docs.google.com/document/d/...'
+                  : 'https://<workspace>.atlassian.net/browse/KEY-123'
+              }
+              style={{
+                width: '100%',
+                fontSize: 12,
+                fontFamily: 'inherit',
+                padding: '8px 10px',
+                borderRadius: 6,
+                border: '1px solid var(--border-primary)',
+                boxSizing: 'border-box',
+              }}
+            />
+            <p style={{ margin: 0, fontSize: 10, color: 'var(--text-tertiary)' }}>
+              v0은 링크를 자동으로 열지 못합니다 (Google/Atlassian OAuth 미지원). URL
+              과 아래 메모만 AI 에 전달됩니다. 필요하면 문서 내용을 복붙해서 메모에
+              넣어주세요.
+            </p>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="선택: 문서 요약이나 핵심 발췌"
+              rows={6}
+              style={textareaStyle}
+            />
+          </>
+        )}
         {error && (
           <div style={{ fontSize: 11, color: 'var(--text-danger, #d33)' }}>{error}</div>
         )}
@@ -852,10 +914,11 @@ function PrdModal({
             type="button"
             disabled={!canSubmit}
             onClick={async () => {
+              if (!payload) return;
               setSubmitting(true);
               setError(null);
               try {
-                await onSubmit(text.trim());
+                await onSubmit(payload);
               } catch (err) {
                 setError(err instanceof Error ? err.message : String(err));
                 setSubmitting(false);
