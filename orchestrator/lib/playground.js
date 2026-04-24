@@ -559,15 +559,22 @@ export async function restoreToSha(id, sha) {
   // No patch replay, no textual collision surface. If the anchor sha
   // is not resolvable we fail loud before mutating state.
   const script = [
+    'set -e',
     'cd /workspace/msm-portal',
-    `TREE=$(git rev-parse --verify ${sha}^{tree}) || { echo "__ANCHOR_UNRESOLVED__"; exit 2; }`,
-    `NEW=$(git commit-tree "$TREE" -p HEAD -m 'Restore to ${sha.slice(0, 8)}') || { echo "__COMMIT_TREE_FAILED__"; exit 3; }`,
+    `TREE=$(git rev-parse --verify ${sha}^{tree} 2>/dev/null) || { echo __ANCHOR_UNRESOLVED__; exit 2; }`,
+    `NEW=$(git commit-tree "$TREE" -p HEAD -m 'Restore to ${sha.slice(0, 8)}') || { echo __COMMIT_TREE_FAILED__; exit 3; }`,
     'git update-ref HEAD "$NEW"',
     'git reset --hard HEAD',
-  ].join(' && ');
+  ].join('\n');
+  // Pipe the script through base64 to avoid every outer-shell quoting
+  // headache: the host execAsync shell would otherwise interpret
+  // `$(…)` and `$TREE` substitutions before the command even reaches
+  // the container. Base64 → decode inside the sandbox → `sh` executes
+  // the raw script with its own variables.
+  const b64 = Buffer.from(script, 'utf8').toString('base64');
   try {
     await execAsync(
-      `docker exec ${pg.sandboxContainerName} sh -c ${JSON.stringify(script)}`,
+      `docker exec ${pg.sandboxContainerName} sh -c ${JSON.stringify(`echo ${b64} | base64 -d | sh`)}`,
       { timeout: 30_000 },
     );
   } catch (err) {
