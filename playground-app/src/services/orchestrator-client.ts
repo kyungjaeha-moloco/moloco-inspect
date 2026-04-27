@@ -537,6 +537,19 @@ export interface Job {
   qaStrategy?: QaStrategyId;
   qaRationaleKo?: string;
   /**
+   * Outcome of the auto-QA run picked by `qaStrategy`. Stamped by the
+   * orchestrator's QA runner once the job lands at status `qa`. Pure
+   * metadata — does NOT gate completion. The manual `markQaPass`
+   * button remains the human override that flips qa → complete.
+   */
+  qaAutoResult?: {
+    strategy: QaStrategyId;
+    passed: boolean;
+    notes: string;
+    ranAt: number;
+    evidence?: Record<string, unknown>;
+  };
+  /**
    * LLM-picked URL path the user should visit to see this job's
    * delivered output. Populated by the decomposer when the PRD has a
    * single obvious landing page (e.g. "/post-creative-review").
@@ -646,6 +659,13 @@ export const updateJobTasks = (
   tasks: Pick<JobTask, 'id' | 'title' | 'description' | 'dependsOn'>[],
 ) => jobAction(id, 'tasks', { tasks });
 export const markQaPass = (id: string) => jobAction(id, 'mark-qa-pass');
+/**
+ * Re-fire the auto-QA strategy for a job sitting at status `qa`. Used
+ * when the user wants to retry after a transient failure (timeout,
+ * playground was being restarted, etc) without having to re-run the
+ * whole task pipeline.
+ */
+export const rerunJobQa = (id: string) => jobAction(id, 'rerun-qa');
 
 // ─── Chat persistence (per playground) ────────────────────────────────
 //

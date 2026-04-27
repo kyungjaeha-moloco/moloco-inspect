@@ -33,6 +33,7 @@ import {
   resumeJob,
   redecomposeJob,
   markQaPass,
+  rerunJobQa,
 } from '../services/orchestrator-client';
 import {
   subscribeAgentStream,
@@ -219,6 +220,13 @@ export function JobCard({ jobId }: { jobId: string }) {
           ⏸ {job.pausedReason}
         </div>
       )}
+
+      <QaAutoResultBanner
+        job={job}
+        acting={acting}
+        onRerun={() => runAction(() => rerunJobQa(job.id))}
+      />
+
 
       {job.status === 'decomposing' && job.tasks.length > 0 && (
         <div
@@ -1398,6 +1406,172 @@ const QA_STRATEGY_LABELS: Record<
   lint_only: { label: '타입/린트만', short: '🧪 린트' },
   human_only: { label: '사람 직접 확인', short: '🧪 수동' },
 };
+
+/**
+ * Surfaces the auto-QA runner's verdict for a job.
+ *
+ * Renders nothing unless the job has reached `qa`/`complete`. Three
+ * states:
+ *   1. status === 'qa' but no `qaAutoResult` yet → 실행 중 banner.
+ *   2. qaAutoResult.passed === true  → 통과 banner (green).
+ *   3. qaAutoResult.passed === false → 실패 banner (red) + 재실행 btn.
+ *
+ * The manual "QA 통과 ✓" button stays — this banner is informational
+ * only; it does not gate completion. The `재실행` button calls the
+ * orchestrator's `rerun-qa` action which re-fires the same picked
+ * strategy adapter from scratch (useful when the run hit a transient
+ * playground restart, etc).
+ */
+function QaAutoResultBanner({
+  job,
+  acting,
+  onRerun,
+}: {
+  job: Job;
+  acting: boolean;
+  onRerun: () => void;
+}) {
+  const inQaPhase = job.status === 'qa' || job.status === 'complete';
+  if (!inQaPhase) return null;
+
+  // No strategy decided yet → nothing to surface (the strategist
+  // decision races the runner; if it never arrives we fall back to
+  // human_only and the runner stamps an immediate pass which lands here).
+  if (!job.qaStrategy) return null;
+
+  const result = job.qaAutoResult;
+
+  // In-flight: status hit `qa` but the runner hasn't stamped yet.
+  if (!result) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '6px 10px',
+          marginBottom: 8,
+          background: 'rgba(20, 83, 182, 0.06)',
+          border: '1px solid var(--text-info, #1453b6)',
+          borderRadius: 4,
+          fontSize: 12,
+          color: 'var(--text-info, #1453b6)',
+          animation: 'jobTaskPulse 1.6s ease-in-out infinite',
+        }}
+      >
+        <PixelAgentSprite />
+        <span>
+          <strong>자동 QA 실행 중…</strong>
+          <span
+            style={{
+              display: 'block',
+              marginTop: 2,
+              fontSize: 11,
+              color: 'var(--text-secondary)',
+            }}
+          >
+            결과 페이지가 잘 뜨는지 확인하고 있어요.
+          </span>
+        </span>
+      </div>
+    );
+  }
+
+  // 재실행 placeholder ("재실행 중…") looks like an in-flight failure
+  // — surface it as the running state instead.
+  if (result.notes === '재실행 중…') {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '6px 10px',
+          marginBottom: 8,
+          background: 'rgba(20, 83, 182, 0.06)',
+          border: '1px solid var(--text-info, #1453b6)',
+          borderRadius: 4,
+          fontSize: 12,
+          color: 'var(--text-info, #1453b6)',
+          animation: 'jobTaskPulse 1.6s ease-in-out infinite',
+        }}
+      >
+        <PixelAgentSprite />
+        <span>
+          <strong>자동 QA 재실행 중…</strong>
+        </span>
+      </div>
+    );
+  }
+
+  if (result.passed) {
+    return (
+      <div
+        style={{
+          padding: '6px 10px',
+          marginBottom: 8,
+          background: 'rgba(27, 122, 67, 0.08)',
+          border: '1px solid var(--text-success, #1b7a43)',
+          borderRadius: 4,
+          fontSize: 12,
+          color: 'var(--text-success, #1b7a43)',
+        }}
+      >
+        🧪 자동 QA 통과 — {result.notes}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 8,
+        padding: '8px 10px',
+        marginBottom: 8,
+        background: 'rgba(198, 40, 40, 0.06)',
+        border: '1px solid var(--text-danger, #c62828)',
+        borderRadius: 4,
+        fontSize: 12,
+        color: 'var(--text-danger, #c62828)',
+      }}
+    >
+      <span style={{ flex: 1 }}>
+        <strong>🧪 자동 QA 실패</strong>
+        <span
+          style={{
+            display: 'block',
+            marginTop: 2,
+            fontSize: 11,
+            fontWeight: 400,
+          }}
+        >
+          {result.notes}
+        </span>
+      </span>
+      <button
+        type="button"
+        disabled={acting}
+        onClick={onRerun}
+        style={{
+          padding: '3px 8px',
+          fontSize: 11,
+          background: 'var(--bg-elevated)',
+          color: 'var(--text-danger, #c62828)',
+          border: '1px solid var(--text-danger, #c62828)',
+          borderRadius: 3,
+          cursor: acting ? 'wait' : 'pointer',
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+        }}
+        title="자동 QA를 다시 실행합니다 (작업은 그대로 두고 검증만 재시도)"
+      >
+        🔁 재실행
+      </button>
+    </div>
+  );
+}
 
 function QaStrategyChip({
   strategy,

@@ -46,9 +46,10 @@ import {
   createJob, getJob, listJobs, activeJobForPlayground,
   setJobTasks, approvePlan, retryTask, acceptTask, skipTask, unblockTask,
   cancelJob, resumeJob, setJobStatus, markQaPass, setTaskMeta, setQaStrategy,
-  setTargetRoute,
+  setTargetRoute, setQaAutoResult,
 } from './lib/job.js';
 import { selectQaStrategy } from './lib/job-qa-strategist.js';
+import { runQaStrategyInBackground } from './lib/job-qa-runner.js';
 import { runJob as runJobRunner } from './lib/job-runner.js';
 import { decomposePrd } from './lib/job-decomposer.js';
 import { reviewTaskDiff } from './lib/job-reviewer.js';
@@ -621,6 +622,21 @@ function decomposeJobInBackground(jobId, opts = {}) {
   })();
 }
 
+/**
+ * Auto-fire the QA runner once the job lands at `qa`. Idempotent:
+ * `runJobInBackground` may be re-invoked after a retry/accept/skip
+ * action that re-enters the runner and re-resolves at `qa`; we only
+ * want one auto-run per job. The `qaAutoResult` field on the job
+ * record is the dedupe key — if it's already stamped, skip.
+ *
+ * @param {Awaited<ReturnType<typeof runJobRunner>> | undefined} finalJob
+ */
+function maybeFireQaRunner(finalJob) {
+  if (!finalJob || finalJob.status !== 'qa') return;
+  if (finalJob.qaAutoResult) return; // already ran (manual rerun goes through /rerun-qa)
+  runQaStrategyInBackground(finalJob.id);
+}
+
 /** @param {string} jobId */
 function runJobInBackground(jobId) {
   if (runningJobs.has(jobId)) return;
@@ -661,6 +677,12 @@ function runJobInBackground(jobId) {
       });
     },
     reviewer: (task, diff) => reviewTaskDiff(task, diff),
+  }).then((finalJob) => {
+    // Fire the QA runner if this run took the job to `qa`. Fire-and-
+    // forget — the runner stamps `qaAutoResult` on completion; the UI
+    // poll picks it up and renders the auto-pass / auto-fail banner.
+    maybeFireQaRunner(finalJob);
+    return finalJob;
   }).catch((err) => {
     console.error(`[job-runner] ${jobId} crashed:`, err);
   }).finally(() => {
@@ -3013,7 +3035,7 @@ Generate 2 variations (v2, v3).`;
   }
 
   const jobMatch = pathname.match(
-    /^\/api\/job\/([a-zA-Z0-9_-]+)(?:\/(decompose|tasks|approve-plan|retry-task|accept-task|skip-task|unblock-task|cancel|resume|mark-qa-pass))?$/,
+    /^\/api\/job\/([a-zA-Z0-9_-]+)(?:\/(decompose|tasks|approve-plan|retry-task|accept-task|skip-task|unblock-task|cancel|resume|mark-qa-pass|rerun-qa))?$/,
   );
   if (jobMatch) {
     const [, jobId, action] = jobMatch;
@@ -3120,6 +3142,31 @@ Generate 2 variations (v2, v3).`;
           runJobInBackground(jobId);
         }
         else if (action === 'mark-qa-pass') updated = markQaPass(jobId);
+        else if (action === 'rerun-qa') {
+          // Clear the prior result so the runner doesn't dedupe-skip,
+          // then fire it. UI shows "🧪 자동 QA 실행 중…" while
+          // qaAutoResult is null and the job is still in `qa`.
+          const job = getJob(jobId);
+          if (!job) return json(res, 404, { ok: false, error: 'job not found' });
+          if (job.status !== 'qa') {
+            return json(res, 400, {
+              ok: false,
+              error: `cannot rerun QA from status ${job.status}`,
+            });
+          }
+          updated = setQaAutoResult(jobId, {
+            strategy: job.qaStrategy ?? 'human_only',
+            passed: false,
+            notes: '재실행 중…',
+            ranAt: Date.now(),
+          });
+          // Clear the placeholder marker after stamping so the runner's
+          // own write replaces it cleanly. Easier: just tell the runner
+          // to overwrite — which it does, since setQaAutoResult is a
+          // straight write, not an append. So we skip the clear and let
+          // the runner stamp the real result over our placeholder.
+          runQaStrategyInBackground(jobId);
+        }
         else if (action === 'cancel') {
           const body = await parseBody(req);
           const job = getJob(jobId);

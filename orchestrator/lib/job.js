@@ -416,6 +416,32 @@ export function setQaStrategy(jobId, info) {
   return job;
 }
 
+/**
+ * Stamp the auto-QA run's outcome on the job. Called by
+ * `job-qa-runner.js` after the picked strategy's adapter returns.
+ * Pure metadata write — no FSM transition. The manual `markQaPass`
+ * button remains the gate that flips qa → complete; this just
+ * surfaces the auto-run's verdict in the UI ("🧪 자동 QA 통과/실패").
+ *
+ * @param {string} jobId
+ * @param {{ strategy: string, passed: boolean, notes: string, ranAt: number, evidence?: object }} result
+ * @returns {Job | null}
+ */
+export function setQaAutoResult(jobId, result) {
+  const job = getJob(jobId);
+  if (!job) return null;
+  job.qaAutoResult = {
+    strategy: result.strategy,
+    passed: !!result.passed,
+    notes: typeof result.notes === 'string' ? result.notes.slice(0, 500) : '',
+    ranAt: typeof result.ranAt === 'number' ? result.ranAt : Date.now(),
+    ...(result.evidence ? { evidence: result.evidence } : {}),
+  };
+  job.updatedAt = nowMs();
+  persist(job);
+  return job;
+}
+
 /** @param {string} jobId */
 export function cancelJob(jobId) {
   // v2 §2 Q3 — cancel-after-current. The actual "finish current task
