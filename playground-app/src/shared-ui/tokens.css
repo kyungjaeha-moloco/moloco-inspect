@@ -181,6 +181,24 @@ body {
   to { background-position: -128px 0; }
 }
 
+/* Live task row pulse — subtle ring breathes in/out on the row whose
+ * agent is currently running. Pairs with the in-row pixel-agent walk
+ * cycle and the live phase line. See editor/JobCard.tsx#TaskRow. */
+@keyframes jobTaskPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(20, 83, 182, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(20, 83, 182, 0);
+  }
+}
+
+/* Tiny dot blink in front of the running task's live phase label. */
+@keyframes livePhaseBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
 /* PlaygroundList card hover — inline styles can't do :hover */
 .playground-card:hover {
   border-color: var(--accent) !important;

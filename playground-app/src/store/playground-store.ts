@@ -10,7 +10,11 @@
  */
 
 import { create } from 'zustand';
-import type { Playground } from '../services/orchestrator-client';
+import {
+  getChatMessages,
+  putChatMessages,
+  type Playground,
+} from '../services/orchestrator-client';
 import type { BridgeElementContext } from '../services/playground-bridge';
 
 export type WizardPhase = 'idle' | 'chatting' | 'executing' | 'done' | 'error';
@@ -136,6 +140,14 @@ interface PlaygroundStoreState {
    * Used to scope pin visibility to the route the pin was placed on.
    */
   currentRoute: string | null;
+  /**
+   * Cross-component nav request — when set, LivePreview's effect
+   * forwards `path` to the iframe runtime via the bridge so the SPA
+   * navigates without a full reload. The token is incremented every
+   * call so re-requesting the same path still fires (e.g. user
+   * clicks "결과 페이지 열기" twice in a row).
+   */
+  requestedIframeNav: { path: string; token: number } | null;
 
   /**
    * Last element the user picked in Pick mode — surfaces the picker
@@ -161,6 +173,8 @@ interface PlaygroundStoreState {
   pushProgress(entry: ExecutionProgress): void;
 
   setCurrentRoute(route: string | null): void;
+  /** Ask LivePreview's iframe runtime to SPA-navigate to `path`. */
+  requestIframeNav(path: string): void;
   setLastPickedElement(element: BridgeElementContext | null): void;
   /** Atomic setter used right after a pick so outline + chip land together. */
   setLastPicked(
@@ -213,6 +227,15 @@ function loadChatFromStorage(playgroundId: string): ChatMessage[] {
   }
 }
 
+// Tracks the playground id whose server hydration is in-flight so a
+// rapid playground switch doesn't allow a stale fetch to clobber the
+// new thread. Updated by `setCurrent`.
+let pendingHydrate: string | null = null;
+
+// Debounce handle for the server PUT — coalesces rapid mutations (e.g.
+// streaming an assistant message word-by-word) into a single request.
+let chatPutTimer: ReturnType<typeof setTimeout> | null = null;
+
 function saveChatToStorage(playgroundId: string, messages: ChatMessage[]) {
   if (typeof window === 'undefined') return;
   try {
@@ -236,6 +259,7 @@ const initial: Pick<
   | 'queueDepth'
   | 'progress'
   | 'currentRoute'
+  | 'requestedIframeNav'
   | 'lastPickedElement'
   | 'lastPickedBbox'
 > = {
@@ -247,6 +271,7 @@ const initial: Pick<
   queueDepth: 0,
   progress: [],
   currentRoute: null,
+  requestedIframeNav: null,
   lastPickedElement: null,
   lastPickedBbox: null,
 };
@@ -259,12 +284,47 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
     // into memory — otherwise the prior thread (or an empty array)
     // would leak across /p/:id navigation. When clearing (null), drop
     // the thread too so the next mount starts fresh.
+    //
+    // Two-stage hydration: render localStorage immediately for fast
+    // paint, then async-fetch the server copy and replace if the
+    // server has data (which it does whenever the user has touched
+    // this playground from any browser before). The async fetch is
+    // fire-and-forget — failure leaves the localStorage thread in
+    // place. Reentrancy guard via `pendingHydrate` so flipping back
+    // and forth between playgrounds doesn't race two fetches into
+    // the same store.
     set((state) => {
       if (!current) return { current: null, messages: [] };
       const sameId = state.current?.id === current.id;
-      return sameId
-        ? { current }
-        : { current, messages: loadChatFromStorage(current.id) };
+      if (sameId) return { current };
+      pendingHydrate = current.id;
+      const localMessages = loadChatFromStorage(current.id);
+      void (async () => {
+        try {
+          const server = await getChatMessages<ChatMessage>(current.id);
+          if (pendingHydrate !== current.id) return; // navigated away
+          // Server is authoritative. If it has at least one message,
+          // adopt it. Empty server with non-empty local = first-time
+          // upload of the local thread, handled by the subscribe
+          // below firing on the next mutation.
+          if (server.length > 0) {
+            usePlaygroundStore.setState((s) =>
+              s.current?.id === current.id ? { messages: server } : s,
+            );
+          } else if (localMessages.length > 0) {
+            // Seed the server with whatever was kept in localStorage so
+            // a fresh device sees this playground's thread next time.
+            try {
+              await putChatMessages(current.id, localMessages);
+            } catch {
+              /* best-effort upload */
+            }
+          }
+        } catch {
+          /* network down / orchestrator off — localStorage stays */
+        }
+      })();
+      return { current, messages: localMessages };
     }),
   mergeCurrent: (patch) =>
     set((state) =>
@@ -283,6 +343,13 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
     set((state) => ({ progress: [...state.progress, entry] })),
 
   setCurrentRoute: (currentRoute) => set({ currentRoute }),
+  requestIframeNav: (path) =>
+    set((state) => ({
+      requestedIframeNav: {
+        path,
+        token: (state.requestedIframeNav?.token ?? 0) + 1,
+      },
+    })),
   setLastPickedElement: (lastPickedElement) =>
     // Clearing the element clears its paired bbox too — there's no
     // sensible case where we'd keep a stale outline after the chip is
@@ -382,8 +449,25 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
 // Persist chat on every change, keyed by the currently-open playground.
 // Skipping when `current` is null avoids clobbering another playground's
 // thread during the brief window between reset() and setCurrent().
+//
+// Two-tier persistence:
+//   - localStorage: synchronous, instant — used for first-paint hydrate
+//     when the page reopens in the same browser.
+//   - server PUT: debounced 500ms — survives browser switches /
+//     incognito / new devices. Fire-and-forget; a transient network
+//     error just leaves the server one revision behind until the next
+//     mutation flushes it.
 usePlaygroundStore.subscribe((state, prev) => {
   if (!state.current) return;
   if (state.messages === prev.messages) return;
-  saveChatToStorage(state.current.id, state.messages);
+  const playgroundId = state.current.id;
+  const messages = state.messages;
+  saveChatToStorage(playgroundId, messages);
+  if (chatPutTimer) clearTimeout(chatPutTimer);
+  chatPutTimer = setTimeout(() => {
+    chatPutTimer = null;
+    putChatMessages(playgroundId, messages).catch(() => {
+      /* see comment above */
+    });
+  }, 500);
 });

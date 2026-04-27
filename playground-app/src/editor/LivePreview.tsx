@@ -88,6 +88,19 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProp
   // isn't listening — and (b) the pin-mode fallback overlay below.
   const [bridgeReady, setBridgeReady] = useState(false);
 
+  // Live bbox cache keyed by CSS selector — fed by the runtime's
+  // `playground.tracked` stream. Each entry is the *current* viewport-
+  // relative bbox of the element that selector resolves to, or `null`
+  // when the selector resolves to nothing (element unmounted, route
+  // changed away). Comment pins look themselves up here on render so
+  // they follow their anchor element through scroll / layout / SPA
+  // navigation. A selector key absent from the map means "tracking has
+  // not reported yet" — pins fall back to their stored x/y as a
+  // best-effort initial paint until the first sample arrives.
+  const [liveBboxes, setLiveBboxes] = useState<
+    Record<string, { x: number; y: number; width: number; height: number } | null>
+  >({});
+
   const { vitePort, status, id: playgroundId, headCommitSha } = playground;
 
   const allPins = usePinStore((s) => s.pins);
@@ -100,6 +113,7 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProp
 
   const currentRoute = usePlaygroundStore((s) => s.currentRoute);
   const setCurrentRoute = usePlaygroundStore((s) => s.setCurrentRoute);
+  const requestedIframeNav = usePlaygroundStore((s) => s.requestedIframeNav);
   const setLastPicked = usePlaygroundStore((s) => s.setLastPicked);
   const lastPickedBbox = usePlaygroundStore((s) => s.lastPickedBbox);
   const lastPickedElement = usePlaygroundStore((s) => s.lastPickedElement);
@@ -151,6 +165,7 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProp
           }
         },
         onRoute: (msg) => setCurrentRoute(msg.route),
+        onTracked: (msg) => setLiveBboxes(msg.bboxes),
         onError: (m) =>
           console.warn('[playground] runtime error', m.message, m.stack),
       },
@@ -186,6 +201,52 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProp
       mode === 'pick' ? 'pick' : mode === 'comment' ? 'pin' : 'view';
     bridge.setMode(iframe, bridgeMode);
   }, [mode, bridge, bridgeReady]);
+
+  // Push the current pin-anchor selectors to the runtime so it streams
+  // live bboxes back. Recomputed any time the pin list (for this
+  // playground / route) changes — adding a pin starts tracking it,
+  // deleting one stops. Pins without a selector (legacy coord-only
+  // pins from before M3) contribute nothing to the tracker.
+  const trackedSelectorList = useMemo(
+    () =>
+      allPins
+        .filter(
+          (p) =>
+            p.playgroundId === playgroundId &&
+            !!p.element?.selector &&
+            (!p.route || !currentRoute || p.route === currentRoute),
+        )
+        .map((p) => p.element!.selector!) as string[],
+    [allPins, playgroundId, currentRoute],
+  );
+  // Stable string fingerprint so the effect doesn't re-fire on
+  // referentially-different but identical selector arrays.
+  const trackedSelectorKey = useMemo(
+    () => trackedSelectorList.slice().sort().join('\u0000'),
+    [trackedSelectorList],
+  );
+  useEffect(() => {
+    if (!bridge || !bridgeReady) return;
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    bridge.setTracked(iframe, trackedSelectorList);
+    // No teardown — sending an empty array on the next change is the
+    // legitimate "stop tracking" signal, and unmount happens via the
+    // outer key-bound remount which already discards this bridge.
+  }, [bridge, bridgeReady, trackedSelectorKey, trackedSelectorList]);
+
+  // External nav request — JobCard's "결과 페이지 열기" button (and
+  // potentially other consumers) ask the runtime to SPA-navigate via
+  // the store. Fire when the token changes, including same-path repeats.
+  useEffect(() => {
+    if (!bridge || !bridgeReady || !requestedIframeNav) return;
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    bridge.navigate(iframe, requestedIframeNav.path);
+    // We don't clear `requestedIframeNav` here — the token monotonically
+    // increasing is enough to dedupe. If the user re-clicks the same
+    // path, the token bumps and this effect re-fires.
+  }, [bridge, bridgeReady, requestedIframeNav]);
 
   // Compose iframe src with handshake query. Bridge is guaranteed to be
   // non-null here when vitePort + status are ready, because both go
@@ -360,21 +421,33 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProp
           with existing pins. */}
       {mode === 'comment' && (
         <div style={pinLayerStyle}>
-          {pins.map((pin, idx) => (
-            <PinMarker
-              key={pin.id}
-              index={idx + 1}
-              pin={pin}
-              isEditing={editingPinId === pin.id}
-              isStale={!!pin.commitSha && pin.commitSha !== headCommitSha}
-              onFocus={() => setEditing(pin.id)}
-              onBlurText={(text) => {
-                updatePinText(pin.id, text);
-                setEditing(null);
-              }}
-              onDelete={() => deletePin(pin.id)}
-            />
-          ))}
+          {pins.map((pin, idx) => {
+            const sel = pin.element?.selector ?? null;
+            // Three states for live tracking:
+            //   - selector tracked AND resolved → use the live centroid
+            //   - selector tracked AND null     → orphaned (faded marker)
+            //   - selector not tracked yet      → fall back to stored x/y
+            const tracked = sel != null ? sel in liveBboxes : false;
+            const liveBbox = sel != null ? liveBboxes[sel] : undefined;
+            const orphaned = tracked && !liveBbox;
+            return (
+              <PinMarker
+                key={pin.id}
+                index={idx + 1}
+                pin={pin}
+                liveBbox={liveBbox ?? null}
+                orphaned={orphaned}
+                isEditing={editingPinId === pin.id}
+                isStale={!!pin.commitSha && pin.commitSha !== headCommitSha}
+                onFocus={() => setEditing(pin.id)}
+                onBlurText={(text) => {
+                  updatePinText(pin.id, text);
+                  setEditing(null);
+                }}
+                onDelete={() => deletePin(pin.id)}
+              />
+            );
+          })}
         </div>
       )}
       {/* Subtle count chip so the user knows there are pins even when
@@ -407,6 +480,8 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProp
 function PinMarker({
   pin,
   index,
+  liveBbox,
+  orphaned,
   isEditing,
   isStale,
   onFocus,
@@ -415,6 +490,16 @@ function PinMarker({
 }: {
   pin: PinComment;
   index: number;
+  /** Current bbox of the anchor element from the live tracker, or null
+   * when not yet sampled / element unmounted. When provided we use its
+   * centroid as the marker position, falling back to the pin's stored
+   * x/y. */
+  liveBbox: { x: number; y: number; width: number; height: number } | null;
+  /** True when the tracker reported the selector as no longer resolving
+   * (route changed away, element unmounted). The marker stays at the
+   * last-known coordinate but is faded to signal "this pin lost its
+   * anchor". */
+  orphaned: boolean;
   isEditing: boolean;
   isStale: boolean;
   onFocus: () => void;
@@ -428,16 +513,24 @@ function PinMarker({
     pin.element?.displayName ??
     (pin.element?.testId ? `[${pin.element.testId}]` : undefined) ??
     pin.element?.selector;
+  const left = liveBbox ? liveBbox.x + liveBbox.width / 2 : pin.x;
+  const top = liveBbox ? liveBbox.y + liveBbox.height / 2 : pin.y;
   return (
     <div
       data-pin-marker
       style={{
         position: 'absolute',
-        left: pin.x,
-        top: pin.y,
+        left,
+        top,
         transform: 'translate(-50%, -50%)',
         pointerEvents: 'auto',
+        opacity: orphaned ? 0.5 : 1,
+        // Smooth small movements (scroll, layout shifts) so the marker
+        // doesn't jitter on every rAF sample. 80ms keeps it tight enough
+        // to feel anchored without lagging visibly behind the element.
+        transition: 'left 80ms linear, top 80ms linear, opacity 120ms ease-out',
       }}
+      title={orphaned ? '연결된 요소를 찾을 수 없어요 — 화면에서 사라졌거나 다른 페이지로 이동했을 수 있습니다.' : undefined}
       onClick={(e) => e.stopPropagation()}
     >
       <button

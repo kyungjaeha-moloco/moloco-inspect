@@ -67,16 +67,32 @@ export interface BridgeError extends Envelope {
   stack?: string;
 }
 
+export interface BridgeTracked extends Envelope {
+  type: 'playground.tracked';
+  /**
+   * For each tracked CSS selector, current viewport-relative bbox or
+   * `null` when the selector resolves to nothing. The parent uses
+   * `null` as the "this comment is orphaned" signal.
+   */
+  bboxes: Record<
+    string,
+    { x: number; y: number; width: number; height: number } | null
+  >;
+}
+
 export type BridgeMessage =
   | BridgeReady
   | BridgePicked
   | BridgeHover
   | BridgeRoute
-  | BridgeError;
+  | BridgeError
+  | BridgeTracked;
 
 export type BridgeCommand =
   | { type: 'picker.setMode'; mode: BridgePickerMode }
-  | { type: 'picker.ping' };
+  | { type: 'picker.ping' }
+  | { type: 'picker.track'; selectors: string[] }
+  | { type: 'picker.navigate'; path: string };
 
 // ─── Handshake constants (mirror sandbox plugin) ─────────────────────
 
@@ -123,6 +139,7 @@ export interface BridgeHandlers {
   onHover?(msg: BridgeHover): void;
   onRoute?(msg: BridgeRoute): void;
   onError?(msg: BridgeError): void;
+  onTracked?(msg: BridgeTracked): void;
   /** Fires on every validated message, useful for logging / metrics. */
   onMessage?(msg: BridgeMessage): void;
 }
@@ -140,6 +157,18 @@ export interface PlaygroundBridge {
   sendCommand(iframe: HTMLIFrameElement, cmd: BridgeCommand): void;
   /** Convenience: set picker mode on the iframe. */
   setMode(iframe: HTMLIFrameElement, mode: BridgePickerMode): void;
+  /**
+   * Replace the runtime's tracked-selector set. The runtime emits
+   * `playground.tracked` (handled via `onTracked`) whenever any bbox
+   * changes. Pass `[]` to stop tracking.
+   */
+  setTracked(iframe: HTMLIFrameElement, selectors: string[]): void;
+  /**
+   * Ask the iframe's SPA router to navigate to `path`. Path must start
+   * with "/". Implemented via history.pushState + popstate inside the
+   * runtime so the bridge handshake survives the navigation.
+   */
+  navigate(iframe: HTMLIFrameElement, path: string): void;
   /** Has the child sent `playground.ready` yet? */
   readonly isReady: boolean;
   /** Latest route reported by the child; null until a route event fires. */
@@ -211,6 +240,9 @@ export function createPlaygroundBridge(
       case 'playground.error':
         handlers.onError?.(msg);
         break;
+      case 'playground.tracked':
+        handlers.onTracked?.(msg);
+        break;
       default:
         // Unknown message — reserved for future types, ignore silently.
         break;
@@ -254,6 +286,12 @@ export function createPlaygroundBridge(
     sendCommand,
     setMode(iframe, mode) {
       this.sendCommand(iframe, { type: 'picker.setMode', mode });
+    },
+    setTracked(iframe, selectors) {
+      this.sendCommand(iframe, { type: 'picker.track', selectors });
+    },
+    navigate(iframe, path) {
+      this.sendCommand(iframe, { type: 'picker.navigate', path });
     },
     get isReady() {
       return ready;

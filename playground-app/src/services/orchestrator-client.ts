@@ -2,7 +2,7 @@
  * Client for the orchestrator HTTP API (http://localhost:3847).
  */
 
-const ORCHESTRATOR_URL = 'http://localhost:3847';
+export const ORCHESTRATOR_URL = 'http://localhost:3847';
 
 export interface RawPlanItem {
   id: string;
@@ -511,11 +511,20 @@ export interface JobTask {
   changeRequestId?: string;
   commitSha?: string;
   baseSha?: string;
+  currentPhase?: string;
   review?: {
     verdict: 'pass' | 'fail';
     notes: string;
+    acceptedByUser?: boolean;
   };
 }
+
+export type QaStrategyId =
+  | 'inline_per_task'
+  | 'final_route_smoke'
+  | 'visual_diff'
+  | 'lint_only'
+  | 'human_only';
 
 export interface Job {
   id: string;
@@ -525,6 +534,15 @@ export interface Job {
   tasks: JobTask[];
   currentTaskId?: string;
   pausedReason?: string;
+  qaStrategy?: QaStrategyId;
+  qaRationaleKo?: string;
+  /**
+   * LLM-picked URL path the user should visit to see this job's
+   * delivered output. Populated by the decomposer when the PRD has a
+   * single obvious landing page (e.g. "/post-creative-review").
+   * Optional — multi-page or backend-only jobs leave this unset.
+   */
+  targetRoute?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -593,12 +611,106 @@ async function jobAction(
 export const approveJobPlan = (id: string) => jobAction(id, 'approve-plan');
 export const retryJobTask = (id: string, taskId: string) =>
   jobAction(id, 'retry-task', { taskId });
+export const acceptJobTask = (id: string, taskId: string) =>
+  jobAction(id, 'accept-task', { taskId });
 export const skipJobTask = (id: string, taskId: string) =>
   jobAction(id, 'skip-task', { taskId });
 export const unblockJobTask = (id: string, taskId: string) =>
   jobAction(id, 'unblock-task', { taskId });
-export const cancelJob = (id: string) => jobAction(id, 'cancel');
+/**
+ * Cancel a running job.
+ * @param rewind If true, also revert the playground's HEAD to the sha
+ *   snapshotted at job creation — undoes every commit this job landed
+ *   (`baselineHeadSha`). Equivalent to clicking "이 작업을 취소하고 변경
+ *   내역도 되돌리기".
+ */
+export const cancelJob = (id: string, rewind = false) =>
+  jobAction(id, 'cancel', rewind ? { rewind: true } : undefined);
 export const resumeJob = (id: string, target: JobStatus = 'delegating') =>
   jobAction(id, 'resume', { target });
-export const redecomposeJob = (id: string) => jobAction(id, 'decompose');
+/**
+ * @param feedback Optional free-form natural-language note steering the
+ *   LLM toward specific structural changes ("3번을 둘로 쪼개고 권한 가드
+ *   task 빼줘"). When omitted, behaves as the plain "다시 계획 세우기".
+ */
+export const redecomposeJob = (id: string, feedback?: string) =>
+  jobAction(id, 'decompose', feedback ? { feedback } : undefined);
+/**
+ * Replace the job's task list (direct edit). Server validates that the
+ * job is still in a pre-delegation phase. Use for surgical title /
+ * description / dependsOn edits when re-running the decomposer would
+ * be overkill.
+ */
+export const updateJobTasks = (
+  id: string,
+  tasks: Pick<JobTask, 'id' | 'title' | 'description' | 'dependsOn'>[],
+) => jobAction(id, 'tasks', { tasks });
 export const markQaPass = (id: string) => jobAction(id, 'mark-qa-pass');
+
+// ─── Chat persistence (per playground) ────────────────────────────────
+//
+// localStorage handles fast first paint; the server is the source of
+// truth across browser sessions. Client owns the schema — the server
+// round-trips an opaque message array.
+
+export async function getChatMessages<T = unknown>(
+  playgroundId: string,
+): Promise<T[]> {
+  const resp = await fetch(
+    `${ORCHESTRATOR_URL}/api/playground/${encodeURIComponent(playgroundId)}/chat`,
+  );
+  if (!resp.ok) {
+    throw new Error(`getChat ${resp.status}: ${await resp.text()}`);
+  }
+  const data = await resp.json();
+  return Array.isArray(data?.messages) ? (data.messages as T[]) : [];
+}
+
+// ─── Playground commit log (branch viz) ──────────────────────────────
+
+export interface PlaygroundCommit {
+  sha: string;
+  parents: string[];
+  timestamp: number;
+  message: string;
+}
+
+export interface PlaygroundLog {
+  commits: PlaygroundCommit[];
+  headSha: string | null;
+  baselineSha: string | null;
+}
+
+export async function getPlaygroundLog(
+  playgroundId: string,
+): Promise<PlaygroundLog> {
+  const resp = await fetch(
+    `${ORCHESTRATOR_URL}/api/playground/${encodeURIComponent(playgroundId)}/log`,
+  );
+  if (!resp.ok) {
+    throw new Error(`getLog ${resp.status}: ${await resp.text()}`);
+  }
+  const data = await resp.json();
+  return {
+    commits: Array.isArray(data?.commits) ? data.commits : [],
+    headSha: data?.headSha ?? null,
+    baselineSha: data?.baselineSha ?? null,
+  };
+}
+
+export async function putChatMessages<T = unknown>(
+  playgroundId: string,
+  messages: T[],
+): Promise<void> {
+  const resp = await fetch(
+    `${ORCHESTRATOR_URL}/api/playground/${encodeURIComponent(playgroundId)}/chat`,
+    {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages }),
+    },
+  );
+  if (!resp.ok) {
+    throw new Error(`putChat ${resp.status}: ${await resp.text()}`);
+  }
+}

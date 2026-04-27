@@ -25,8 +25,10 @@ const AIPANEL_WIDTH_DEFAULT = 360;
 import {
   checkoutPlaygroundCommit,
   getPlayground,
+  getPlaygroundLog,
   promotePlayground,
   restorePlaygroundHead,
+  type PlaygroundCommit,
   type PromoteResult,
 } from '../services/orchestrator-client';
 import {
@@ -213,6 +215,7 @@ export function PlaygroundDetail() {
   }, [leftPaneWidth]);
 
   const [promote, setPromote] = useState<PromoteStage>({ kind: 'idle' });
+  const [showHistory, setShowHistory] = useState(false);
 
   const handlePromoteOpen = () =>
     setPromote({ kind: 'confirm', dryRun: true });
@@ -246,6 +249,7 @@ export function PlaygroundDetail() {
       <Header
         playground={current}
         onPromote={handlePromoteOpen}
+        onShowHistory={() => setShowHistory(true)}
         promoteDisabled={
           !!current.checkedOutSha || promote.kind === 'running'
         }
@@ -281,6 +285,23 @@ export function PlaygroundDetail() {
           </div>
         </main>
       </div>
+      {showHistory && (
+        <HistoryDialog
+          playgroundId={current.id}
+          headSha={current.headCommitSha ?? null}
+          checkedOutSha={current.checkedOutSha ?? null}
+          onClose={() => setShowHistory(false)}
+          onRestoreToSha={async (sha) => {
+            try {
+              const updated = await checkoutPlaygroundCommit(current.id, sha);
+              setCurrent(updated);
+              setShowHistory(false);
+            } catch (err) {
+              console.warn('[history] checkout failed', err);
+            }
+          }}
+        />
+      )}
       {promote.kind !== 'idle' && (
         <PromoteDialog
           stage={promote}
@@ -295,6 +316,7 @@ export function PlaygroundDetail() {
 function Header({
   playground,
   onPromote,
+  onShowHistory,
   promoteDisabled,
 }: {
   playground: {
@@ -307,6 +329,7 @@ function Header({
     promotedBranch?: string;
   };
   onPromote: () => void;
+  onShowHistory: () => void;
   promoteDisabled: boolean;
 }) {
   return (
@@ -379,6 +402,22 @@ function Header({
         ) : null}
         <button
           type="button"
+          onClick={onShowHistory}
+          title="이 플레이그라운드의 변경 히스토리를 봅니다"
+          style={{
+            padding: '6px 10px',
+            fontSize: 12,
+            border: '1px solid var(--border-primary)',
+            borderRadius: 6,
+            background: 'transparent',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+          }}
+        >
+          📜 히스토리
+        </button>
+        <button
+          type="button"
           onClick={onPromote}
           disabled={promoteDisabled}
           title={
@@ -403,6 +442,234 @@ interface PromoteDialogProps {
   stage: PromoteStage;
   onCancel: () => void;
   onRun: (dryRun: boolean) => void;
+}
+
+// ─── History dialog ──────────────────────────────────────────────────
+//
+// Vertical timeline view of every synthetic-git commit on this
+// playground (baseline..HEAD, newest-first). The chat already shows
+// commits inline as ExecutionCards, but those are interleaved with the
+// LLM conversation — this gives a "what changed in this playground"
+// overview at a glance, with relative timestamps and one-click checkout.
+
+function HistoryDialog({
+  playgroundId,
+  headSha,
+  checkedOutSha,
+  onClose,
+  onRestoreToSha,
+}: {
+  playgroundId: string;
+  headSha: string | null;
+  checkedOutSha: string | null;
+  onClose: () => void;
+  onRestoreToSha: (sha: string) => void | Promise<void>;
+}) {
+  const [commits, setCommits] = useState<PlaygroundCommit[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getPlaygroundLog(playgroundId)
+      .then((log) => {
+        if (!cancelled) setCommits(log.commits);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message ?? '히스토리를 불러오지 못했어요');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [playgroundId]);
+  return (
+    <div style={dialogOverlayStyle} onClick={onClose}>
+      <div
+        style={{
+          ...dialogPanelStyle,
+          maxWidth: 560,
+          maxHeight: '80vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 style={dialogTitleStyle}>📜 변경 히스토리</h2>
+        <div
+          style={{
+            ...dialogBodyStyle,
+            overflowY: 'auto',
+            paddingRight: 4,
+          }}
+        >
+          {error && (
+            <div style={{ color: 'var(--text-danger, #d33)' }}>{error}</div>
+          )}
+          {!commits && !error && (
+            <div style={{ color: 'var(--text-tertiary)' }}>불러오는 중…</div>
+          )}
+          {commits && commits.length === 0 && (
+            <div style={{ color: 'var(--text-tertiary)' }}>
+              아직 변경 내역이 없어요. 첫 작업을 진행하면 여기에 쌓입니다.
+            </div>
+          )}
+          {commits && commits.length > 0 && (
+            <ol
+              style={{
+                listStyle: 'none',
+                margin: 0,
+                padding: 0,
+                position: 'relative',
+              }}
+            >
+              {commits.map((c, idx) => {
+                const isHead = !!headSha && c.sha === headSha;
+                const isCheckout =
+                  !!checkedOutSha && c.sha === checkedOutSha;
+                const isRestore = c.message.startsWith('Restore to ');
+                const isLast = idx === commits.length - 1;
+                return (
+                  <li
+                    key={c.sha}
+                    style={{
+                      position: 'relative',
+                      paddingLeft: 28,
+                      paddingBottom: isLast ? 0 : 14,
+                    }}
+                  >
+                    {!isLast && (
+                      <span
+                        aria-hidden
+                        style={{
+                          position: 'absolute',
+                          left: 9,
+                          top: 18,
+                          bottom: -2,
+                          width: 2,
+                          background: 'var(--border-primary)',
+                        }}
+                      />
+                    )}
+                    <span
+                      aria-hidden
+                      style={{
+                        position: 'absolute',
+                        left: 4,
+                        top: 4,
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        background: isHead
+                          ? 'var(--accent, #1453b6)'
+                          : isRestore
+                            ? 'var(--warning, #d97706)'
+                            : 'var(--text-tertiary)',
+                        boxShadow: isHead
+                          ? '0 0 0 3px rgba(20, 83, 182, 0.18)'
+                          : 'none',
+                      }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <code
+                        style={{
+                          fontFamily:
+                            'ui-monospace, SFMono-Regular, "SF Mono", monospace',
+                          fontSize: 11,
+                          color: 'var(--text-tertiary)',
+                        }}
+                      >
+                        {c.sha.slice(0, 7)}
+                      </code>
+                      {isHead && (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            padding: '1px 5px',
+                            borderRadius: 999,
+                            background: 'var(--accent, #1453b6)',
+                            color: '#fff',
+                            fontWeight: 600,
+                          }}
+                        >
+                          HEAD
+                        </span>
+                      )}
+                      {isCheckout && !isHead && (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            padding: '1px 5px',
+                            borderRadius: 999,
+                            background: 'var(--warning, #d97706)',
+                            color: '#fff',
+                            fontWeight: 600,
+                          }}
+                        >
+                          현재 보고 있는 시점
+                        </span>
+                      )}
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--text-tertiary)',
+                          marginLeft: 'auto',
+                        }}
+                      >
+                        {relativeTimeShort(c.timestamp)}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: 'var(--text-primary)',
+                        marginTop: 2,
+                        lineHeight: 1.4,
+                        wordBreak: 'keep-all',
+                        overflowWrap: 'anywhere',
+                      }}
+                    >
+                      {c.message}
+                    </div>
+                    {!isHead && !isCheckout && (
+                      <div style={{ marginTop: 4 }}>
+                        <button
+                          type="button"
+                          onClick={() => onRestoreToSha(c.sha)}
+                          style={{
+                            fontSize: 11,
+                            padding: '2px 8px',
+                            border: '1px solid var(--border-primary)',
+                            borderRadius: 4,
+                            background: 'transparent',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
+                          }}
+                          title="이 시점의 작업중 화면으로 이동합니다 (체크아웃)"
+                        >
+                          이 시점 보기
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+        <div style={dialogActionsStyle}>
+          <button type="button" onClick={onClose} style={dialogCancelStyle}>
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function relativeTimeShort(ts: number): string {
+  const diff = Date.now() - ts;
+  if (diff < 60_000) return '방금';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}분 전`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
+  return `${Math.floor(diff / 86_400_000)}일 전`;
 }
 
 function PromoteDialog({ stage, onCancel, onRun }: PromoteDialogProps) {
