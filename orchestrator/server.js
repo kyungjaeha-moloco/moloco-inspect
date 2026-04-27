@@ -44,9 +44,11 @@ import {
 import { enqueue as enqueueJob, QueueFullError, queueDepth } from './lib/playground-queue.js';
 import {
   createJob, getJob, listJobs, activeJobForPlayground,
-  setJobTasks, approvePlan, retryTask, skipTask, unblockTask,
-  cancelJob, resumeJob, setJobStatus, markQaPass,
+  setJobTasks, approvePlan, retryTask, acceptTask, skipTask, unblockTask,
+  cancelJob, resumeJob, setJobStatus, markQaPass, setTaskMeta, setQaStrategy,
+  setTargetRoute,
 } from './lib/job.js';
+import { selectQaStrategy } from './lib/job-qa-strategist.js';
 import { runJob as runJobRunner } from './lib/job-runner.js';
 import { decomposePrd } from './lib/job-decomposer.js';
 import { reviewTaskDiff } from './lib/job-reviewer.js';
@@ -462,7 +464,48 @@ async function runChangeRequestForTask(args) {
     jobId: args.jobId,
     taskId: args.taskId,
   });
-  await runPipeline(state.id);
+  // Stamp the change-request id on the task immediately so the JobCard's
+  // next poll can attach an SSE subscription to the agent stream — without
+  // this we'd wait up to one phase-tick (600ms) plus the JobCard's poll
+  // (2s) before the live tool-call counter could attach.
+  try {
+    setTaskMeta(args.jobId, args.taskId, { changeRequestId: state.id });
+  } catch {
+    /* best-effort UX signal */
+  }
+  // Stream the change-request's `phase` into the task record so the
+  // JobCard's existing 2s poll surfaces a "what is it doing right
+  // now" line under the running task title. We poll the in-memory
+  // request state every 600ms — cheaper than wiring SSE end-to-end
+  // and JobCard already polls the job object on a 2s cadence, so
+  // worst-case lag is ~2.6s.
+  let lastPhase = null;
+  const phaseTick = setInterval(() => {
+    const cur = requests.get(state.id);
+    if (!cur || cur.phase === lastPhase) return;
+    lastPhase = cur.phase;
+    try {
+      setTaskMeta(args.jobId, args.taskId, {
+        currentPhase: cur.phase,
+        changeRequestId: state.id,
+      });
+    } catch {
+      // Best-effort UX signal — never let a phase write break the run.
+    }
+  }, 600);
+  try {
+    await runPipeline(state.id);
+  } finally {
+    clearInterval(phaseTick);
+    // Clear the live phase the moment the pipeline returns so the
+    // JobCard stops showing stale "running_agent" once the task moves
+    // on to review.
+    try {
+      setTaskMeta(args.jobId, args.taskId, { currentPhase: undefined });
+    } catch {
+      /* see above */
+    }
+  }
   const final = requests.get(state.id);
   if (!final) throw new Error(`request state vanished: ${state.id}`);
   if (final.status === 'error') {
@@ -520,21 +563,51 @@ const runningJobs = new Map();
  * the LLM error surfaced so the user can retry or cancel.
  *
  * @param {string} jobId
+ * @param {{ userFeedback?: string }} [opts]
  */
-function decomposeJobInBackground(jobId) {
+function decomposeJobInBackground(jobId, opts = {}) {
   (async () => {
     const job = getJob(jobId);
     if (!job) return;
     if (job.status !== 'decomposing') return; // race / idempotency
     try {
       const pg = getPlayground(job.playgroundId);
-      const tasks = await decomposePrd(job.prdText, {
+      // Re-decompose path: the prior plan is still on `job.tasks` at
+      // this point (we flip status to `decomposing` without clearing
+      // tasks). Pass it down so the LLM produces a *different*,
+      // finer-grained breakdown instead of a near-clone.
+      const previousTasks = job.tasks.length
+        ? job.tasks.map((t) => ({
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            dependsOn: t.dependsOn,
+          }))
+        : undefined;
+      const result = await decomposePrd(job.prdText, {
         client: pg?.client,
+        previousTasks,
+        userFeedback: opts.userFeedback,
         // We don't persist currentRoute on the server; it's known only
         // to the iframe's bridge. Route hint is optional — PRDs usually
         // mention the page explicitly.
       });
+      const { tasks, targetRoute } = result;
       setJobTasks(jobId, tasks); // auto-transitions decomposing → planning
+      // Stamp the target route hint when the LLM picked one. The UI
+      // uses this on the QA / complete screens to show "결과 페이지
+      // 열기 ↗" so the user doesn't have to hunt for the new menu
+      // entry.
+      if (targetRoute) {
+        try {
+          setTargetRoute(jobId, targetRoute);
+        } catch (err) {
+          console.warn(
+            `[job-decomposer] ${jobId} targetRoute stamp failed:`,
+            err.message,
+          );
+        }
+      }
     } catch (err) {
       console.warn(`[job-decomposer] ${jobId} failed:`, err.message);
       try {
@@ -1862,7 +1935,7 @@ function json(res, status, data) {
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   });
   res.end(JSON.stringify(data));
@@ -1876,7 +1949,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     });
     res.end();
@@ -2792,6 +2865,120 @@ Generate 2 variations (v2, v3).`;
     }
   }
 
+  // ── Branch / commit log (playground history viz) ─────────────────
+  //
+  // Returns the synthetic-git commit log for a playground from
+  // `baselineCommitSha..HEAD`. The UI uses this to draw a vertical
+  // timeline of "what has happened in this playground", including
+  // restore-to commits (which appear as ordinary commits on the
+  // branch — see playground.js#restoreToSha tree-swap). Commits are
+  // newest-first for display convenience.
+  if (pathname.match(/^\/api\/playground\/[a-zA-Z0-9_-]+\/log$/) && req.method === 'GET') {
+    const m = pathname.match(/^\/api\/playground\/([a-zA-Z0-9_-]+)\/log$/);
+    if (m) {
+      const [, pgId] = m;
+      const pg = getPlayground(pgId);
+      if (!pg) return json(res, 404, { ok: false, error: 'playground not found' });
+      if (!pg.sandboxContainerName) {
+        return json(res, 200, { ok: true, commits: [] });
+      }
+      try {
+        const range = pg.baselineCommitSha
+          ? `${pg.baselineCommitSha}..HEAD`
+          : 'HEAD';
+        const fmt = '%H%x09%P%x09%at%x09%s';
+        const cmd = `docker exec ${pg.sandboxContainerName} sh -c "cd /workspace/msm-portal && git log --format='${fmt}' ${range}"`;
+        const { stdout } = await execAsync(cmd, {
+          timeout: 10_000,
+          maxBuffer: 4 * 1024 * 1024,
+        });
+        const commits = stdout
+          .split('\n')
+          .filter((line) => line.length)
+          .map((line) => {
+            const [sha, parents, atSec, ...rest] = line.split('\t');
+            return {
+              sha,
+              parents: parents ? parents.split(' ').filter(Boolean) : [],
+              timestamp: Number(atSec) * 1000,
+              message: rest.join('\t'),
+            };
+          });
+        return json(res, 200, {
+          ok: true,
+          commits,
+          headSha: pg.headCommitSha ?? null,
+          baselineSha: pg.baselineCommitSha ?? null,
+        });
+      } catch (err) {
+        console.warn(`[playground-log] ${pgId} failed:`, err.message);
+        return json(res, 500, { ok: false, error: err.message });
+      }
+    }
+  }
+
+  // ── Chat persistence ──────────────────────────────────────────────
+  //
+  // Browser localStorage is per-origin/per-browser, so chat written from
+  // one browser disappears the moment the user opens the playground from
+  // a different browser or in incognito. Server-side persistence makes
+  // the thread survive that move. Storage shape is intentionally dumb —
+  // the client owns the schema (`ChatMessage[]`), the server just round-
+  // trips a JSON array against `state/chat/<playgroundId>.json`. That
+  // way schema changes (new ChatMessage fields) don't require server
+  // updates.
+  //
+  //   GET  /api/playground/:id/chat   → { messages: ChatMessage[] }
+  //   PUT  /api/playground/:id/chat   body { messages: ChatMessage[] }
+  //
+  // Concurrent edits from two tabs would race (last writer wins), but
+  // the playground is a single-user tool by design — good enough for v0.
+  if (pathname.match(/^\/api\/playground\/[a-zA-Z0-9_-]+\/chat$/)) {
+    const m = pathname.match(/^\/api\/playground\/([a-zA-Z0-9_-]+)\/chat$/);
+    if (m) {
+      const [, pgId] = m;
+      const pg = getPlayground(pgId);
+      if (!pg) return json(res, 404, { ok: false, error: 'playground not found' });
+      const chatDir = path.join(STATE_DIR, 'chat');
+      const chatFile = path.join(chatDir, `${pgId}.json`);
+      if (req.method === 'GET') {
+        try {
+          if (!fs.existsSync(chatFile)) {
+            return json(res, 200, { ok: true, messages: [] });
+          }
+          const raw = fs.readFileSync(chatFile, 'utf-8');
+          const parsed = JSON.parse(raw);
+          const messages = Array.isArray(parsed?.messages) ? parsed.messages : [];
+          return json(res, 200, { ok: true, messages });
+        } catch (err) {
+          console.error(`[chat] read failed for ${pgId}:`, err.message);
+          return json(res, 500, { ok: false, error: err.message });
+        }
+      }
+      if (req.method === 'PUT') {
+        try {
+          const body = await parseBody(req);
+          if (!Array.isArray(body?.messages)) {
+            return json(res, 400, { ok: false, error: 'messages array required' });
+          }
+          if (!fs.existsSync(chatDir)) {
+            fs.mkdirSync(chatDir, { recursive: true });
+          }
+          // Atomic write — write to tmp then rename so a crash mid-write
+          // doesn't leave a half-flushed file the next read trips on.
+          const tmp = `${chatFile}.tmp`;
+          fs.writeFileSync(tmp, JSON.stringify({ messages: body.messages }), 'utf-8');
+          fs.renameSync(tmp, chatFile);
+          return json(res, 200, { ok: true, count: body.messages.length });
+        } catch (err) {
+          console.error(`[chat] write failed for ${pgId}:`, err.message);
+          return json(res, 500, { ok: false, error: err.message });
+        }
+      }
+      return json(res, 405, { ok: false, error: 'method not allowed' });
+    }
+  }
+
   // ── Job routes (PRD → delivery thin-slice, J1) ──────────────────
   if (pathname.startsWith('/api/playground/') && pathname.endsWith('/job') && req.method === 'POST') {
     const m = pathname.match(/^\/api\/playground\/([a-zA-Z0-9_-]+)\/job$/);
@@ -2803,7 +2990,14 @@ Generate 2 variations (v2, v3).`;
       if (existing) return json(res, 409, { ok: false, error: 'job_active', jobId: existing.id });
       try {
         const body = await parseBody(req);
-        const job = createJob({ playgroundId: pgId, prdText: body?.prdText ?? '' });
+        const job = createJob({
+          playgroundId: pgId,
+          prdText: body?.prdText ?? '',
+          // Snapshot the playground's HEAD at job creation. cancel can
+          // offer a one-click rewind to this sha to undo every commit
+          // this job landed without touching prior history.
+          baselineHeadSha: pg.headCommitSha ?? pg.baselineCommitSha ?? undefined,
+        });
         // Kick off decompose in background — client polls /api/job/:id
         // and flips the UI when status transitions to `planning`.
         decomposeJobInBackground(job.id);
@@ -2819,7 +3013,7 @@ Generate 2 variations (v2, v3).`;
   }
 
   const jobMatch = pathname.match(
-    /^\/api\/job\/([a-zA-Z0-9_-]+)(?:\/(decompose|tasks|approve-plan|retry-task|skip-task|unblock-task|cancel|resume|mark-qa-pass))?$/,
+    /^\/api\/job\/([a-zA-Z0-9_-]+)(?:\/(decompose|tasks|approve-plan|retry-task|accept-task|skip-task|unblock-task|cancel|resume|mark-qa-pass))?$/,
   );
   if (jobMatch) {
     const [, jobId, action] = jobMatch;
@@ -2832,11 +3026,20 @@ Generate 2 variations (v2, v3).`;
       try {
         let updated;
         if (action === 'decompose') {
-          // Retry path — re-enter decomposing if the job was paused
-          // after an LLM failure, then kick the decomposer again.
+          // Re-decompose covers three paths:
+          //   - LLM-failure recovery: job is `paused` after the
+          //     decomposer crashed; flip back to `decomposing` and
+          //     re-fire.
+          //   - User-driven "다시 계획 세우기": the plan landed (status
+          //     `planning`) but the user wants a fresh breakdown
+          //     before approving. Same FSM flip + re-fire.
+          //   - "이 계획에 수정 요청" with `feedback` — same as above
+          //     but with explicit natural-language steering passed
+          //     through to the LLM.
+          const body = await parseBody(req);
           const job = getJob(jobId);
           if (!job) return json(res, 404, { ok: false, error: 'job not found' });
-          if (job.status === 'paused') {
+          if (job.status === 'paused' || job.status === 'planning') {
             updated = setJobStatus(jobId, 'decomposing');
           } else if (job.status !== 'decomposing') {
             return json(res, 400, {
@@ -2846,7 +3049,9 @@ Generate 2 variations (v2, v3).`;
           } else {
             updated = job;
           }
-          decomposeJobInBackground(jobId);
+          const feedback =
+            typeof body?.feedback === 'string' ? body.feedback : undefined;
+          decomposeJobInBackground(jobId, { userFeedback: feedback });
         }
         else if (action === 'tasks') {
           const body = await parseBody(req);
@@ -2857,13 +3062,51 @@ Generate 2 variations (v2, v3).`;
         }
         else if (action === 'approve-plan') {
           updated = approvePlan(jobId);
-          // Kick off the runner in the background — HTTP response is
-          // immediate; the UI polls `/api/job/:id` for progress.
+          // Pick a QA strategy in the background — fire-and-forget so
+          // the HTTP response isn't blocked on the LLM call. The job
+          // record gets stamped with `qaStrategy` + `qaRationaleKo`
+          // when the strategist returns; the UI's 2s poll picks it up
+          // and renders a strategy chip on the JobCard. On failure we
+          // log + continue — the existing `human_only` default keeps
+          // the manual QA pass button working.
+          (async () => {
+            try {
+              const job = getJob(jobId);
+              const pg = getPlayground(job.playgroundId);
+              const choice = await selectQaStrategy({
+                prdText: job.prdText,
+                tasks: job.tasks,
+                client: pg?.client,
+              });
+              setQaStrategy(jobId, choice);
+            } catch (err) {
+              console.warn(
+                `[qa-strategist] ${jobId} failed:`,
+                err.message,
+              );
+              try {
+                setQaStrategy(jobId, {
+                  strategy: 'human_only',
+                  rationale_ko: '자동 선택 실패 — 사람이 직접 확인',
+                });
+              } catch (stampErr) {
+                console.error(
+                  `[qa-strategist] ${jobId} fallback stamp failed:`,
+                  stampErr.message,
+                );
+              }
+            }
+          })();
           runJobInBackground(jobId);
         }
         else if (action === 'retry-task') {
           const body = await parseBody(req);
           updated = retryTask(jobId, body?.taskId);
+          runJobInBackground(jobId);
+        }
+        else if (action === 'accept-task') {
+          const body = await parseBody(req);
+          updated = acceptTask(jobId, body?.taskId);
           runJobInBackground(jobId);
         }
         else if (action === 'skip-task') {
@@ -2877,7 +3120,42 @@ Generate 2 variations (v2, v3).`;
           runJobInBackground(jobId);
         }
         else if (action === 'mark-qa-pass') updated = markQaPass(jobId);
-        else if (action === 'cancel') updated = cancelJob(jobId);
+        else if (action === 'cancel') {
+          const body = await parseBody(req);
+          const job = getJob(jobId);
+          updated = cancelJob(jobId);
+          // Optional rewind: if the user asked to also undo the
+          // playground changes this job landed, restore the playground
+          // HEAD to the sha snapshotted at job creation. We do this
+          // *after* cancelJob so the FSM is already in `cancelled` (no
+          // race with the runner picking up another task) and only
+          // when there's actually something to rewind.
+          if (
+            body?.rewind === true &&
+            job &&
+            job.baselineHeadSha &&
+            job.playgroundId
+          ) {
+            const pg = getPlayground(job.playgroundId);
+            if (pg && pg.headCommitSha && pg.headCommitSha !== job.baselineHeadSha) {
+              try {
+                await restoreToSha(job.playgroundId, job.baselineHeadSha);
+              } catch (err) {
+                console.warn(
+                  `[job-cancel] rewind failed for ${jobId}:`,
+                  err.message,
+                );
+                // Cancel itself succeeded — surface the rewind failure
+                // in the response so the UI can offer a manual restore.
+                return json(res, 200, {
+                  ok: true,
+                  job: updated,
+                  rewindError: err.message,
+                });
+              }
+            }
+          }
+        }
         else if (action === 'resume') {
           const body = await parseBody(req);
           updated = resumeJob(jobId, body?.target ?? 'delegating');

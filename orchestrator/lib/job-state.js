@@ -58,7 +58,11 @@
 /** @type {Readonly<Record<JobStatus, readonly JobStatus[]>>} */
 export const JOB_TRANSITIONS = Object.freeze({
   decomposing: ['planning', 'paused', 'cancelled'],
-  planning: ['delegating', 'paused', 'cancelled'],
+  // planning → decomposing is the user-driven "더 작게 나누기" loop:
+  // the LLM returned a plan but the user wants a fresh breakdown
+  // before approving. We flip the job back into the decomposing stage
+  // and let decomposeJobInBackground re-run the LLM.
+  planning: ['decomposing', 'delegating', 'paused', 'cancelled'],
   delegating: ['reviewing', 'paused', 'cancelled'],
   // reviewing → delegating is the loop back for the next task; → qa is
   // the out-exit when all tasks reviewed; → paused fires on review-fail.
@@ -84,8 +88,11 @@ export const TASK_TRANSITIONS = Object.freeze({
   running: ['committed', 'failed', 'skipped'],
   committed: ['reviewed', 'failed'], // review can flag a commit as failed
   reviewed: [], // terminal
-  // Failed tasks can be retried (→ running again) or skipped.
-  failed: ['running', 'skipped'],
+  // Failed tasks can be retried (→ running again), skipped, or
+  // accepted-anyway by the user (→ reviewed) — escape hatch for the
+  // common "agent overshot scope but result is still useful" case
+  // where a literal redo would be churn for no gain.
+  failed: ['running', 'skipped', 'reviewed'],
   skipped: [], // terminal
   // Blocked is a soft terminal — user can manually unblock back to pending.
   blocked: ['pending', 'skipped'],

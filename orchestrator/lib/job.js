@@ -114,10 +114,13 @@ function shortId() {
 // ── CRUD ────────────────────────────────────────────────────────────
 
 /**
- * @param {{ playgroundId: string, prdText: string }} input
+ * @param {{ playgroundId: string, prdText: string, baselineHeadSha?: string }} input
+ *   `baselineHeadSha` is the playground's HEAD at the moment the job is
+ *   created — recorded so cancel can offer "rewind everything this job
+ *   committed" without losing work that landed before this job started.
  * @returns {Job}
  */
-export function createJob({ playgroundId, prdText }) {
+export function createJob({ playgroundId, prdText, baselineHeadSha }) {
   if (!playgroundId) throw new Error('playgroundId required');
   if (typeof prdText !== 'string' || !prdText.trim()) {
     throw new Error('prdText required');
@@ -129,6 +132,7 @@ export function createJob({ playgroundId, prdText }) {
     prdText,
     status: 'decomposing',
     tasks: [],
+    baselineHeadSha,
     createdAt: nowMs(),
     updatedAt: nowMs(),
   };
@@ -207,6 +211,32 @@ export function setTaskStatus(jobId, taskId, next, patch = {}) {
   if (!task) throw new Error(`task not found: ${taskId} in job ${jobId}`);
   transitionTask(task.status, next);
   Object.assign(task, patch, { status: next });
+  job.updatedAt = nowMs();
+  persist(job);
+  return job;
+}
+
+/**
+ * Patch task metadata fields without a status transition. Used by the
+ * change-request adapter to stream the running task's live phase
+ * (e.g. `running_agent`, `collecting_diff`) into the task record so
+ * the JobCard's existing 2s poll picks it up — gives the user a
+ * "what is it doing right now" line without us wiring SSE through.
+ *
+ * Only legal while task is mid-flight; bails silently if the task is
+ * gone (race against cancel).
+ *
+ * @param {string} jobId
+ * @param {string} taskId
+ * @param {Partial<Task>} patch
+ * @returns {Job | null}
+ */
+export function setTaskMeta(jobId, taskId, patch) {
+  const job = getJob(jobId);
+  if (!job) return null;
+  const task = job.tasks.find((t) => t.id === taskId);
+  if (!task) return null;
+  Object.assign(task, patch);
   job.updatedAt = nowMs();
   persist(job);
   return job;
@@ -294,6 +324,37 @@ export function retryTask(jobId, taskId) {
   return job;
 }
 
+/**
+ * Accept-anyway escape hatch — user reviewed the failure and decided
+ * the result is still acceptable (agent overshot scope, off-by-spec
+ * but harmless, etc.). Flips failed → reviewed and unpauses the job
+ * so the runner picks up the next task. Preserves the original
+ * review.notes but stamps `acceptedByUser` so downstream tooling can
+ * tell this wasn't a clean pass.
+ *
+ * @param {string} jobId
+ * @param {string} taskId
+ */
+export function acceptTask(jobId, taskId) {
+  const job = getJob(jobId);
+  if (!job) throw new Error(`job not found: ${jobId}`);
+  const task = job.tasks.find((t) => t.id === taskId);
+  if (!task) throw new Error(`task not found: ${taskId}`);
+  if (task.status !== 'failed') {
+    throw new Error(`task ${taskId} not in failed state (${task.status})`);
+  }
+  setTaskStatus(jobId, taskId, 'reviewed', {
+    review: {
+      ...(task.review ?? { verdict: 'fail', notes: '' }),
+      acceptedByUser: true,
+    },
+  });
+  if (job.status === 'paused') {
+    return setJobStatus(jobId, 'delegating');
+  }
+  return getJob(jobId);
+}
+
 /** @param {string} jobId @param {string} taskId */
 export function skipTask(jobId, taskId) {
   const job = getJob(jobId);
@@ -313,11 +374,69 @@ export function unblockTask(jobId, taskId) {
   return setTaskStatus(jobId, taskId, 'pending');
 }
 
+/**
+ * Stamp the LLM-picked target route on the job. The UI surfaces it on
+ * the completion screen ("결과 페이지 열기 ↗") so the user doesn't have
+ * to hunt for the newly-added menu entry. Optional — many PRDs don't
+ * map to a single landing URL.
+ *
+ * @param {string} jobId
+ * @param {string} route — must start with "/", e.g. "/post-creative-review"
+ * @returns {Job | null}
+ */
+export function setTargetRoute(jobId, route) {
+  const job = getJob(jobId);
+  if (!job) return null;
+  if (typeof route !== 'string' || !route.startsWith('/')) return job;
+  job.targetRoute = route;
+  job.updatedAt = nowMs();
+  persist(job);
+  return job;
+}
+
+/**
+ * Stamp the QA strategy decision on the job. Called by the server's
+ * approve-plan handler after `selectQaStrategy` runs against the
+ * approved task list. Strategy choice doesn't gate the runner — it's
+ * informational metadata that the QA runner (next slice) and the UI
+ * read off the job. Stored fields live alongside `tasks` so they
+ * survive disk persist + restart.
+ *
+ * @param {string} jobId
+ * @param {{ strategy: string, rationale_ko?: string }} info
+ * @returns {Job}
+ */
+export function setQaStrategy(jobId, info) {
+  const job = getJob(jobId);
+  if (!job) throw new Error(`job not found: ${jobId}`);
+  job.qaStrategy = info.strategy;
+  job.qaRationaleKo = info.rationale_ko ?? '';
+  job.updatedAt = nowMs();
+  persist(job);
+  return job;
+}
+
 /** @param {string} jobId */
 export function cancelJob(jobId) {
   // v2 §2 Q3 — cancel-after-current. The actual "finish current task
   // then stop" logic lives in runJob (J3a). Here we just flip state
   // so the worker sees the signal on its next tick.
+  //
+  // The in-flight task may still be mid-pipeline (no abort signal
+  // crosses the docker boundary). Clear `currentPhase` on any running
+  // / committed task so the JobCard's live phase line disappears
+  // immediately on cancel, instead of ticking through "코드 작성 중 →
+  // 변경사항 수집 중" for another minute on a job the user already gave
+  // up on. Status itself is left intact so the FSM can still walk the
+  // task to its natural terminal state in the background.
+  const job = getJob(jobId);
+  if (job) {
+    for (const t of job.tasks) {
+      if (t.status === 'running' || t.status === 'committed') {
+        t.currentPhase = undefined;
+      }
+    }
+  }
   return setJobStatus(jobId, 'cancelled');
 }
 

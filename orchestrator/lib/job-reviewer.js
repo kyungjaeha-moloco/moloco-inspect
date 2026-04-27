@@ -23,6 +23,7 @@ Rules:
 4. "fail" means: the diff is empty, touches unrelated files, breaks the stated intent, or is clearly incomplete (e.g. added a button but didn't wire its click handler).
 5. \`notes\` is one short sentence (≤150 chars) explaining the verdict. No verbose rationale.
 6. Do not invent issues. If you'd pass it in a normal PR review, pass it here.
+7. Design system check — fail if the diff introduces *new* hand-rolled UI that this codebase has a canonical equivalent for, e.g. raw \`<button>\` instead of \`MCButton2\` from \`@moloco/moloco-cloud-react-ui\`, raw \`<table><tr><td>\` instead of the table cell-renderer pattern under \`src/common/component/table/\`, hand-colored status pills instead of \`MCStatus\`, or hand-built modals instead of \`src/common/component/dialog/\`. Modifying existing raw markup is fine; *introducing* new raw markup when the codebase clearly already uses a wrapper is the failure mode. Note must explicitly call out which DS component should have been used.
 
 Schema:
 \`\`\`json

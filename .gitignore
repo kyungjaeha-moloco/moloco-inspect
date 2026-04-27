@@ -44,3 +44,4 @@ orchestrator/state/
 # Editor
 .idea/
 .vscode/
+.claude/

@@ -290,6 +290,33 @@ export async function createPlayground({
   // never sweep our shim into the real promote patches.
   await writePlaygroundViteConfig(sandbox.containerId);
 
+  // Hot-patch the picker plugin's `dist/` from the host so the freshly
+  // booted container always runs the LATEST runtime — not whatever was
+  // baked into the docker image whenever it was last built. Without this
+  // step new playgrounds ship with stale plugin code (no tracker, no
+  // navigate command, missing fixes) and the user has to manually
+  // `docker cp` to repair them. Best-effort: failures are logged but
+  // don't block the boot since the baked-in version is always at least
+  // partially functional.
+  try {
+    const hostPluginDist = new URL(
+      '../../sandbox/vite-plugin-playground-picker/dist',
+      import.meta.url,
+    ).pathname;
+    if (fs.existsSync(hostPluginDist)) {
+      await execAsync(
+        `docker cp ${hostPluginDist}/. ${sandbox.containerId}:/workspace/plugins/vite-plugin-playground-picker/dist/`,
+        { timeout: 15_000 },
+      );
+    } else {
+      console.warn(
+        `[playground] picker plugin dist not found on host (${hostPluginDist}); container will run baked-in version`,
+      );
+    }
+  } catch (err) {
+    console.warn(`[playground] picker plugin hot-patch failed: ${err.message}`);
+  }
+
   // Kick Vite over supervisor — autostart is disabled in supervisord.conf
   // so the wrapper config lands first. Errors here are warnings only;
   // the UI already shows "Vite 포트 미할당" until it comes up, and
