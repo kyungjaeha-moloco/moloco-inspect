@@ -26,6 +26,7 @@ import type {
   PickerHoverMessage,
   PickerRouteMessage,
   PickerErrorMessage,
+  PickerTrackedBboxes,
   PlaygroundPickerMessage,
   PlaygroundPickerCommand,
 } from './types';
@@ -361,6 +362,123 @@ const RUNTIME_VERSION = '0.1.0';
     log('mode →', mode);
   };
 
+  // ─── Element tracking (for comment-pin live positioning) ────────────
+  //
+  // The parent passes a list of CSS selectors via `picker.track`. We
+  // resolve each one in the live DOM on a polling cadence (rAF-throttled
+  // ~16 fps) and emit a `playground.tracked` message whenever any bbox
+  // changes by ≥1px or an element appears / disappears. Polling is
+  // strictly cheaper than ResizeObserver+IntersectionObserver+scroll
+  // listeners orchestrated separately and the bbox math is identical.
+  // Empty selector list = stop tracking (and skip the rAF loop entirely).
+  let trackedSelectors: string[] = [];
+  let trackedRafId: number | null = null;
+  let trackedLast: Record<
+    string,
+    { x: number; y: number; width: number; height: number } | null
+  > = {};
+
+  const sameBbox = (
+    a: { x: number; y: number; width: number; height: number } | null,
+    b: { x: number; y: number; width: number; height: number } | null,
+  ) => {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return (
+      a.x === b.x &&
+      a.y === b.y &&
+      a.width === b.width &&
+      a.height === b.height
+    );
+  };
+
+  const sampleTracked = () => {
+    if (trackedSelectors.length === 0) {
+      trackedRafId = null;
+      return;
+    }
+    const now: Record<
+      string,
+      { x: number; y: number; width: number; height: number } | null
+    > = {};
+    let changed = false;
+    for (const sel of trackedSelectors) {
+      let bbox:
+        | { x: number; y: number; width: number; height: number }
+        | null = null;
+      try {
+        const el = document.querySelector(sel) as Element | null;
+        if (el) {
+          const r = el.getBoundingClientRect();
+          // 0×0 elements (display:none, etc.) are reported as null so the
+          // pin layer renders them as orphaned instead of stuck at (0,0).
+          if (r.width > 0 || r.height > 0) {
+            bbox = {
+              x: Math.round(r.x),
+              y: Math.round(r.y),
+              width: Math.round(r.width),
+              height: Math.round(r.height),
+            };
+          }
+        }
+      } catch {
+        // Invalid selector — keep null, don't crash the loop.
+      }
+      now[sel] = bbox;
+      if (!sameBbox(bbox, trackedLast[sel] ?? null)) changed = true;
+    }
+    // Also check for selectors that vanished from the list — but since
+    // we replace `trackedLast` wholesale below, dropped keys are
+    // implicitly cleaned up.
+    if (changed) {
+      trackedLast = now;
+      const payload: Omit<
+        PickerTrackedBboxes,
+        'source' | 'nonce' | 'seq' | 'timestamp'
+      > = { type: 'playground.tracked', bboxes: now };
+      send(payload);
+    }
+    trackedRafId = window.requestAnimationFrame(sampleTracked);
+  };
+
+  const setTrackedSelectors = (next: string[]) => {
+    // Dedupe — parent might pass the same selector twice if two pins
+    // anchor to the same element.
+    const dedup: string[] = [];
+    const seen = new Set<string>();
+    for (const s of next) {
+      if (!seen.has(s)) {
+        seen.add(s);
+        dedup.push(s);
+      }
+    }
+    trackedSelectors = dedup;
+    log('track', dedup.length, 'selector(s)');
+    if (dedup.length === 0) {
+      // Stop the rAF loop so an idle iframe doesn't burn frames.
+      if (trackedRafId !== null) {
+        window.cancelAnimationFrame(trackedRafId);
+        trackedRafId = null;
+      }
+      // Force one final emit so the parent sees the cleared map and
+      // can drop its own cached bboxes.
+      trackedLast = {};
+      const payload: Omit<
+        PickerTrackedBboxes,
+        'source' | 'nonce' | 'seq' | 'timestamp'
+      > = { type: 'playground.tracked', bboxes: {} };
+      send(payload);
+      return;
+    }
+    // Reset the last-seen cache so the next sample emits fresh
+    // coordinates even if values happen to coincide with the prior
+    // selector set's last sample.
+    trackedLast = {};
+    if (trackedRafId === null) {
+      trackedRafId = window.requestAnimationFrame(sampleTracked);
+    }
+  };
+
   // Capture phase so we see events before any app handler swallows them.
   window.addEventListener('click', handleClick, true);
   window.addEventListener('mousemove', handleMouseMove, true);
@@ -387,6 +505,33 @@ const RUNTIME_VERSION = '0.1.0';
         // after iframe reload. No ack needed in this direction (parent
         // already knows we're alive once 'playground.ready' lands).
         log('ping');
+        break;
+      }
+      case 'picker.track': {
+        const list = Array.isArray(data.selectors)
+          ? data.selectors.filter(
+              (s): s is string => typeof s === 'string' && s.length > 0,
+            )
+          : [];
+        setTrackedSelectors(list);
+        break;
+      }
+      case 'picker.navigate': {
+        const path = typeof data.path === 'string' ? data.path : null;
+        if (!path || !path.startsWith('/')) {
+          warn('picker.navigate ignored — invalid path', path);
+          break;
+        }
+        // SPA-style navigation: the host SPA's router watches popstate
+        // (and the original pushState that we monkey-patched at boot —
+        // see emitRoute). Simulating both keeps it agnostic of which
+        // router lib (react-router, history v5, etc.) is in use.
+        try {
+          history.pushState(null, '', path);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        } catch (err) {
+          warn('picker.navigate failed', err);
+        }
         break;
       }
       default:

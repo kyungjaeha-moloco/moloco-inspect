@@ -106,18 +106,53 @@ export interface PickerErrorMessage extends Envelope {
   stack?: string;
 }
 
+export interface PickerTrackedBboxes extends Envelope {
+  type: 'playground.tracked';
+  /**
+   * For each tracked CSS selector, either the current viewport-relative
+   * bbox of the resolved element, or `null` when the selector does not
+   * match anything in the current DOM (e.g. the element unmounted on a
+   * route change). Consumers use the `null` signal to mark a comment
+   * pin as "orphaned".
+   */
+  bboxes: Record<
+    string,
+    { x: number; y: number; width: number; height: number } | null
+  >;
+}
+
 export type PlaygroundPickerMessage =
   | PickerReadyMessage
   | PickerPickedMessage
   | PickerHoverMessage
   | PickerRouteMessage
-  | PickerErrorMessage;
+  | PickerErrorMessage
+  | PickerTrackedBboxes;
 
 // ─── Parent → Child control commands ─────────────────────────────────
 
 export type PlaygroundPickerCommand =
   | { type: 'picker.setMode'; mode: PickerMode }
-  | { type: 'picker.ping' };
+  | { type: 'picker.ping' }
+  /**
+   * Replaces the runtime's current set of tracked CSS selectors. The
+   * runtime resolves each selector against the live DOM on a polling
+   * cadence and emits a `playground.tracked` message with the current
+   * bbox map. Pass an empty array to stop tracking entirely. Used by
+   * the comment-pin layer so pins follow their anchor element through
+   * scroll / layout shifts / re-renders instead of pretending the
+   * coordinate at click-time is still meaningful.
+   */
+  | { type: 'picker.track'; selectors: string[] }
+  /**
+   * SPA navigation triggered by the parent. Runtime applies via
+   * `history.pushState` + a `popstate` dispatch so React Router picks
+   * it up without a full page reload (which would tear down the
+   * bridge handshake). Used by the "결과 페이지 열기" button on a
+   * completed job to drop the user onto the route the LLM stamped as
+   * the job's target output. `path` must start with "/".
+   */
+  | { type: 'picker.navigate'; path: string };
 
 /** Overlay interaction mode. Mirrors playground-store `IframeMode`. */
 export type PickerMode = 'view' | 'pick' | 'pin';
