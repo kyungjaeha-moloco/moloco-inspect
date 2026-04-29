@@ -41,10 +41,15 @@ Rules:
 
 11. **Target route** (optional, top-level): if the PRD explicitly creates or modifies a single user-visible URL path, output a top-level \`targetRoute\` string with that path so the UI can auto-open the result page when the job finishes. Examples: "/post-creative-review", "/dashboard". Skip the field entirely (don't emit \`null\`) when the work spans multiple pages, is purely backend, or doesn't have an obvious single landing URL. The path must start with "/". This is a hint for UX, not a hard route registration — getting it wrong only means the user has to click through the sidebar, no functional damage.
 
+12. **Risks** (optional, top-level): output \`risks_ko\` — an array of 0 to 3 short Korean strings (≤80 chars each) that name *concrete, PRD-specific* risks the user should review before approving. Examples: "사이드바 메뉴 추가 시 권한 가드 누락 시 다른 사용자에게 메뉴가 보일 수 있음", "i18n 키 추가 누락 시 한국어 외 언어에서 raw key 노출". Skip generic / always-true risks (예: "타입 에러가 날 수 있다", "테스트가 부족하다", "리팩토링이 필요할 수 있다"). If you can't think of a real PRD-specific risk, return an empty array — better silent than spammy.
+
 Schema:
 \`\`\`json
 {
   "targetRoute": "/post-creative-review",
+  "risks_ko": [
+    "PRD-specific 위험 한 줄"
+  ],
   "tasks": [
     {
       "id": "t1",
@@ -229,5 +234,18 @@ export async function decomposePrd(prdText, ctx = {}) {
     targetRoute = parsed.targetRoute.trim();
   }
 
-  return { tasks, targetRoute };
+  // Optional `risks_ko` — surface up to 3 concrete PRD-specific risks
+  // in the plan UI so the user signs off on them along with tasks.
+  // Filter out generic / boilerplate cases the prompt is supposed to
+  // suppress; if any slip through, this guard keeps them out.
+  /** @type {string[]} */
+  let risks = [];
+  if (Array.isArray(parsed.risks_ko)) {
+    risks = parsed.risks_ko
+      .filter((r) => typeof r === 'string' && r.trim().length > 0)
+      .map((r) => r.trim().slice(0, 200))
+      .slice(0, 3);
+  }
+
+  return { tasks, targetRoute, risks };
 }

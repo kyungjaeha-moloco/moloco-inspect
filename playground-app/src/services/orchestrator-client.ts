@@ -538,6 +538,13 @@ export interface Job {
   qaStrategy?: QaStrategyId;
   qaRationaleKo?: string;
   /**
+   * PRD-specific risk lines emitted by the decomposer. Surfaced in
+   * the plan UI so the user signs off on the watch-outs along with
+   * the task list. Empty / missing array = no risks worth calling
+   * out (the decomposer prompt explicitly suppresses generic ones).
+   */
+  risksKo?: string[];
+  /**
    * Outcome of the auto-QA run picked by `qaStrategy`. Stamped by the
    * orchestrator's QA runner once the job lands at status `qa`. Pure
    * metadata — does NOT gate completion. The manual `markQaPass`

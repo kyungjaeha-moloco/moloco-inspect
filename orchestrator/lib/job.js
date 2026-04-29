@@ -417,6 +417,30 @@ export function setQaStrategy(jobId, info) {
 }
 
 /**
+ * Stamp PRD-specific risk lines (Korean) emitted by the decomposer.
+ * Surfaced in the plan UI alongside the task list so the user signs
+ * off on the verification approach + watch-outs together with the
+ * task plan instead of after the fact.
+ *
+ * @param {string} jobId
+ * @param {string[]} risksKo
+ * @returns {Job | null}
+ */
+export function setJobRisks(jobId, risksKo) {
+  const job = getJob(jobId);
+  if (!job) return null;
+  job.risksKo = Array.isArray(risksKo)
+    ? risksKo
+        .filter((r) => typeof r === 'string' && r.trim().length > 0)
+        .map((r) => r.trim().slice(0, 200))
+        .slice(0, 3)
+    : [];
+  job.updatedAt = nowMs();
+  persist(job);
+  return job;
+}
+
+/**
  * Persist the Slack thread (channel + thread_ts) that originally
  * created this job so molly can post status-change notifications
  * back into the same conversation. Stored on the job record (not in

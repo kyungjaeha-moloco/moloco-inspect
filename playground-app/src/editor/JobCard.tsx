@@ -307,6 +307,10 @@ export function JobCard({ jobId }: { jobId: string }) {
         })()}
       </div>
 
+      {canApprove && job.risksKo && job.risksKo.length > 0 && (
+        <PlanRisksBlock risks={job.risksKo} />
+      )}
+
       {canApprove && (
         <PlanQaStrategyLine
           strategy={job.qaStrategy}
@@ -1593,6 +1597,43 @@ function QaAutoResultBanner({
       >
         🔁 재실행
       </button>
+    </div>
+  );
+}
+
+/**
+ * Plan-time risks block — surfaces the decomposer's PRD-specific
+ * risk lines so the user reviews them alongside the task list before
+ * approving. Hidden when the array is empty (decomposer prompt
+ * explicitly suppresses generic / always-true risks, so a non-empty
+ * array means something concrete is worth calling out).
+ */
+function PlanRisksBlock({ risks }: { risks: string[] }) {
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        padding: '8px 10px',
+        fontSize: 12,
+        background: 'rgba(245, 194, 107, 0.10)',
+        border: '1px solid rgba(245, 194, 107, 0.45)',
+        borderRadius: 4,
+        color: 'var(--text-warn, #8a5a00)',
+      }}
+    >
+      <strong>⚠️ 주의사항</strong>
+      <ol
+        style={{
+          margin: '4px 0 0',
+          paddingLeft: 20,
+          color: 'var(--text-secondary)',
+          lineHeight: 1.5,
+        }}
+      >
+        {risks.map((r, i) => (
+          <li key={i}>{r}</li>
+        ))}
+      </ol>
     </div>
   );
 }

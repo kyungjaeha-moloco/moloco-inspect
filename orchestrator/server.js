@@ -46,7 +46,7 @@ import {
   createJob, getJob, listJobs, activeJobForPlayground,
   setJobTasks, approvePlan, retryTask, acceptTask, skipTask, unblockTask,
   cancelJob, resumeJob, setJobStatus, markQaPass, setTaskMeta, setQaStrategy,
-  setTargetRoute, setQaAutoResult, setJobSlackContext,
+  setTargetRoute, setQaAutoResult, setJobSlackContext, setJobRisks,
 } from './lib/job.js';
 import { selectQaStrategy } from './lib/job-qa-strategist.js';
 import { runQaStrategyInBackground } from './lib/job-qa-runner.js';
@@ -607,7 +607,7 @@ function decomposeJobInBackground(jobId, opts = {}) {
         // to the iframe's bridge. Route hint is optional — PRDs usually
         // mention the page explicitly.
       });
-      const { tasks, targetRoute } = result;
+      const { tasks, targetRoute, risks } = result;
       setJobTasks(jobId, tasks); // auto-transitions decomposing → planning
       // Stamp the target route hint when the LLM picked one. The UI
       // uses this on the QA / complete screens to show "결과 페이지
@@ -622,6 +622,17 @@ function decomposeJobInBackground(jobId, opts = {}) {
             err.message,
           );
         }
+      }
+      // Risks the decomposer flagged — surface them in the plan UI
+      // so the user signs off on the watch-outs along with the task
+      // list. Empty array is fine (no risks worth calling out).
+      try {
+        setJobRisks(jobId, Array.isArray(risks) ? risks : []);
+      } catch (err) {
+        console.warn(
+          `[job-decomposer] ${jobId} risks stamp failed:`,
+          err.message,
+        );
       }
       // Pick the QA strategy as part of finalising the plan, *before*
       // the user sees and approves it. This makes QA part of the same
@@ -3518,6 +3529,48 @@ server.listen(PORT, '0.0.0.0', () => {
     decomposeJobInBackground,
     runJobInBackground,
     getPlayground,
+    // QA / lifecycle hooks for the Phase 2.2 Slack buttons.
+    markQaPass,
+    rerunQa: (jobId) => {
+      const j = getJob(jobId);
+      if (!j) throw new Error(`job not found: ${jobId}`);
+      if (j.status !== 'qa') {
+        throw new Error(`cannot rerun QA from status ${j.status}`);
+      }
+      // Mirror the HTTP /rerun-qa path: stamp a placeholder so the
+      // poll dedupe doesn't skip the re-run, then fire the runner.
+      setQaAutoResult(jobId, {
+        strategy: j.qaStrategy ?? 'human_only',
+        passed: false,
+        notes: '재실행 중…',
+        ranAt: Date.now(),
+      });
+      runQaStrategyInBackground(jobId);
+    },
+    retryTask: (jobId, taskId) => {
+      retryTask(jobId, taskId);
+      runJobInBackground(jobId);
+    },
+    acceptTask: (jobId, taskId) => {
+      acceptTask(jobId, taskId);
+      runJobInBackground(jobId);
+    },
+    skipTaskJob: (jobId, taskId) => {
+      skipTask(jobId, taskId);
+      runJobInBackground(jobId);
+    },
+    // Promote — wraps lib/playground.js#promotePlayground so molly
+    // doesn't need to import playground internals. Resolves jobId →
+    // playgroundId and creates a PR. Returns whatever the helper
+    // returns (typically {prUrl, branch}).
+    promoteJob: async (jobId) => {
+      const j = getJob(jobId);
+      if (!j) throw new Error(`job not found: ${jobId}`);
+      if (j.status !== 'complete') {
+        throw new Error(`promote requires status=complete (current: ${j.status})`);
+      }
+      return promotePlayground(j.playgroundId);
+    },
     // Redecompose: matches the HTTP /decompose handler's behaviour —
     // flip FSM (planning|paused) → decomposing, then kick the
     // background decomposer with optional natural-language feedback.

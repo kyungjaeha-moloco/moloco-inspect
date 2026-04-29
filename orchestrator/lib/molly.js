@@ -49,6 +49,12 @@ let appInstance = null;
  * @property {(id: string) => void} runJobInBackground
  * @property {(id: string) => any} getPlayground
  * @property {(id: string, feedback?: string) => void} redecomposeJob
+ * @property {(id: string) => any} markQaPass
+ * @property {(id: string) => void} rerunQa
+ * @property {(jobId: string, taskId: string) => any} retryTask
+ * @property {(jobId: string, taskId: string) => any} acceptTask
+ * @property {(jobId: string, taskId: string) => any} skipTaskJob
+ * @property {(id: string) => Promise<{prUrl?: string, branch?: string}>} promoteJob
  */
 
 /** @type {MollyOptions | null} */
@@ -191,6 +197,69 @@ export function startMolly(options) {
       await handleRedecomposeSubmit(ctx);
     } catch (err) {
       ctx.logger.error(`[molly] handleRedecomposeSubmit crashed: ${err?.stack ?? err}`);
+    }
+  });
+
+  // "✅ QA 통과" — flips status qa → complete. The poll loop catches
+  // the transition and posts the Promote message.
+  appInstance.action('molly_qa_pass', async (ctx) => {
+    await ctx.ack();
+    try {
+      await handleQaPass(ctx);
+    } catch (err) {
+      ctx.logger.error(`[molly] handleQaPass crashed: ${err?.stack ?? err}`);
+    }
+  });
+
+  // "🔁 자동 QA 재실행" — re-fires the picked QA strategy.
+  appInstance.action('molly_qa_rerun', async (ctx) => {
+    await ctx.ack();
+    try {
+      await handleQaRerun(ctx);
+    } catch (err) {
+      ctx.logger.error(`[molly] handleQaRerun crashed: ${err?.stack ?? err}`);
+    }
+  });
+
+  // "🚀 Promote" — turns the playground's commits into a GitHub PR.
+  appInstance.action('molly_promote', async (ctx) => {
+    await ctx.ack();
+    try {
+      await handlePromote(ctx);
+    } catch (err) {
+      ctx.logger.error(`[molly] handlePromote crashed: ${err?.stack ?? err}`);
+    }
+  });
+
+  // "📺 Playground 보기" — pure URL button; just ack so Slack
+  // doesn't show a "didn't respond" warning.
+  appInstance.action('molly_open_playground', async (ctx) => {
+    await ctx.ack();
+  });
+
+  // Task-failure resolution buttons. value="${jobId}:${taskId}".
+  appInstance.action('molly_task_retry', async (ctx) => {
+    await ctx.ack();
+    try {
+      await handleTaskAction(ctx, 'retry');
+    } catch (err) {
+      ctx.logger.error(`[molly] handleTaskAction retry crashed: ${err?.stack ?? err}`);
+    }
+  });
+  appInstance.action('molly_task_accept', async (ctx) => {
+    await ctx.ack();
+    try {
+      await handleTaskAction(ctx, 'accept');
+    } catch (err) {
+      ctx.logger.error(`[molly] handleTaskAction accept crashed: ${err?.stack ?? err}`);
+    }
+  });
+  appInstance.action('molly_task_skip', async (ctx) => {
+    await ctx.ack();
+    try {
+      await handleTaskAction(ctx, 'skip');
+    } catch (err) {
+      ctx.logger.error(`[molly] handleTaskAction skip crashed: ${err?.stack ?? err}`);
     }
   });
 
@@ -629,6 +698,224 @@ async function handleRedecomposeSubmit({ body, view, client, logger }) {
   }
 }
 
+async function handleQaPass({ body, action, client, logger }) {
+  const jobId = action.value;
+  const channel = body.channel.id;
+  const threadTs = body.message.thread_ts ?? body.message.ts;
+  const userId = body.user.id;
+
+  try {
+    opts.markQaPass(jobId);
+    logger.info(`[molly] qa-pass: job=${jobId} user=${userId}`);
+  } catch (err) {
+    await client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      text: `❌ QA 통과 실패: ${err.message?.slice(0, 200) ?? String(err)}`,
+    });
+    return;
+  }
+
+  // Disable the buttons on the original completion message — the poll
+  // loop will post the Promote follow-up shortly.
+  try {
+    await client.chat.update({
+      channel,
+      ts: body.message.ts,
+      text: body.message.text ?? 'QA 통과됨',
+      blocks: stampQaPassedBlocks(body.message.blocks, userId),
+    });
+  } catch (err) {
+    logger.warn(`[molly] chat.update (qa-pass) failed: ${err.message}`);
+  }
+}
+
+async function handleQaRerun({ body, action, client, logger }) {
+  const jobId = action.value;
+  const channel = body.channel.id;
+  const threadTs = body.message.thread_ts ?? body.message.ts;
+  const userId = body.user.id;
+
+  try {
+    opts.rerunQa(jobId);
+    logger.info(`[molly] qa-rerun: job=${jobId} user=${userId}`);
+  } catch (err) {
+    await client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      text: `❌ QA 재실행 실패: ${err.message?.slice(0, 200) ?? String(err)}`,
+    });
+    return;
+  }
+
+  // Re-running QA stamps a placeholder result so the poll loop sees
+  // a state change. Allow the poll loop to re-announce by clearing
+  // the qa-landed flag — wait, that's local to this loop. Easiest
+  // path: announce via a fresh thread reply now.
+  await client.chat.postMessage({
+    channel,
+    thread_ts: threadTs,
+    text: `🔁 <@${userId}> 님이 자동 QA 재실행을 요청했습니다…`,
+  });
+}
+
+async function handlePromote({ body, action, client, logger }) {
+  const jobId = action.value;
+  const channel = body.channel.id;
+  const threadTs = body.message.thread_ts ?? body.message.ts;
+  const userId = body.user.id;
+
+  // Disable the buttons immediately so concurrent clicks don't fire
+  // multiple promote attempts (each creates a PR).
+  try {
+    await client.chat.update({
+      channel,
+      ts: body.message.ts,
+      text: body.message.text ?? 'Promote 진행 중',
+      blocks: stampPromotePendingBlocks(body.message.blocks, userId),
+    });
+  } catch (err) {
+    logger.warn(`[molly] chat.update (promote-pending) failed: ${err.message}`);
+  }
+
+  await client.chat.postMessage({
+    channel,
+    thread_ts: threadTs,
+    text: `🚀 <@${userId}> 님이 Promote 를 요청했습니다. PR 생성 중…`,
+  });
+
+  /** @type {{prUrl?: string, branch?: string} | undefined} */
+  let result;
+  try {
+    result = await opts.promoteJob(jobId);
+    logger.info(`[molly] promote done: job=${jobId} pr=${result?.prUrl}`);
+  } catch (err) {
+    logger.error(`[molly] promote failed: ${err.message}`);
+    await client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      text: `❌ Promote 실패: ${err.message?.slice(0, 240) ?? String(err)}`,
+    });
+    return;
+  }
+
+  if (result?.prUrl) {
+    await client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      text: `✅ Promote 완료!\n🔗 PR: ${result.prUrl}\n_GitHub 에서 머지하면 끝._`,
+    });
+  } else {
+    await client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      text: `✅ Promote 완료 (PR URL 못 받음 — Playground 헤더에서 확인하세요).`,
+    });
+  }
+}
+
+/**
+ * Generic handler for the three task-failure buttons. `mode` selects
+ * which orchestrator hook to call:
+ *   - retry   → opts.retryTask    (re-run the same task)
+ *   - accept  → opts.acceptTask    (mark reviewed, accept-anyway)
+ *   - skip    → opts.skipTaskJob   (skip + cascade blocked)
+ *
+ * value is encoded as "${jobId}:${taskId}".
+ */
+async function handleTaskAction({ body, action, client, logger }, mode) {
+  const raw = String(action.value ?? '');
+  const sepIdx = raw.indexOf(':');
+  if (sepIdx === -1) {
+    logger.warn(`[molly] task action: malformed value=${raw}`);
+    return;
+  }
+  const jobId = raw.slice(0, sepIdx);
+  const taskId = raw.slice(sepIdx + 1);
+  const channel = body.channel.id;
+  const threadTs = body.message.thread_ts ?? body.message.ts;
+  const userId = body.user.id;
+
+  /** @type {{verb: string, runHook: () => any}} */
+  const action_table = {
+    retry: { verb: '재시도', runHook: () => opts.retryTask(jobId, taskId) },
+    accept: { verb: '그대로 통과', runHook: () => opts.acceptTask(jobId, taskId) },
+    skip: { verb: '건너뛰기', runHook: () => opts.skipTaskJob(jobId, taskId) },
+  }[mode];
+  if (!action_table) {
+    logger.warn(`[molly] task action: unknown mode=${mode}`);
+    return;
+  }
+
+  try {
+    action_table.runHook();
+    logger.info(
+      `[molly] task action ${mode}: job=${jobId} task=${taskId} user=${userId}`,
+    );
+  } catch (err) {
+    await client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      text: `❌ Task ${action_table.verb} 실패: ${err.message?.slice(0, 200) ?? String(err)}`,
+    });
+    return;
+  }
+
+  // Strip buttons and stamp who-did-what so the user sees the
+  // resolution in-place. Future task transitions for this same task
+  // (e.g. retry → running → reviewed) will replace this via the
+  // chat.update path.
+  try {
+    const original = body.message.blocks ?? [];
+    const filtered = original.filter((b) => b.type !== 'actions');
+    filtered.push({
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: `↳ <@${userId}> 님이 *${action_table.verb}* 처리했습니다`,
+        },
+      ],
+    });
+    await client.chat.update({
+      channel,
+      ts: body.message.ts,
+      text: body.message.text ?? `${action_table.verb} 처리됨`,
+      blocks: filtered,
+    });
+  } catch (err) {
+    logger.warn(`[molly] chat.update (task action) failed: ${err.message}`);
+  }
+}
+
+function stampQaPassedBlocks(originalBlocks, userId) {
+  const filtered = (originalBlocks ?? []).filter((b) => b.type !== 'actions');
+  filtered.push({
+    type: 'context',
+    elements: [
+      {
+        type: 'mrkdwn',
+        text: `✅ <@${userId}> 님이 QA 통과 처리했습니다`,
+      },
+    ],
+  });
+  return filtered;
+}
+
+function stampPromotePendingBlocks(originalBlocks, userId) {
+  const filtered = (originalBlocks ?? []).filter((b) => b.type !== 'actions');
+  filtered.push({
+    type: 'context',
+    elements: [
+      {
+        type: 'mrkdwn',
+        text: `🚀 <@${userId}> 님이 Promote 진행 중…`,
+      },
+    ],
+  });
+  return filtered;
+}
+
 function stampPendingRedecomposeBlocks(_originalBlocks, userId, feedback) {
   /** @type {Array<object>} */
   const out = [
@@ -699,6 +986,21 @@ function buildPlanBlocks(job) {
           text: `📍 결과 페이지: \`${job.targetRoute}\``,
         },
       ],
+    });
+  }
+
+  // PRD-specific risks the decomposer flagged. Skip the section
+  // entirely when empty so plan UI stays compact for boring jobs.
+  if (Array.isArray(job.risksKo) && job.risksKo.length > 0) {
+    const risksLines = job.risksKo
+      .map((r, i) => `${i + 1}. ${trunc(r, 200)}`)
+      .join('\n');
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `⚠️ *주의사항 (이 작업 특화)*\n${risksLines}`,
+      },
     });
   }
 
@@ -848,6 +1150,58 @@ function taskTransitionMessage(task, idx, total) {
 }
 
 /**
+ * For task transitions: returns the slack `text` and (when relevant)
+ * `blocks` payload. Non-failed states just send text. Failed states
+ * attach a row of [🔁 재시도] [✅ 그대로 통과] [⏭ 건너뛰기] buttons so
+ * the user can resolve from Slack instead of switching to the
+ * Playground.
+ *
+ * @param {object} task
+ * @param {number} idx
+ * @param {number} total
+ * @param {string} jobId
+ * @returns {{ text: string | null, blocks?: Array<object> }}
+ */
+function taskTransitionPayload(task, idx, total, jobId) {
+  const text = taskTransitionMessage(task, idx, total);
+  if (!text) return { text: null };
+  if (task.status !== 'failed') return { text };
+  const value = `${jobId}:${task.id}`;
+  return {
+    text,
+    blocks: [
+      { type: 'section', text: { type: 'mrkdwn', text } },
+      {
+        type: 'actions',
+        block_id: `molly_task_actions_${task.id}`,
+        elements: [
+          {
+            type: 'button',
+            style: 'primary',
+            text: { type: 'plain_text', text: '🔁 재시도' },
+            action_id: 'molly_task_retry',
+            value,
+          },
+          {
+            type: 'button',
+            text: { type: 'plain_text', text: '✅ 그대로 통과' },
+            action_id: 'molly_task_accept',
+            value,
+          },
+          {
+            type: 'button',
+            style: 'danger',
+            text: { type: 'plain_text', text: '⏭ 건너뛰기' },
+            action_id: 'molly_task_skip',
+            value,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
  * Watch a job until it reaches a terminal-ish state (qa / complete /
  * cancelled / paused) and post a final summary. Posts per-task
  * transition messages along the way so the user sees liveness in
@@ -939,21 +1293,30 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
           announcedTaskState.set(t.id, t.status);
           continue;
         }
-        const msg = taskTransitionMessage(t, i, job.tasks.length);
-        if (!msg) {
+        const payload = taskTransitionPayload(t, i, job.tasks.length, jobId);
+        if (!payload.text) {
           announcedTaskState.set(t.id, t.status);
           continue;
         }
         const existingTs = taskMessageTs.get(t.id);
+        // Always pass `blocks` so transitioning failed → reviewed (via
+        // accept-anyway) clears the action buttons by replacing the
+        // blocks array. Slack treats omitted `blocks` as "leave
+        // existing blocks" on chat.update, which would leave stale
+        // buttons hanging around.
+        const updateArgs = {
+          channel,
+          ts: existingTs ?? '',
+          text: payload.text,
+          blocks: payload.blocks ?? [
+            { type: 'section', text: { type: 'mrkdwn', text: payload.text } },
+          ],
+        };
         if (existingTs) {
           // Edit the existing per-task message in-place so the thread
           // shows ONE line per task that evolves through states.
           try {
-            await client.chat.update({
-              channel,
-              ts: existingTs,
-              text: msg,
-            });
+            await client.chat.update(updateArgs);
           } catch {
             // Edit failed (message too old, deleted, etc.) — fall back
             // to a fresh post so the user still sees the transition.
@@ -961,7 +1324,8 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
               const r = await client.chat.postMessage({
                 channel,
                 thread_ts: threadTs,
-                text: msg,
+                text: payload.text,
+                blocks: payload.blocks,
               });
               if (r?.ts) taskMessageTs.set(t.id, r.ts);
             } catch {
@@ -973,7 +1337,8 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
             const r = await client.chat.postMessage({
               channel,
               thread_ts: threadTs,
-              text: msg,
+              text: payload.text,
+              blocks: payload.blocks,
             });
             if (r?.ts) taskMessageTs.set(t.id, r.ts);
           } catch {
@@ -1032,62 +1397,155 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
       announcedJobStates.delete('paused');
     }
 
-    if (job.status === 'qa' || job.status === 'complete') {
-      if (!announcedJobStates.has('done')) {
+    if (job.status === 'qa') {
+      if (!announcedJobStates.has('qa-landed')) {
         if (!wasFirstIteration) {
           await postCompletionMessage({ client, channel, threadTs, job });
         }
-        announcedJobStates.add('done');
+        announcedJobStates.add('qa-landed');
       }
-      // `complete` is truly terminal; bail. `qa` is "auto-runner
-      // finished, awaiting human approval" — could still be cancelled
-      // or marked-pass; keep polling so we surface those events.
-      if (job.status === 'complete') return;
+      // Keep polling: user may click ✅ QA 통과 (→ complete), 🔁
+      // 재실행 (qaAutoResult resets), or ❌ 취소 (→ cancelled).
       continue;
+    }
+
+    if (job.status === 'complete') {
+      if (!announcedJobStates.has('completed')) {
+        if (!wasFirstIteration) {
+          await postCompletePromoteMessage({ client, channel, threadTs, job });
+        }
+        announcedJobStates.add('completed');
+      }
+      // Truly terminal — keep polling for a brief window so a click
+      // on Promote here can update the same message? Promote handler
+      // posts its own follow-up so polling can stop. But we may want
+      // to surface external Promote (curl, playground) too — return
+      // for now since complete + Promote is rare from outside.
+      return;
     }
   }
 
+  // Build the URL from the playground id, not the jobId. (Earlier
+  // versions of this file accidentally used jobId here, which led
+  // to broken `/p/<jobId>` links.)
+  const finalJob = opts.getJob(jobId);
+  const pgUrl = finalJob?.playgroundId
+    ? `${PLAYGROUND_BASE_URL}/${finalJob.playgroundId}`
+    : '(playground unknown)';
   await client.chat.postMessage({
     channel,
     thread_ts: threadTs,
-    text: `⏱️ 작업 시간 초과 (30분). Playground 에서 확인하세요: ${PLAYGROUND_BASE_URL}/${jobId}`,
+    text: `⏱️ molly 의 watcher 가 30분 후 만료됐습니다. (Job ${jobId} 의 상태 추적 종료) — Playground 에서 직접 확인하세요: ${pgUrl}`,
   });
 }
 
+/**
+ * Posted when the job lands at status=qa — the auto-runner has finished
+ * (or human_only just no-op'd) and we're waiting for the user's
+ * confirmation. Includes [✅ QA 통과] (always) + [🔁 자동 QA 재실행]
+ * (when the auto run failed). Manual cancel button stays as well.
+ */
 async function postCompletionMessage({ client, channel, threadTs, job }) {
   const reviewedCount = job.tasks.filter((t) => t.status === 'reviewed').length;
   const skippedCount = job.tasks.filter((t) => t.status === 'skipped').length;
   const playgroundUrl = `${PLAYGROUND_BASE_URL}/${job.playgroundId}`;
+  const qaResult = job.qaAutoResult;
+  const qaPassed = qaResult?.passed === true;
 
   /** @type {string[]} */
-  const lines = [];
-  lines.push(`🎉 작업 완료! (job: \`${job.id}\`)`);
-  lines.push('');
-  lines.push(`• 완료 task: ${reviewedCount}/${job.tasks.length}` + (skippedCount > 0 ? ` (스킵 ${skippedCount})` : ''));
-
-  if (job.qaAutoResult) {
-    const passed = job.qaAutoResult.passed;
-    const emoji = passed ? '✅' : '⚠️';
-    const verdict = passed ? '통과' : '실패';
-    lines.push(`• 자동 QA: ${emoji} ${verdict} — ${trunc(job.qaAutoResult.notes ?? '', 120)}`);
-  } else if (job.qaStrategy) {
-    lines.push(`• 자동 QA: ${job.qaStrategy} (실행 대기 중)`);
-  }
-
-  if (job.targetRoute) {
-    lines.push(`• 결과 페이지: \`${job.targetRoute}\``);
-  }
-
-  lines.push(`• Playground: ${playgroundUrl}`);
-  lines.push('');
-  lines.push(
-    'Playground 에서 직접 확인 후 *✅ QA 통과* / *🚀 Promote* 진행해주세요. (Slack 인터랙션은 다음 슬라이스에서 추가됩니다.)',
+  const summaryLines = [];
+  summaryLines.push(`🎉 작업 완료! (job: \`${job.id}\`)`);
+  summaryLines.push(
+    `• 완료 task: ${reviewedCount}/${job.tasks.length}` +
+      (skippedCount > 0 ? ` (스킵 ${skippedCount})` : ''),
   );
+  if (qaResult) {
+    const emoji = qaPassed ? '✅' : '⚠️';
+    const verdict = qaPassed ? '통과' : '실패';
+    summaryLines.push(
+      `• 자동 QA: ${emoji} ${verdict} — ${trunc(qaResult.notes ?? '', 120)}`,
+    );
+  } else if (job.qaStrategy) {
+    summaryLines.push(`• 자동 QA: ${job.qaStrategy} (실행 대기 중)`);
+  }
+  if (job.targetRoute) summaryLines.push(`• 결과 페이지: \`${job.targetRoute}\``);
+  summaryLines.push(`• Playground: ${playgroundUrl}`);
+
+  /** @type {Array<object>} */
+  const buttons = [
+    {
+      type: 'button',
+      style: 'primary',
+      text: { type: 'plain_text', text: '✅ QA 통과' },
+      action_id: 'molly_qa_pass',
+      value: job.id,
+    },
+  ];
+  if (qaResult && !qaPassed) {
+    buttons.push({
+      type: 'button',
+      text: { type: 'plain_text', text: '🔁 자동 QA 재실행' },
+      action_id: 'molly_qa_rerun',
+      value: job.id,
+    });
+  }
 
   await client.chat.postMessage({
     channel,
     thread_ts: threadTs,
-    text: lines.join('\n'),
+    text: summaryLines.join('\n'),
+    blocks: [
+      { type: 'section', text: { type: 'mrkdwn', text: summaryLines.join('\n') } },
+      { type: 'context', elements: [{ type: 'mrkdwn', text: '*✅ QA 통과* 를 누르면 작업이 *complete* 으로 넘어가고 Promote 버튼이 보입니다.' }] },
+      { type: 'actions', block_id: `molly_qa_actions_${job.id}`, elements: buttons },
+    ],
+  });
+}
+
+/**
+ * Posted when the job reaches status=complete (user confirmed QA).
+ * Final stage: surface the Promote button so the lifecycle wraps up
+ * inside Slack instead of forcing a Playground hop.
+ */
+async function postCompletePromoteMessage({ client, channel, threadTs, job }) {
+  const playgroundUrl = `${PLAYGROUND_BASE_URL}/${job.playgroundId}`;
+  const headline = `🎉 *${job.id}* 완료 처리됨 — Promote 하시겠어요?`;
+  await client.chat.postMessage({
+    channel,
+    thread_ts: threadTs,
+    text: headline,
+    blocks: [
+      { type: 'section', text: { type: 'mrkdwn', text: headline } },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: `Promote 하면 Playground (\`${job.playgroundId}\`) 의 모든 commit 이 prod repo 의 새 PR 로 올라갑니다. 머지는 GitHub 에서 직접.`,
+          },
+        ],
+      },
+      {
+        type: 'actions',
+        block_id: `molly_promote_actions_${job.id}`,
+        elements: [
+          {
+            type: 'button',
+            style: 'primary',
+            text: { type: 'plain_text', text: '🚀 Promote (PR 생성)' },
+            action_id: 'molly_promote',
+            value: job.id,
+          },
+          {
+            type: 'button',
+            text: { type: 'plain_text', text: '📺 Playground 보기' },
+            action_id: 'molly_open_playground',
+            url: playgroundUrl,
+            value: job.playgroundId,
+          },
+        ],
+      },
+    ],
   });
 }
 
