@@ -46,12 +46,13 @@ import {
   createJob, getJob, listJobs, activeJobForPlayground,
   setJobTasks, approvePlan, retryTask, acceptTask, skipTask, unblockTask,
   cancelJob, resumeJob, setJobStatus, markQaPass, setTaskMeta, setQaStrategy,
-  setTargetRoute, setQaAutoResult,
+  setTargetRoute, setQaAutoResult, setJobSlackContext,
 } from './lib/job.js';
 import { selectQaStrategy } from './lib/job-qa-strategist.js';
 import { runQaStrategyInBackground } from './lib/job-qa-runner.js';
 import { runJob as runJobRunner } from './lib/job-runner.js';
 import { startMolly } from './lib/molly.js';
+import { appendChatMessages, generateMessageId } from './lib/chat-store.js';
 import { decomposePrd } from './lib/job-decomposer.js';
 import { reviewTaskDiff } from './lib/job-reviewer.js';
 
@@ -458,6 +459,17 @@ async function runChangeRequestForTask(args) {
   // across failures. Fresh tasks fall back to the current playground
   // HEAD.
   const baseSha = args.taskBaseSha ?? pg.headCommitSha ?? pg.baselineCommitSha ?? '';
+  // Pull the job's targetRoute (set by the decomposer) so the
+  // self-verification block in the agent prompt can curl the right
+  // URL after the agent's edits — catches the "BETA badge added but
+  // result page broken" footgun before review.
+  const targetRoute = (() => {
+    try {
+      return getJob(args.jobId)?.targetRoute;
+    } catch {
+      return undefined;
+    }
+  })();
   const state = createRequest({
     playgroundId: args.playgroundId,
     userPrompt: args.userPrompt,
@@ -465,6 +477,7 @@ async function runChangeRequestForTask(args) {
     pagePath: '/',
     jobId: args.jobId,
     taskId: args.taskId,
+    targetRoute,
   });
   // Stamp the change-request id on the task immediately so the JobCard's
   // next poll can attach an SSE subscription to the agent stream — without
@@ -610,6 +623,44 @@ function decomposeJobInBackground(jobId, opts = {}) {
           );
         }
       }
+      // Pick the QA strategy as part of finalising the plan, *before*
+      // the user sees and approves it. This makes QA part of the same
+      // "this is the plan" surface the user signs off on, instead of a
+      // chip that quietly appears post-approval.
+      //
+      // Fire-and-forget: failure stamps a `human_only` fallback so the
+      // plan still renders + the manual QA pass button remains the
+      // gate. We don't block the FSM transition (planning has already
+      // happened above).
+      (async () => {
+        try {
+          const j = getJob(jobId);
+          if (!j) return;
+          const pg = getPlayground(j.playgroundId);
+          const choice = await selectQaStrategy({
+            prdText: j.prdText,
+            tasks: j.tasks,
+            client: pg?.client,
+          });
+          setQaStrategy(jobId, choice);
+        } catch (err) {
+          console.warn(
+            `[qa-strategist] ${jobId} (decompose-time) failed:`,
+            err.message,
+          );
+          try {
+            setQaStrategy(jobId, {
+              strategy: 'human_only',
+              rationale_ko: '자동 선택 실패 — 사람이 직접 확인',
+            });
+          } catch (stampErr) {
+            console.error(
+              `[qa-strategist] ${jobId} fallback stamp failed:`,
+              stampErr.message,
+            );
+          }
+        }
+      })();
     } catch (err) {
       console.warn(`[job-decomposer] ${jobId} failed:`, err.message);
       try {
@@ -636,6 +687,46 @@ function maybeFireQaRunner(finalJob) {
   if (!finalJob || finalJob.status !== 'qa') return;
   if (finalJob.qaAutoResult) return; // already ran (manual rerun goes through /rerun-qa)
   runQaStrategyInBackground(finalJob.id);
+}
+
+/**
+ * One-shot helper for "user approved the plan, do everything that
+ * needs to happen now". Used by both the HTTP /approve-plan handler
+ * and molly's ✅ approve button so neither path drifts from the other:
+ *   1. FSM flip via approvePlan (planning → delegating).
+ *   2. Kick the runner.
+ *
+ * QA strategy used to be picked here, but it now fires at decompose
+ * time so the user sees + approves the verification approach as part
+ * of the plan. By the time we reach approve, `job.qaStrategy` is
+ * already stamped (or has a `human_only` fallback if the strategist
+ * call failed).
+ *
+ * @param {string} jobId
+ * @returns {import('./lib/job.js').Job}
+ */
+function approveAndRunJob(jobId) {
+  const updated = approvePlan(jobId);
+  // Defensive backstop: if the decompose-time strategist hook didn't
+  // land for some reason (older job created before this code path
+  // shipped, race, etc.), stamp a human_only fallback now so the
+  // runner doesn't dispatch into a missing strategy.
+  try {
+    const j = getJob(jobId);
+    if (j && !j.qaStrategy) {
+      setQaStrategy(jobId, {
+        strategy: 'human_only',
+        rationale_ko: '전략 미설정 — 사람이 직접 확인',
+      });
+    }
+  } catch (err) {
+    console.warn(
+      `[approve-and-run] ${jobId} qaStrategy backstop failed:`,
+      err.message,
+    );
+  }
+  runJobInBackground(jobId);
+  return updated;
 }
 
 /** @param {string} jobId */
@@ -3084,43 +3175,9 @@ Generate 2 variations (v2, v3).`;
           updated = setJobTasks(jobId, body.tasks);
         }
         else if (action === 'approve-plan') {
-          updated = approvePlan(jobId);
-          // Pick a QA strategy in the background — fire-and-forget so
-          // the HTTP response isn't blocked on the LLM call. The job
-          // record gets stamped with `qaStrategy` + `qaRationaleKo`
-          // when the strategist returns; the UI's 2s poll picks it up
-          // and renders a strategy chip on the JobCard. On failure we
-          // log + continue — the existing `human_only` default keeps
-          // the manual QA pass button working.
-          (async () => {
-            try {
-              const job = getJob(jobId);
-              const pg = getPlayground(job.playgroundId);
-              const choice = await selectQaStrategy({
-                prdText: job.prdText,
-                tasks: job.tasks,
-                client: pg?.client,
-              });
-              setQaStrategy(jobId, choice);
-            } catch (err) {
-              console.warn(
-                `[qa-strategist] ${jobId} failed:`,
-                err.message,
-              );
-              try {
-                setQaStrategy(jobId, {
-                  strategy: 'human_only',
-                  rationale_ko: '자동 선택 실패 — 사람이 직접 확인',
-                });
-              } catch (stampErr) {
-                console.error(
-                  `[qa-strategist] ${jobId} fallback stamp failed:`,
-                  stampErr.message,
-                );
-              }
-            }
-          })();
-          runJobInBackground(jobId);
+          // Single helper used by both this HTTP path and molly's ✅
+          // button so the strategist + runner kickoff stays in sync.
+          updated = approveAndRunJob(jobId);
         }
         else if (action === 'retry-task') {
           const body = await parseBody(req);
@@ -3172,6 +3229,7 @@ Generate 2 variations (v2, v3).`;
           const body = await parseBody(req);
           const job = getJob(jobId);
           updated = cancelJob(jobId);
+          let rewound = false;
           // Optional rewind: if the user asked to also undo the
           // playground changes this job landed, restore the playground
           // HEAD to the sha snapshotted at job creation. We do this
@@ -3188,6 +3246,7 @@ Generate 2 variations (v2, v3).`;
             if (pg && pg.headCommitSha && pg.headCommitSha !== job.baselineHeadSha) {
               try {
                 await restoreToSha(job.playgroundId, job.baselineHeadSha);
+                rewound = true;
               } catch (err) {
                 console.warn(
                   `[job-cancel] rewind failed for ${jobId}:`,
@@ -3201,6 +3260,29 @@ Generate 2 variations (v2, v3).`;
                   rewindError: err.message,
                 });
               }
+            }
+          }
+          // Mirror cancellation into the playground's chat panel so a
+          // job started via Slack (or that the user is watching across
+          // both surfaces) shows a clear "cancelled" marker in the same
+          // place where the job card lives.
+          if (job?.playgroundId) {
+            try {
+              appendChatMessages(job.playgroundId, [
+                {
+                  id: generateMessageId(),
+                  role: 'assistant',
+                  content: rewound
+                    ? '❌ 이 작업이 취소되었습니다 (변경 내역 되돌리기 적용).'
+                    : '❌ 이 작업이 취소되었습니다.',
+                  timestamp: Date.now(),
+                },
+              ]);
+            } catch (err) {
+              console.warn(
+                `[job-cancel] chat mirror failed for ${jobId}:`,
+                err.message,
+              );
             }
           }
         }
@@ -3419,5 +3501,37 @@ server.listen(PORT, '0.0.0.0', () => {
   // containers may have been stopped while the orchestrator was down.
   reattachOnStartup().catch((err) => console.warn('[Orchestrator] reattach failed:', err.message));
   // Slack bot — auto-disabled when SLACK_* env vars are blank.
-  startMolly();
+  // Hooks injected here so molly stays decoupled from server internals
+  // (no circular imports, no reach-around).
+  startMolly({
+    defaultPlaygroundId: process.env.MOLLY_PLAYGROUND_ID?.trim() || null,
+    createJob,
+    getJob,
+    listJobs,
+    setJobSlackContext,
+    // Use the combined helper so molly's ✅ button fires the QA
+    // strategist + runner the same way the HTTP /approve-plan handler
+    // does. Without this, Slack-originated jobs skipped the strategist
+    // entirely and fell back to a no-op `human_only` QA.
+    approveJobPlan: approveAndRunJob,
+    cancelJob,
+    decomposeJobInBackground,
+    runJobInBackground,
+    getPlayground,
+    // Redecompose: matches the HTTP /decompose handler's behaviour —
+    // flip FSM (planning|paused) → decomposing, then kick the
+    // background decomposer with optional natural-language feedback.
+    redecomposeJob: (jobId, feedback) => {
+      const j = getJob(jobId);
+      if (!j) throw new Error(`job not found: ${jobId}`);
+      if (j.status === 'planning' || j.status === 'paused') {
+        setJobStatus(jobId, 'decomposing');
+      } else if (j.status !== 'decomposing') {
+        throw new Error(`cannot redecompose from status ${j.status}`);
+      }
+      decomposeJobInBackground(jobId, {
+        userFeedback: typeof feedback === 'string' ? feedback : undefined,
+      });
+    },
+  });
 });

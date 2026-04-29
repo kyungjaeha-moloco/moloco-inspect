@@ -72,5 +72,23 @@ export function buildSandboxPrompt(payload) {
     parts.push('\n6. This is a copy change. Check useTranslation namespace before editing locale files.');
   }
 
+  // RULE 8 — Self-verification before finishing.
+  //
+  // The host runs an external review (Claude reads the diff against the
+  // PRD) AFTER you exit. Failing review is expensive: it blocks the job
+  // and the user has to either retry the task or accept-anyway. Most
+  // review failures we've seen come from sloppy syntax errors or routes
+  // broken as a side-effect of unrelated edits — both catchable in <30s
+  // here, before you finish. Run the self-checks every time.
+  parts.push(`\n8. SELF-VERIFICATION — before finishing your work, verify your changes don't break the workspace. These checks DO NOT count against the 5-tool budget in rule 5; spend whatever you need on them:`);
+  parts.push(`   a. \`cd /workspace/msm-portal/js/msm-portal-web && pnpm exec tsc --noEmit\` — must exit 0. If it errors, the diff doesn't compile; fix it before finishing.`);
+  if (payload.targetRoute && typeof payload.targetRoute === 'string' && payload.targetRoute.startsWith('/')) {
+    parts.push(`   b. \`curl -sS -o /dev/null -w "%{http_code}\\n" http://localhost:5173${payload.targetRoute}\` — must print a 2xx (200/204/etc) status. The result page is \`${payload.targetRoute}\`. If 4xx/5xx, your edit broke the route — common causes: deleted a sibling route's import, removed a component another route depends on, broke the shared layout. Investigate and fix.`);
+    parts.push(`   c. After (b), also \`curl -sS http://localhost:5173${payload.targetRoute} | head -c 1500\` once and confirm the HTML actually contains rendered app content (not a Vite "error overlay" page or a blank \`<div id=\"root\"></div>\`). A 200 with a blank body is still broken.`);
+  } else {
+    parts.push(`   b. \`curl -sS -o /dev/null -w "%{http_code}\\n" http://localhost:5173/\` — must print a 2xx. If 4xx/5xx, your edit broke the app's entry; fix before finishing.`);
+  }
+  parts.push(`   Only finish your work after every check above passes. Do NOT 'finish and let the reviewer catch it' — that's twice the work.`);
+
   return parts.join('\n');
 }

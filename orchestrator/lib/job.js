@@ -417,6 +417,31 @@ export function setQaStrategy(jobId, info) {
 }
 
 /**
+ * Persist the Slack thread (channel + thread_ts) that originally
+ * created this job so molly can post status-change notifications
+ * back into the same conversation. Stored on the job record (not in
+ * a separate map) so it survives orchestrator restarts — molly's
+ * startup scan re-attaches a poll loop to every active job that has
+ * a `slackContext`.
+ *
+ * @param {string} jobId
+ * @param {{ channel: string, threadTs: string }} context
+ * @returns {Job | null}
+ */
+export function setJobSlackContext(jobId, context) {
+  const job = getJob(jobId);
+  if (!job) return null;
+  if (!context || !context.channel || !context.threadTs) return job;
+  job.slackContext = {
+    channel: String(context.channel),
+    threadTs: String(context.threadTs),
+  };
+  job.updatedAt = nowMs();
+  persist(job);
+  return job;
+}
+
+/**
  * Stamp the auto-QA run's outcome on the job. Called by
  * `job-qa-runner.js` after the picked strategy's adapter returns.
  * Pure metadata write — no FSM transition. The manual `markQaPass`
