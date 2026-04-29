@@ -29,23 +29,28 @@ export async function classifyMollyText(text, ctx = {}) {
     ? `최근 대화:\n${ctx.recentMessages.slice(-3).map((m) => `- ${m}`).join('\n')}\n\n분류할 메시지:\n${text}`
     : `분류할 메시지:\n${text}`;
 
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: CLASSIFY_MODEL,
-      max_tokens: 200,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
-    }),
-  });
+  let resp;
+  try {
+    resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: CLASSIFY_MODEL,
+        max_tokens: 200,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userMessage }],
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (err) {
+    return { kind: 'chat', reason: `classifier fetch failed: ${err.message?.slice(0, 80)}` };
+  }
   if (!resp.ok) {
-    const t = await resp.text().catch(() => '');
-    throw new Error(`classifier http ${resp.status}: ${t.slice(0, 200)}`);
+    return { kind: 'chat', reason: `classifier http error ${resp.status}` };
   }
   const data = await resp.json();
   const content = data?.content?.[0]?.text ?? '';

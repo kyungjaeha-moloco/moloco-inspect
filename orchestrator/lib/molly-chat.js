@@ -57,6 +57,7 @@ export async function composeChatReply(text, ctx = {}) {
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     }),
+    signal: AbortSignal.timeout(30000),
   });
   if (!resp.ok) {
     const t = await resp.text().catch(() => '');

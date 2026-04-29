@@ -53,6 +53,7 @@ export async function composeStatusReply(text, ctx) {
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     }),
+    signal: AbortSignal.timeout(30000),
   });
   if (!resp.ok) {
     // status 답변 실패 시 templated 폴백 — 사용자가 빈 화면 보지 않게.
