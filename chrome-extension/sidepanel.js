@@ -113,6 +113,10 @@
       [/Agent error|Agent:/i, 'The AI agent could not process the request. Try being more specific.'],
       [/credit balance|quota/i, 'API usage limit reached. Please contact your administrator.'],
       [/Extension context invalidated/i, 'The extension has been updated. Please refresh the page.'],
+      // Selected playground has a Job in flight — orchestrator blocks
+      // ad-hoc requests so they can't interleave with the job's
+      // serial task stream against the same git tree.
+      [/job_active/i, '선택한 Playground 에 진행 중인 Job 이 있어서 지금은 요청을 받을 수 없습니다. Inspect Console 의 Jobs 탭에서 해당 Job 을 끝내거나 취소한 뒤 다시 시도하세요.'],
     ];
     for (const [pattern, message] of map) {
       if (pattern.test(text)) return message;
@@ -1970,7 +1974,7 @@
 
     const dashLink = document.createElement('a');
     dashLink.className = 'progress-dashboard-link';
-    dashLink.textContent = 'View details in dashboard →';
+    dashLink.textContent = '📊 View in Inspect Console →';
     dashLink.href = '#';
     dashLink.addEventListener('click', (e) => {
       e.preventDefault();
