@@ -2240,6 +2240,18 @@
       if (job && job.status !== 'paused' && announcedJobStates.has('paused')) {
         announcedJobStates.delete('paused');
       }
+
+      if (job && job.status === 'qa') {
+        if (!announcedJobStates.has('qa-landed')) {
+          announcedJobStates.add('qa-landed');
+          addQaCompletionMessage(job);
+        } else {
+          // 이미 카드는 떠 있음. rerun 후 qaAutoResult 가 placeholder
+          // ('재실행 중…') → 실 결과로 교체될 때 카드를 in-place update.
+          updateQaCompletionMessage(job);
+        }
+      }
+
       if (job && TERMINAL.has(job.status)) {
         if (card) {
           const status = card.querySelector('.msg-status');
@@ -2491,6 +2503,150 @@
     wrap.appendChild(bubble);
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  /**
+   * Phase 2 Step 4 (1/2): job.status=qa 진입 시 1회. QA 결과 요약 +
+   * [QA 통과] (+ 실패 시 [자동 QA 재실행]) 버튼.
+   */
+  function addQaCompletionMessage(job) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg msg-system';
+    wrap.dataset.qaCardJobId = job.id;
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble qa-card';
+    renderQaCompletionBody(bubble, job);
+    wrap.appendChild(bubble);
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function updateQaCompletionMessage(job) {
+    const sel = `.msg-system[data-qa-card-job-id="${CSS.escape(job.id)}"] .qa-card`;
+    const bubble = messagesEl.querySelector(sel);
+    if (!bubble) {
+      addQaCompletionMessage(job);
+      return;
+    }
+    bubble.innerHTML = '';
+    renderQaCompletionBody(bubble, job);
+  }
+
+  function renderQaCompletionBody(bubble, job) {
+    const reviewedCount = (job.tasks || []).filter((t) => t.status === 'reviewed').length;
+    const skippedCount = (job.tasks || []).filter((t) => t.status === 'skipped').length;
+    const total = (job.tasks || []).length;
+    const qaResult = job.qaAutoResult;
+    const qaPassed = qaResult?.passed === true;
+    const isRerunning = qaResult?.notes === '재실행 중…';
+
+    const summary = document.createElement('div');
+    summary.className = 'qa-summary';
+    const lines = [];
+    lines.push(`🎉 작업 완료! (job: ${job.id?.slice(0, 8) ?? '?'})`);
+    lines.push(
+      `• 완료 task: ${reviewedCount}/${total}` +
+        (skippedCount > 0 ? ` (스킵 ${skippedCount})` : ''),
+    );
+    if (isRerunning) {
+      lines.push(`• 자동 QA: 🔁 재실행 중…`);
+    } else if (qaResult) {
+      const verdictClass = qaPassed ? 'qa-result-pass' : 'qa-result-fail';
+      lines.push(
+        `• 자동 QA: ${qaPassed ? '✅ 통과' : '⚠️ 실패'} — ${(qaResult.notes || '').slice(0, 120)}`,
+      );
+      summary.classList.add(verdictClass);
+    } else if (job.qaStrategy) {
+      lines.push(`• 자동 QA: ${job.qaStrategy} (실행 대기 중)`);
+    }
+    if (job.targetRoute) lines.push(`• 결과 페이지: ${job.targetRoute}`);
+    summary.textContent = lines.join('\n');
+    bubble.appendChild(summary);
+
+    const hint = document.createElement('div');
+    hint.className = 'task-transition-stamp';
+    hint.textContent = '✅ QA 통과 를 누르면 작업이 complete 으로 넘어가고 Promote 버튼이 보입니다.';
+    bubble.appendChild(hint);
+
+    const actions = document.createElement('div');
+    actions.className = 'qa-actions';
+
+    const passBtn = document.createElement('button');
+    passBtn.type = 'button';
+    passBtn.textContent = '✅ QA 통과';
+    passBtn.className = 'plan-btn plan-btn-primary';
+
+    const showRerun = qaResult && !qaPassed && !isRerunning;
+    const rerunBtn = showRerun ? document.createElement('button') : null;
+    if (rerunBtn) {
+      rerunBtn.type = 'button';
+      rerunBtn.textContent = '🔁 자동 QA 재실행';
+      rerunBtn.className = 'plan-btn';
+    }
+
+    let pendingStamp = null;
+    const lock = (note) => {
+      passBtn.disabled = true;
+      if (rerunBtn) rerunBtn.disabled = true;
+      pendingStamp = document.createElement('div');
+      pendingStamp.className = 'task-transition-stamp';
+      pendingStamp.textContent = note;
+      bubble.appendChild(pendingStamp);
+    };
+    const unlockOnError = () => {
+      passBtn.disabled = false;
+      if (rerunBtn) rerunBtn.disabled = false;
+      if (pendingStamp && pendingStamp.parentNode) {
+        pendingStamp.parentNode.removeChild(pendingStamp);
+      }
+      pendingStamp = null;
+    };
+
+    passBtn.addEventListener('click', async () => {
+      lock('✅ QA 통과 처리 중…');
+      try {
+        const baseUrl = await getServerUrl();
+        const res = await fetch(
+          `${baseUrl}/api/job/${encodeURIComponent(job.id)}/mark-qa-pass`,
+          { method: 'POST' },
+        );
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          addSystemMessage(`QA 통과 실패: ${res.status} ${text.slice(0, 120)}`, 'error');
+          unlockOnError();
+        }
+      } catch (err) {
+        addSystemMessage(`QA 통과 실패: ${err.message}`, 'error');
+        unlockOnError();
+      }
+    });
+
+    if (rerunBtn) {
+      rerunBtn.addEventListener('click', async () => {
+        lock('🔁 자동 QA 재실행 중…');
+        try {
+          const baseUrl = await getServerUrl();
+          const res = await fetch(
+            `${baseUrl}/api/job/${encodeURIComponent(job.id)}/rerun-qa`,
+            { method: 'POST' },
+          );
+          if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            addSystemMessage(`QA 재실행 실패: ${res.status} ${text.slice(0, 120)}`, 'error');
+            unlockOnError();
+          }
+          // 성공 시 폴링이 placeholder 결과를 잡아 updateQaCompletionMessage
+          // 가 실행돼 카드 전체가 갈림. 따라서 unlock 불필요.
+        } catch (err) {
+          addSystemMessage(`QA 재실행 실패: ${err.message}`, 'error');
+          unlockOnError();
+        }
+      });
+    }
+
+    actions.appendChild(passBtn);
+    if (rerunBtn) actions.appendChild(rerunBtn);
+    bubble.appendChild(actions);
   }
 
   function renderTaskTransitionBody(bubble, task, idx, total, jobId) {
