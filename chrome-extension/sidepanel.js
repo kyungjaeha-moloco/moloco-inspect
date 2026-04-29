@@ -2252,6 +2252,11 @@
         }
       }
 
+      if (job && job.status === 'complete' && !announcedJobStates.has('completed')) {
+        announcedJobStates.add('completed');
+        addCompletePromoteMessage(job);
+      }
+
       if (job && TERMINAL.has(job.status)) {
         if (card) {
           const status = card.querySelector('.msg-status');
@@ -2681,6 +2686,122 @@
     actions.appendChild(passBtn);
     if (rerunBtn) actions.appendChild(rerunBtn);
     bubble.appendChild(actions);
+  }
+
+  /**
+   * Phase 2 Step 4 (2/2): job.status=complete 진입 시 1회. Promote
+   * 버튼 + Playground 링크. PR 생성 성공 시 같은 카드를 PR URL 로
+   * in-place 업데이트하고 finishLoop() 호출.
+   */
+  function addCompletePromoteMessage(job) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg msg-system';
+    wrap.dataset.promoteCardJobId = job.id;
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble promote-card';
+
+    const headline = document.createElement('div');
+    headline.className = 'promote-summary';
+    headline.textContent = `🎉 ${job.id?.slice(0, 8) ?? '?'} 완료 처리됨 — Promote 하시겠어요?`;
+    bubble.appendChild(headline);
+
+    const note = document.createElement('div');
+    note.className = 'task-transition-stamp';
+    note.textContent = `Promote 하면 Playground (${job.playgroundId?.slice(0, 8) ?? '?'}) 의 모든 commit 이 prod repo 의 새 PR 로 올라갑니다. 머지는 GitHub 에서 직접.`;
+    bubble.appendChild(note);
+
+    const actions = document.createElement('div');
+    actions.className = 'promote-actions';
+
+    const promoteBtn = document.createElement('button');
+    promoteBtn.type = 'button';
+    promoteBtn.textContent = '🚀 Promote (PR 생성)';
+    promoteBtn.className = 'plan-btn plan-btn-primary';
+
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.textContent = '📺 Playground 보기';
+    openBtn.className = 'plan-btn';
+
+    let pendingStamp = null;
+    const lock = (text) => {
+      promoteBtn.disabled = true;
+      pendingStamp = document.createElement('div');
+      pendingStamp.className = 'task-transition-stamp';
+      pendingStamp.textContent = text;
+      bubble.appendChild(pendingStamp);
+    };
+    const unlockOnError = () => {
+      promoteBtn.disabled = false;
+      if (pendingStamp && pendingStamp.parentNode) {
+        pendingStamp.parentNode.removeChild(pendingStamp);
+      }
+      pendingStamp = null;
+    };
+
+    promoteBtn.addEventListener('click', async () => {
+      if (!job.playgroundId) {
+        addSystemMessage('Promote 실패: playground id 없음', 'error');
+        return;
+      }
+      lock('🚀 Promote 진행 중 — PR 생성 중…');
+      try {
+        const baseUrl = await getServerUrl();
+        const res = await fetch(
+          `${baseUrl}/api/playground/${encodeURIComponent(job.playgroundId)}/promote`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          },
+        );
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          addSystemMessage(`Promote 실패: ${res.status} ${text.slice(0, 200)}`, 'error');
+          unlockOnError();
+          return;
+        }
+        // server.js:2969-2985 의 promote 핸들러 응답: top-level prUrl
+        // (정확히는 spread of promotePlayground 결과 — {ok, playground,
+        // patches, ..., prUrl, dryRun}). prUrl 평면 위치라 result.prUrl
+        // 분기 불필요.
+        const data = await res.json().catch(() => ({}));
+        const prUrl = data?.prUrl;
+        // pendingStamp 를 결과 메시지로 갈음 — lock 상태 유지 (성공 시
+        // 두 번째 클릭 시도 시 또 PR 생성하면 안 됨). polling 은 이미
+        // finishLoop 됐으므로 카드 in-place update 도 없음.
+        if (pendingStamp && pendingStamp.parentNode) {
+          pendingStamp.parentNode.removeChild(pendingStamp);
+        }
+        pendingStamp = null;
+        const result = document.createElement('div');
+        result.className = 'task-transition-stamp';
+        if (prUrl) {
+          result.innerHTML =
+            `✅ Promote 완료! 🔗 <a href="${prUrl}" target="_blank" rel="noreferrer">${prUrl}</a> — GitHub 에서 머지하면 끝.`;
+        } else {
+          result.textContent = '✅ Promote 완료 (PR URL 못 받음 — Playground 헤더에서 확인하세요).';
+        }
+        bubble.appendChild(result);
+        promoteBtn.disabled = true; // 영구 lock — concurrent click 방지
+      } catch (err) {
+        addSystemMessage(`Promote 실패: ${err.message}`, 'error');
+        unlockOnError();
+      }
+    });
+
+    openBtn.addEventListener('click', () => {
+      const url = `http://localhost:4180/p/${encodeURIComponent(job.playgroundId)}`;
+      chrome.runtime.sendMessage({ type: 'inspect-open-url', url });
+    });
+
+    actions.appendChild(promoteBtn);
+    actions.appendChild(openBtn);
+    bubble.appendChild(actions);
+
+    wrap.appendChild(bubble);
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
   function renderTaskTransitionBody(bubble, task, idx, total, jobId) {
