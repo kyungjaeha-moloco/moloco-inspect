@@ -209,6 +209,40 @@ export async function postGenerateVariations(input: {
 
 // ── Chat ────────────────────────────────────────────
 
+export interface MollyDispatchResult {
+  kind: 'chat' | 'status_query' | 'code_change';
+  response?: string;
+  reason: string;
+}
+
+/**
+ * 첫 사용자 메시지를 molly classifier 로 분류. code_change 면 호출자가
+ * 기존 Wizard 흐름 (postChat) 으로 진행. chat / status_query 면 response
+ * 를 사용자에게 surface 하고 Wizard 진입 안 함.
+ */
+export async function mollyClassifyAndDispatch(
+  text: string,
+  isFirstMessage: boolean,
+): Promise<MollyDispatchResult | null> {
+  if (!isFirstMessage) return null; // multi-turn 보호 — 후속 turn 은 Wizard 로
+  try {
+    const resp = await fetch(`${ORCHESTRATOR_URL}/api/molly/respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, surface: 'playground' }),
+    });
+    if (!resp.ok) return null; // 실패 시 호출자가 기존 흐름 진행
+    const data = await resp.json();
+    return {
+      kind: data?.kind ?? 'code_change',
+      response: data?.response,
+      reason: data?.reason ?? '',
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function postChat(
   messages: ChatApiMessage[],
 ): Promise<ChatReply> {

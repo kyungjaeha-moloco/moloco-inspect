@@ -16,6 +16,7 @@ import {
 } from '../store/playground-store';
 import {
   postChat,
+  mollyClassifyAndDispatch,
   postChangeRequest,
   subscribeChangeRequest,
   changeRequestScreenshotUrl,
@@ -458,6 +459,17 @@ export const AIPanel = React.memo(function AIPanel({
 
     setSending(true);
     try {
+      // molly 분류 게이트 — 첫 사용자 메시지만 거침 (multi-turn 보호).
+      // 실패 / code_change 시 기존 Wizard 흐름 그대로.
+      const userCount = current.filter((m) => m.role === 'user').length;
+      const isFirst = userCount === 1;
+      const dispatch = await mollyClassifyAndDispatch(trimmed, isFirst);
+      if (dispatch && (dispatch.kind === 'chat' || dispatch.kind === 'status_query')) {
+        if (!isStillActive()) return;
+        addAssistantMessage({ content: dispatch.response ?? '(빈 응답)' });
+        return;
+      }
+
       const reply = await postChat(apiMessages);
       if (!isStillActive()) return;
       if (reply.type === 'question') {
