@@ -51,7 +51,11 @@ import { JobCard } from './JobCard';
  * Shares chat message types with `shared-ui/` primitives so the Chrome
  * extension sidepanel can adopt the same components later.
  */
-export const AIPanel = React.memo(function AIPanel() {
+export const AIPanel = React.memo(function AIPanel({
+  onShowHistory,
+}: {
+  onShowHistory?: () => void;
+} = {}) {
   const {
     messages,
     isSending,
@@ -113,12 +117,73 @@ export const AIPanel = React.memo(function AIPanel() {
   const [activeTab, setActiveTab] = useState<'chat' | 'comments'>('chat');
   const [prdModalOpen, setPrdModalOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Tracks whether the user is "pinned" near the bottom. We auto-scroll
+  // only when this is true, so a user reading older messages doesn't
+  // get yanked away by a JobCard live update or a new bubble.
+  const stickToBottomRef = useRef(true);
 
-  // Auto-scroll to bottom on new messages
+  // Snap to bottom on every messages change (sending, hydrating, new
+  // assistant reply). Bypasses the stick-to-bottom guard — sending a
+  // message is an explicit "I want to see what I just did" intent.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    stickToBottomRef.current = true;
   }, [messages, isSending]);
+
+  // First paint + every playground switch: defer two frames so JobCards
+  // and other async-mounted children have a chance to lay out before
+  // we measure scrollHeight. Without this, the first render lands at
+  // scrollHeight that doesn't yet include the inline JobCard, so the
+  // user re-enters mid-scroll.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+        stickToBottomRef.current = true;
+      });
+      // store cancel handle so the cleanup below cancels both frames
+      (el as any).__pendingRaf2 = raf2;
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      const r2 = (el as any).__pendingRaf2;
+      if (r2 != null) cancelAnimationFrame(r2);
+    };
+  }, [playgroundId, activeTab]);
+
+  // Live content growth (JobCard polling adds task rows, plan blocks
+  // expand, comments load). When content gets taller AND the user was
+  // already at the bottom, slide them to the new bottom. If they had
+  // scrolled up to read history, leave them alone.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      if (stickToBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    // Also observe direct children that get added later (e.g. inline
+    // dialogs). Modern browsers tolerate observing the same target via
+    // multiple observers; we observe the container itself as a backup.
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [activeTab]);
+
+  // Track scroll position so the resize observer knows whether to
+  // auto-scroll. "Near bottom" = within 80px (forgiving threshold for
+  // long messages with internal scroll quirks).
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distance < 80;
+  };
 
   // Epoch guard — bump on every send so late SSE events from a previous
   // run don't stomp on the current conversation after a reset.
@@ -523,34 +588,62 @@ export const AIPanel = React.memo(function AIPanel() {
           flex: '0 0 auto',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div
-            aria-hidden
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: '50%',
-              background:
-                'linear-gradient(135deg, #b9ceff 0%, #4f86ff 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 14,
-              color: '#ffffff',
-            }}
-          >
-            ◎
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              aria-hidden
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                background:
+                  'linear-gradient(135deg, #b9ceff 0%, #4f86ff 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 14,
+                color: '#ffffff',
+              }}
+            >
+              ◎
+            </div>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                letterSpacing: '-0.01em',
+              }}
+            >
+              Moloco Inspect
+            </div>
           </div>
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--text-primary)',
-              letterSpacing: '-0.01em',
-            }}
-          >
-            Moloco Inspect
-          </div>
+          {onShowHistory && (
+            <button
+              type="button"
+              onClick={onShowHistory}
+              title="이 플레이그라운드의 변경 히스토리를 봅니다"
+              style={{
+                padding: '4px 9px',
+                fontSize: 12,
+                border: '1px solid var(--border-primary)',
+                borderRadius: 6,
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              📜 히스토리
+            </button>
+          )}
         </div>
 
         {/* Tab row */}
@@ -619,6 +712,7 @@ export const AIPanel = React.memo(function AIPanel() {
           {/* Messages area */}
           <div
             ref={scrollRef}
+            onScroll={handleScroll}
             className="ui-scroll"
             style={{
               flex: 1,

@@ -524,7 +524,8 @@ export type QaStrategyId =
   | 'final_route_smoke'
   | 'visual_diff'
   | 'lint_only'
-  | 'human_only';
+  | 'human_only'
+  | 'agent_review';
 
 export interface Job {
   id: string;

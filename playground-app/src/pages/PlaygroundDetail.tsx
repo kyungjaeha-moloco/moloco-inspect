@@ -249,14 +249,13 @@ export function PlaygroundDetail() {
       <Header
         playground={current}
         onPromote={handlePromoteOpen}
-        onShowHistory={() => setShowHistory(true)}
         promoteDisabled={
           !!current.checkedOutSha || promote.kind === 'running'
         }
       />
       <div style={twoPaneStyle}>
         <aside style={{ ...leftPaneStyle, width: leftPaneWidth }}>
-          <AIPanel />
+          <AIPanel onShowHistory={() => setShowHistory(true)} />
         </aside>
         <div
           role="separator"
@@ -316,7 +315,6 @@ export function PlaygroundDetail() {
 function Header({
   playground,
   onPromote,
-  onShowHistory,
   promoteDisabled,
 }: {
   playground: {
@@ -329,7 +327,6 @@ function Header({
     promotedBranch?: string;
   };
   onPromote: () => void;
-  onShowHistory: () => void;
   promoteDisabled: boolean;
 }) {
   return (
@@ -400,22 +397,6 @@ function Header({
             PR ↗
           </a>
         ) : null}
-        <button
-          type="button"
-          onClick={onShowHistory}
-          title="이 플레이그라운드의 변경 히스토리를 봅니다"
-          style={{
-            padding: '6px 10px',
-            fontSize: 12,
-            border: '1px solid var(--border-primary)',
-            borderRadius: 6,
-            background: 'transparent',
-            color: 'var(--text-secondary)',
-            cursor: 'pointer',
-          }}
-        >
-          📜 히스토리
-        </button>
         <button
           type="button"
           onClick={onPromote}

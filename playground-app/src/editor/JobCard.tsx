@@ -308,6 +308,13 @@ export function JobCard({ jobId }: { jobId: string }) {
       </div>
 
       {canApprove && (
+        <PlanQaStrategyLine
+          strategy={job.qaStrategy}
+          rationale={job.qaRationaleKo}
+        />
+      )}
+
+      {canApprove && (
         <PlanFeedbackInput
           disabled={acting}
           onSubmit={(feedback) =>
@@ -416,6 +423,22 @@ export function JobCard({ jobId }: { jobId: string }) {
             취소
           </button>
         )}
+        <a
+          href={`http://127.0.0.1:4174/jobs/${encodeURIComponent(job.id)}`}
+          target="_blank"
+          rel="noreferrer"
+          title={`Inspect Console 에서 이 잡(${job.id}) 의 상세 페이지를 엽니다`}
+          style={{
+            ...secondaryBtn,
+            marginLeft: 'auto',
+            textDecoration: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          📊 Inspect Console ↗
+        </a>
       </footer>
 
       {error && (
@@ -1400,8 +1423,9 @@ const QA_STRATEGY_LABELS: Record<
   QaStrategyId,
   { label: string; short: string }
 > = {
+  agent_review: { label: '에이전트 종합 리뷰', short: '🧪 종합' },
   inline_per_task: { label: '각 작업 직후 검증', short: '🧪 단계별' },
-  final_route_smoke: { label: '마무리 후 라우트 스모크', short: '🧪 마무리' },
+  final_route_smoke: { label: '라우트 스모크만', short: '🧪 스모크' },
   visual_diff: { label: '시각 회귀 비교', short: '🧪 시각' },
   lint_only: { label: '타입/린트만', short: '🧪 린트' },
   human_only: { label: '사람 직접 확인', short: '🧪 수동' },
@@ -1569,6 +1593,74 @@ function QaAutoResultBanner({
       >
         🔁 재실행
       </button>
+    </div>
+  );
+}
+
+/**
+ * Plan-time QA banner — surfaces the chosen verification approach as
+ * part of the plan the user is about to approve. The chip in the
+ * header shows it too, but a chip is easy to miss; this line sits
+ * directly above the approve button so the user signs off on
+ * "this work + this verification" together.
+ *
+ * Renders nothing if no strategy is on the job yet (decomposer just
+ * landed, strategist still picking) — the next 2s poll fills it in.
+ */
+function PlanQaStrategyLine({
+  strategy,
+  rationale,
+}: {
+  strategy?: QaStrategyId;
+  rationale?: string;
+}) {
+  if (!strategy) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '6px 10px',
+          fontSize: 12,
+          background: 'var(--bg-elevated)',
+          border: '1px dashed var(--border-primary)',
+          borderRadius: 4,
+          color: 'var(--text-secondary)',
+        }}
+      >
+        🧪 검증 전략 자동 선택 중…
+      </div>
+    );
+  }
+  const meta = QA_STRATEGY_LABELS[strategy] ?? {
+    label: strategy,
+    short: '🧪 ' + strategy,
+  };
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        padding: '8px 10px',
+        fontSize: 12,
+        background: 'rgba(20, 83, 182, 0.04)',
+        border: '1px solid rgba(20, 83, 182, 0.18)',
+        borderRadius: 4,
+        color: 'var(--text-info, #1453b6)',
+      }}
+    >
+      <strong>🧪 검증 단계:</strong> {meta.label}
+      {rationale && (
+        <span
+          style={{
+            display: 'block',
+            marginTop: 2,
+            fontSize: 11,
+            fontWeight: 400,
+            color: 'var(--text-secondary)',
+          }}
+        >
+          {rationale}
+        </span>
+      )}
     </div>
   );
 }

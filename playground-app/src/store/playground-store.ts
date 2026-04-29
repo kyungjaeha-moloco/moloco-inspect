@@ -231,6 +231,13 @@ function loadChatFromStorage(playgroundId: string): ChatMessage[] {
 // rapid playground switch doesn't allow a stale fetch to clobber the
 // new thread. Updated by `setCurrent`.
 let pendingHydrate: string | null = null;
+// Periodic polling for server-side chat updates (e.g. molly writing
+// from Slack). Without this, messages added on the server only show
+// up after the user manually refreshes — disorienting when working
+// across surfaces. Runs only while a playground is mounted; cleared
+// in setCurrent(null) and on every playground swap.
+let chatPollInterval: ReturnType<typeof setInterval> | null = null;
+const CHAT_POLL_MS = 4000;
 
 // Debounce handle for the server PUT — coalesces rapid mutations (e.g.
 // streaming an assistant message word-by-word) into a single request.
@@ -294,9 +301,18 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
     // and forth between playgrounds doesn't race two fetches into
     // the same store.
     set((state) => {
+      // Always reset any prior poll loop on any setCurrent transition;
+      // we restart it below if `current` is non-null.
+      if (chatPollInterval) {
+        clearInterval(chatPollInterval);
+        chatPollInterval = null;
+      }
       if (!current) return { current: null, messages: [] };
       const sameId = state.current?.id === current.id;
-      if (sameId) return { current };
+      if (sameId) {
+        startChatPoll(current.id);
+        return { current };
+      }
       pendingHydrate = current.id;
       const localMessages = loadChatFromStorage(current.id);
       void (async () => {
@@ -324,6 +340,7 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
           /* network down / orchestrator off — localStorage stays */
         }
       })();
+      startChatPoll(current.id);
       return { current, messages: localMessages };
     }),
   mergeCurrent: (patch) =>
@@ -445,6 +462,57 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
 
   reset: () => set({ ...initial }),
 }));
+
+/**
+ * Server → client chat sync. Fires every CHAT_POLL_MS while a
+ * playground is mounted. Pulls the server's `messages` array, merges
+ * any server-only ids into the local store (sorted by timestamp).
+ *
+ * Why polling vs SSE: existing SSE infra is per-change-request, not
+ * per-playground. A 4s poll is cheap (small JSON body, infrequent
+ * writers) and keeps the surface area small. SSE/websocket can
+ * replace this later if poll churn becomes noticeable.
+ *
+ * Local pending writes are preserved — server-only messages append
+ * to the existing array, never replace.
+ */
+function startChatPoll(playgroundId: string) {
+  if (chatPollInterval) {
+    clearInterval(chatPollInterval);
+  }
+  chatPollInterval = setInterval(() => {
+    void pollChatOnce(playgroundId);
+  }, CHAT_POLL_MS);
+}
+
+async function pollChatOnce(playgroundId: string) {
+  const state = usePlaygroundStore.getState();
+  if (state.current?.id !== playgroundId) {
+    // Playground was swapped away mid-tick. Caller's setCurrent path
+    // already cleared the interval; this is just defense.
+    return;
+  }
+  let server: ChatMessage[];
+  try {
+    server = await getChatMessages<ChatMessage>(playgroundId);
+  } catch {
+    // Orchestrator down / network glitch — silent retry next tick.
+    return;
+  }
+  // Re-read after await — user may have navigated away or the poll
+  // interval was cleared while we were in flight.
+  const cur = usePlaygroundStore.getState();
+  if (cur.current?.id !== playgroundId) return;
+  const localIds = new Set(cur.messages.map((m) => m.id));
+  const newOnes = server.filter((m) => !localIds.has(m.id));
+  if (newOnes.length === 0) return;
+  const merged = [...cur.messages, ...newOnes].sort(
+    (a, b) => a.timestamp - b.timestamp,
+  );
+  usePlaygroundStore.setState((s) =>
+    s.current?.id === playgroundId ? { messages: merged } : s,
+  );
+}
 
 // Persist chat on every change, keyed by the currently-open playground.
 // Skipping when `current` is null avoids clobbering another playground's
