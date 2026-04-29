@@ -1429,6 +1429,16 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
   // versions of this file accidentally used jobId here, which led
   // to broken `/p/<jobId>` links.)
   const finalJob = opts.getJob(jobId);
+  // Skip expiration message for "user-waiting" statuses — qa / complete
+  // / paused 는 사용자 액션 대기 상태라 30분 만료 알림이 행동 유발하지
+  // 못하고 노이즈만 된다. 특히 orchestrator restart 시 resumeWatchersFromDisk
+  // 가 매번 새 30분 watcher 를 붙여서, 이 메시지가 N번 반복 발사되는
+  // spam 의 원인이었다. 활성 처리 중인 (decomposing/delegating/reviewing)
+  // 잡만 expiration 알림 가치가 있음.
+  const SILENT_TIMEOUT_STATUSES = new Set(['qa', 'complete', 'paused']);
+  if (finalJob && SILENT_TIMEOUT_STATUSES.has(finalJob.status)) {
+    return;
+  }
   const pgUrl = finalJob?.playgroundId
     ? `${PLAYGROUND_BASE_URL}/${finalJob.playgroundId}`
     : '(playground unknown)';
