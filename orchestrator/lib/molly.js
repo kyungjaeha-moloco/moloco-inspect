@@ -351,6 +351,50 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     return;
   }
 
+  // 분류 게이트 — text 가 코드 변경 요청이 아닐 수 있으니 먼저 분류.
+  // chat / status_query 는 thread reply 만 하고 끝.
+  // 분류 실패 시 폴백은 'chat' (잡 안 만드는 게 안전 — 사용자가 다시
+  // 명시적으로 PRD 보내면 그때 진행).
+  let cls;
+  try {
+    const { classifyMollyText } = await import('./molly-classifier.js');
+    cls = await classifyMollyText(text, { surface: 'slack' });
+  } catch (err) {
+    logger.warn(`[molly] classifier failed, falling back to chat: ${err.message}`);
+    cls = { kind: 'chat', reason: 'classifier failed' };
+  }
+
+  if (cls.kind === 'chat') {
+    try {
+      const { composeChatReply } = await import('./molly-chat.js');
+      const reply = await composeChatReply(text, { surface: 'slack' });
+      await say({ thread_ts: threadTs, text: reply });
+    } catch (err) {
+      await say({
+        thread_ts: threadTs,
+        text: `⚠️ chat 응답 실패: ${err.message?.slice(0, 200) ?? err}`,
+      });
+    }
+    return;
+  }
+  if (cls.kind === 'status_query') {
+    try {
+      const { composeStatusReply } = await import('./molly-status.js');
+      const reply = await composeStatusReply(text, {
+        listJobs: opts.listJobs,
+        getJob: opts.getJob,
+      });
+      await say({ thread_ts: threadTs, text: reply });
+    } catch (err) {
+      await say({
+        thread_ts: threadTs,
+        text: `⚠️ status 응답 실패: ${err.message?.slice(0, 200) ?? err}`,
+      });
+    }
+    return;
+  }
+
+  // code_change — 기존 흐름 그대로.
   if (!opts?.defaultPlaygroundId) {
     await say({
       thread_ts: threadTs,
