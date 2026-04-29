@@ -32,6 +32,7 @@ import { finalRouteSmoke } from './qa-adapters/final-route-smoke.js';
 import { lintOnly } from './qa-adapters/lint-only.js';
 import { inlinePerTask } from './qa-adapters/inline-per-task.js';
 import { visualDiff } from './qa-adapters/visual-diff.js';
+import { agentReview } from './qa-adapters/agent-review.js';
 
 /** @type {Record<string, (job: any, pg: any) => Promise<{passed: boolean, notes: string, evidence?: object}>>} */
 const ADAPTERS = {
@@ -40,6 +41,7 @@ const ADAPTERS = {
   lint_only: lintOnly,
   inline_per_task: inlinePerTask,
   visual_diff: visualDiff,
+  agent_review: agentReview,
 };
 
 /**

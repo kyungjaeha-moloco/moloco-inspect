@@ -27,9 +27,15 @@ const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
  * slice) maps id → adapter. Adding a strategy means: extend this
  * catalog + (later) add an adapter.
  *
- * @typedef {'inline_per_task' | 'final_route_smoke' | 'visual_diff' | 'lint_only' | 'human_only'} QaStrategyId
+ * @typedef {'inline_per_task' | 'final_route_smoke' | 'visual_diff' | 'lint_only' | 'human_only' | 'agent_review'} QaStrategyId
  */
 export const QA_STRATEGIES = Object.freeze([
+  {
+    id: 'agent_review',
+    label_ko: '에이전트 종합 리뷰 (권장)',
+    when_ko:
+      'PRD 의도가 실제로 구현됐는지 LLM 이 종합 판단해야 하는 일반 케이스. Playwright 가 결과 페이지 스크린샷 + 콘솔 에러 + diff 를 모두 수집해서 Claude 에 vision 으로 전달, "PRD 와 결과가 맞나" 한 번에 판정. 시각/논리 둘 다 점검.',
+  },
   {
     id: 'inline_per_task',
     label_ko: '각 작업 직후 검증',
@@ -38,15 +44,15 @@ export const QA_STRATEGIES = Object.freeze([
   },
   {
     id: 'final_route_smoke',
-    label_ko: '마무리 후 라우트 스모크 테스트',
+    label_ko: '라우트 스모크만 (가벼움)',
     when_ko:
-      '새로운 페이지/라우트를 추가하거나, UI 골격을 새로 짜는 케이스. 모든 작업이 끝난 뒤 한 번에 Playwright 헤드리스로 라우트 로드 + 핵심 요소 렌더링 확인.',
+      '새 라우트가 일단 200으로 뜨기만 확인하면 충분한 가벼운 케이스. Playwright 한 번 호출 (LLM 호출 없음). 빠르고 무료.',
   },
   {
     id: 'visual_diff',
     label_ko: '시각적 회귀 비교',
     when_ko:
-      '기존 화면을 미세하게 수정하는 케이스 (컬러/카피/레이아웃 조정). 변경 전후 스크린샷 비교로 의도치 않은 시각 회귀 감지.',
+      '기존 화면을 미세하게 수정하는 케이스 (컬러/카피/레이아웃 조정). 변경 전후 스크린샷 비교로 의도치 않은 시각 회귀 감지. (현재는 stub — 실제 구현 시 사용)',
   },
   {
     id: 'lint_only',
@@ -72,12 +78,12 @@ ${QA_STRATEGIES.map(
   (s) => `- ${s.id}: ${s.label_ko} — ${s.when_ko}`,
 ).join('\n')}
 
-Decision heuristics:
-- New route / new page scaffold → final_route_smoke.
-- Multi-step pipeline where each task feeds the next → inline_per_task.
-- Cosmetic / micro-copy / styling tweak with no behavior change → visual_diff.
-- Pure data layer / helper / constant changes with no visible UI delta → lint_only.
-- UX flow, accessibility, error message wording, modal interaction → human_only.
+Decision heuristics (in priority order — pick the first one that matches):
+- DEFAULT for any visible UI change (new feature, badge, label, layout, color, route): agent_review. This is the highest-coverage option — captures a screenshot + diff + console errors and asks an LLM "does this match the PRD". Picks up most footguns including blank screens, sign-in redirects, scope creep, and visual mismatches.
+- Pure data layer / helper / constant changes with NO visible UI delta → lint_only.
+- UX flow / accessibility / error message wording / modal interaction (where automated visual judgment is unreliable) → human_only.
+- Quick smoke only ("just check the new page returns 200, don't pay for an LLM review"): final_route_smoke. Use sparingly — agent_review is almost always more useful.
+- inline_per_task / visual_diff are stubs at the moment; only pick them when the user's PRD explicitly asks for that workflow.
 
 Output a single fenced \`\`\`json block with this exact shape — no prose:
 \`\`\`json
