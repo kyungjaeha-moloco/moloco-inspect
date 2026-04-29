@@ -1004,11 +1004,11 @@ function PixelAgentSprite() {
       role="img"
       style={{
         display: 'inline-block',
-        width: 32,
-        height: 48,
+        width: 24,
+        height: 36,
         backgroundImage: "url('/pixel-agents/char_0.png')",
         backgroundRepeat: 'no-repeat',
-        backgroundSize: '224px 192px', // 2× the original 112×96 sheet
+        backgroundSize: '168px 144px', // 1.5× the original 112×96 sheet
         imageRendering: 'pixelated',
         animation: 'pixelAgentWalk 0.6s steps(4) infinite',
       }}

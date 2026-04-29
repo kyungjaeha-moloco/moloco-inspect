@@ -173,12 +173,12 @@ body {
 }
 
 /* Pixel-art walk cycle for running tasks. char_0.png is a 112×96 sheet
- * (7 cols × 4 rows of 16×24). We display a 32×48 window (2× scale) and
+ * (7 cols × 4 rows of 16×24). We display a 24×36 window (1.5× scale) and
  * step background-position-x through the first 4 frames of row 0 at
  * 150ms/frame. See editor/JobCard.tsx#PixelAgentSprite. */
 @keyframes pixelAgentWalk {
   from { background-position: 0 0; }
-  to { background-position: -128px 0; }
+  to { background-position: -96px 0; }
 }
 
 /* Live task row pulse — subtle ring breathes in/out on the row whose
