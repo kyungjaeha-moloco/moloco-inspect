@@ -2543,6 +2543,39 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
+  // molly chat mode — classifier 후 분기. 코드 변경 요청이면 잡 생성을
+  // 호출자가 알아서 (jobId 반환은 안 함 — surface 가 createJob/decompose
+  // 직접 부름. 이 엔드포인트는 분류 + chat/status 응답만 책임).
+  if (pathname === '/api/molly/respond' && req.method === 'POST') {
+    try {
+      const { classifyMollyText } = await import('./lib/molly-classifier.js');
+      const { composeChatReply } = await import('./lib/molly-chat.js');
+      const { composeStatusReply } = await import('./lib/molly-status.js');
+      const payload = await parseBody(req);
+      const text = String(payload?.text ?? '').trim();
+      if (!text) return json(res, 400, { ok: false, error: 'text required' });
+      const ctx = {
+        surface: payload?.surface || 'unknown',
+        recentMessages: Array.isArray(payload?.recentMessages) ? payload.recentMessages : [],
+      };
+      const { kind, reason } = await classifyMollyText(text, ctx);
+      if (kind === 'chat') {
+        const response = await composeChatReply(text, ctx);
+        return json(res, 200, { ok: true, kind, reason, response });
+      }
+      if (kind === 'status_query') {
+        const response = await composeStatusReply(text, { listJobs, getJob });
+        return json(res, 200, { ok: true, kind, reason, response });
+      }
+      // code_change — surface 가 직접 createJob 호출하라고 알려줌.
+      // (server 가 잡까지 만들어버리면 surface-specific context — slack
+      // thread, playgroundId 결정 — 가 결합돼서 책임 모호해짐.)
+      return json(res, 200, { ok: true, kind, reason });
+    } catch (err) {
+      return json(res, 500, { ok: false, error: err?.message ?? String(err) });
+    }
+  }
+
   // Canvas AI Wizard — generate a structured change plan from a PM goal
   // Reads design-system JSON (patterns, api-ui-contracts, pm-sa-request-schema)
   // and asks Claude for a checklist of plan items grounded in real DS patterns.
