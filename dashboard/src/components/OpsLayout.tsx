@@ -35,6 +35,13 @@ const ICONS: Record<string, React.ReactNode> = {
       <rect x="9" y="9" width="5" height="5" rx="1" />
     </svg>
   ),
+  jobs: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 5h10v8a1 1 0 01-1 1H4a1 1 0 01-1-1V5z" />
+      <path d="M6 5V3a1 1 0 011-1h2a1 1 0 011 1v2" />
+      <path d="M3 8h10" />
+    </svg>
+  ),
   requests: (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" />
@@ -67,7 +74,7 @@ export function OpsLayout({ children }: { children: React.ReactNode }) {
             <rect width="18" height="18" rx="4" opacity="0.9" />
             <text x="4" y="13" fontSize="11" fontWeight="700" fill="var(--bg-base)">M</text>
           </svg>
-          Inspect Hub
+          Inspect Console
         </div>
         <nav className="sidebar-nav">
           <div className="sidebar-section-label">Navigation</div>

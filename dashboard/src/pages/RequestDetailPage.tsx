@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { NavLink, useParams } from 'react-router-dom';
 import { API_BASE } from '../analytics/types';
 import { formatDuration, formatTimestamp, getStatusBadgeClass } from '../analytics/helpers';
@@ -41,6 +41,55 @@ export function RequestDetailPage() {
   const req = detail?.request;
   const events = detail?.events ?? [];
   const ai = (req?.request as any)?.aiAnalysis;
+  const reqJobId: string | undefined = (req?.request as any)?.jobId;
+  const reqTaskId: string | undefined = (req?.request as any)?.taskId;
+  const [taskContext, setTaskContext] = useState<{
+    title: string;
+    description: string;
+    attempt: number;
+    review?: { verdict: 'pass' | 'fail'; notes: string; acceptedByUser?: boolean };
+    prdHead: string;
+    targetRoute?: string;
+    qaStrategy?: string;
+  } | null>(null);
+
+  // For job-task requests, fetch the parent job so we can render
+  // Task Context where Chrome-Extension requests would render Agent
+  // Analysis. Same role: "what is this request trying to do".
+  useEffect(() => {
+    if (!reqJobId) {
+      setTaskContext(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/job/${encodeURIComponent(reqJobId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const job = data.job;
+        const task = job?.tasks?.find((t: any) => t.id === reqTaskId);
+        if (!task) return;
+        const prdHead =
+          (job.prdText || '').split('\n').filter((l: string) => l.trim()).slice(0, 3).join('\n');
+        setTaskContext({
+          title: task.title,
+          description: task.description,
+          attempt: task.attempt ?? 0,
+          review: task.review,
+          prdHead,
+          targetRoute: job.targetRoute,
+          qaStrategy: job.qaStrategy,
+        });
+      } catch {
+        /* swallow — leave as null, fallback UI will show */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reqJobId, reqTaskId]);
   const diff = req?.diff || '';
   const diffStats = diff ? countDiffLines(diff) : { add: 0, del: 0 };
   const changedFiles = req?.changedFiles || [];
@@ -101,6 +150,19 @@ export function RequestDetailPage() {
       {/* ─── Top bar ─── */}
       <div className="rd-topbar">
         <NavLink className="rd-back" to="/requests">&larr; Requests</NavLink>
+        {(req?.request as any)?.jobId && (
+          <NavLink
+            className="rd-back"
+            to={`/jobs/${encodeURIComponent((req?.request as any).jobId)}`}
+            style={{ marginLeft: 12, color: '#1453b6' }}
+            title="이 request 가 속한 Job 으로 이동"
+          >
+            ⤴ Job {String((req?.request as any).jobId).slice(0, 8)}
+            {(req?.request as any)?.taskId
+              ? ` · task ${(req?.request as any).taskId}`
+              : ''}
+          </NavLink>
+        )}
         <div className="rd-topbar-meta">
           <span className={getStatusBadgeClass(req?.status ?? '')}>{req?.status ?? '—'}</span>
           <span className="rd-meta-sep">·</span>
@@ -125,11 +187,11 @@ export function RequestDetailPage() {
 
       {/* ─── Two-column: AI Analysis + Preview/Screenshot ─── */}
       <div className="rd-two-col">
-        {/* Left: AI Analysis */}
+        {/* Left: Agent Analysis (Chrome-ext) OR Task Context (job-task) */}
         <div className="rd-card">
           <div className="rd-card-header">
             <span className="rd-card-icon">&#9671;</span>
-            Agent Analysis
+            {ai ? 'Agent Analysis' : taskContext ? 'Task Context' : 'Agent Analysis'}
           </div>
           {ai ? (
             <div className="rd-analysis">
@@ -157,8 +219,82 @@ export function RequestDetailPage() {
                 </div>
               )}
             </div>
+          ) : taskContext ? (
+            <div className="rd-analysis">
+              <div className="rd-analysis-understanding">
+                <strong>{taskContext.title}</strong>
+                {taskContext.attempt > 0 && (
+                  <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+                    attempt {taskContext.attempt + 1}
+                  </span>
+                )}
+              </div>
+              <div
+                className="rd-analysis-approach"
+                style={{ whiteSpace: 'pre-wrap' }}
+              >
+                {taskContext.description}
+              </div>
+              {taskContext.prdHead && (
+                <div className="rd-steps">
+                  <div className="rd-steps-label">From PRD</div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--text-secondary)',
+                      whiteSpace: 'pre-wrap',
+                      paddingLeft: 4,
+                    }}
+                  >
+                    {taskContext.prdHead}
+                    {' …'}
+                  </div>
+                </div>
+              )}
+              {(taskContext.targetRoute || taskContext.qaStrategy) && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    fontSize: 11,
+                    color: 'var(--text-muted)',
+                    display: 'flex',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  {taskContext.targetRoute && (
+                    <span>
+                      📍 <code>{taskContext.targetRoute}</code>
+                    </span>
+                  )}
+                  {taskContext.qaStrategy && <span>🧪 {taskContext.qaStrategy}</span>}
+                </div>
+              )}
+              {taskContext.review && (
+                <div
+                  className={taskContext.review.verdict === 'pass' ? 'rd-verify' : 'rd-risk'}
+                  style={{ marginTop: 10 }}
+                >
+                  <span
+                    className={taskContext.review.verdict === 'pass' ? 'rd-verify-icon' : 'rd-risk-icon'}
+                  >
+                    {taskContext.review.verdict === 'pass' ? '✓' : '⚠'}
+                  </span>{' '}
+                  <strong>review {taskContext.review.verdict}:</strong> {taskContext.review.notes}
+                  {taskContext.review.acceptedByUser && (
+                    <span style={{ marginLeft: 6, fontStyle: 'italic' }}>
+                      (사용자가 그대로 인정)
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           ) : (
-            <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No AI analysis available</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+              {reqJobId
+                ? 'Loading task context…'
+                : 'No AI analysis available'}
+            </div>
           )}
         </div>
 

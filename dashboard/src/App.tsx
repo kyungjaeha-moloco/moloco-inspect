@@ -5,6 +5,8 @@ import { OpsLayout } from './components/OpsLayout';
 import { OverviewPage } from './pages/OverviewPage';
 import { RequestsPage } from './pages/RequestsPage';
 import { RequestDetailPage } from './pages/RequestDetailPage';
+import { JobsPage } from './pages/JobsPage';
+import { JobDetailPage } from './pages/JobDetailPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 export function App() {
@@ -15,6 +17,8 @@ export function App() {
           path="/"
           element={<OverviewPage />}
         />
+        <Route path="/jobs" element={<JobsPage />} />
+        <Route path="/jobs/:jobId" element={<JobDetailPage />} />
         <Route path="/requests" element={<RequestsPage />} />
         <Route path="/requests/:requestId" element={<RequestDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />

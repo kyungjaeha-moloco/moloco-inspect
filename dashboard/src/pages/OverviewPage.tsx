@@ -86,6 +86,60 @@ function RequestCard({ record }: { record: AnalyticsRecord }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Recent Job Row (mirrors RequestCard for visual consistency)         */
+/* ------------------------------------------------------------------ */
+
+function RecentJobRow({ job }: { job: OverviewJob }) {
+  const reviewed = job.tasks.filter((t) => t.status === 'reviewed').length;
+  const total = job.tasks.length;
+  const headLine = (job.prdText || '').split('\n')[0]?.trim() || '(no PRD)';
+  const dotColor =
+    job.status === 'complete'
+      ? 'var(--success)'
+      : job.status === 'cancelled' || job.status === 'paused' || job.status === 'blocked'
+        ? 'var(--danger)'
+        : job.status === 'qa' ||
+            job.status === 'delegating' ||
+            job.status === 'reviewing' ||
+            job.status === 'decomposing' ||
+            job.status === 'planning'
+          ? 'var(--accent)'
+          : 'var(--text-muted)';
+  const elapsedMs = (job.status === 'complete' ? job.updatedAt : Date.now()) - job.createdAt;
+  return (
+    <NavLink className="request-card" to={`/jobs/${encodeURIComponent(job.id)}`}>
+      <div className="request-card-main">
+        <span className="request-card-dot" style={{ background: dotColor }} />
+        <div className="request-card-content">
+          <div className="request-card-title">
+            {truncate(headLine, 70)}
+          </div>
+          <div className="request-card-meta">
+            <span className="mono">{job.id.slice(0, 8)}</span>
+            <span>·</span>
+            <span>
+              {reviewed}/{total} reviewed
+            </span>
+            {job.qaStrategy && (
+              <>
+                <span>·</span>
+                <span>🧪 {job.qaStrategy}</span>
+              </>
+            )}
+            <span>·</span>
+            <span className="mono">{job.playgroundId.slice(0, 8)}</span>
+          </div>
+        </div>
+      </div>
+      <div className="request-card-right">
+        <span className={getStatusBadgeClass(job.status)}>{job.status}</span>
+        <span className="request-card-time">{formatDuration(elapsedMs)}</span>
+      </div>
+    </NavLink>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Coverage Bar Chart                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -385,9 +439,99 @@ function StatCard({ value, label, trend }: { value: string; label: string; trend
 /*  Overview Page                                                      */
 /* ------------------------------------------------------------------ */
 
+interface OverviewJob {
+  id: string;
+  playgroundId: string;
+  prdText: string;
+  status: string;
+  tasks: Array<{ id: string; status: string }>;
+  qaStrategy?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * Polls /api/job and derives the job-level metrics + recent list the
+ * Overview page surfaces. 10s cadence is fine for an at-a-glance view;
+ * users who need fresher data click through to /jobs.
+ */
+function useJobsOverview() {
+  const [jobs, setJobs] = useState<OverviewJob[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchOnce = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/job`, {
+          signal: AbortSignal.timeout(3000),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setJobs(Array.isArray(data.jobs) ? data.jobs : []);
+      } catch {
+        /* offline / orchestrator down — leave list as-is */
+      }
+    };
+    void fetchOnce();
+    const id = setInterval(fetchOnce, 10_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  return useMemo(() => {
+    const ACTIVE = new Set([
+      'decomposing',
+      'planning',
+      'delegating',
+      'reviewing',
+      'qa',
+    ]);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayMs = todayStart.getTime();
+
+    const total = jobs.length;
+    const active = jobs.filter((j) => ACTIVE.has(j.status)).length;
+    const paused = jobs.filter((j) => j.status === 'paused').length;
+    const complete = jobs.filter((j) => j.status === 'complete').length;
+    const cancelled = jobs.filter((j) => j.status === 'cancelled').length;
+    const todays = jobs.filter((j) => j.createdAt >= todayMs).length;
+    // Success rate denominator excludes still-active and paused jobs —
+    // those haven't reached a terminal verdict yet so counting them
+    // would dilute the true rate. cancelled counts toward "not
+    // successful" because the user explicitly killed it.
+    const completedOrCancelled = complete + cancelled;
+    const successRate = completedOrCancelled > 0 ? complete / completedOrCancelled : 0;
+    // Avg duration only over completed jobs (the only group with a
+    // meaningful "ran to completion" timestamp pair).
+    const completed = jobs.filter((j) => j.status === 'complete');
+    const avgDurationMs =
+      completed.length > 0
+        ? completed.reduce((sum, j) => sum + Math.max(0, j.updatedAt - j.createdAt), 0) /
+          completed.length
+        : null;
+    const recent = [...jobs]
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, 8);
+    return {
+      jobs,
+      total,
+      active,
+      paused,
+      todays,
+      successRate,
+      avgDurationMs,
+      recent,
+    };
+  }, [jobs]);
+}
+
 export function OverviewPage() {
   const { summary, records, loading, error } = useAnalyticsDashboardData();
   const { sandboxes, orchestratorUp } = useSandboxStatus();
+  const jobsOverview = useJobsOverview();
 
   const recentRequests = records.slice(0, 10);
   const topRoutes = summary?.topRoutes ?? [];
@@ -433,7 +577,7 @@ export function OverviewPage() {
 
       {summary && (
         <>
-          {/* Section 1: Stat Cards */}
+          {/* Section 1: Stat Cards (Request-level) */}
           <div className="stat-row">
             <StatCard
               value={formatPercent(successRate)}
@@ -453,6 +597,33 @@ export function OverviewPage() {
             />
           </div>
 
+          {/* Section 1b: Stat Cards (Job-level) — surfaces PRD-driven
+              work alongside the raw request stats. Active counts only
+              non-terminal statuses; success rate denominator excludes
+              still-running jobs to avoid diluting the verdict. */}
+          <div className="stat-row">
+            <StatCard
+              value={`${jobsOverview.active}`}
+              label={`Active Jobs${jobsOverview.paused > 0 ? ` (${jobsOverview.paused} paused)` : ''}`}
+            />
+            <StatCard
+              value={`${jobsOverview.todays}`}
+              label="Today's Jobs"
+            />
+            <StatCard
+              value={formatPercent(jobsOverview.successRate)}
+              label="Job Success Rate"
+            />
+            <StatCard
+              value={
+                jobsOverview.avgDurationMs != null
+                  ? formatDuration(jobsOverview.avgDurationMs)
+                  : '—'
+              }
+              label="Avg Job Duration"
+            />
+          </div>
+
           {/* Section 2: Infrastructure Strip */}
           <div className="infra-strip">
             <span className={`infra-dot ${orchestratorUp === null ? '' : orchestratorUp ? 'up' : 'down'}`} />
@@ -461,6 +632,21 @@ export function OverviewPage() {
             <span>{sandboxes.length} Sandbox{sandboxes.length !== 1 ? 'es' : ''}</span>
             <span className="infra-sep">&middot;</span>
             <span>Docker</span>
+            <span className="infra-sep">&middot;</span>
+            <NavLink
+              to="/jobs"
+              style={{
+                color: jobsOverview.active > 0 ? '#1453b6' : 'inherit',
+                fontWeight: jobsOverview.active > 0 ? 600 : 400,
+                textDecoration: 'none',
+              }}
+              title="Job 단위 진행 상황 보기"
+            >
+              📦 {jobsOverview.active} active job{jobsOverview.active !== 1 ? 's' : ''}
+              {jobsOverview.paused > 0 ? ` · ${jobsOverview.paused} paused` : ''}
+              {' · '}
+              {jobsOverview.total} total →
+            </NavLink>
           </div>
 
           {/* Section 3: Daily Trend (full width) */}
@@ -481,7 +667,25 @@ export function OverviewPage() {
             </div>
           </div>
 
-          {/* Section 4: Recent Requests (Vercel deploy card style) */}
+          {/* Section 4: Recent Jobs (PRD-level work units) */}
+          <div className="section">
+            <div className="section-header">
+              <h2 className="section-title">Recent Jobs</h2>
+              <NavLink className="section-action link" to="/jobs">
+                View all &rarr;
+              </NavLink>
+            </div>
+
+            {jobsOverview.recent.length === 0 && (
+              <div className="empty-state">No jobs yet — start one from the Playground or via molly in Slack.</div>
+            )}
+
+            {jobsOverview.recent.map((j) => (
+              <RecentJobRow key={j.id} job={j} />
+            ))}
+          </div>
+
+          {/* Section 5: Recent Requests (raw change-request stream) */}
           <div className="section">
             <div className="section-header">
               <h2 className="section-title">Recent Requests</h2>
