@@ -2583,8 +2583,16 @@
           addSystemMessage(`${label} 실패: ${res.status} ${text.slice(0, 120)}`, 'error');
           unlockOnError();
         }
-        // 성공 시 unlock 안 함 — 폴링이 새 status 로 카드를 in-place
-        // update 하면서 stamp 가 통째로 갈리니 그대로 두면 됨.
+        // 성공 시 폴링이 새 status 를 잡아 카드를 in-place update 하면
+        // bubble.innerHTML = '' 로 stamp/buttons 가 통째로 갈리며 자동
+        // 회수됨. 다만 서버가 idempotent no-op 응답을 주거나 폴링이
+        // stale 한 edge case 에서는 영구 잠금이 될 수 있어 15s safety
+        // timer 로 fallback 복구.
+        setTimeout(() => {
+          if (pendingStamp && pendingStamp.parentNode === bubble) {
+            unlockOnError();
+          }
+        }, 15000);
       } catch (err) {
         addSystemMessage(`${label} 실패: ${err.message}`, 'error');
         unlockOnError();
