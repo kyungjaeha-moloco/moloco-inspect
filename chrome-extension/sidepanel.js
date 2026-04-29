@@ -2509,6 +2509,20 @@
    * Phase 2 Step 4 (1/2): job.status=qa 진입 시 1회. QA 결과 요약 +
    * [QA 통과] (+ 실패 시 [자동 QA 재실행]) 버튼.
    */
+  function computeQaCardHash(job) {
+    const reviewedCount = (job.tasks || []).filter((t) => t.status === 'reviewed').length;
+    const skippedCount = (job.tasks || []).filter((t) => t.status === 'skipped').length;
+    const total = (job.tasks || []).length;
+    return JSON.stringify({
+      reviewedCount,
+      skippedCount,
+      total,
+      qaResult: job.qaAutoResult ?? null,
+      targetRoute: job.targetRoute ?? null,
+      qaStrategy: job.qaStrategy ?? null,
+    });
+  }
+
   function addQaCompletionMessage(job) {
     const wrap = document.createElement('div');
     wrap.className = 'msg msg-system';
@@ -2516,6 +2530,8 @@
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble qa-card';
     renderQaCompletionBody(bubble, job);
+    // 첫 렌더 후 hash 저장 — 첫 polling 이 즉시 재렌더하지 않게.
+    bubble.dataset.lastHash = computeQaCardHash(job);
     wrap.appendChild(bubble);
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -2528,6 +2544,12 @@
       addQaCompletionMessage(job);
       return;
     }
+    // Dirty check — 폴링이 매 3초 호출해도 입력이 변하지 않으면 skip.
+    // 매번 무조건 innerHTML='' 하면 사용자 버튼 클릭 race + stale closure
+    // pendingStamp leak 발생.
+    const hash = computeQaCardHash(job);
+    if (bubble.dataset.lastHash === hash) return;
+    bubble.dataset.lastHash = hash;
     bubble.innerHTML = '';
     renderQaCompletionBody(bubble, job);
   }
@@ -2614,6 +2636,12 @@
           const text = await res.text().catch(() => '');
           addSystemMessage(`QA 통과 실패: ${res.status} ${text.slice(0, 120)}`, 'error');
           unlockOnError();
+        } else {
+          // status qa→complete 으로 넘어가면 qa-update 분기가 더 안 타서
+          // bubble 이 재렌더 안 됨. 15s 후 fallback unlock.
+          setTimeout(() => {
+            if (pendingStamp && pendingStamp.parentNode === bubble) unlockOnError();
+          }, 15000);
         }
       } catch (err) {
         addSystemMessage(`QA 통과 실패: ${err.message}`, 'error');
@@ -2634,9 +2662,15 @@
             const text = await res.text().catch(() => '');
             addSystemMessage(`QA 재실행 실패: ${res.status} ${text.slice(0, 120)}`, 'error');
             unlockOnError();
+          } else {
+            // 서버 idempotent no-op / 폴링 stale 시 placeholder 가 안 찍히면
+            // updateQaCompletionMessage 가 안 불려 영구 잠금. 15s fallback.
+            setTimeout(() => {
+              if (pendingStamp && pendingStamp.parentNode === bubble) unlockOnError();
+            }, 15000);
           }
           // 성공 시 폴링이 placeholder 결과를 잡아 updateQaCompletionMessage
-          // 가 실행돼 카드 전체가 갈림. 따라서 unlock 불필요.
+          // 가 실행돼 카드 전체가 갈림.
         } catch (err) {
           addSystemMessage(`QA 재실행 실패: ${err.message}`, 'error');
           unlockOnError();
