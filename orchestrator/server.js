@@ -51,6 +51,7 @@ import {
 import { selectQaStrategy } from './lib/job-qa-strategist.js';
 import { runQaStrategyInBackground } from './lib/job-qa-runner.js';
 import { runJob as runJobRunner } from './lib/job-runner.js';
+import { startMolly } from './lib/molly.js';
 import { decomposePrd } from './lib/job-decomposer.js';
 import { reviewTaskDiff } from './lib/job-reviewer.js';
 
@@ -3417,4 +3418,6 @@ server.listen(PORT, '0.0.0.0', () => {
   // M1b #5: reconcile playground state with docker after a restart — some
   // containers may have been stopped while the orchestrator was down.
   reattachOnStartup().catch((err) => console.warn('[Orchestrator] reattach failed:', err.message));
+  // Slack bot — auto-disabled when SLACK_* env vars are blank.
+  startMolly();
 });
