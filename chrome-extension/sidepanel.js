@@ -2777,8 +2777,14 @@
         const result = document.createElement('div');
         result.className = 'task-transition-stamp';
         if (prUrl) {
-          result.innerHTML =
-            `✅ Promote 완료! 🔗 <a href="${prUrl}" target="_blank" rel="noreferrer">${prUrl}</a> — GitHub 에서 머지하면 끝.`;
+          result.appendChild(document.createTextNode('✅ Promote 완료! 🔗 '));
+          const a = document.createElement('a');
+          a.href = prUrl;
+          a.textContent = prUrl;
+          a.target = '_blank';
+          a.rel = 'noreferrer';
+          result.appendChild(a);
+          result.appendChild(document.createTextNode(' — GitHub 에서 머지하면 끝.'));
         } else {
           result.textContent = '✅ Promote 완료 (PR URL 못 받음 — Playground 헤더에서 확인하세요).';
         }
