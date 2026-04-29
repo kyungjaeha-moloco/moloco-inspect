@@ -2129,9 +2129,34 @@
     const startedAt = Date.now();
     const POLL_MS = 3000;
     const TIMEOUT_MS = 30 * 60 * 1000;
-    /** Stop conditions for the polling loop. */
+    // 'complete' 는 announce 후 즉시 finishLoop — Promote 클릭은 user
+    // 가 직접 fetch 호출이라 polling 이 더 봐줄 필요 없음. (Slack 의
+    // pollJobUntilDoneInner 와 동일 정책: molly.js:1424 의 return.)
     const TERMINAL = new Set(['complete', 'cancelled']);
     let planCardShown = false;
+    /** @type {Map<string, string>} taskId → last announced status */
+    const announcedTaskState = new Map();
+    /** @type {Set<string>} job-level state announcements (qa-landed, completed, paused) */
+    const announcedJobStates = new Set();
+
+    // Reload sniff: sidepanel 새로고침 후 같은 jobId 가 다시 폴링될 때
+    // chat 에 이미 들어가 있는 카드를 다시 만들지 않게 dedupe Set 을 prefill.
+    if (messagesEl.querySelector(`.msg-system[data-qa-card-job-id="${CSS.escape(jobId)}"]`)) {
+      announcedJobStates.add('qa-landed');
+    }
+    if (messagesEl.querySelector(`.msg-system[data-promote-card-job-id="${CSS.escape(jobId)}"]`)) {
+      announcedJobStates.add('completed');
+    }
+    if (messagesEl.querySelector(`.msg-system[data-paused-card-job-id="${CSS.escape(jobId)}"]`)) {
+      announcedJobStates.add('paused');
+    }
+    messagesEl
+      .querySelectorAll(`.msg-system[data-task-transition-id]`)
+      .forEach((el) => {
+        const tid = el.dataset.taskTransitionId;
+        const status = el.dataset.taskTransitionStatus;
+        if (tid && status) announcedTaskState.set(tid, status);
+      });
 
     const finishLoop = () => {
       currentJobInProgress = false;
@@ -2184,6 +2209,36 @@
       if (job && job.status === 'planning' && !planCardShown) {
         planCardShown = true;
         addPlanApprovalCard(job);
+      }
+      // Per-task transitions — Slack 의 pollJobUntilDoneInner 미러.
+      // 통과/실패/건너뜀이 발생할 때마다 chat 에 카드를 띄우고, 같은
+      // task의 후속 트랜지션은 in-place 업데이트.
+      const ANNOUNCEABLE = new Set(['running', 'committed', 'reviewed', 'failed', 'skipped']);
+      if (job && Array.isArray(job.tasks)) {
+        for (let i = 0; i < job.tasks.length; i++) {
+          const t = job.tasks[i];
+          if (!t?.id) continue;
+          if (!ANNOUNCEABLE.has(t.status)) continue;
+          if (announcedTaskState.get(t.id) === t.status) continue;
+          const existed = announcedTaskState.has(t.id);
+          if (existed) {
+            updateTaskTransitionMessage(t, i, job.tasks.length, jobId);
+          } else {
+            addTaskTransitionMessage(t, i, job.tasks.length, jobId);
+          }
+          announcedTaskState.set(t.id, t.status);
+        }
+      }
+
+      // Paused state — Slack 의 paused 처리 미러 (molly.js:1373-1398).
+      // pausedReason 을 surface 하고 dedupe. 재개되면 set 에서 제거해
+      // 다음에 paused 진입 시 다시 announce.
+      if (job && job.status === 'paused' && !announcedJobStates.has('paused')) {
+        announcedJobStates.add('paused');
+        addPausedMessage(job);
+      }
+      if (job && job.status !== 'paused' && announcedJobStates.has('paused')) {
+        announcedJobStates.delete('paused');
       }
       if (job && TERMINAL.has(job.status)) {
         if (card) {
@@ -2375,6 +2430,175 @@
     wrap.appendChild(bubble);
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  /**
+   * Phase 2 Step 3: per-task transition card. Slack의 taskTransitionPayload
+   * 미러. 같은 task의 후속 트랜지션은 updateTaskTransitionMessage 가
+   * 같은 카드를 in-place 업데이트.
+   */
+  function addTaskTransitionMessage(task, idx, total, jobId) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg msg-system';
+    wrap.dataset.taskTransitionId = task.id;
+    wrap.dataset.taskTransitionStatus = task.status;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble task-transition-card';
+    renderTaskTransitionBody(bubble, task, idx, total, jobId);
+
+    wrap.appendChild(bubble);
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function updateTaskTransitionMessage(task, idx, total, jobId) {
+    const wrapSel = `.msg-system[data-task-transition-id="${CSS.escape(task.id)}"]`;
+    const wrap = messagesEl.querySelector(wrapSel);
+    if (!wrap) {
+      addTaskTransitionMessage(task, idx, total, jobId);
+      return;
+    }
+    wrap.dataset.taskTransitionStatus = task.status;
+    const bubble = wrap.querySelector('.task-transition-card');
+    if (!bubble) {
+      addTaskTransitionMessage(task, idx, total, jobId);
+      return;
+    }
+    bubble.innerHTML = '';
+    renderTaskTransitionBody(bubble, task, idx, total, jobId);
+  }
+
+  /**
+   * Phase 2 Step 3 (paused): job.status=paused 진입 시 1회. Slack 의
+   * paused 처리 미러. 재개되면 announcedJobStates 에서 'paused' 가
+   * 빠지므로 다음에 다시 paused 되면 또 한 번 카드 노출.
+   */
+  function addPausedMessage(job) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg msg-system';
+    wrap.dataset.pausedCardJobId = job.id;
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble task-transition-card';
+    const line = document.createElement('div');
+    line.className = 'task-transition-line';
+    line.textContent = `⏸️ 작업 일시정지: ${job.pausedReason || '(원인 없음)'}`;
+    bubble.appendChild(line);
+    const hint = document.createElement('div');
+    hint.className = 'task-transition-stamp';
+    hint.textContent = 'Playground 또는 Inspect Console 에서 확인 후 resume / cancel 가능합니다.';
+    bubble.appendChild(hint);
+    wrap.appendChild(bubble);
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function renderTaskTransitionBody(bubble, task, idx, total, jobId) {
+    const num = `${idx + 1}/${total}`;
+    const title = task.title || '(no title)';
+    const line = document.createElement('div');
+    line.className = 'task-transition-line';
+    switch (task.status) {
+      case 'running':
+        line.textContent = `🔧 ${num} ${title} — 작업 중…`;
+        break;
+      case 'committed':
+        line.textContent = `🔍 ${num} ${title} — 검토 중…`;
+        break;
+      case 'reviewed':
+        line.textContent = `✅ ${num} ${title} — 통과`;
+        break;
+      case 'skipped':
+        line.textContent = `⏭ ${num} ${title} — 건너뜀`;
+        break;
+      case 'failed': {
+        line.textContent = `❌ ${num} ${title} — 검토 실패`;
+        const notesEl = document.createElement('div');
+        notesEl.className = 'task-transition-notes';
+        notesEl.textContent = task.review?.notes?.slice(0, 240) || '(원인 없음)';
+        bubble.appendChild(line);
+        bubble.appendChild(notesEl);
+        appendTaskFailActions(bubble, task, jobId);
+        return;
+      }
+      default:
+        line.textContent = `${task.status} ${num} ${title}`;
+    }
+    bubble.appendChild(line);
+  }
+
+  function appendTaskFailActions(bubble, task, jobId) {
+    const actions = document.createElement('div');
+    actions.className = 'task-fail-actions';
+
+    const retryBtn = document.createElement('button');
+    retryBtn.type = 'button';
+    retryBtn.textContent = '🔁 재시도';
+    retryBtn.className = 'plan-btn plan-btn-primary';
+
+    const acceptBtn = document.createElement('button');
+    acceptBtn.type = 'button';
+    acceptBtn.textContent = '✅ 그대로 통과';
+    acceptBtn.className = 'plan-btn';
+
+    const skipBtn = document.createElement('button');
+    skipBtn.type = 'button';
+    skipBtn.textContent = '⏭ 건너뛰기';
+    skipBtn.className = 'plan-btn plan-btn-danger';
+
+    let pendingStamp = null;
+    const lock = (note) => {
+      retryBtn.disabled = true;
+      acceptBtn.disabled = true;
+      skipBtn.disabled = true;
+      pendingStamp = document.createElement('div');
+      pendingStamp.className = 'task-transition-stamp';
+      pendingStamp.textContent = note;
+      bubble.appendChild(pendingStamp);
+    };
+    const unlockOnError = () => {
+      retryBtn.disabled = false;
+      acceptBtn.disabled = false;
+      skipBtn.disabled = false;
+      if (pendingStamp && pendingStamp.parentNode) {
+        pendingStamp.parentNode.removeChild(pendingStamp);
+      }
+      pendingStamp = null;
+    };
+
+    const post = async (path, label) => {
+      lock(`${label} 처리 중…`);
+      try {
+        const baseUrl = await getServerUrl();
+        const res = await fetch(
+          `${baseUrl}/api/job/${encodeURIComponent(jobId)}/${path}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taskId: task.id }),
+          },
+        );
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          addSystemMessage(`${label} 실패: ${res.status} ${text.slice(0, 120)}`, 'error');
+          unlockOnError();
+        }
+        // 성공 시 unlock 안 함 — 폴링이 새 status 로 카드를 in-place
+        // update 하면서 stamp 가 통째로 갈리니 그대로 두면 됨.
+      } catch (err) {
+        addSystemMessage(`${label} 실패: ${err.message}`, 'error');
+        unlockOnError();
+      }
+    };
+
+    retryBtn.addEventListener('click', () => void post('retry-task', '🔁 재시도'));
+    acceptBtn.addEventListener('click', () => void post('accept-task', '✅ 그대로 통과'));
+    skipBtn.addEventListener('click', () => void post('skip-task', '⏭ 건너뛰기'));
+
+    actions.appendChild(retryBtn);
+    actions.appendChild(acceptBtn);
+    actions.appendChild(skipBtn);
+    bubble.appendChild(actions);
   }
 
   function jobStatusToCopy(job, currentTask, reviewed, total) {

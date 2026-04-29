@@ -2074,3 +2074,48 @@ body.chat-active #playgroundCard,
 body.chat-active #elementCard {
   display: none !important;
 }
+
+/* Phase 2 Step 3+4 lifecycle cards */
+.task-transition-card,
+.qa-card,
+.promote-card {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.task-transition-card .task-transition-line {
+  font-weight: 500;
+}
+.task-transition-card .task-transition-notes {
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: rgba(218, 30, 40, 0.06);
+  border: 1px solid rgba(218, 30, 40, 0.18);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--error, #da1e28);
+  font-style: italic;
+}
+.task-fail-actions,
+.qa-card .qa-actions,
+.promote-card .promote-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.task-transition-stamp {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.qa-card .qa-summary,
+.promote-card .promote-summary {
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}
+.qa-card .qa-result-pass {
+  color: var(--success, #24a148);
+}
+.qa-card .qa-result-fail {
+  color: var(--error, #da1e28);
+}
