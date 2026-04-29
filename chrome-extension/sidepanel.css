@@ -2025,3 +2025,52 @@ button:focus-visible, select:focus-visible {
 .playground-new-btn:hover {
   background: var(--bg-primary);
 }
+
+/* ─── Plan approval card buttons (Phase 2 Step 2) ─────────────────── */
+.plan-card {
+  /* Inherit progress-card visuals; add a subtle accent so the user
+   * can tell "this is the moment to decide" at a glance. */
+  border-left: 3px solid var(--accent, #1453b6);
+}
+.plan-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary, #d1d5db);
+  background: var(--bg-elevated, #fff);
+  color: var(--text-primary, #1f2937);
+  cursor: pointer;
+}
+.plan-btn:hover:not(:disabled) {
+  background: var(--bg-primary, #f3f4f6);
+}
+.plan-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.plan-btn.plan-btn-primary {
+  background: var(--accent, #1453b6);
+  border-color: var(--accent, #1453b6);
+  color: #fff;
+  font-weight: 600;
+}
+.plan-btn.plan-btn-primary:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+.plan-btn.plan-btn-danger {
+  border-color: var(--danger, #c62828);
+  color: var(--danger, #c62828);
+}
+
+/* ─── Chat-active mode (after first user message) ──────────────────────
+ * Once the user has sent something, the upper context panels (playground
+ * picker, full element card) take up too much vertical real estate for
+ * what's already visible elsewhere — playground id + status are surfaced
+ * inside the job-progress card; the picked element appears as an inline
+ * chip in the input area + visually highlighted in the iframe on the
+ * left. Collapse them out of the way to keep the chat thread the focus.
+ */
+body.chat-active #playgroundCard,
+body.chat-active #elementCard {
+  display: none !important;
+}

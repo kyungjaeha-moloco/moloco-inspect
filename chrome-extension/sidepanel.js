@@ -85,6 +85,8 @@
   let currentElement = null;
   let selectedElements = [];
   let currentRequestId = null; // HTTP mode: orchestrator request ID
+  let currentJobId = null; // Phase 2: job pipeline mode
+  let currentJobInProgress = false; // blocks send while a job is active on the same playground
   let pollingTimer = null;
   let pollCount = 0;
   const MAX_POLL = 300; // 10 minutes for HTTP mode (sandbox agent needs time)
@@ -1659,6 +1661,10 @@
   // Shared projectId for ext-created playgrounds. Consistent tag lets
   // teammates filter later; per-tab derivation is not worth it at MVP.
   const EXT_PROJECT_ID = 'chrome-ext';
+  // Sentinel for "create a fresh playground on next send" mode. The
+  // default conversation experience: no manual playground picking,
+  // each new chat session gets its own isolated sandbox.
+  const AUTO_PLAYGROUND_SENTINEL = '__auto__';
 
   /** Format a playground option label — `title · by kyungjae · 2h`. */
   function labelPlayground(pg) {
@@ -1695,32 +1701,67 @@
       chrome.storage.local.get(['selectedPlaygroundId'], resolve),
     );
 
-    // Repaint <select>. "Stateless" always first; then active playgrounds.
+    // Repaint <select>. New default order:
+    //   1) 🆕 New playground (auto-create on next send)  ← default
+    //   2) optgroup "Existing playgrounds" — pick to attach to one
+    //   3) optgroup "Advanced" — stateless escape hatch
     playgroundSelect.innerHTML = '';
+    const auto = document.createElement('option');
+    auto.value = AUTO_PLAYGROUND_SENTINEL;
+    auto.textContent = '🆕 New playground (자동 생성)';
+    playgroundSelect.appendChild(auto);
+
+    if (pgs.length > 0) {
+      const grpExisting = document.createElement('optgroup');
+      grpExisting.label = 'Existing playgrounds';
+      for (const pg of pgs) {
+        const opt = document.createElement('option');
+        opt.value = pg.id;
+        opt.textContent = labelPlayground(pg);
+        opt.dataset.client = pg.client || '';
+        grpExisting.appendChild(opt);
+      }
+      playgroundSelect.appendChild(grpExisting);
+    }
+
+    const grpAdvanced = document.createElement('optgroup');
+    grpAdvanced.label = 'Advanced';
     const stateless = document.createElement('option');
     stateless.value = '';
     stateless.textContent = 'Stateless (no playground)';
-    playgroundSelect.appendChild(stateless);
-    for (const pg of pgs) {
-      const opt = document.createElement('option');
-      opt.value = pg.id;
-      opt.textContent = labelPlayground(pg);
-      opt.dataset.client = pg.client || '';
-      playgroundSelect.appendChild(opt);
-    }
+    grpAdvanced.appendChild(stateless);
+    playgroundSelect.appendChild(grpAdvanced);
 
-    // Restore last selection if still present. Silently downgrade to
-    // stateless if the playground was archived/removed between sessions.
-    const stillExists = pgs.some((p) => p.id === selectedPlaygroundId);
-    playgroundSelect.value = stillExists ? selectedPlaygroundId : '';
+    // Restore last selection if still present. Two-tier fallback:
+    //   - existing playground id no longer present → auto-create mode
+    //     (NOT stateless — we want users defaulting to fresh sandboxes)
+    //   - never-set / undefined → auto-create mode
+    let next;
+    if (selectedPlaygroundId === AUTO_PLAYGROUND_SENTINEL || selectedPlaygroundId == null) {
+      next = AUTO_PLAYGROUND_SENTINEL;
+    } else if (selectedPlaygroundId === '') {
+      next = ''; // user explicitly chose stateless
+    } else if (pgs.some((p) => p.id === selectedPlaygroundId)) {
+      next = selectedPlaygroundId;
+    } else {
+      next = AUTO_PLAYGROUND_SENTINEL;
+    }
+    playgroundSelect.value = next;
     updatePlaygroundMeta();
   }
 
   function updatePlaygroundMeta() {
     if (!playgroundSelect || !playgroundMeta || !playgroundOpenBtn) return;
     const id = playgroundSelect.value;
+    if (id === AUTO_PLAYGROUND_SENTINEL) {
+      playgroundMeta.textContent =
+        '메시지 보낼 때 새 Playground 가 자동으로 만들어집니다 (~30초).';
+      playgroundOpenBtn.disabled = true;
+      return;
+    }
     if (!id) {
-      playgroundMeta.textContent = 'No playground selected — change-requests run stateless.';
+      playgroundMeta.textContent =
+        'Stateless — change-request 가 격리되지 않은 상태로 실행됩니다.';
       playgroundOpenBtn.disabled = true;
       return;
     }
@@ -1730,10 +1771,80 @@
     playgroundOpenBtn.disabled = false;
   }
 
+  /**
+   * If the selector is in auto-create mode (the default), spin up a
+   * new playground and switch the selector to point at it before the
+   * change-request goes out. Subsequent messages in the same session
+   * reuse this playground until the user explicitly picks "🆕 New" or
+   * a different one.
+   *
+   * Returns the effective playgroundId (newly-created or existing).
+   * Returns null on stateless. Throws on creation failure so the
+   * submit path can surface the error.
+   */
+  async function ensureEffectivePlayground() {
+    const value = playgroundSelect?.value ?? AUTO_PLAYGROUND_SENTINEL;
+    if (value !== AUTO_PLAYGROUND_SENTINEL) {
+      return value || null; // existing id or '' (stateless)
+    }
+    // Auto-create flow.
+    const baseUrl = await getServerUrl();
+    const { userName } = await new Promise((resolve) =>
+      chrome.storage.local.get(['userName'], resolve),
+    );
+    // Title is throwaway-ish — first ~28 chars of the prompt + time
+    // so the user can spot the playground later in Inspect Console.
+    const promptText = (promptInput?.value || '').trim();
+    const stamp = new Date().toTimeString().slice(0, 5); // HH:MM
+    const titleHead = promptText.slice(0, 28).replace(/\s+/g, ' ');
+    const title = titleHead
+      ? `${titleHead}${promptText.length > 28 ? '…' : ''} · ${stamp}`
+      : `Chrome ext · ${stamp}`;
+
+    const prevStatus = inputStatus.textContent;
+    inputStatus.textContent = '🛠️ Playground 부팅 중… (~30초)';
+
+    let newId = null;
+    try {
+      const res = await fetch(`${baseUrl}/api/playground`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: EXT_PROJECT_ID,
+          title,
+          createdBy: (userName || '').trim() || undefined,
+        }),
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status} ${errBody.slice(0, 200)}`);
+      }
+      const data = await res.json();
+      newId = data?.playground?.id;
+      if (!newId) throw new Error('orchestrator returned no playground id');
+    } finally {
+      inputStatus.textContent = prevStatus || '';
+    }
+
+    // Persist the new id and refresh the dropdown so the user sees the
+    // selector now points to the just-created playground (no longer in
+    // auto-create mode for the next message).
+    await new Promise((resolve) =>
+      chrome.storage.local.set({ selectedPlaygroundId: newId }, resolve),
+    );
+    await loadPlaygrounds();
+    return newId;
+  }
+
   if (playgroundSelect) {
     playgroundSelect.addEventListener('change', () => {
+      // Persist the literal value (including the AUTO sentinel and ''
+      // for stateless) so loadPlaygrounds can re-pick exactly what
+      // the user chose. Previously '' coerced to null which conflated
+      // "no choice" with "explicit stateless".
       chrome.storage.local.set({
-        selectedPlaygroundId: playgroundSelect.value || null,
+        selectedPlaygroundId: playgroundSelect.value,
       });
       updatePlaygroundMeta();
     });
@@ -1866,8 +1977,19 @@
   if (prdReadBtn) prdReadBtn.addEventListener('click', ingestPrd);
 
   // ─── Messages ───────────────────────────────────────────────────────
+
+  /**
+   * Marks the chat as "started" so the CSS layer can collapse the
+   * playground picker + selected-element card. Idempotent — safe to
+   * call from every addUserMessage.
+   */
+  function markChatStarted() {
+    document.body.classList.add('chat-active');
+  }
+
   function addUserMessage(text, elementData, captureData) {
     removeWelcome();
+    markChatStarted();
     const msg = document.createElement('div');
     msg.className = 'msg msg-user';
     let tagHtml = '';
@@ -1937,6 +2059,363 @@
     const base = phaseCopyMap[phase] || `Agent is processing the ${targetLabel} request.`;
     if (!latestLog) return base;
     return `${base} ${latestLog}`;
+  }
+
+  /**
+   * Phase 2 / B Step 1: progress card for the unified Job pipeline.
+   * Less detailed than the request-level card (no per-tool stepper)
+   * — the Job pipeline already surfaces task-level progress in
+   * Inspect Console + (in later steps) Slack/Playground threads.
+   * Step 2 will replace this with a fuller plan + tasks UI.
+   */
+  function addJobProgressMessage(jobId, playgroundId, payload) {
+    removeWelcome();
+
+    const msg = document.createElement('div');
+    msg.className = 'msg msg-system';
+    msg.dataset.jobId = jobId;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble progress-card';
+
+    const title = document.createElement('div');
+    title.className = 'progress-card-title';
+    title.textContent = '🛠️ Job started';
+
+    const body = document.createElement('div');
+    body.className = 'progress-card-body';
+    body.textContent = '계획을 세우고, 단계별로 작업을 시작합니다…';
+
+    const meta = document.createElement('div');
+    meta.className = 'progress-card-meta';
+    meta.textContent = `job ${jobId.slice(0, 8)} · playground ${playgroundId?.slice(0, 8) ?? '?'} · ${payload?.client || 'current client'}`;
+
+    const status = document.createElement('div');
+    status.className = 'msg-status';
+    status.innerHTML = '<span class="dot dot-waiting"></span> queued';
+
+    const timer = document.createElement('div');
+    timer.className = 'progress-timer';
+    timer.textContent = '0:00 elapsed';
+
+    const consoleLink = document.createElement('a');
+    consoleLink.className = 'progress-dashboard-link';
+    consoleLink.textContent = '📊 View in Inspect Console →';
+    consoleLink.href = '#';
+    consoleLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.runtime.sendMessage({
+        type: 'inspect-open-url',
+        url: `http://127.0.0.1:4174/jobs/${jobId}`,
+      });
+    });
+
+    bubble.appendChild(title);
+    bubble.appendChild(timer);
+    bubble.appendChild(body);
+    bubble.appendChild(meta);
+    bubble.appendChild(consoleLink);
+    bubble.appendChild(status);
+
+    msg.appendChild(bubble);
+    messagesEl.appendChild(msg);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return msg;
+  }
+
+  function startHttpJobPolling(jobId) {
+    // Reset the legacy currentRequestId so older flows don't race.
+    currentRequestId = null;
+    const startedAt = Date.now();
+    const POLL_MS = 3000;
+    const TIMEOUT_MS = 30 * 60 * 1000;
+    /** Stop conditions for the polling loop. */
+    const TERMINAL = new Set(['complete', 'cancelled']);
+    let planCardShown = false;
+
+    const finishLoop = () => {
+      currentJobInProgress = false;
+      currentJobId = null;
+      updateSendState();
+    };
+
+    const poll = async () => {
+      if (Date.now() - startedAt > TIMEOUT_MS) {
+        finishLoop();
+        return;
+      }
+      const baseUrl = await getServerUrl();
+      let job = null;
+      try {
+        const res = await fetch(`${baseUrl}/api/job/${encodeURIComponent(jobId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          job = data?.job ?? null;
+        }
+      } catch {
+        /* network glitch — retry next tick */
+      }
+      const card = messagesEl.querySelector(
+        `.msg-system[data-job-id="${CSS.escape(jobId)}"] .progress-card`,
+      );
+      if (job && card) {
+        const body = card.querySelector('.progress-card-body');
+        const status = card.querySelector('.msg-status');
+        const timer = card.querySelector('.progress-timer');
+        const reviewed = (job.tasks || []).filter((t) => t.status === 'reviewed').length;
+        const total = (job.tasks || []).length;
+        const cur = (job.tasks || []).find((t) => t.id === job.currentTaskId);
+        const phaseCopy = jobStatusToCopy(job, cur, reviewed, total);
+        if (body) body.textContent = phaseCopy;
+        if (status) {
+          status.innerHTML = `<span class="dot ${jobStatusDotClass(job.status)}"></span> ${job.status}`;
+        }
+        if (timer) {
+          const elapsed = Date.now() - startedAt;
+          const min = Math.floor(elapsed / 60_000);
+          const sec = Math.floor((elapsed % 60_000) / 1000);
+          timer.textContent = `${min}:${String(sec).padStart(2, '0')} elapsed · ${reviewed}/${total} reviewed`;
+        }
+      }
+      // Phase 2 Step 2: when the decomposer lands a plan, append a
+      // plan-approval card with [✅ 승인] / [✏️ 다시 계획] / [❌ 취소]
+      // buttons. Same shape as molly's Slack plan, scaled to the
+      // sidepanel's narrower column.
+      if (job && job.status === 'planning' && !planCardShown) {
+        planCardShown = true;
+        addPlanApprovalCard(job);
+      }
+      if (job && TERMINAL.has(job.status)) {
+        if (card) {
+          const status = card.querySelector('.msg-status');
+          if (status) {
+            const ok = job.status === 'complete';
+            status.innerHTML = `<span class="dot ${ok ? 'dot-success' : 'dot-error'}"></span> ${ok ? 'complete' : 'cancelled'}`;
+          }
+        }
+        finishLoop();
+        return;
+      }
+      setTimeout(poll, POLL_MS);
+    };
+    setTimeout(poll, 1500);
+  }
+
+  /**
+   * Plan card rendered when a job hits status=planning. Mirrors the
+   * Slack molly plan blocks: tasks list + risks + qa strategy +
+   * action buttons. The buttons hit the orchestrator API directly so
+   * we don't need a round-trip through background.js.
+   */
+  function addPlanApprovalCard(job) {
+    const baseUrlPromise = getServerUrl();
+    const wrap = document.createElement('div');
+    wrap.className = 'msg msg-system';
+    wrap.dataset.jobPlanId = job.id;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble plan-card';
+
+    const title = document.createElement('div');
+    title.className = 'progress-card-title';
+    title.textContent = `📋 작업 계획 (${(job.tasks || []).length} tasks)`;
+    bubble.appendChild(title);
+
+    const taskList = document.createElement('ol');
+    taskList.style.margin = '8px 0 8px 0';
+    taskList.style.paddingLeft = '20px';
+    taskList.style.fontSize = '12px';
+    for (const t of job.tasks || []) {
+      const li = document.createElement('li');
+      li.style.marginBottom = '6px';
+      const titleEl = document.createElement('strong');
+      titleEl.textContent = t.title || '(no title)';
+      const desc = document.createElement('div');
+      desc.style.color = 'var(--text-muted, #888)';
+      desc.style.marginTop = '2px';
+      desc.textContent = (t.description || '').split('\n')[0]?.slice(0, 200) ?? '';
+      li.appendChild(titleEl);
+      li.appendChild(desc);
+      taskList.appendChild(li);
+    }
+    bubble.appendChild(taskList);
+
+    if (Array.isArray(job.risksKo) && job.risksKo.length > 0) {
+      const risks = document.createElement('div');
+      risks.style.padding = '6px 8px';
+      risks.style.background = 'rgba(245, 194, 107, 0.10)';
+      risks.style.border = '1px solid rgba(245, 194, 107, 0.45)';
+      risks.style.borderRadius = '4px';
+      risks.style.fontSize = '11px';
+      risks.style.color = 'var(--text-warn, #8a5a00)';
+      const head = document.createElement('strong');
+      head.textContent = '⚠️ 주의사항';
+      risks.appendChild(head);
+      const ol = document.createElement('ol');
+      ol.style.margin = '4px 0 0';
+      ol.style.paddingLeft = '20px';
+      for (const r of job.risksKo) {
+        const li = document.createElement('li');
+        li.textContent = r;
+        ol.appendChild(li);
+      }
+      risks.appendChild(ol);
+      bubble.appendChild(risks);
+    }
+
+    if (job.qaStrategy) {
+      const qa = document.createElement('div');
+      qa.style.marginTop = '8px';
+      qa.style.padding = '6px 8px';
+      qa.style.background = 'rgba(20, 83, 182, 0.06)';
+      qa.style.border = '1px solid rgba(20, 83, 182, 0.18)';
+      qa.style.borderRadius = '4px';
+      qa.style.fontSize = '11px';
+      qa.style.color = 'var(--text-info, #1453b6)';
+      qa.innerHTML = `<strong>🧪 검증 단계:</strong> ${job.qaStrategy}`;
+      if (job.qaRationaleKo) {
+        const r = document.createElement('div');
+        r.style.color = 'var(--text-muted, #888)';
+        r.style.marginTop = '2px';
+        r.textContent = job.qaRationaleKo;
+        qa.appendChild(r);
+      }
+      bubble.appendChild(qa);
+    }
+
+    const actions = document.createElement('div');
+    actions.style.display = 'flex';
+    actions.style.gap = '6px';
+    actions.style.marginTop = '10px';
+    actions.style.flexWrap = 'wrap';
+
+    const approveBtn = document.createElement('button');
+    approveBtn.type = 'button';
+    approveBtn.textContent = '✅ 승인하고 시작';
+    approveBtn.className = 'plan-btn plan-btn-primary';
+
+    const redecBtn = document.createElement('button');
+    redecBtn.type = 'button';
+    redecBtn.textContent = '✏️ 다시 계획';
+    redecBtn.className = 'plan-btn';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = '❌ 취소';
+    cancelBtn.className = 'plan-btn plan-btn-danger';
+
+    const lockButtons = (note) => {
+      approveBtn.disabled = true;
+      redecBtn.disabled = true;
+      cancelBtn.disabled = true;
+      if (note) {
+        const stamp = document.createElement('div');
+        stamp.style.marginTop = '6px';
+        stamp.style.fontSize = '11px';
+        stamp.style.color = 'var(--text-muted, #888)';
+        stamp.textContent = note;
+        bubble.appendChild(stamp);
+      }
+    };
+
+    approveBtn.addEventListener('click', async () => {
+      lockButtons('✅ 승인 처리 중…');
+      try {
+        const baseUrl = await baseUrlPromise;
+        await fetch(
+          `${baseUrl}/api/job/${encodeURIComponent(job.id)}/approve-plan`,
+          { method: 'POST' },
+        );
+      } catch (err) {
+        addSystemMessage(`승인 실패: ${err.message}`, 'error');
+      }
+    });
+
+    redecBtn.addEventListener('click', async () => {
+      const feedback = window.prompt(
+        '재계획 피드백 (선택). 비워두고 OK 누르면 자유롭게 다시 나눕니다.',
+        '',
+      );
+      if (feedback === null) return; // user cancelled prompt
+      lockButtons('🔁 재계획 진행 중…');
+      try {
+        const baseUrl = await baseUrlPromise;
+        await fetch(
+          `${baseUrl}/api/job/${encodeURIComponent(job.id)}/decompose`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(feedback ? { feedback } : {}),
+          },
+        );
+      } catch (err) {
+        addSystemMessage(`재계획 실패: ${err.message}`, 'error');
+      }
+    });
+
+    cancelBtn.addEventListener('click', async () => {
+      if (!window.confirm('이 작업을 취소할까요?')) return;
+      lockButtons('❌ 취소 처리 중…');
+      try {
+        const baseUrl = await baseUrlPromise;
+        await fetch(
+          `${baseUrl}/api/job/${encodeURIComponent(job.id)}/cancel`,
+          { method: 'POST' },
+        );
+      } catch (err) {
+        addSystemMessage(`취소 실패: ${err.message}`, 'error');
+      }
+    });
+
+    actions.appendChild(approveBtn);
+    actions.appendChild(redecBtn);
+    actions.appendChild(cancelBtn);
+    bubble.appendChild(actions);
+
+    wrap.appendChild(bubble);
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function jobStatusToCopy(job, currentTask, reviewed, total) {
+    switch (job.status) {
+      case 'decomposing':
+        return '계획을 세우는 중…';
+      case 'planning':
+        return '계획이 도착했어요. 곧 자동 승인됩니다.';
+      case 'delegating':
+        return currentTask
+          ? `🔧 ${currentTask.title} (작업 중)`
+          : `${reviewed}/${total} 작업 완료`;
+      case 'reviewing':
+        return currentTask
+          ? `🔍 ${currentTask.title} (검토 중)`
+          : '검토 중…';
+      case 'qa':
+        return job.qaAutoResult
+          ? `🧪 자동 QA: ${job.qaAutoResult.passed ? '✅ 통과' : '⚠️ 실패'} — ${(job.qaAutoResult.notes || '').slice(0, 80)}`
+          : '🧪 자동 QA 실행 중…';
+      case 'complete':
+        return '🎉 작업 완료';
+      case 'cancelled':
+        return '❌ 취소됨';
+      case 'paused':
+        return `⏸️ ${job.pausedReason || '일시정지'}`;
+      default:
+        return job.status;
+    }
+  }
+
+  function jobStatusDotClass(status) {
+    switch (status) {
+      case 'complete':
+        return 'dot-success';
+      case 'cancelled':
+      case 'paused':
+        return 'dot-error';
+      default:
+        return 'dot-waiting';
+    }
   }
 
   function addProgressMessage(requestId, payload) {
@@ -2372,7 +2851,11 @@
   // ─── Send / Submit ──────────────────────────────────────────────────
   function updateSendState() {
     const hasText = promptInput.value.trim().length > 0;
-    sendBtn.disabled = !hasText || isSubmitting || !!pendingExecutionPlan;
+    // Block send while a Job pipeline run is in flight on the current
+    // playground — the orchestrator would 409 anyway, and submitting
+    // again here just creates UI noise.
+    sendBtn.disabled =
+      !hasText || isSubmitting || !!pendingExecutionPlan || currentJobInProgress;
   }
 
   function buildStructuredRequest({
@@ -2467,7 +2950,7 @@
 
   sendBtn.addEventListener('click', submit);
 
-  function performSubmit(plan) {
+  async function performSubmit(plan) {
     const payload = plan.payload;
     // Attach AI analysis to payload so orchestrator can store it
     if (plan.aiAnalysis) {
@@ -2481,6 +2964,22 @@
     }
     isSubmitting = true;
     updateSendState();
+
+    // Auto-create-on-send: if the selector is in auto mode, spin up
+    // a fresh playground first so background.js doesn't fall through
+    // to stateless. Failure here cancels the submit with an inline
+    // error.
+    try {
+      await ensureEffectivePlayground();
+    } catch (err) {
+      isSubmitting = false;
+      updateSendState();
+      addSystemMessage(
+        `Playground 자동 생성 실패: ${err.message?.slice(0, 200) ?? err}`,
+        'error',
+      );
+      return;
+    }
 
     chrome.runtime.sendMessage(
       { type: 'inspect-submit', payload },
@@ -2498,8 +2997,17 @@
           pendingClarification = null;
           inputStatus.textContent = '';
 
-          if (response.mode === 'http' && response.requestId) {
-            // HTTP mode: poll orchestrator for progress
+          if (response.mode === 'http-job' && response.jobId) {
+            // Phase 2 / B Step 1+2: Chrome ext routes through the
+            // unified Job pipeline. Sidepanel surfaces plan + buttons
+            // (Step 2) instead of auto-approving.
+            currentJobId = response.jobId;
+            currentJobInProgress = true;
+            addJobProgressMessage(response.jobId, response.playgroundId, payload);
+            inputStatus.textContent = '';
+            startHttpJobPolling(response.jobId);
+          } else if (response.mode === 'http' && response.requestId) {
+            // Stateless / legacy path — single change-request, no Job.
             currentRequestId = response.requestId;
             addProgressMessage(response.requestId, payload);
             inputStatus.textContent = '';
@@ -2520,13 +3028,37 @@
     );
   }
 
+  /**
+   * True when the next submit will go through the unified Job pipeline
+   * (decomposer + reviewer + QA) instead of the legacy single-shot
+   * change-request. Decision: any non-stateless playground choice
+   * (existing id or auto-create sentinel). The Job pipeline already
+   * runs its own decomposer + risks + qaStrategy, so the legacy
+   * clarification ceremony (Proceed / Adjust the plan) becomes
+   * redundant — we skip it for job-mode submits.
+   */
+  function isJobModeSubmit() {
+    const v = playgroundSelect?.value ?? '';
+    return v !== ''; // '' = stateless; '__auto__' or real id = job mode
+  }
+
   async function submit() {
     const text = promptInput.value.trim();
     if (!text) return;
     if (isSubmitting || pendingExecutionPlan) return;
+    // Block submit while a job is still in flight on this playground;
+    // the orchestrator would 409 with `job_active` anyway, but blocking
+    // here keeps the UX clean.
+    if (currentJobInProgress) {
+      addSystemMessage(
+        '현재 진행 중인 Job 이 있습니다. 끝나거나 취소될 때까지 기다려주세요.',
+        'error',
+      );
+      return;
+    }
 
     const activeContext = getActiveContext();
-    if (shouldStartClarification(text, activeContext)) {
+    if (!isJobModeSubmit() && shouldStartClarification(text, activeContext)) {
       const clarification = buildClarificationConfig(text, activeContext);
       pendingClarification = {
         initialPrompt: text,

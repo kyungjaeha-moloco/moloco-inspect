@@ -403,11 +403,220 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 void refreshHealthState();
 
-// ─── Side Panel ───────────────────────────────────────────────────────
+// ─── Side Panel + Tab Group ─────────────────────────────────────────
+//
+// UX contract (driven by the user request 2026-04-29):
+//
+//   1. Clicking the extension icon on a tab "opts that tab in" — it
+//      gets added to a "Moloco Inspect" tab group (visual marker, easy
+//      to spot among many tabs) and the side panel opens.
+//   2. The side panel is *enabled per-tab*. Tabs in the group keep it
+//      enabled; tabs outside the group have it disabled, so switching
+//      to an unrelated tab collapses the panel automatically (the user
+//      explicitly asked for this — the panel sticking around on
+//      unrelated tabs felt out of place).
+//   3. Manifest's `side_panel.default_path` is global — we use
+//      `sidePanel.setOptions({tabId, enabled})` to override per-tab.
+
+const MOLOCO_GROUP_TITLE = 'Moloco Inspect';
+const MOLOCO_GROUP_COLOR = 'cyan'; // chrome.tabGroups Color enum
+
+async function findMolocoGroup(windowId) {
+  try {
+    const groups = await chrome.tabGroups.query({
+      windowId,
+      title: MOLOCO_GROUP_TITLE,
+    });
+    return groups[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function addTabToMolocoGroup(tab) {
+  if (!tab?.id) return null;
+  try {
+    const existingGroupId = await findMolocoGroup(tab.windowId);
+    if (existingGroupId != null) {
+      // Already in this group? No-op.
+      if (tab.groupId === existingGroupId) return existingGroupId;
+      await chrome.tabs.group({
+        tabIds: [tab.id],
+        groupId: existingGroupId,
+      });
+      return existingGroupId;
+    }
+    const newGroupId = await chrome.tabs.group({ tabIds: [tab.id] });
+    await chrome.tabGroups.update(newGroupId, {
+      title: MOLOCO_GROUP_TITLE,
+      color: MOLOCO_GROUP_COLOR,
+    });
+    return newGroupId;
+  } catch (err) {
+    console.warn('[Moloco Inspect] addTabToMolocoGroup failed:', err.message);
+    return null;
+  }
+}
+
+async function isTabInMolocoGroup(tab) {
+  // chrome.tabs.TAB_ID_NONE === -1, ungrouped tabs report groupId = -1.
+  if (!tab || tab.groupId == null || tab.groupId === -1) return false;
+  try {
+    const group = await chrome.tabGroups.get(tab.groupId);
+    return group?.title === MOLOCO_GROUP_TITLE;
+  } catch {
+    return false;
+  }
+}
+
+async function updateSidePanelForTab(tabId) {
+  if (tabId == null) return;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const inGroup = await isTabInMolocoGroup(tab);
+    await chrome.sidePanel.setOptions({
+      tabId,
+      path: 'sidepanel.html',
+      enabled: inGroup,
+    });
+  } catch (err) {
+    // Tab may have been closed mid-flight; harmless.
+    if (!/No tab with id/i.test(err.message ?? '')) {
+      console.warn('[Moloco Inspect] updateSidePanelForTab failed:', err.message);
+    }
+  }
+}
+
+async function syncAllTabsSidePanel() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    await Promise.all(tabs.map((t) => updateSidePanelForTab(t.id)));
+  } catch (err) {
+    console.warn('[Moloco Inspect] syncAllTabsSidePanel failed:', err.message);
+  }
+}
 
 chrome.action.onClicked.addListener((tab) => {
-  chrome.sidePanel.open({ tabId: tab.id });
+  if (!tab?.id) return;
+  // CRITICAL: chrome.sidePanel.open() requires a user gesture and the
+  // gesture token expires across awaits. Do NOT await anything before
+  // calling open — otherwise the panel fails to open silently.
+  //
+  // 1. Enable the panel for this tab (fire-and-forget; the request is
+  //    dispatched to the browser before open() reaches it).
+  chrome.sidePanel.setOptions({
+    tabId: tab.id,
+    path: 'sidepanel.html',
+    enabled: true,
+  });
+  // 2. Open synchronously off the same gesture.
+  chrome.sidePanel.open({ tabId: tab.id }).catch((err) => {
+    console.warn('[Moloco Inspect] sidePanel.open failed:', err.message);
+  });
+  // 3. Group management has no gesture requirement — defer it.
+  void addTabToMolocoGroup(tab);
 });
+
+// Tab switched → enable for tabs in our group, disable for others so
+// the panel collapses on unrelated tabs.
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  void updateSidePanelForTab(tabId);
+});
+
+// Tab moved into or out of a group → re-evaluate side panel state.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.groupId !== undefined) {
+    void updateSidePanelForTab(tabId);
+  }
+});
+
+// On extension startup / fresh install: walk every existing tab so the
+// "default path on every tab" behavior gets overridden right away.
+chrome.runtime.onStartup.addListener(() => {
+  void syncAllTabsSidePanel();
+});
+chrome.runtime.onInstalled.addListener(() => {
+  void syncAllTabsSidePanel();
+});
+
+// ─── Job pipeline helpers (Phase 2 / B Step 1) ───────────────────
+
+/**
+ * Compose a PRD-shaped text from the Chrome ext's selection-driven
+ * payload so the orchestrator's decomposer + reviewer get the same
+ * context the chat-style PRD flow gets in Slack/Playground.
+ */
+function buildJobPrdText(payload) {
+  const lines = [];
+  lines.push(payload?.userPrompt || '(no prompt)');
+
+  const ctx = [];
+  if (payload?.pagePath) ctx.push(`- 대상 페이지: ${payload.pagePath}`);
+  if (payload?.client) ctx.push(`- 클라이언트: ${payload.client}`);
+  if (payload?.component) ctx.push(`- 컴포넌트: ${payload.component}`);
+  if (payload?.file) {
+    ctx.push(
+      `- 파일: ${payload.file}${payload.line ? ':' + payload.line : ''}`,
+    );
+  }
+  if (payload?.testId) ctx.push(`- testId: ${payload.testId}`);
+  if (Array.isArray(payload?.selectedElements) && payload.selectedElements.length) {
+    const labels = payload.selectedElements
+      .map(
+        (e) =>
+          e.testId ||
+          e.component ||
+          e.semantics?.labelText ||
+          e.semantics?.domTag ||
+          'element',
+      )
+      .filter(Boolean)
+      .slice(0, 5)
+      .join(', ');
+    if (labels) ctx.push(`- 선택한 요소: ${labels}`);
+  }
+  if (ctx.length) {
+    lines.push('');
+    lines.push('컨텍스트:');
+    lines.push(...ctx);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Poll the job's status until it transitions out of `decomposing`,
+ * then auto-approve. Skipping the human approval step is the Phase 2
+ * Step 1 simplification — Step 2 will add a plan-approval card to
+ * the sidepanel and remove this auto-approve.
+ */
+async function autoApproveJobInBackground(jobId) {
+  const { serverUrl } = await getConfig();
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      const res = await fetch(`${serverUrl}/api/job/${encodeURIComponent(jobId)}`);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const status = data?.job?.status;
+      if (status === 'planning') {
+        await fetch(
+          `${serverUrl}/api/job/${encodeURIComponent(jobId)}/approve-plan`,
+          { method: 'POST' },
+        );
+        return;
+      }
+      if (status === 'paused') {
+        // Decompose failed (paused with reason). Sidepanel polling
+        // will surface this; nothing to auto-do.
+        return;
+      }
+      // Otherwise still decomposing → keep polling.
+    } catch (err) {
+      console.warn('[Moloco Inspect] auto-approve poll failed:', err.message);
+    }
+  }
+}
 
 // ─── HTTP Transport ───────────────────────────────────────────────────
 
@@ -566,16 +775,58 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           const { selectedPlaygroundId } = await new Promise((resolve) =>
             chrome.storage.local.get(['selectedPlaygroundId'], resolve),
           );
-          const payload = selectedPlaygroundId
-            ? { ...msg.payload, playgroundId: selectedPlaygroundId }
-            : msg.payload;
+          // Sidepanel uses the literal '__auto__' sentinel to mean
+          // "create a new playground on send". By this point the
+          // sidepanel's ensureEffectivePlayground() should have
+          // already replaced the sentinel with a real playground id;
+          // if the sentinel ever leaks through, treat it as stateless.
+          const realPgId =
+            selectedPlaygroundId && selectedPlaygroundId !== '__auto__'
+              ? selectedPlaygroundId
+              : null;
+
+          // Phase 2 (B Step 1): when the user has a real playground
+          // attached, route the request through the unified PRD/job
+          // pipeline (decomposer → tasks → reviewer → QA) so Chrome
+          // ext gets the same shape as Playground/molly. Stateless
+          // (no playground) still uses the legacy single-shot
+          // /api/change-request path — there's no Job concept without
+          // a playground to attach to.
+          if (realPgId) {
+            const prdText = buildJobPrdText(msg.payload);
+            const jobRes = await sendHttp(
+              `/api/playground/${encodeURIComponent(realPgId)}/job`,
+              { prdText },
+            );
+            const jobId = jobRes?.job?.id;
+            if (!jobId) {
+              throw new Error(
+                `job creation returned no id: ${JSON.stringify(jobRes).slice(0, 200)}`,
+              );
+            }
+            setIconState('sent');
+            sendResponse({
+              ok: true,
+              jobId,
+              mode: 'http-job',
+              playgroundId: realPgId,
+            });
+            // Step 2: NO auto-approve. The sidepanel shows a plan
+            // card with ✅ 승인 / ✏️ 다시 계획 / ❌ 취소 buttons (same
+            // shape as molly Slack), and the user explicitly approves
+            // before the runner kicks off.
+            return;
+          }
+
+          // Stateless (no playground) → legacy path.
+          const payload = msg.payload;
           const result = await sendHttp('/api/change-request', payload);
           setIconState('sent');
           sendResponse({
             ok: true,
             requestId: result.id,
             mode: 'http',
-            playgroundId: selectedPlaygroundId || null,
+            playgroundId: null,
           });
         } catch (e) {
           sendResponse({ ok: false, error: e.message });
