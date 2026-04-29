@@ -2119,3 +2119,17 @@ body.chat-active #elementCard {
 .qa-card .qa-result-fail {
   color: var(--error, #da1e28);
 }
+.molly-chat-card .molly-chat-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.molly-chat-card .molly-chat-body {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: var(--text-primary);
+}

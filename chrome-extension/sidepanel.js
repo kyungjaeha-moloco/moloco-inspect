@@ -2038,6 +2038,31 @@
     return msg;
   }
 
+  /**
+   * Phase 2 follow-up: molly chat 모드 응답 카드. text 또는 status
+   * templated 응답을 사용자에게 보여줌. progress card 와 다르게
+   * lifecycle 없음 — pure 답변.
+   */
+  function addMollyChatMessage(text, kind) {
+    removeWelcome();
+    const wrap = document.createElement('div');
+    wrap.className = 'msg msg-system';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble molly-chat-card';
+    const header = document.createElement('div');
+    header.className = 'molly-chat-header';
+    header.textContent = kind === 'status_query' ? '📊 molly status' : '💬 molly';
+    const body = document.createElement('div');
+    body.className = 'molly-chat-body';
+    // text 는 server 가 신뢰 — 다만 textContent 로 안전하게.
+    body.textContent = text;
+    bubble.appendChild(header);
+    bubble.appendChild(body);
+    wrap.appendChild(bubble);
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
   function getProgressPhaseCopy(phase, latestLog, payload) {
     const targetLabel = describeTargetInNaturalLanguage(payload);
     const routeLabel = payload?.pagePath || payload?.requestContract?.target?.route_or_page || 'current page';
@@ -3511,6 +3536,35 @@
         successCriteria: plan.aiAnalysis.successCriteria || [],
       };
     }
+
+    // 분류 게이트 — Job 모드든 stateless 든 사용자 입력이 일반 대화일
+    // 가능성. classifier 가 chat/status_query 로 분류하면 잡/change-request
+    // 안 만들고 답만 surface. classifier 실패 시 안전 폴백 = code_change
+    // (사용자가 PRD 던졌는데 네트워크 에러로 chat 응답 받으면 더 이상함).
+    const userInput = String(payload.userInput || payload.text || '').trim();
+    if (userInput) {
+      try {
+        const baseUrl = await getServerUrl();
+        const r = await fetch(`${baseUrl}/api/molly/respond`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: userInput, surface: 'chrome-ext' }),
+        });
+        if (r.ok) {
+          const data = await r.json();
+          const kind = data?.kind;
+          if (kind === 'chat' || kind === 'status_query') {
+            addMollyChatMessage(data.response || '(빈 응답)', kind);
+            return; // 잡/change-request 안 만듦
+          }
+          // kind === 'code_change' → 기존 흐름 진행
+        }
+        // r.ok=false 면 fallback: code_change 진행 (사용자 의도 보호)
+      } catch (err) {
+        console.warn('[molly] classifier fetch failed, falling back to code_change:', err.message);
+      }
+    }
+
     isSubmitting = true;
     updateSendState();
 
