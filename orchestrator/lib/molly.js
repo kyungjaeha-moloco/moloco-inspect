@@ -444,6 +444,27 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     return;
   }
 
+  // 분류 결과가 code_change 면, PRD 명확도 체크 추가
+  let analysis;
+  try {
+    const { analyzePrdClarity } = await import('./molly-prd-analyzer.js');
+    analysis = await analyzePrdClarity(text, { surface: 'slack' });
+  } catch (err) {
+    logger.warn(`[molly] prd analyzer failed: ${err.message} — proceeding`);
+    analysis = { clarity: 'clear', clarifyingQuestion: '', missingInfo: [] };
+  }
+  if (analysis.clarity === 'ambiguous' && analysis.clarifyingQuestion) {
+    // 모호 → 잡 안 만들고 clarifying Q 만 thread reply
+    if (thinkingTs) {
+      try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
+    }
+    await say({
+      thread_ts: threadTs,
+      text: `🤔 ${analysis.clarifyingQuestion}`,
+    });
+    return;
+  }
+
   // code_change — thinking indicator 는 잡 plan post 후 자연스럽게 사라지게 둠
   // (사용자가 "🛠️ 받았습니다" 메시지 보고 indicator 사라지면 OK).
   if (thinkingTs) {

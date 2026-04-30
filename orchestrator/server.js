@@ -2567,10 +2567,22 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         const response = await composeStatusReply(text, { listJobs, getJob });
         return json(res, 200, { ok: true, kind, reason, response });
       }
-      // code_change — surface 가 직접 createJob 호출하라고 알려줌.
-      // (server 가 잡까지 만들어버리면 surface-specific context — slack
-      // thread, playgroundId 결정 — 가 결합돼서 책임 모호해짐.)
-      return json(res, 200, { ok: true, kind, reason });
+      // code_change — clarity 분석 후 결과에 따라 응답 다름
+      try {
+        const { analyzePrdClarity } = await import('./lib/molly-prd-analyzer.js');
+        const analysis = await analyzePrdClarity(text, ctx);
+        return json(res, 200, {
+          ok: true,
+          kind,
+          reason,
+          clarity: analysis.clarity,
+          clarifyingQuestion: analysis.clarifyingQuestion,
+          missingInfo: analysis.missingInfo,
+        });
+      } catch (err) {
+        // 분석 실패 = 기존 동작 (clear 폴백)
+        return json(res, 200, { ok: true, kind, reason, clarity: 'clear', clarifyingQuestion: '', missingInfo: [] });
+      }
     } catch (err) {
       return json(res, 500, { ok: false, error: err?.message ?? String(err) });
     }

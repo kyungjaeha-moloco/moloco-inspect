@@ -1,0 +1,78 @@
+// orchestrator/lib/molly-prd-analyzer.js
+const PRD_MODEL = process.env.MOLLY_PRD_MODEL || 'claude-sonnet-4-20250514';
+
+const SYSTEM_PROMPT = `당신은 molly 의 PRD 명확도 검사자입니다. 사용자가 코드 작업을 요청하는 PRD 를 받아 그 작업을 *지금 바로 시작할 만큼 명확한지* 판정합니다.
+
+판정 결과 (반드시 JSON 만):
+{
+  "clarity": "clear" | "ambiguous",
+  "clarifyingQuestion": "<모호 시 1 문장 한국어 질문, 명확하면 빈 문자열>",
+  "missingInfo": ["<예: target page>", "<예: target component>", ...]
+}
+
+명확 (clear) 기준 — 다음 모두 만족:
+- 어떤 페이지/컴포넌트/파일을 바꿀지 명시 또는 추론 가능 (예: "TAS 사이드바", "MCMainLayoutHeader.tsx")
+- 어떤 변경 (추가 / 수정 / 삭제 / 색상 / 텍스트 / 레이아웃) 인지 명시
+- 결과물 모양이 한 줄로 그려지는 수준 ("BETA 라벨" / "도움말 메뉴" 등)
+
+모호 (ambiguous) 기준 — 다음 중 하나라도 해당:
+- target 페이지/컴포넌트 모름 ("어디" 가 비어있음)
+- 변경 종류 모름 ("뭐를" 이 비어있음)
+- "개선해줘", "더 좋게" 같은 가치 판단형 모호 PRD
+- 비슷한 후보가 여러 개 있어 실제로 어느 것 손댈지 결정 못 함
+
+clarifyingQuestion 작성 규칙:
+- 한 번에 하나만 물음 (멀티-Q 안 됨)
+- 명확하면 빈 문자열
+- 한국어, 친근한 톤, 1-2 문장`;
+
+/**
+ * @param {string} text — 사용자 PRD 본문 (mention strip 등 cleanup 후)
+ * @param {object} [ctx] — { surface }
+ * @returns {Promise<{clarity: 'clear'|'ambiguous', clarifyingQuestion: string, missingInfo: string[]}>}
+ */
+export async function analyzePrdClarity(text, ctx = {}) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
+  const userMessage = `PRD 후보:\n${text}\n\n분석해주세요.`;
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: PRD_MODEL,
+      max_tokens: 400,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userMessage }],
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!resp.ok) {
+    // 분석 실패 = clear 폴백 (잡 진행 — molly 의 안전 디폴트와 반대.
+    // 이유: clarify 가 잘못 fail 하면 사용자가 답답한 무한 루프.
+    // 실제 잡 만들고 task review 가 잡아내는 게 차라리 빠름).
+    console.warn(`[prd-analyzer] http ${resp.status} — fallback clear`);
+    return { clarity: 'clear', clarifyingQuestion: '', missingInfo: [] };
+  }
+  const data = await resp.json();
+  const content = data?.content?.[0]?.text ?? '';
+  const start = content.indexOf('{');
+  const end = content.lastIndexOf('}');
+  if (start === -1 || end === -1) {
+    return { clarity: 'clear', clarifyingQuestion: '', missingInfo: [] };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(content.slice(start, end + 1));
+  } catch {
+    return { clarity: 'clear', clarifyingQuestion: '', missingInfo: [] };
+  }
+  const clarity = parsed?.clarity === 'ambiguous' ? 'ambiguous' : 'clear';
+  const clarifyingQuestion = typeof parsed?.clarifyingQuestion === 'string' ? parsed.clarifyingQuestion.slice(0, 300) : '';
+  const missingInfo = Array.isArray(parsed?.missingInfo) ? parsed.missingInfo.slice(0, 5).map(String) : [];
+  console.log(`[prd-analyzer] input="${text.slice(0, 80)}" → clarity=${clarity} q="${clarifyingQuestion.slice(0, 60)}"`);
+  return { clarity, clarifyingQuestion, missingInfo };
+}

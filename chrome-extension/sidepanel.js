@@ -3717,7 +3717,12 @@
             addMollyChatMessage(data.response || '(빈 응답)', kind);
             return; // 잡/change-request 안 만듦
           }
-          // kind === 'code_change' → 기존 흐름 진행
+          // code_change + ambiguous → clarifying Q 만 surface, 잡 안 만듦
+          if (kind === 'code_change' && data?.clarity === 'ambiguous' && data?.clarifyingQuestion) {
+            addMollyChatMessage(`🤔 ${data.clarifyingQuestion}`, 'clarify');
+            return;
+          }
+          // code_change + clear → 기존 흐름 (job 생성)
         }
         // r.ok=false 면 fallback: code_change 진행 (사용자 의도 보호)
       } catch (err) {
