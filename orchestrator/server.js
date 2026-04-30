@@ -2394,8 +2394,21 @@ Return ONLY valid JSON (no markdown, no explanation). Every value MUST be in Eng
 
   // Canvas AI Wizard — chat interface. Takes message history, returns either
   // a clarifying question or a structured plan.
+  //
+  // ⚠️ DEPRECATED (Phase 3 Task 3.1 sub-phase E, 2026-04-30) — use /api/intake
+  // with `history` 대신. /api/chat 은 single-turn 분류만 / classifier
+  // 게이트 분리 / plan 흐름 별개. /api/intake 가 6 종 kind (chat /
+  // status_query / code_change_clear / code_change_ambiguous / plan_emit /
+  // job_dispatched) 통합 dispatch + multi-turn history 처리.
+  // 호출자 마이그레이션: Playground postChat → postIntake (sub-phase C).
+  // 삭제 시점: 호출 zero 확인 후 (handoff 의 측정 슬라이스 → 1-2 분기).
   if (pathname === '/api/chat' && req.method === 'POST') {
     try {
+      // Deprecation 헤더 + 로그 — caller (UA / origin) 추적해 마이그레이션
+      // 진행 상황 측정. 헤더는 fetch response 에 보임.
+      res.setHeader('X-Deprecated', '/api/intake (history-aware) - see docs/superpowers/plans/2026-04-30-history-aware-intake.md');
+      res.setHeader('Sunset', 'TBD');
+      console.warn(`[/api/chat] DEPRECATED call from ua="${(req.headers['user-agent'] || 'unknown').slice(0, 80)}" origin="${req.headers.origin || 'none'}"`);
       const payload = await parseBody(req);
       const messages = Array.isArray(payload?.messages) ? payload.messages : [];
 
