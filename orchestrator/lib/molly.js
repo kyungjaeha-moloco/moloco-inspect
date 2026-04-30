@@ -425,6 +425,8 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
       const reply = await composeStatusReply(text, {
         listJobs: opts.listJobs,
         getJob: opts.getJob,
+        channel: event.channel,
+        threadTs,
       });
       if (thinkingTs) {
         try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
