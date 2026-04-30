@@ -3835,6 +3835,57 @@
       return;
     }
 
+    // Phase 3 Task 3.2 — intake 게이트 (element-selected 모드 포함).
+    // submit() 의 진짜 entry point 에 게이트 — element 선택 상태에서 chat/
+    // status 입력해도 plan 생성 흐름으로 안 빠지게. performSubmit 의
+    // 게이트 (line ~3705) 는 plan 카드 *수락 후* 라 너무 늦음 (사용자가
+    // 인사만 했는데 plan 부터 봐야 했던 버그). pendingClarification 중
+    // 에는 우회 — 진행 중인 clarification 흐름 끊지 않게.
+    if (!pendingClarification) {
+      const thinkingNode = document.createElement('div');
+      thinkingNode.className = 'msg msg-system molly-thinking';
+      const tBubble = document.createElement('div');
+      tBubble.className = 'msg-bubble molly-chat-card';
+      tBubble.textContent = '🤔 잠깐만요…';
+      thinkingNode.appendChild(tBubble);
+      messagesEl.appendChild(thinkingNode);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      try {
+        const baseUrl = await getServerUrl();
+        const r = await fetch(`${baseUrl}/api/intake`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, surface: 'chrome-ext' }),
+        });
+        thinkingNode.remove();
+        if (r.ok) {
+          const data = await r.json();
+          const kind = data?.kind;
+          if (kind === 'chat' || kind === 'status_query') {
+            addUserMessage(text, currentElement, selectedCapture);
+            promptInput.value = '';
+            promptInput.style.height = 'auto';
+            addMollyChatMessage(data.response || '(빈 응답)', kind);
+            updateSendState();
+            return;
+          }
+          if (kind === 'code_change_ambiguous' && data?.clarifyingQuestion) {
+            addUserMessage(text, currentElement, selectedCapture);
+            promptInput.value = '';
+            promptInput.style.height = 'auto';
+            addMollyChatMessage(`🤔 ${data.clarifyingQuestion}`, 'clarify');
+            updateSendState();
+            return;
+          }
+          // code_change_clear → fall through (기존 plan 생성 흐름)
+        }
+        // r.ok=false 면 fallback: plan 생성 (사용자 의도 보호)
+      } catch (err) {
+        thinkingNode.remove();
+        console.warn('[molly] intake gate failed in submit(), falling back to plan generation:', err.message);
+      }
+    }
+
     const activeContext = getActiveContext();
     if (!isJobModeSubmit() && shouldStartClarification(text, activeContext)) {
       const clarification = buildClarificationConfig(text, activeContext);
