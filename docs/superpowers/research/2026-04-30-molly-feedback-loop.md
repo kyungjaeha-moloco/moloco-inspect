@@ -8,7 +8,9 @@
 
 ## TL;DR
 
-> molly 는 이미 풍부한 신호를 capture 중 (task review, agent_review verdict, 사용자 retry/accept/skip, redecompose 자유 피드백, chat). 누락은 (1) 액션 사유 미수집, (2) merge 후 prod 피드백, (3) 정성 디자인 평가, (4) job lineage. **추천: 1주 lightweight loop = constitutional AI 셀프크리틱 + 파일 기반 메모리. 50 잡 누적 후 RAG 추가**.
+> molly 는 이미 풍부한 신호를 capture 중 (task review, agent_review verdict, 사용자 retry/accept/skip, redecompose 자유 피드백, chat). 누락은 (1) 액션 사유 미수집, (2) merge 후 prod 피드백, (3) 정성 디자인 평가, (4) job lineage.
+>
+> **⚠️ 추가 리서치 (2026-04-30) 후 권장 수정**: 짝 문서 `2026-04-30-feedback-loop-decision-framework.md` 의 5 framework 컨센서스에 따르면 이 문서의 옵션 A ("원칙 5-7 개 미리 정의") 는 **EDD 함정 위험**. 진짜 첫 액션 = **24 잡 trace 수동 분류 (옵션 0)** → 그 결과로 원칙 도출 → 그 후 옵션 A. 직진 옵션 D (multi-tenant 먼저) 도 합리적 — 사용량 누적 동안 옵션 0 만 병행.
 
 ---
 
