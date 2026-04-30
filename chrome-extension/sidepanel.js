@@ -2870,6 +2870,36 @@
   }
 
   function appendTaskFailActions(bubble, task, jobId) {
+    // Action reason picker — Slice 3 Task 2. 액션 사유를 enum 으로
+    // capture 하기 위해 인라인 select. 강제 X (인지 부담 줄임), 미선택
+    // 시 reason undefined 로 server 가 normalizeReason → null 처리.
+    const pickerWrap = document.createElement('div');
+    pickerWrap.className = 'task-fail-reason-picker';
+    const pickerLabel = document.createElement('span');
+    pickerLabel.className = 'task-fail-reason-label';
+    pickerLabel.textContent = '사유:';
+    pickerWrap.appendChild(pickerLabel);
+    const picker = document.createElement('select');
+    picker.className = 'task-fail-reason-select';
+    const reasonOptions = [
+      ['', '(선택 안 함)'],
+      ['syntax_error', '문법/타입 에러'],
+      ['logic_error', '논리/구현 오류'],
+      ['scope_creep', '범위 벗어남'],
+      ['partial', '부분 구현'],
+      ['wrong_target', '잘못된 파일'],
+      ['over_delivered', '오버 딜리버'],
+      ['other', '기타'],
+    ];
+    for (const [v, label] of reasonOptions) {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = label;
+      picker.appendChild(opt);
+    }
+    pickerWrap.appendChild(picker);
+    bubble.appendChild(pickerWrap);
+
     const actions = document.createElement('div');
     actions.className = 'task-fail-actions';
 
@@ -2912,12 +2942,13 @@
       lock(`${label} 처리 중…`);
       try {
         const baseUrl = await getServerUrl();
+        const reason = picker.value || undefined;
         const res = await fetch(
           `${baseUrl}/api/job/${encodeURIComponent(jobId)}/${path}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ taskId: task.id }),
+            body: JSON.stringify({ taskId: task.id, reason }),
           },
         );
         if (!res.ok) {

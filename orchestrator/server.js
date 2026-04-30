@@ -3225,17 +3225,26 @@ Generate 2 variations (v2, v3).`;
         }
         else if (action === 'retry-task') {
           const body = await parseBody(req);
-          updated = retryTask(jobId, body?.taskId);
+          updated = retryTask(jobId, body?.taskId, {
+            reason: body?.reason,
+            reasonText: body?.reasonText,
+          });
           runJobInBackground(jobId);
         }
         else if (action === 'accept-task') {
           const body = await parseBody(req);
-          updated = acceptTask(jobId, body?.taskId);
+          updated = acceptTask(jobId, body?.taskId, {
+            reason: body?.reason,
+            reasonText: body?.reasonText,
+          });
           runJobInBackground(jobId);
         }
         else if (action === 'skip-task') {
           const body = await parseBody(req);
-          updated = skipTask(jobId, body?.taskId);
+          updated = skipTask(jobId, body?.taskId, {
+            reason: body?.reason,
+            reasonText: body?.reasonText,
+          });
           runJobInBackground(jobId);
         }
         else if (action === 'unblock-task') {
@@ -3272,7 +3281,10 @@ Generate 2 variations (v2, v3).`;
         else if (action === 'cancel') {
           const body = await parseBody(req);
           const job = getJob(jobId);
-          updated = cancelJob(jobId);
+          updated = cancelJob(jobId, {
+            reason: body?.reason,
+            reasonText: body?.reasonText,
+          });
           let rewound = false;
           // Optional rewind: if the user asked to also undo the
           // playground changes this job landed, restore the playground

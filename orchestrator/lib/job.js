@@ -24,6 +24,27 @@ import {
   InvalidTransitionError,
 } from './job-state.js';
 
+/**
+ * 사용자가 task action 또는 job cancel 시 선택할 사유.
+ * 5 framework 의 "shipped 직전 데이터 capture 못 하면 영영 손실"
+ * 원칙. v0 enum 은 작게 — 향후 데이터 분포 보고 추가/통합.
+ */
+export const ACTION_REASONS = Object.freeze({
+  syntax_error: '문법/타입 에러',
+  logic_error: '논리/구현 오류',
+  scope_creep: '범위 벗어남 (PRD 외 변경)',
+  partial: '부분 구현 (요구사항 일부만)',
+  wrong_target: '잘못된 파일/컴포넌트',
+  over_delivered: '오버 딜리버 (과한 변경)',
+  other: '기타',
+});
+
+function normalizeReason(reason) {
+  if (!reason) return null;
+  if (typeof reason !== 'string') return null;
+  return Object.prototype.hasOwnProperty.call(ACTION_REASONS, reason) ? reason : null;
+}
+
 const STATE_DIR = new URL('../state/job/', import.meta.url).pathname;
 fs.mkdirSync(STATE_DIR, { recursive: true });
 
@@ -301,8 +322,8 @@ export function approvePlan(jobId) {
   return setJobStatus(jobId, 'delegating');
 }
 
-/** @param {string} jobId @param {string} taskId */
-export function retryTask(jobId, taskId) {
+/** @param {string} jobId @param {string} taskId @param {{ reason?: string, reasonText?: string }} [actionMeta] */
+export function retryTask(jobId, taskId, actionMeta = {}) {
   const job = getJob(jobId);
   if (!job) throw new Error(`job not found: ${jobId}`);
   const task = job.tasks.find((t) => t.id === taskId);
@@ -318,6 +339,14 @@ export function retryTask(jobId, taskId) {
   // thinking it's stuck.
   //
   // We do, however, need to unpause the job if review-fail paused it.
+  const reason = normalizeReason(actionMeta.reason);
+  const reasonText = typeof actionMeta.reasonText === 'string' ? actionMeta.reasonText.slice(0, 500) : null;
+  if (reason || reasonText) {
+    if (!task.actionHistory) task.actionHistory = [];
+    task.actionHistory.push({ kind: 'retry', reason, reasonText, at: Date.now() });
+    job.updatedAt = nowMs();
+    persist(job);
+  }
   if (job.status === 'paused') {
     return setJobStatus(jobId, 'delegating');
   }
@@ -335,13 +364,19 @@ export function retryTask(jobId, taskId) {
  * @param {string} jobId
  * @param {string} taskId
  */
-export function acceptTask(jobId, taskId) {
+export function acceptTask(jobId, taskId, actionMeta = {}) {
   const job = getJob(jobId);
   if (!job) throw new Error(`job not found: ${jobId}`);
   const task = job.tasks.find((t) => t.id === taskId);
   if (!task) throw new Error(`task not found: ${taskId}`);
   if (task.status !== 'failed') {
     throw new Error(`task ${taskId} not in failed state (${task.status})`);
+  }
+  const reason = normalizeReason(actionMeta.reason);
+  const reasonText = typeof actionMeta.reasonText === 'string' ? actionMeta.reasonText.slice(0, 500) : null;
+  if (reason || reasonText) {
+    if (!task.actionHistory) task.actionHistory = [];
+    task.actionHistory.push({ kind: 'accept', reason, reasonText, at: Date.now() });
   }
   setTaskStatus(jobId, taskId, 'reviewed', {
     review: {
@@ -355,12 +390,18 @@ export function acceptTask(jobId, taskId) {
   return getJob(jobId);
 }
 
-/** @param {string} jobId @param {string} taskId */
-export function skipTask(jobId, taskId) {
+/** @param {string} jobId @param {string} taskId @param {{ reason?: string, reasonText?: string }} [actionMeta] */
+export function skipTask(jobId, taskId, actionMeta = {}) {
   const job = getJob(jobId);
   if (!job) throw new Error(`job not found: ${jobId}`);
   const task = job.tasks.find((t) => t.id === taskId);
   if (!task) throw new Error(`task not found: ${taskId}`);
+  const reason = normalizeReason(actionMeta.reason);
+  const reasonText = typeof actionMeta.reasonText === 'string' ? actionMeta.reasonText.slice(0, 500) : null;
+  if (reason || reasonText) {
+    if (!task.actionHistory) task.actionHistory = [];
+    task.actionHistory.push({ kind: 'skip', reason, reasonText, at: Date.now() });
+  }
   const updated = setTaskStatus(jobId, taskId, 'skipped');
   // Cascade: any downstream task whose dependsOn now includes a
   // skipped/failed node gets marked `blocked`. v2 §2 Q4.
@@ -491,8 +532,8 @@ export function setQaAutoResult(jobId, result) {
   return job;
 }
 
-/** @param {string} jobId */
-export function cancelJob(jobId) {
+/** @param {string} jobId @param {{ reason?: string, reasonText?: string }} [actionMeta] */
+export function cancelJob(jobId, actionMeta = {}) {
   // v2 §2 Q3 — cancel-after-current. The actual "finish current task
   // then stop" logic lives in runJob (J3a). Here we just flip state
   // so the worker sees the signal on its next tick.
@@ -510,6 +551,12 @@ export function cancelJob(jobId) {
       if (t.status === 'running' || t.status === 'committed') {
         t.currentPhase = undefined;
       }
+    }
+    // Cancel 사유 capture — lifecycle 한 번만이라 단일 객체.
+    const reason = normalizeReason(actionMeta.reason);
+    const reasonText = typeof actionMeta.reasonText === 'string' ? actionMeta.reasonText.slice(0, 500) : null;
+    if (reason || reasonText) {
+      job.cancelMeta = { reason, reasonText, at: Date.now() };
     }
   }
   return setJobStatus(jobId, 'cancelled');

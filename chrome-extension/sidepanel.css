@@ -2133,3 +2133,25 @@ body.chat-active #elementCard {
   white-space: pre-wrap;
   color: var(--text-primary);
 }
+
+/* Slice 3 Task 2 — action reason picker */
+.task-fail-reason-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+}
+.task-fail-reason-label {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+.task-fail-reason-select {
+  font-size: 11px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+}
