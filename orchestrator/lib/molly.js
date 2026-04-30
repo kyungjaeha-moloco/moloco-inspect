@@ -387,85 +387,51 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     thinkingTs = r?.ts ?? null;
   } catch { /* swallow — indicator 실패해도 본 흐름 이어감 */ }
 
-  // 분류 게이트 — text 가 코드 변경 요청이 아닐 수 있으니 먼저 분류.
-  // chat / status_query 는 thread reply 만 하고 끝.
-  // 분류 실패 시 폴백은 'chat' (잡 안 만드는 게 안전 — 사용자가 다시
-  // 명시적으로 PRD 보내면 그때 진행).
-  let cls;
+  // Phase 3 Task 3.3 — Phase 1 의 인라인 분기 (classifier + analyzer 별개)
+  // 를 processIntake 단일 호출로 정리. /api/molly/respond 가 하던 4 종
+  // kind 분기를 라이브러리 호출로 흡수 — surface 별 중복 제거.
+  // 폴백: intake 자체 throw (network / API key 없음 등) 시 안전하게 chat
+  // 응답으로 (잡 안 만드는 게 부작용 0).
+  let result;
   try {
-    const { classifyMollyText } = await import('./molly-classifier.js');
-    cls = await classifyMollyText(text, { surface: 'slack' });
+    const { processIntake } = await import('./molly-intake.js');
+    result = await processIntake(text, {
+      surface: 'slack',
+      listJobs: opts.listJobs,
+      getJob: opts.getJob,
+      channel: event.channel,
+      threadTs,
+    });
   } catch (err) {
-    logger.warn(`[molly] classifier failed, falling back to chat: ${err.message}`);
-    cls = { kind: 'chat', reason: 'classifier failed' };
+    logger.warn(`[molly] processIntake failed, falling back to chat: ${err.message}`);
+    result = {
+      kind: 'chat',
+      reason: 'intake failed',
+      response: `⚠️ 잠시 문제가 있어요. 다시 시도해 주세요. (${err.message?.slice(0, 100) ?? ''})`,
+    };
   }
 
-  if (cls.kind === 'chat') {
-    try {
-      const { composeChatReply } = await import('./molly-chat.js');
-      const reply = await composeChatReply(text, { surface: 'slack' });
-      if (thinkingTs) {
-        try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
-      }
-      await say({ thread_ts: threadTs, text: reply });
-    } catch (err) {
-      if (thinkingTs) {
-        try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
-      }
-      await say({
-        thread_ts: threadTs,
-        text: `⚠️ chat 응답 실패: ${err.message?.slice(0, 200) ?? err}`,
-      });
+  if (result.kind === 'chat' || result.kind === 'status_query') {
+    if (thinkingTs) {
+      try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
     }
-    return;
-  }
-  if (cls.kind === 'status_query') {
-    try {
-      const { composeStatusReply } = await import('./molly-status.js');
-      const reply = await composeStatusReply(text, {
-        listJobs: opts.listJobs,
-        getJob: opts.getJob,
-        channel: event.channel,
-        threadTs,
-      });
-      if (thinkingTs) {
-        try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
-      }
-      await say({ thread_ts: threadTs, text: reply });
-    } catch (err) {
-      if (thinkingTs) {
-        try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
-      }
-      await say({
-        thread_ts: threadTs,
-        text: `⚠️ status 응답 실패: ${err.message?.slice(0, 200) ?? err}`,
-      });
-    }
+    await say({ thread_ts: threadTs, text: result.response || '(빈 응답)' });
     return;
   }
 
-  // 분류 결과가 code_change 면, PRD 명확도 체크 추가
-  let analysis;
-  try {
-    const { analyzePrdClarity } = await import('./molly-prd-analyzer.js');
-    analysis = await analyzePrdClarity(text, { surface: 'slack' });
-  } catch (err) {
-    logger.warn(`[molly] prd analyzer failed: ${err.message} — proceeding`);
-    analysis = { clarity: 'clear', clarifyingQuestion: '', missingInfo: [] };
-  }
-  if (analysis.clarity === 'ambiguous' && analysis.clarifyingQuestion) {
-    // 모호 → 잡 안 만들고 clarifying Q 만 thread reply
+  if (result.kind === 'code_change_ambiguous') {
     if (thinkingTs) {
       try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
     }
     await say({
       thread_ts: threadTs,
-      text: `🤔 ${analysis.clarifyingQuestion}`,
+      text: `🤔 ${result.clarifyingQuestion}`,
     });
     return;
   }
 
-  // code_change — thinking indicator 는 잡 plan post 후 자연스럽게 사라지게 둠
+  // result.kind === 'code_change_clear' — 기존 흐름 (createJob ...).
+  // thinking indicator 는 잡 plan post 후 자연스럽게 사라지게 둠
   // (사용자가 "🛠️ 받았습니다" 메시지 보고 indicator 사라지면 OK).
   if (thinkingTs) {
     try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
