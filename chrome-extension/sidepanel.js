@@ -86,13 +86,75 @@
   let selectedElements = [];
   // Phase 3 Task 3.1 sub-phase D — molly chat history. submit/performSubmit
   // 의 /api/intake 호출 시 동봉 → server 의 dispatcher 가 prev kind 보고
-  // multi-turn (clarification + plan) 라우팅. session 단위 (sidepanel
-  // reload 시 초기화) — 길어지면 메모리 부담이라 last N=10 만 유지.
+  // multi-turn (clarification + plan) 라우팅.
+  //
+  // 영구 보존 (2026-04-30 피드백): chrome.storage.local 에 origin 별 분리
+  // 저장 (mollyChatHistoryByOrigin: { '<origin>': [...turns] }). 같은
+  // origin 으로 다시 들어오면 이전 대화 컨텍스트 복원. activeOrigin 전환
+  // 시 (background 의 origin lock) 그 origin 의 history 자동 reload.
+  // 단일 origin 의 history 만 메모리에 — last N=10 (토큰/메모리 비용).
   let mollyChatHistory = [];
+  let mollyChatHistoryOrigin = null;
+  let mollyChatHistorySaveTimer = null;
+
+  async function initMollyHistory() {
+    try {
+      const { activeOrigin, mollyChatHistoryByOrigin } = await chrome.storage.local.get([
+        'activeOrigin',
+        'mollyChatHistoryByOrigin',
+      ]);
+      mollyChatHistoryOrigin = activeOrigin || null;
+      const byOrigin = mollyChatHistoryByOrigin && typeof mollyChatHistoryByOrigin === 'object'
+        ? mollyChatHistoryByOrigin
+        : {};
+      mollyChatHistory = (mollyChatHistoryOrigin && Array.isArray(byOrigin[mollyChatHistoryOrigin]))
+        ? byOrigin[mollyChatHistoryOrigin].slice(-10)
+        : [];
+    } catch (err) {
+      console.warn('[molly] initMollyHistory failed:', err.message);
+      mollyChatHistory = [];
+      mollyChatHistoryOrigin = null;
+    }
+  }
+
+  async function persistMollyHistory() {
+    mollyChatHistorySaveTimer = null;
+    try {
+      if (!mollyChatHistoryOrigin) return;
+      const { mollyChatHistoryByOrigin } = await chrome.storage.local.get(['mollyChatHistoryByOrigin']);
+      const byOrigin = mollyChatHistoryByOrigin && typeof mollyChatHistoryByOrigin === 'object'
+        ? mollyChatHistoryByOrigin
+        : {};
+      byOrigin[mollyChatHistoryOrigin] = mollyChatHistory.slice();
+      await chrome.storage.local.set({ mollyChatHistoryByOrigin: byOrigin });
+    } catch (err) {
+      console.warn('[molly] persistMollyHistory failed:', err.message);
+    }
+  }
+
   function pushMollyHistory(role, content, kind) {
     mollyChatHistory.push({ role, content: String(content || '').slice(0, 1000), kind: kind || undefined });
     if (mollyChatHistory.length > 10) mollyChatHistory.shift();
+    // 300ms debounce — 빠른 연속 push (user + assistant) 한 번에 save.
+    if (mollyChatHistorySaveTimer) clearTimeout(mollyChatHistorySaveTimer);
+    mollyChatHistorySaveTimer = setTimeout(persistMollyHistory, 300);
   }
+
+  // activeOrigin 변경 감지 (background 의 origin lock 이 origin 전환 시).
+  // 이전 origin 의 history 는 이미 storage 에 있으므로, 그냥 새 origin 의
+  // history 로 in-memory 리로드.
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.activeOrigin) {
+      const newOrigin = changes.activeOrigin.newValue || null;
+      if (newOrigin !== mollyChatHistoryOrigin) {
+        void initMollyHistory();
+      }
+    }
+  });
+
+  // Sidepanel 시작 시 즉시 로드 (fire-and-forget — first user message 전엔
+  // history 비어있어도 안전).
+  void initMollyHistory();
   let currentRequestId = null; // HTTP mode: orchestrator request ID
   let currentJobId = null; // Phase 2: job pipeline mode
   let currentJobInProgress = false; // blocks send while a job is active on the same playground
