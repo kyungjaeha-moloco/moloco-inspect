@@ -3631,5 +3631,23 @@ server.listen(PORT, '0.0.0.0', () => {
         userFeedback: typeof feedback === 'string' ? feedback : undefined,
       });
     },
+    // Create a fresh playground for a Slack thread that has no existing
+    // mapping. molly's per-thread policy: 같은 thread → 같은 playground,
+    // 다른 thread → 다른 playground. apiKey 는 server-level env 에서 가져와
+    // molly 는 ANTHROPIC_API_KEY 에 직접 의존하지 않게.
+    createPlayground: async ({ title, createdBy, prdUrl, jiraUrl }) => {
+      const apiKey = process.env.ANTHROPIC_API_KEY || SANDBOX_API_KEY;
+      if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
+      return createPlayground({
+        projectId: process.env.MSM_PROJECT_ID || 'default',
+        title: title || 'Slack thread',
+        createdBy: createdBy || 'molly',
+        prdUrl,
+        jiraUrl,
+        apiKey,
+        provider: SANDBOX_PROVIDER || 'anthropic',
+        client: process.env.MSM_DEFAULT_CLIENT || 'tving',
+      });
+    },
   });
 });

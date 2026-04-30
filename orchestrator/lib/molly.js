@@ -27,6 +27,11 @@
 
 import bolt from '@slack/bolt';
 import { appendChatMessages, generateMessageId } from './chat-store.js';
+import {
+  getPlaygroundIdForThread,
+  setPlaygroundIdForThread,
+  clearPlaygroundForThread,
+} from './slack-thread-map.js';
 
 const { App } = bolt;
 
@@ -55,6 +60,7 @@ let appInstance = null;
  * @property {(jobId: string, taskId: string, actionMeta?: {reason?: string|null, reasonText?: string|null}) => any} acceptTask
  * @property {(jobId: string, taskId: string, actionMeta?: {reason?: string|null, reasonText?: string|null}) => any} skipTaskJob
  * @property {(id: string) => Promise<{prUrl?: string, branch?: string}>} promoteJob
+ * @property {(args: {title?: string, createdBy?: string, prdUrl?: string, jiraUrl?: string}) => Promise<any>} createPlayground
  */
 
 /** @type {MollyOptions | null} */
@@ -442,29 +448,63 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
   }
 
-  // code_change — 기존 흐름 그대로.
-  if (!opts?.defaultPlaygroundId) {
-    await say({
-      thread_ts: threadTs,
-      text: '⚠️ molly 가 아직 작업 모드로 설정되지 않았습니다 (`MOLLY_PLAYGROUND_ID` 미설정).',
-    });
-    return;
+  // code_change — Slack thread → playground 1:1 매핑.
+  // 같은 thread 의 후속 멘션은 같은 playground 를 reuse, 다른 thread
+  // 는 다른 playground. 매핑 없거나 가리키는 playground 가 inactive
+  // 면 새 playground 부팅.
+  let playgroundId = getPlaygroundIdForThread(event.channel, threadTs);
+  let pg = playgroundId ? opts.getPlayground(playgroundId) : null;
+  if (!pg || pg.status !== 'active') {
+    if (playgroundId) {
+      // Stale 매핑 (archived/hibernated/삭제) — clear 후 새로 만듦.
+      clearPlaygroundForThread(event.channel, threadTs);
+      playgroundId = null;
+      pg = null;
+    }
+    // Fallback: opts.defaultPlaygroundId 가 set 됐고 거기 active 면
+    // 첫 멘션의 mapping 으로 사용 (기존 deployment 가 있는 경우 부드러운 전환).
+    if (opts?.defaultPlaygroundId) {
+      const fallback = opts.getPlayground(opts.defaultPlaygroundId);
+      if (fallback && fallback.status === 'active') {
+        pg = fallback;
+        playgroundId = fallback.id;
+        setPlaygroundIdForThread(event.channel, threadTs, playgroundId);
+      }
+    }
   }
-
-  const pg = opts.getPlayground(opts.defaultPlaygroundId);
   if (!pg) {
+    if (!opts?.createPlayground) {
+      await say({
+        thread_ts: threadTs,
+        text: '⚠️ Playground 생성 hook 이 없습니다. 서버 설정을 확인해주세요.',
+      });
+      return;
+    }
     await say({
       thread_ts: threadTs,
-      text: `⚠️ 설정된 플레이그라운드(${opts.defaultPlaygroundId})를 찾을 수 없습니다.`,
+      text: '🐣 새 Playground 부팅 중… (~30초 소요)',
     });
-    return;
+    try {
+      pg = await opts.createPlayground({
+        title: `Slack: ${trunc(text, 60)}`,
+        createdBy: `molly (slack ${event.user || 'unknown'})`,
+      });
+      playgroundId = pg.id;
+      setPlaygroundIdForThread(event.channel, threadTs, playgroundId);
+    } catch (err) {
+      await say({
+        thread_ts: threadTs,
+        text: `❌ Playground 생성 실패: ${err.message?.slice(0, 200) ?? err}`,
+      });
+      return;
+    }
   }
 
   // Create job + kick decomposer.
   let job;
   try {
     job = opts.createJob({
-      playgroundId: opts.defaultPlaygroundId,
+      playgroundId,
       prdText: text,
       baselineHeadSha: pg.headCommitSha,
     });
@@ -495,7 +535,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
   // jobId). One-time write — JobCard polls for state itself.
   try {
     const now = Date.now();
-    appendChatMessages(opts.defaultPlaygroundId, [
+    appendChatMessages(playgroundId, [
       {
         id: generateMessageId(),
         role: 'user',
@@ -514,7 +554,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     logger.warn(`[molly] chat mirror failed: ${err.message}`);
   }
 
-  const playgroundUrl = `${PLAYGROUND_BASE_URL}/${opts.defaultPlaygroundId}`;
+  const playgroundUrl = `${PLAYGROUND_BASE_URL}/${playgroundId}`;
   await say({
     thread_ts: threadTs,
     text: [
