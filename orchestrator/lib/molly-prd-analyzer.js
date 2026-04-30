@@ -1,5 +1,14 @@
 // orchestrator/lib/molly-prd-analyzer.js
 const PRD_MODEL = process.env.MOLLY_PRD_MODEL || 'claude-sonnet-4-20250514';
+// Extended thinking 실험 (2026-04-30) — clarity 판단 정확도 향상 가능성.
+// off 로 끄려면 MOLLY_PRD_THINKING=0. budget 0 도 사실상 off.
+const PRD_THINKING_BUDGET = (() => {
+  const raw = process.env.MOLLY_PRD_THINKING;
+  if (raw === '0' || raw === 'off' || raw === 'false') return 0;
+  const n = Number(raw);
+  if (Number.isFinite(n) && n >= 0) return n;
+  return 2048; // default on
+})();
 
 const SYSTEM_PROMPT = `당신은 molly 의 PRD 명확도 검사자입니다. 사용자가 코드 작업을 요청하는 PRD 를 받아 그 작업을 *지금 바로 시작할 만큼 명확한지* 판정합니다.
 
@@ -35,6 +44,18 @@ export async function analyzePrdClarity(text, ctx = {}) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
   const userMessage = `PRD 후보:\n${text}\n\n분석해주세요.`;
+  const useThinking = PRD_THINKING_BUDGET > 0;
+  // thinking 켜면 max_tokens 가 thinking + 응답 합 — 여유 있게.
+  const maxTokens = useThinking ? PRD_THINKING_BUDGET + 600 : 400;
+  const reqBody = {
+    model: PRD_MODEL,
+    max_tokens: maxTokens,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userMessage }],
+  };
+  if (useThinking) {
+    reqBody.thinking = { type: 'enabled', budget_tokens: PRD_THINKING_BUDGET };
+  }
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -42,13 +63,9 @@ export async function analyzePrdClarity(text, ctx = {}) {
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },
-    body: JSON.stringify({
-      model: PRD_MODEL,
-      max_tokens: 400,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
-    }),
-    signal: AbortSignal.timeout(15000),
+    body: JSON.stringify(reqBody),
+    // thinking 켜면 latency 증가 (~3-10s) — timeout 도 늘림.
+    signal: AbortSignal.timeout(useThinking ? 45000 : 15000),
   });
   if (!resp.ok) {
     // 분석 실패 = clear 폴백 (잡 진행 — molly 의 안전 디폴트와 반대.
@@ -58,7 +75,10 @@ export async function analyzePrdClarity(text, ctx = {}) {
     return { clarity: 'clear', clarifyingQuestion: '', missingInfo: [] };
   }
   const data = await resp.json();
-  const content = data?.content?.[0]?.text ?? '';
+  // thinking 켜면 content[0] 가 thinking block. 첫 text block 만 골라야 함.
+  const blocks = Array.isArray(data?.content) ? data.content : [];
+  const textBlock = blocks.find((b) => b?.type === 'text');
+  const content = textBlock?.text ?? '';
   const start = content.indexOf('{');
   const end = content.lastIndexOf('}');
   if (start === -1 || end === -1) {
