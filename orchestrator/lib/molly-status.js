@@ -63,7 +63,12 @@ export async function composeStatusReply(text, ctx) {
   }
   const data = await resp.json();
   const content = data?.content?.[0]?.text ?? '';
-  return content.trim() || templatedFallback(jobs);
+  const trimmed = content.trim();
+  const reply = trimmed.length >= 30 ? trimmed : templatedFallback(jobs);
+  console.log(
+    `[molly-status] input="${text.slice(0, 80)}" → jobs=${jobs.length} reply len=${reply.length}`,
+  );
+  return reply;
 }
 
 function templatedFallback(jobs) {

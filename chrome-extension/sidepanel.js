@@ -3666,6 +3666,16 @@
     // (사용자가 PRD 던졌는데 네트워크 에러로 chat 응답 받으면 더 이상함).
     const userInput = String(payload.userInput || payload.text || '').trim();
     if (userInput) {
+      // Typing indicator — classifier + LLM 1-1.5s 동안 UX 신호.
+      const thinkingNode = document.createElement('div');
+      thinkingNode.className = 'msg msg-system molly-thinking';
+      const tBubble = document.createElement('div');
+      tBubble.className = 'msg-bubble molly-chat-card';
+      tBubble.textContent = '🤔 잠깐만요…';
+      thinkingNode.appendChild(tBubble);
+      messagesEl.appendChild(thinkingNode);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+
       try {
         const baseUrl = await getServerUrl();
         const r = await fetch(`${baseUrl}/api/molly/respond`, {
@@ -3673,6 +3683,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: userInput, surface: 'chrome-ext' }),
         });
+        thinkingNode.remove();
         if (r.ok) {
           const data = await r.json();
           const kind = data?.kind;
@@ -3684,6 +3695,7 @@
         }
         // r.ok=false 면 fallback: code_change 진행 (사용자 의도 보호)
       } catch (err) {
+        thinkingNode.remove();
         console.warn('[molly] classifier fetch failed, falling back to code_change:', err.message);
       }
     }

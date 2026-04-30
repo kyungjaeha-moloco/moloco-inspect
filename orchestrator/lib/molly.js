@@ -373,6 +373,14 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     return;
   }
 
+  // Typing indicator — classifier + LLM 합산 1-1.5s 지연 동안 UX 신호.
+  // thread reply 로 "🤔 잠깐만요…" 보내고 chat/status 응답 후 delete.
+  let thinkingTs = null;
+  try {
+    const r = await say({ thread_ts: threadTs, text: '🤔 잠깐만요…' });
+    thinkingTs = r?.ts ?? null;
+  } catch { /* swallow — indicator 실패해도 본 흐름 이어감 */ }
+
   // 분류 게이트 — text 가 코드 변경 요청이 아닐 수 있으니 먼저 분류.
   // chat / status_query 는 thread reply 만 하고 끝.
   // 분류 실패 시 폴백은 'chat' (잡 안 만드는 게 안전 — 사용자가 다시
@@ -390,8 +398,14 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     try {
       const { composeChatReply } = await import('./molly-chat.js');
       const reply = await composeChatReply(text, { surface: 'slack' });
+      if (thinkingTs) {
+        try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
+      }
       await say({ thread_ts: threadTs, text: reply });
     } catch (err) {
+      if (thinkingTs) {
+        try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
+      }
       await say({
         thread_ts: threadTs,
         text: `⚠️ chat 응답 실패: ${err.message?.slice(0, 200) ?? err}`,
@@ -406,14 +420,26 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
         listJobs: opts.listJobs,
         getJob: opts.getJob,
       });
+      if (thinkingTs) {
+        try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
+      }
       await say({ thread_ts: threadTs, text: reply });
     } catch (err) {
+      if (thinkingTs) {
+        try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
+      }
       await say({
         thread_ts: threadTs,
         text: `⚠️ status 응답 실패: ${err.message?.slice(0, 200) ?? err}`,
       });
     }
     return;
+  }
+
+  // code_change — thinking indicator 는 잡 plan post 후 자연스럽게 사라지게 둠
+  // (사용자가 "🛠️ 받았습니다" 메시지 보고 indicator 사라지면 OK).
+  if (thinkingTs) {
+    try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
   }
 
   // code_change — 기존 흐름 그대로.

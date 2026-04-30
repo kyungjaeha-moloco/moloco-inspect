@@ -82,5 +82,35 @@ export async function classifyMollyText(text, ctx = {}) {
   if (!['code_change', 'status_query', 'chat'].includes(parsed?.kind)) {
     return { kind: 'chat', reason: `classifier returned invalid kind="${parsed?.kind}", defaulting to chat` };
   }
-  return { kind: parsed.kind, reason: parsed.reason || '' };
+
+  // PRD-like nudge — classifier 가 명백한 PRD-like 텍스트를 chat 으로
+  // 잘못 분류한 경우 code_change 로 보정. 5 framework 의 "false-pass
+  // 최소화" 정책. PRD 휴리스틱은 보수적으로 — 길이 > 80 자 + 명령형
+  // 키워드 둘 이상 조건만 충족 시.
+  let kind = parsed.kind;
+  let reason = parsed.reason || '';
+  if (kind === 'chat' && looksLikePrd(text)) {
+    kind = 'code_change';
+    reason = `chat → code_change (PRD-like heuristic): ${reason}`;
+  }
+
+  console.log(
+    `[molly-classifier] input="${text.slice(0, 80)}" → kind=${kind} reason="${reason.slice(0, 80)}"`,
+  );
+  return { kind, reason };
+}
+
+/**
+ * PRD-like 휴리스틱 — 길이 > 80자 AND 명령형 키워드 2개 이상.
+ * 명백한 chat (짧은 인사, 감사) 은 nudge 안 함.
+ */
+function looksLikePrd(text) {
+  if (!text || text.length < 80) return false;
+  const PRD_KEYWORDS = ['추가', '수정', '변경', '만들어', '바꿔', '구현', '도입', 'PRD', 'TAS', '페이지'];
+  let hits = 0;
+  for (const kw of PRD_KEYWORDS) {
+    if (text.includes(kw)) hits++;
+    if (hits >= 2) return true;
+  }
+  return false;
 }

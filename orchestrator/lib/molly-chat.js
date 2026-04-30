@@ -65,5 +65,9 @@ export async function composeChatReply(text, ctx = {}) {
   }
   const data = await resp.json();
   const content = data?.content?.[0]?.text ?? '';
-  return content.trim() || '음… 답을 못 만들었어요. 다시 시도해 주세요.';
+  const reply = content.trim() || '음… 답을 못 만들었어요. 다시 시도해 주세요.';
+  console.log(
+    `[molly-chat] input="${text.slice(0, 80)}" → reply len=${reply.length}`,
+  );
+  return reply;
 }
