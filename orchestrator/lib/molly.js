@@ -463,16 +463,9 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
       playgroundId = null;
       pg = null;
     }
-    // Fallback: opts.defaultPlaygroundId 가 set 됐고 거기 active 면
-    // 첫 멘션의 mapping 으로 사용 (기존 deployment 가 있는 경우 부드러운 전환).
-    if (opts?.defaultPlaygroundId) {
-      const fallback = opts.getPlayground(opts.defaultPlaygroundId);
-      if (fallback && fallback.status === 'active') {
-        pg = fallback;
-        playgroundId = fallback.id;
-        setPlaygroundIdForThread(event.channel, threadTs, playgroundId);
-      }
-    }
+    // 매핑 없는 첫 멘션 = 새 thread = 새 playground. MOLLY_PLAYGROUND_ID
+    // legacy fallback 은 의도적으로 제거 — "Slack thread = playground 1:1"
+    // 정책의 핵심. 새 thread 면 무조건 새 playground (createPlayground 분기).
   }
   if (!pg) {
     if (!opts?.createPlayground) {
