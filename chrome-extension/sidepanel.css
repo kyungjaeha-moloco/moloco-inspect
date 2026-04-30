@@ -2134,6 +2134,30 @@ body.chat-active #elementCard {
   color: var(--text-primary);
 }
 
+/* Task 4 — reviewed/skipped task transition card collapse */
+.msg-system[data-collapsed="true"] .task-transition-card {
+  cursor: pointer;
+}
+.msg-system[data-collapsed="true"] .task-transition-card .task-transition-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.msg-system[data-collapsed="true"] .task-transition-card .task-transition-notes,
+.msg-system[data-collapsed="true"] .task-transition-card .task-fail-actions,
+.msg-system[data-collapsed="true"] .task-transition-card .task-fail-reason-picker,
+.msg-system[data-collapsed="true"] .task-transition-card .task-transition-stamp {
+  display: none;
+}
+/* Expand hint on hover */
+.msg-system[data-collapsed="true"] .task-transition-card::after {
+  content: ' ▾';
+  font-size: 10px;
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
 /* Slice 3 Task 2 — action reason picker */
 .task-fail-reason-picker {
   display: flex;

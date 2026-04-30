@@ -2175,6 +2175,9 @@
     if (messagesEl.querySelector(`.msg-system[data-paused-card-job-id="${CSS.escape(jobId)}"]`)) {
       announcedJobStates.add('paused');
     }
+    if (messagesEl.querySelector(`.msg-system[data-cancelled-card-job-id="${CSS.escape(jobId)}"]`)) {
+      announcedJobStates.add('cancelled');
+    }
     messagesEl
       .querySelectorAll(`.msg-system[data-task-transition-id]`)
       .forEach((el) => {
@@ -2264,6 +2267,12 @@
       }
       if (job && job.status !== 'paused' && announcedJobStates.has('paused')) {
         announcedJobStates.delete('paused');
+      }
+
+      // Task 3: cancelled 카드 — 외부 cancel (Playground UI / curl) 시 사용자에게 명시.
+      if (job && job.status === 'cancelled' && !announcedJobStates.has('cancelled')) {
+        announcedJobStates.add('cancelled');
+        addCancelledMessage(job);
       }
 
       if (job && job.status === 'qa') {
@@ -2479,6 +2488,17 @@
    * 미러. 같은 task의 후속 트랜지션은 updateTaskTransitionMessage 가
    * 같은 카드를 in-place 업데이트.
    */
+  // Task 1: dirty-check helper — QA card 의 computeQaCardHash 패턴 mirror.
+  function computeTaskTransitionHash(task, idx, total) {
+    return JSON.stringify({
+      title: task.title ?? null,
+      status: task.status ?? null,
+      idx,
+      total,
+      notes: task.status === 'failed' ? (task.review?.notes ?? null) : null,
+    });
+  }
+
   function addTaskTransitionMessage(task, idx, total, jobId) {
     const wrap = document.createElement('div');
     wrap.className = 'msg msg-system';
@@ -2487,7 +2507,26 @@
 
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble task-transition-card';
+    bubble.dataset.taskTransitionStatus = task.status;
     renderTaskTransitionBody(bubble, task, idx, total, jobId);
+    // 첫 렌더 후 hash 저장 — 후속 polling 이 즉시 재렌더하지 않게.
+    wrap.dataset.lastHash = computeTaskTransitionHash(task, idx, total);
+
+    // Task 4: reviewed/skipped 카드는 처음부터 collapsed 상태로 추가.
+    if (task.status === 'reviewed' || task.status === 'skipped') {
+      wrap.dataset.collapsed = 'true';
+    }
+    // Task 4: click toggle collapse/expand.
+    wrap.addEventListener('click', () => {
+      if (wrap.dataset.collapsed === 'true') {
+        delete wrap.dataset.collapsed;
+      } else if (
+        wrap.querySelector('.task-transition-card')?.dataset.taskTransitionStatus === 'reviewed' ||
+        wrap.querySelector('.task-transition-card')?.dataset.taskTransitionStatus === 'skipped'
+      ) {
+        wrap.dataset.collapsed = 'true';
+      }
+    });
 
     wrap.appendChild(bubble);
     messagesEl.appendChild(wrap);
@@ -2501,11 +2540,22 @@
       addTaskTransitionMessage(task, idx, total, jobId);
       return;
     }
+    // Task 1: dirty-check — 변동 없으면 재렌더 skip (race + closure leak 방지).
+    const hash = computeTaskTransitionHash(task, idx, total);
+    if (wrap.dataset.lastHash === hash) return;
+    wrap.dataset.lastHash = hash;
     wrap.dataset.taskTransitionStatus = task.status;
     const bubble = wrap.querySelector('.task-transition-card');
     if (!bubble) {
       addTaskTransitionMessage(task, idx, total, jobId);
       return;
+    }
+    bubble.dataset.taskTransitionStatus = task.status;
+    // Task 4: reviewed 상태로 전환 시 collapsed 표시 (클릭으로 toggle).
+    if (task.status === 'reviewed' || task.status === 'skipped') {
+      if (!wrap.dataset.collapsed) {
+        wrap.dataset.collapsed = 'true';
+      }
     }
     bubble.innerHTML = '';
     renderTaskTransitionBody(bubble, task, idx, total, jobId);
@@ -2529,6 +2579,35 @@
     const hint = document.createElement('div');
     hint.className = 'task-transition-stamp';
     hint.textContent = 'Playground 또는 Inspect Console 에서 확인 후 resume / cancel 가능합니다.';
+    bubble.appendChild(hint);
+    wrap.appendChild(bubble);
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  /**
+   * Task 3: job.status=cancelled 진입 시 1회. 외부 cancel (Playground UI /
+   * curl) 시 사이드패널 chat 에 명시. addPausedMessage 와 동일 패턴.
+   */
+  function addCancelledMessage(job) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg msg-system';
+    wrap.dataset.cancelledCardJobId = job.id;
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble task-transition-card';
+    const line = document.createElement('div');
+    line.className = 'task-transition-line';
+    line.textContent = `❌ 작업이 취소되었습니다 (job: ${job.id?.slice(0, 8) ?? '?'})`;
+    bubble.appendChild(line);
+    if (job.cancelMeta?.reasonText) {
+      const reason = document.createElement('div');
+      reason.className = 'task-transition-notes';
+      reason.textContent = job.cancelMeta.reasonText.slice(0, 240);
+      bubble.appendChild(reason);
+    }
+    const hint = document.createElement('div');
+    hint.className = 'task-transition-stamp';
+    hint.textContent = 'Playground 에서 새 작업을 시작하거나 취소 사유를 확인하세요.';
     bubble.appendChild(hint);
     wrap.appendChild(bubble);
     messagesEl.appendChild(wrap);
@@ -2810,11 +2889,24 @@
           a.rel = 'noreferrer';
           result.appendChild(a);
           result.appendChild(document.createTextNode(' — GitHub 에서 머지하면 끝.'));
+          bubble.appendChild(result);
+          // Task 2: PR URL 있음 → 영구 lock (concurrent click = 다중 PR 방지).
+          promoteBtn.disabled = true;
         } else {
           result.textContent = '✅ Promote 완료 (PR URL 못 받음 — Playground 헤더에서 확인하세요).';
+          bubble.appendChild(result);
+          // Task 2: PR URL 못 받음 → 30s safety unlock. idempotent 응답
+          // 또는 stale 케이스에서 사용자 복구 경로를 열어 둠.
+          setTimeout(() => {
+            if (promoteBtn.disabled) {
+              promoteBtn.disabled = false;
+              const note = document.createElement('div');
+              note.className = 'task-transition-stamp';
+              note.textContent = '복구: PR URL 못 받아 다시 시도 가능합니다.';
+              bubble.appendChild(note);
+            }
+          }, 30000);
         }
-        bubble.appendChild(result);
-        promoteBtn.disabled = true; // 영구 lock — concurrent click 방지
       } catch (err) {
         addSystemMessage(`Promote 실패: ${err.message}`, 'error');
         unlockOnError();
