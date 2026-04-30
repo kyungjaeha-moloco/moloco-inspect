@@ -482,25 +482,38 @@ export function setJobRisks(jobId, risksKo) {
 }
 
 /**
- * Persist the Slack thread (channel + thread_ts) that originally
+ * Persist the Slack thread (channel + thread_ts) and optional
+ * `planMessageTs` (for chat.update on the plan card) that originally
  * created this job so molly can post status-change notifications
  * back into the same conversation. Stored on the job record (not in
  * a separate map) so it survives orchestrator restarts — molly's
  * startup scan re-attaches a poll loop to every active job that has
  * a `slackContext`.
  *
+ * Partial-update friendly: passing only `{planMessageTs}` after the
+ * initial `{channel, threadTs}` write merges into the existing context
+ * instead of clearing channel/threadTs. molly's flow is two-phase
+ * (mention → setJobSlackContext channel+thread; plan post → setJobSlackContext
+ * planMessageTs).
+ *
  * @param {string} jobId
- * @param {{ channel: string, threadTs: string }} context
+ * @param {{ channel?: string, threadTs?: string, planMessageTs?: string }} context
  * @returns {Job | null}
  */
 export function setJobSlackContext(jobId, context) {
   const job = getJob(jobId);
   if (!job) return null;
-  if (!context || !context.channel || !context.threadTs) return job;
-  job.slackContext = {
-    channel: String(context.channel),
-    threadTs: String(context.threadTs),
-  };
+  if (!context) return job;
+  const existing = job.slackContext ?? {};
+  const next = { ...existing };
+  if (context.channel) next.channel = String(context.channel);
+  if (context.threadTs) next.threadTs = String(context.threadTs);
+  if (context.planMessageTs) next.planMessageTs = String(context.planMessageTs);
+  // Don't overwrite existing channel/threadTs with empty values, but
+  // allow channel/threadTs to be set on first write. Bail out if we
+  // still don't have the minimum required pair.
+  if (!next.channel || !next.threadTs) return job;
+  job.slackContext = next;
   job.updatedAt = nowMs();
   persist(job);
   return job;

@@ -51,9 +51,9 @@ let appInstance = null;
  * @property {(id: string, feedback?: string) => void} redecomposeJob
  * @property {(id: string) => any} markQaPass
  * @property {(id: string) => void} rerunQa
- * @property {(jobId: string, taskId: string) => any} retryTask
- * @property {(jobId: string, taskId: string) => any} acceptTask
- * @property {(jobId: string, taskId: string) => any} skipTaskJob
+ * @property {(jobId: string, taskId: string, actionMeta?: {reason?: string|null, reasonText?: string|null}) => any} retryTask
+ * @property {(jobId: string, taskId: string, actionMeta?: {reason?: string|null, reasonText?: string|null}) => any} acceptTask
+ * @property {(jobId: string, taskId: string, actionMeta?: {reason?: string|null, reasonText?: string|null}) => any} skipTaskJob
  * @property {(id: string) => Promise<{prUrl?: string, branch?: string}>} promoteJob
  */
 
@@ -71,6 +71,18 @@ let opts = null;
  * @type {Set<string>}
  */
 const selfCancelledJobs = new Set();
+
+/**
+ * Jobs whose plan was approved via molly's own ✅ button. Mirror of
+ * selfCancelledJobs — `handleApprove` adds before flipping status, and
+ * `pollJobUntilDoneInner` consumes-and-clears when it observes the
+ * `planning → delegating` transition. External approves (Playground UI,
+ * curl, Chrome ext) are NOT in this set, so the poll loop announces
+ * them in Slack thread + stamps the plan card buttons as inactive.
+ *
+ * @type {Set<string>}
+ */
+const selfApprovedJobs = new Set();
 
 /**
  * Jobs molly is currently polling. Prevents double-watching the same
@@ -535,6 +547,11 @@ async function handleApprove({ ack: _ack, body, action, client, logger }) {
   const channel = body.channel.id;
   const threadTs = body.message.thread_ts ?? body.message.ts;
   const userId = body.user.id;
+
+  // Mark BEFORE flipping status so a fast pollJobUntilDoneInner tick
+  // can't race and observe `delegating` before we've claimed responsibility.
+  // Mirrors selfCancelledJobs pattern.
+  selfApprovedJobs.add(jobId);
 
   try {
     opts.approveJobPlan(jobId);
@@ -1082,12 +1099,24 @@ function stampPendingRedecomposeBlocks(_originalBlocks, userId, feedback) {
 
 async function postPlanMessage({ client, channel, threadTs, job }) {
   const blocks = buildPlanBlocks(job);
-  await client.chat.postMessage({
+  const result = await client.chat.postMessage({
     channel,
     thread_ts: threadTs,
     text: `📋 작업 계획 (${job.tasks.length} tasks)`, // fallback for clients that don't render blocks
     blocks,
   });
+  // Persist plan card ts so polling can chat.update it on external
+  // approve/cancel transitions (Playground UI / curl / Chrome ext).
+  // Without this, plan card buttons stay clickable after external
+  // approve and Slack thread doesn't reflect the state change.
+  if (result?.ts) {
+    try {
+      opts.setJobSlackContext(job.id, { planMessageTs: result.ts });
+    } catch (err) {
+      // best-effort — polling fallback (post fresh thread reply) still works
+      console.warn(`[molly] setJobSlackContext planMessageTs failed: ${err?.message ?? err}`);
+    }
+  }
 }
 
 function buildPlanBlocks(job) {
@@ -1247,6 +1276,68 @@ function stampCancelledBlocks(originalBlocks, userId) {
     ],
   });
   return filtered;
+}
+
+/**
+ * External-source variants — Playground UI / curl / Chrome ext 가
+ * status 를 바꾼 케이스. userId 가 없어 source 라벨 ("Playground 등
+ * 외부") 만 표시. plan card buttons 같이 제거.
+ */
+function stampExternallyApprovedBlocks(originalBlocks) {
+  const filtered = (originalBlocks ?? []).filter(
+    (b) => b.type !== 'actions',
+  );
+  filtered.push({
+    type: 'context',
+    elements: [
+      {
+        type: 'mrkdwn',
+        text: `✅ Playground 또는 외부에서 승인됐습니다`,
+      },
+    ],
+  });
+  return filtered;
+}
+
+function stampExternallyCancelledBlocks(originalBlocks) {
+  const filtered = (originalBlocks ?? []).filter(
+    (b) => b.type !== 'actions',
+  );
+  filtered.push({
+    type: 'context',
+    elements: [
+      {
+        type: 'mrkdwn',
+        text: `❌ Playground 또는 외부에서 취소됐습니다`,
+      },
+    ],
+  });
+  return filtered;
+}
+
+/**
+ * Fetch the current blocks of a Slack message via conversations.history.
+ * Used by the poll loop to stamp the plan card on external transitions
+ * (we don't store original blocks anywhere — Slack does).
+ *
+ * @param {object} client
+ * @param {string} channel
+ * @param {string} ts
+ * @returns {Promise<Array<object> | null>}
+ */
+async function fetchSlackMessageBlocks(client, channel, ts) {
+  try {
+    const r = await client.conversations.history({
+      channel,
+      latest: ts,
+      oldest: ts,
+      inclusive: true,
+      limit: 1,
+    });
+    return r?.messages?.[0]?.blocks ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Polling ────────────────────────────────────────────────────────
@@ -1409,8 +1500,62 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
       return;
     }
 
+    const prevStatus = lastStatus;
     if (job.status !== lastStatus) {
       lastStatus = job.status;
+    }
+
+    // External approve detection — `planning` 에서 다른 상태로 빠진
+    // 트랜지션이 molly 자체 ✅ 버튼 (selfApprovedJobs) 가 아니면
+    // Playground/Chrome ext/curl 가 트리거. Slack thread 에 알림 +
+    // plan card 의 버튼 비활성화. 첫 iteration 은 historical resume
+    // 일 수 있어 skip.
+    if (
+      prevStatus === 'planning' &&
+      job.status !== 'planning' &&
+      !wasFirstIteration &&
+      !announcedJobStates.has('externally-approved')
+    ) {
+      if (selfApprovedJobs.has(jobId)) {
+        // We posted the approval in handleApprove — don't duplicate.
+        selfApprovedJobs.delete(jobId);
+        announcedJobStates.add('externally-approved');
+      } else if (job.status !== 'cancelled') {
+        // External approve (or redecompose if status === 'decomposing').
+        // For redecompose we don't surface here — handleRedecomposeSubmit
+        // already handles its own UI flow when triggered from Slack.
+        // External Playground redecompose is acceptable to skip in v0.
+        announcedJobStates.add('externally-approved');
+        const planTs = job.slackContext?.planMessageTs;
+        if (planTs) {
+          const blocks = await fetchSlackMessageBlocks(client, channel, planTs);
+          if (blocks) {
+            try {
+              await client.chat.update({
+                channel,
+                ts: planTs,
+                text: '계획이 외부에서 승인됐습니다',
+                blocks: stampExternallyApprovedBlocks(blocks),
+              });
+            } catch (err) {
+              /* swallow — fallback message below still surfaces signal */
+            }
+          }
+        }
+        if (job.status === 'decomposing') {
+          await client.chat.postMessage({
+            channel,
+            thread_ts: threadTs,
+            text: '🔁 Playground 또는 외부에서 계획을 다시 세우는 중입니다…',
+          });
+        } else {
+          await client.chat.postMessage({
+            channel,
+            thread_ts: threadTs,
+            text: '✅ Playground 또는 외부에서 계획이 승인됐습니다. 작업을 시작합니다…',
+          });
+        }
+      }
     }
 
     // Per-task transitions — post one message per (task, status)
@@ -1513,6 +1658,24 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
           `Playground: ${PLAYGROUND_BASE_URL}/${job.playgroundId}`,
         ].join('\n'),
       });
+      // Plan card stamp — buttons 가 여전히 활성이면 사용자가 잘못
+      // 승인할 수 있으니 같이 무력화.
+      const planTsCancel = job.slackContext?.planMessageTs;
+      if (planTsCancel) {
+        const blocks = await fetchSlackMessageBlocks(client, channel, planTsCancel);
+        if (blocks) {
+          try {
+            await client.chat.update({
+              channel,
+              ts: planTsCancel,
+              text: '계획 외부에서 취소됨',
+              blocks: stampExternallyCancelledBlocks(blocks),
+            });
+          } catch {
+            /* swallow */
+          }
+        }
+      }
       return;
     }
 
