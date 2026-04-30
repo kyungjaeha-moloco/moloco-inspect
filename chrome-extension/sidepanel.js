@@ -2084,12 +2084,12 @@
    */
   /**
    * Phase 3 Task 3.2 follow-up — molly 가 처리 중일 때 사용자가 뭘 기다
-   * 리고 있는지 보여주는 thinking indicator. 단순 "잠깐만요…" 가 아니라
-   * 시간이 흐르면서 phase 별 안내로 업데이트:
-   *   0s   "🤔 의도 분석 중..."           classifier (~0.5s)
-   *   2s   "📋 PRD 명확도 검토 중..."      analyzer (~3-10s, thinking ON)
-   *   8s   "🛠️ 계획 만드는 중..."          plan emit (~15-25s, DS context)
-   *   20s  "⌛ 조금만 더 기다려 주세요..."  timeout 가까워졌을 때
+   * 리고 있는지 보여주는 thinking indicator. 입력이 PRD/chat/status 무엇
+   * 인지 클라가 모르므로 일반적 wording.
+   *   0s   "🤔 molly 가 살펴보고 있어요"     classifier (모든 입력 거침)
+   *   2s   "📋 맥락 분석 중..."              chat/status/analyzer (~3-10s)
+   *   8s   "🛠️ 응답 정리 중... (10-20초)"   plan emit OR 긴 응답 단계
+   *   20s  "⌛ 조금만 더 기다려 주세요..."   timeout 가까워졌을 때
    *
    * 반환: { dismiss() } — 응답 도착하면 호출. setTimeout 들 정리 + node 제거.
    */
@@ -2098,14 +2098,14 @@
     wrap.className = 'msg msg-system molly-thinking';
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble molly-chat-card';
-    bubble.textContent = '🤔 의도 분석 중...';
+    bubble.textContent = '🤔 molly 가 살펴보고 있어요';
     wrap.appendChild(bubble);
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
     const timers = [];
-    timers.push(setTimeout(() => { bubble.textContent = '📋 PRD 명확도 검토 중...'; }, 2000));
-    timers.push(setTimeout(() => { bubble.textContent = '🛠️ 계획 만드는 중... (10-20초)'; }, 8000));
+    timers.push(setTimeout(() => { bubble.textContent = '📋 맥락 분석 중...'; }, 2000));
+    timers.push(setTimeout(() => { bubble.textContent = '🛠️ 응답 정리 중... (10-20초)'; }, 8000));
     timers.push(setTimeout(() => { bubble.textContent = '⌛ 조금만 더 기다려 주세요...'; }, 20000));
 
     return {

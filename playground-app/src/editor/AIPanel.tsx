@@ -3348,16 +3348,16 @@ const timelineLogStyle: React.CSSProperties = {
   wordBreak: 'break-word',
 };
 
-// Phase-based progress messages — UX 피드백 (2026-04-30): 단순 dot 만
-// 보이면 사용자가 뭘 기다리는지 모름. 시간 흐르며 phase 별 안내:
-//   0s    "의도 분석 중..."           classifier (~0.5s)
-//   2s    "PRD 명확도 검토 중..."      analyzer (~3-10s, thinking ON)
-//   8s    "계획 만드는 중... (10-20초)" plan emit (~15-25s, DS context)
-//   20s   "조금만 더 기다려 주세요..."  timeout 가까워졌을 때
+// Phase-based progress messages — UX 피드백 (2026-04-30): 입력이
+// PRD/chat/status 무엇인지 클라가 모르므로 일반적 wording.
+//   0s    "molly 가 살펴보고 있어요"     classifier (모든 입력 거침)
+//   2s    "맥락 분석 중..."              chat/status/analyzer (~3-10s)
+//   8s    "응답 정리 중... (10-20초)"    plan emit OR 긴 응답 단계
+//   20s   "조금만 더 기다려 주세요..."   timeout 가까워졌을 때
 const TYPING_PHASES = [
-  { atMs: 0, label: '의도 분석 중...' },
-  { atMs: 2000, label: 'PRD 명확도 검토 중...' },
-  { atMs: 8000, label: '계획 만드는 중... (10-20초)' },
+  { atMs: 0, label: 'molly 가 살펴보고 있어요' },
+  { atMs: 2000, label: '맥락 분석 중...' },
+  { atMs: 8000, label: '응답 정리 중... (10-20초)' },
   { atMs: 20000, label: '조금만 더 기다려 주세요...' },
 ] as const;
 
