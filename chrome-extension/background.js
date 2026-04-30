@@ -405,21 +405,66 @@ void refreshHealthState();
 
 // ─── Side Panel + Tab Group ─────────────────────────────────────────
 //
-// UX contract (driven by the user request 2026-04-29):
+// UX contract (revised 2026-04-30 — origin lock, Claude ext 식):
 //
-//   1. Clicking the extension icon on a tab "opts that tab in" — it
-//      gets added to a "Moloco Inspect" tab group (visual marker, easy
-//      to spot among many tabs) and the side panel opens.
-//   2. The side panel is *enabled per-tab*. Tabs in the group keep it
-//      enabled; tabs outside the group have it disabled, so switching
-//      to an unrelated tab collapses the panel automatically (the user
-//      explicitly asked for this — the panel sticking around on
-//      unrelated tabs felt out of place).
-//   3. Manifest's `side_panel.default_path` is global — we use
+//   1. 첫 아이콘 클릭 → 그 탭의 origin (protocol+host+port) 을
+//      `activeOrigin` 으로 저장 (chrome.storage.local). 그 탭에서
+//      panel 열림 + Moloco Inspect tab group 에 추가.
+//   2. 모든 탭의 panel enabled 는 `originMatches(tab.url)` 로 결정.
+//      같은 origin 의 *모든* 탭에서 panel 활성 (수동 그룹 추가 없이도).
+//   3. 다른 origin 으로 navigate → panel 자동으로 collapse.
+//   4. 다른 origin 에서 아이콘 다시 클릭 → activeOrigin *전환*. 이전
+//      origin 의 모든 탭은 panel 비활성. 한 origin 만 lock (multi-origin
+//      안 함 — 단순 single-origin).
+//   5. Manifest's `side_panel.default_path` is global — we use
 //      `sidePanel.setOptions({tabId, enabled})` to override per-tab.
 
 const MOLOCO_GROUP_TITLE = 'Moloco Inspect';
 const MOLOCO_GROUP_COLOR = 'cyan'; // chrome.tabGroups Color enum
+
+// Origin lock — module-level cache, chrome.storage.local 와 sync.
+// 시작 시 loadActiveOrigin() 으로 로드.
+let activeOrigin = null;
+
+async function loadActiveOrigin() {
+  try {
+    const { activeOrigin: stored } = await chrome.storage.local.get(['activeOrigin']);
+    activeOrigin = stored || null;
+  } catch (err) {
+    console.warn('[Moloco Inspect] loadActiveOrigin failed:', err.message);
+  }
+}
+
+async function setActiveOrigin(origin) {
+  activeOrigin = origin;
+  try {
+    await chrome.storage.local.set({ activeOrigin: origin });
+  } catch (err) {
+    console.warn('[Moloco Inspect] setActiveOrigin failed:', err.message);
+  }
+}
+
+function getOrigin(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    // chrome:// / file:// / about: 등 web origin 아닌 것 제외 — lock 대상 아님.
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return u.origin;
+  } catch {
+    return null;
+  }
+}
+
+function originMatches(url) {
+  if (!activeOrigin) return false;
+  const o = getOrigin(url);
+  return o === activeOrigin;
+}
+
+// 시작 시 로드 (top-level await 대신 fire-and-forget — onStartup/onInstalled
+// 도 다시 로드).
+void loadActiveOrigin();
 
 async function findMolocoGroup(windowId) {
   try {
@@ -473,11 +518,13 @@ async function updateSidePanelForTab(tabId) {
   if (tabId == null) return;
   try {
     const tab = await chrome.tabs.get(tabId);
-    const inGroup = await isTabInMolocoGroup(tab);
+    // Origin lock — activeOrigin 일치 탭만 enabled. group 멤버십은 시각적
+    // 마커로만 (panel state 결정에는 안 씀).
+    const ok = originMatches(tab.url);
     await chrome.sidePanel.setOptions({
       tabId,
       path: 'sidepanel.html',
-      enabled: inGroup,
+      enabled: ok,
     });
   } catch (err) {
     // Tab may have been closed mid-flight; harmless.
@@ -497,46 +544,59 @@ async function syncAllTabsSidePanel() {
 }
 
 chrome.action.onClicked.addListener((tab) => {
-  if (!tab?.id) return;
+  if (!tab?.id || !tab?.url) return;
+  const origin = getOrigin(tab.url);
+  if (!origin) {
+    console.warn('[Moloco Inspect] cannot lock to non-http(s) URL:', tab.url);
+    return;
+  }
   // CRITICAL: chrome.sidePanel.open() requires a user gesture and the
   // gesture token expires across awaits. Do NOT await anything before
   // calling open — otherwise the panel fails to open silently.
   //
-  // 1. Enable the panel for this tab (fire-and-forget; the request is
+  // 1. Origin lock — 다른 origin 이면 전환. 같은 origin 이면 변화 없음
+  //    (storage 저장은 idempotent — 동일 값이면 noop). cache 즉시 갱신
+  //    해서 syncAllTabsSidePanel 이 새 origin 으로 평가하게.
+  const switched = activeOrigin !== origin;
+  activeOrigin = origin;
+  void chrome.storage.local.set({ activeOrigin: origin });
+  // 2. Enable the panel for this tab (fire-and-forget; the request is
   //    dispatched to the browser before open() reaches it).
   chrome.sidePanel.setOptions({
     tabId: tab.id,
     path: 'sidepanel.html',
     enabled: true,
   });
-  // 2. Open synchronously off the same gesture.
+  // 3. Open synchronously off the same gesture.
   chrome.sidePanel.open({ tabId: tab.id }).catch((err) => {
     console.warn('[Moloco Inspect] sidePanel.open failed:', err.message);
   });
-  // 3. Group management has no gesture requirement — defer it.
+  // 4. Group + sync. group 은 visual 마커만, sync 는 다른 탭의 panel
+  //    enable/disable 갱신 (origin 전환 시 이전 origin 탭들 비활성).
   void addTabToMolocoGroup(tab);
+  if (switched) {
+    void syncAllTabsSidePanel();
+  }
 });
 
-// Tab switched → enable for tabs in our group, disable for others so
-// the panel collapses on unrelated tabs.
+// Tab switched → origin 일치 탭은 enabled, 아니면 disabled.
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   void updateSidePanelForTab(tabId);
 });
 
-// Tab moved into or out of a group → re-evaluate side panel state.
+// Tab url 또는 group 변경 시 panel 재평가.
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.groupId !== undefined) {
+  if (changeInfo.url || changeInfo.groupId !== undefined) {
     void updateSidePanelForTab(tabId);
   }
 });
 
-// On extension startup / fresh install: walk every existing tab so the
-// "default path on every tab" behavior gets overridden right away.
+// On extension startup / fresh install: activeOrigin 로드 + 모든 탭 sync.
 chrome.runtime.onStartup.addListener(() => {
-  void syncAllTabsSidePanel();
+  void loadActiveOrigin().then(() => syncAllTabsSidePanel());
 });
 chrome.runtime.onInstalled.addListener(() => {
-  void syncAllTabsSidePanel();
+  void loadActiveOrigin().then(() => syncAllTabsSidePanel());
 });
 
 // ─── Job pipeline helpers (Phase 2 / B Step 1) ───────────────────
