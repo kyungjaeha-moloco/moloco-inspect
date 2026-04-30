@@ -3592,16 +3592,16 @@ server.listen(PORT, '0.0.0.0', () => {
       });
       runQaStrategyInBackground(jobId);
     },
-    retryTask: (jobId, taskId) => {
-      retryTask(jobId, taskId);
+    retryTask: (jobId, taskId, actionMeta) => {
+      retryTask(jobId, taskId, actionMeta);
       runJobInBackground(jobId);
     },
-    acceptTask: (jobId, taskId) => {
-      acceptTask(jobId, taskId);
+    acceptTask: (jobId, taskId, actionMeta) => {
+      acceptTask(jobId, taskId, actionMeta);
       runJobInBackground(jobId);
     },
-    skipTaskJob: (jobId, taskId) => {
-      skipTask(jobId, taskId);
+    skipTaskJob: (jobId, taskId, actionMeta) => {
+      skipTask(jobId, taskId, actionMeta);
       runJobInBackground(jobId);
     },
     // Promote — wraps lib/playground.js#promotePlayground so molly

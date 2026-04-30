@@ -263,6 +263,16 @@ export function startMolly(options) {
     }
   });
 
+  // Modal submit — calls the appropriate lib hook with reason picker result.
+  appInstance.view('molly_task_action_submit', async (ctx) => {
+    await ctx.ack();
+    try {
+      await handleTaskActionSubmit(ctx);
+    } catch (err) {
+      ctx.logger.error(`[molly] handleTaskActionSubmit crashed: ${err?.stack ?? err}`);
+    }
+  });
+
   appInstance.error(async (err) => {
     console.error('[molly] error:', err);
   });
@@ -858,6 +868,17 @@ async function handlePromote({ body, action, client, logger }) {
   }
 }
 
+/** Reason picker options — mirrors Chrome ext Slice 3 ACTION_REASONS enum. */
+const TASK_ACTION_REASON_OPTIONS = [
+  { text: { type: 'plain_text', text: '문법/타입 에러' }, value: 'syntax_error' },
+  { text: { type: 'plain_text', text: '논리/구현 오류' }, value: 'logic_error' },
+  { text: { type: 'plain_text', text: '범위 벗어남' }, value: 'scope_creep' },
+  { text: { type: 'plain_text', text: '부분 구현' }, value: 'partial' },
+  { text: { type: 'plain_text', text: '잘못된 파일' }, value: 'wrong_target' },
+  { text: { type: 'plain_text', text: '오버 딜리버' }, value: 'over_delivered' },
+  { text: { type: 'plain_text', text: '기타' }, value: 'other' },
+];
+
 /**
  * Generic handler for the three task-failure buttons. `mode` selects
  * which orchestrator hook to call:
@@ -866,6 +887,9 @@ async function handlePromote({ body, action, client, logger }) {
  *   - skip    → opts.skipTaskJob   (skip + cascade blocked)
  *
  * value is encoded as "${jobId}:${taskId}".
+ *
+ * Instead of calling the lib immediately, opens a reason picker modal.
+ * The actual lib call happens in handleTaskActionSubmit (view submit handler).
  */
 async function handleTaskAction({ body, action, client, logger }, mode) {
   const raw = String(action.value ?? '');
@@ -878,29 +902,97 @@ async function handleTaskAction({ body, action, client, logger }, mode) {
   const taskId = raw.slice(sepIdx + 1);
   const channel = body.channel.id;
   const threadTs = body.message.thread_ts ?? body.message.ts;
-  const userId = body.user.id;
+  const msgTs = body.message.ts;
 
-  /** @type {{verb: string, runHook: () => any}} */
-  const action_table = {
-    retry: { verb: '재시도', runHook: () => opts.retryTask(jobId, taskId) },
-    accept: { verb: '그대로 통과', runHook: () => opts.acceptTask(jobId, taskId) },
-    skip: { verb: '건너뛰기', runHook: () => opts.skipTaskJob(jobId, taskId) },
-  }[mode];
-  if (!action_table) {
+  const verbMap = { retry: '재시도', accept: '그대로 통과', skip: '건너뛰기' };
+  const verb = verbMap[mode];
+  if (!verb) {
     logger.warn(`[molly] task action: unknown mode=${mode}`);
     return;
   }
 
+  await client.views.open({
+    trigger_id: body.trigger_id,
+    view: {
+      type: 'modal',
+      callback_id: 'molly_task_action_submit',
+      private_metadata: JSON.stringify({ jobId, taskId, mode, channel, threadTs, msgTs }),
+      title: { type: 'plain_text', text: verb },
+      submit: { type: 'plain_text', text: '확인' },
+      close: { type: 'plain_text', text: '취소' },
+      blocks: [
+        {
+          type: 'input',
+          block_id: 'reason_block',
+          optional: true,
+          label: { type: 'plain_text', text: '사유 (선택)' },
+          element: {
+            type: 'static_select',
+            action_id: 'reason',
+            placeholder: { type: 'plain_text', text: '사유 선택…' },
+            options: TASK_ACTION_REASON_OPTIONS,
+          },
+        },
+        {
+          type: 'input',
+          block_id: 'reason_text_block',
+          optional: true,
+          label: { type: 'plain_text', text: '추가 설명 (선택)' },
+          element: {
+            type: 'plain_text_input',
+            action_id: 'reason_text',
+            multiline: true,
+            max_length: 500,
+            placeholder: { type: 'plain_text', text: '예: 3번 페이지에서 i18n 키가 충돌해서 …' },
+          },
+        },
+      ],
+    },
+  });
+  logger.info(`[molly] task action modal opened: mode=${mode} job=${jobId} task=${taskId}`);
+}
+
+/**
+ * View submit handler for the task-action reason picker modal.
+ * Extracts reason / reasonText, calls the appropriate lib hook with actionMeta,
+ * then stamps the original message and posts a thread update.
+ */
+async function handleTaskActionSubmit({ body, view, client, logger }) {
+  /** @type {{jobId: string, taskId: string, mode: string, channel: string, threadTs: string, msgTs: string}} */
+  const meta = JSON.parse(view.private_metadata);
+  const { jobId, taskId, mode, channel, threadTs, msgTs } = meta;
+  const userId = body.user.id;
+
+  const reason =
+    view.state?.values?.reason_block?.reason?.selected_option?.value ?? null;
+  const reasonText =
+    view.state?.values?.reason_text_block?.reason_text?.value?.trim() || null;
+  const actionMeta = { reason, reasonText };
+
+  const verbMap = { retry: '재시도', accept: '그대로 통과', skip: '건너뛰기' };
+  const verb = verbMap[mode] ?? mode;
+
+  const hookMap = {
+    retry: () => opts.retryTask(jobId, taskId, actionMeta),
+    accept: () => opts.acceptTask(jobId, taskId, actionMeta),
+    skip: () => opts.skipTaskJob(jobId, taskId, actionMeta),
+  };
+  const runHook = hookMap[mode];
+  if (!runHook) {
+    logger.warn(`[molly] task action submit: unknown mode=${mode}`);
+    return;
+  }
+
   try {
-    action_table.runHook();
+    runHook();
     logger.info(
-      `[molly] task action ${mode}: job=${jobId} task=${taskId} user=${userId}`,
+      `[molly] task action ${mode}: job=${jobId} task=${taskId} user=${userId} reason=${reason}`,
     );
   } catch (err) {
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `❌ Task ${action_table.verb} 실패: ${err.message?.slice(0, 200) ?? String(err)}`,
+      text: `❌ Task ${verb} 실패: ${err.message?.slice(0, 200) ?? String(err)}`,
     });
     return;
   }
@@ -910,25 +1002,35 @@ async function handleTaskAction({ body, action, client, logger }, mode) {
   // (e.g. retry → running → reviewed) will replace this via the
   // chat.update path.
   try {
-    const original = body.message.blocks ?? [];
+    // Fetch the original message blocks via conversations.history
+    // (view submit ctx doesn't carry body.message). We use the msgTs
+    // we stashed in private_metadata.
+    const hist = await client.conversations.history({
+      channel,
+      latest: msgTs,
+      inclusive: true,
+      limit: 1,
+    });
+    const original = hist?.messages?.[0]?.blocks ?? [];
     const filtered = original.filter((b) => b.type !== 'actions');
+    const reasonLabel = reason
+      ? TASK_ACTION_REASON_OPTIONS.find((o) => o.value === reason)?.text?.text ?? reason
+      : null;
+    const stampText = reasonLabel
+      ? `↳ <@${userId}> 님이 *${verb}* 처리했습니다 — _${reasonLabel}${reasonText ? ': ' + reasonText.slice(0, 100) : ''}_`
+      : `↳ <@${userId}> 님이 *${verb}* 처리했습니다`;
     filtered.push({
       type: 'context',
-      elements: [
-        {
-          type: 'mrkdwn',
-          text: `↳ <@${userId}> 님이 *${action_table.verb}* 처리했습니다`,
-        },
-      ],
+      elements: [{ type: 'mrkdwn', text: stampText }],
     });
     await client.chat.update({
       channel,
-      ts: body.message.ts,
-      text: body.message.text ?? `${action_table.verb} 처리됨`,
+      ts: msgTs,
+      text: `${verb} 처리됨`,
       blocks: filtered,
     });
   } catch (err) {
-    logger.warn(`[molly] chat.update (task action) failed: ${err.message}`);
+    logger.warn(`[molly] chat.update (task action submit) failed: ${err.message}`);
   }
 }
 
