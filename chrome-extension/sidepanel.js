@@ -3886,7 +3886,19 @@
     // 게이트 (line ~3705) 는 plan 카드 *수락 후* 라 너무 늦음 (사용자가
     // 인사만 했는데 plan 부터 봐야 했던 버그). pendingClarification 중
     // 에는 우회 — 진행 중인 clarification 흐름 끊지 않게.
+    //
+    // UX (2026-04-30 피드백): 사용자 버블이 fetch 응답 후에야 그려져
+    // "내 메시지가 전달됐나?" 헷갈림. intake 게이트 진입 즉시 사용자
+    // 버블 + input 비우기 → thinking indicator → fetch 응답. 아래 분기
+    // 와 plan 생성 흐름의 중복 addUserMessage 는 userMessageRendered
+    // 플래그로 skip.
+    let userMessageRendered = false;
     if (!pendingClarification) {
+      addUserMessage(text, currentElement, selectedCapture);
+      promptInput.value = '';
+      promptInput.style.height = 'auto';
+      userMessageRendered = true;
+
       const thinking = showMollyThinking(messagesEl);
       try {
         const baseUrl = await getServerUrl();
@@ -3900,17 +3912,11 @@
           const data = await r.json();
           const kind = data?.kind;
           if (kind === 'chat' || kind === 'status_query') {
-            addUserMessage(text, currentElement, selectedCapture);
-            promptInput.value = '';
-            promptInput.style.height = 'auto';
             addMollyChatMessage(data.response || '(빈 응답)', kind);
             updateSendState();
             return;
           }
           if (kind === 'code_change_ambiguous' && data?.clarifyingQuestion) {
-            addUserMessage(text, currentElement, selectedCapture);
-            promptInput.value = '';
-            promptInput.style.height = 'auto';
             addMollyChatMessage(`🤔 ${data.clarifyingQuestion}`, 'clarify');
             updateSendState();
             return;
@@ -3933,10 +3939,13 @@
         requestedDepth: inferClarificationDepth(text, activeContext),
         turns: 1,
       };
-      addUserMessage(text, currentElement, selectedCapture);
+      if (!userMessageRendered) {
+        addUserMessage(text, currentElement, selectedCapture);
+        promptInput.value = '';
+        promptInput.style.height = 'auto';
+        userMessageRendered = true;
+      }
       addClarificationMessage(clarification);
-      promptInput.value = '';
-      promptInput.style.height = 'auto';
       inputStatus.textContent = 'Pick an option or type your own — work starts as soon as you do.';
       if (intentSelect) {
         intentSelect.value = clarification.intent;
@@ -4086,9 +4095,12 @@
       timestamp: new Date().toISOString(),
     };
 
-    addUserMessage(text, currentElement, selectedCapture);
-    promptInput.value = '';
-    promptInput.style.height = 'auto';
+    if (!userMessageRendered) {
+      addUserMessage(text, currentElement, selectedCapture);
+      promptInput.value = '';
+      promptInput.style.height = 'auto';
+      userMessageRendered = true;
+    }
     updateSendState();
 
     pendingExecutionPlan = {
