@@ -107,6 +107,51 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const trunc = (str, n) => (str.length > n ? `${str.slice(0, n)}…` : str);
 
 /**
+ * Phase 3 Task 3.1 sub-phase D — Slack thread reply 를 IntakeHistoryTurn[]
+ * 으로 변환. dispatcher 가 prev kind 보고 multi-turn (clarification +
+ * plan) 라우팅. Slack 은 message metadata 가 plain text 라 kind 는 휴리
+ * 스틱:
+ *  - assistant message ("🤔 " 접두사) → code_change_ambiguous
+ *  - 그 외 bot 메시지 → chat
+ *  - 사용자 메시지 → user (no kind)
+ *
+ * @param {object} client — Slack bolt App.client
+ * @param {string} channel
+ * @param {string} threadTs — Slack thread ts (event.thread_ts ?? event.ts)
+ * @param {string} excludeTs — 현재 처리 중인 mention 의 ts (history 에서 제외)
+ * @returns {Promise<Array<{role:'user'|'assistant', content:string, kind?:string}>>}
+ */
+async function buildSlackHistory(client, channel, threadTs, excludeTs) {
+  if (!threadTs || !client) return [];
+  try {
+    const resp = await client.conversations.replies({
+      channel,
+      ts: threadTs,
+      limit: 20,
+    });
+    const messages = Array.isArray(resp?.messages) ? resp.messages : [];
+    const history = [];
+    for (const m of messages) {
+      if (!m || m.ts === excludeTs) continue; // skip current trigger
+      const text = String(m.text || '').replace(/<@[A-Z0-9]+>\s*/g, '').trim();
+      if (!text) continue;
+      // bot 메시지 (Slack app 응답) — bot_id 또는 bot_profile 있으면 assistant.
+      const isBot = !!m.bot_id || !!m.bot_profile || m.subtype === 'bot_message';
+      if (isBot) {
+        const kind = text.startsWith('🤔') ? 'code_change_ambiguous' : 'chat';
+        history.push({ role: 'assistant', content: text.slice(0, 1000), kind });
+      } else {
+        history.push({ role: 'user', content: text.slice(0, 1000) });
+      }
+    }
+    return history.slice(-10); // last 10 turns 만 — 토큰 비용
+  } catch (err) {
+    console.warn(`[molly] buildSlackHistory failed: ${err.message?.slice(0, 80)}`);
+    return [];
+  }
+}
+
+/**
  * Korean labels for the QA strategies the strategist can pick.
  * Mirrors the catalog in `lib/job-qa-strategist.js#QA_STRATEGIES`.
  */
@@ -390,17 +435,21 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
   // Phase 3 Task 3.3 — Phase 1 의 인라인 분기 (classifier + analyzer 별개)
   // 를 processIntake 단일 호출로 정리. /api/molly/respond 가 하던 4 종
   // kind 분기를 라이브러리 호출로 흡수 — surface 별 중복 제거.
+  // Sub-phase D — thread reply 를 history 로 변환해 동봉 → multi-turn
+  // (clarification + plan) 가 dispatcher 에서 작동.
   // 폴백: intake 자체 throw (network / API key 없음 등) 시 안전하게 chat
   // 응답으로 (잡 안 만드는 게 부작용 0).
   let result;
   try {
     const { processIntake } = await import('./molly-intake.js');
+    const history = await buildSlackHistory(client, event.channel, threadTs, event.ts);
     result = await processIntake(text, {
       surface: 'slack',
       listJobs: opts.listJobs,
       getJob: opts.getJob,
       channel: event.channel,
       threadTs,
+      history,
     });
   } catch (err) {
     logger.warn(`[molly] processIntake failed, falling back to chat: ${err.message}`);
