@@ -2543,6 +2543,31 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
+  // Unified intake — surface 무관 entry point. classifier + chat/status +
+  // PRD analyzer 를 한 lib (molly-intake.js) 로 묶어 4 종 kind 반환.
+  // Phase 2 of unified intake plan. 기존 /api/molly/respond 는 alias 로 유지
+  // (Phase 3 에서 deprecate).
+  if (pathname === '/api/intake' && req.method === 'POST') {
+    try {
+      const { processIntake } = await import('./lib/molly-intake.js');
+      const payload = await parseBody(req);
+      const text = String(payload?.text ?? '').trim();
+      if (!text) return json(res, 400, { ok: false, error: 'text required' });
+      const ctx = {
+        surface: payload?.surface || 'unknown',
+        recentMessages: Array.isArray(payload?.recentMessages) ? payload.recentMessages : [],
+        channel: payload?.channel,
+        threadTs: payload?.threadTs,
+        listJobs,
+        getJob,
+      };
+      const result = await processIntake(text, ctx);
+      return json(res, 200, { ok: true, ...result });
+    } catch (err) {
+      return json(res, 500, { ok: false, error: err?.message ?? String(err) });
+    }
+  }
+
   // molly chat mode — classifier 후 분기. 코드 변경 요청이면 잡 생성을
   // 호출자가 알아서 (jobId 반환은 안 함 — surface 가 createJob/decompose
   // 직접 부름. 이 엔드포인트는 분류 + chat/status 응답만 책임).
