@@ -459,11 +459,11 @@ export const AIPanel = React.memo(function AIPanel({
 
     setSending(true);
     try {
-      // molly 분류 게이트 — 첫 사용자 메시지만 거침 (multi-turn 보호).
-      // 실패 / code_change 시 기존 Wizard 흐름 그대로.
-      const userCount = current.filter((m) => m.role === 'user').length;
-      const isFirst = userCount === 1;
-      const dispatch = await mollyClassifyAndDispatch(trimmed, isFirst);
+      // molly 분류 게이트 — 매 turn 거침. 사용자가 mid-Wizard 에 status
+      // 질의 / chat 던질 수 있어야 함 ("지금 서버상태 어때?" 같은). 단점:
+      // Wizard 의 clarifying 답변 ("TVING") 이 chat 으로 misclassify 가능.
+      // 그 trade-off 는 phase 2 (/api/intake 통합) 에서 진정 해결.
+      const dispatch = await mollyClassifyAndDispatch(trimmed, true);
       if (dispatch && (dispatch.kind === 'chat' || dispatch.kind === 'status_query')) {
         if (!isStillActive()) return;
         addAssistantMessage({ content: dispatch.response ?? '(빈 응답)' });
