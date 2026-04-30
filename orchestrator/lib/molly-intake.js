@@ -134,9 +134,15 @@ async function handleFirstTurn(text, ctx, history) {
 }
 
 /**
- * Sub-phase B 에서 구현. prev=code_change_ambiguous 일 때 사용자의 답변
- * 받아 cumulative PRD 만들고 prd-analyzer 다시 호출 → 여전히 ambiguous
- * 면 다음 Q, clear 면 plan emit (molly-plan-emitter.js).
+ * Sub-phase B.3 (2026-04-30) — prev=code_change_ambiguous 시 처리.
+ * cumulative PRD 만들어 prd-analyzer 가 history 와 함께 다시 판정.
+ * - 여전히 ambiguous → 다음 clarifying Q
+ * - clear → code_change_clear + cumulativePrd 반환 (caller 가 createJob
+ *   할 때 cumulativePrd 사용)
+ *
+ * Sub-phase B.2 (plan-emitter 추출) 가 다음 세션. 그 전엔 plan_emit
+ * 안 거치고 직접 code_change_clear 로 — 사용자가 즉시 잡 만들 수 있음.
+ * Wizard 의 plan ceremony 통합은 sub-phase B.2+B.4+C 끝나야 완성.
  *
  * @param {string} text
  * @param {HistoryTurn[]} history
@@ -144,10 +150,41 @@ async function handleFirstTurn(text, ctx, history) {
  * @returns {Promise<IntakeResult>}
  */
 async function handleClarificationAnswer(text, history, ctx) {
-  // TODO sub-phase B — prd-analyzer history 받게 + plan emit 흡수.
-  // 지금은 dispatcher 진입만 검증.
-  console.log(`[molly-intake] prev=code_change_ambiguous, dispatching clarification answer (TODO sub-phase B). text="${text.slice(0, 60)}"`);
-  throw new Error('TODO sub-phase B: handleClarificationAnswer not implemented');
+  const analysis = await analyzePrdClarity(text, { ...ctx, history });
+  console.log(`[molly-intake] clarification answer → clarity=${analysis.clarity} (text="${text.slice(0, 60)}")`);
+  if (analysis.clarity === 'ambiguous') {
+    return {
+      kind: 'code_change_ambiguous',
+      reason: 'follow-up answer still ambiguous',
+      clarifyingQuestion: analysis.clarifyingQuestion,
+      missingInfo: analysis.missingInfo,
+    };
+  }
+  // Clear — cumulative PRD 만들어 caller 가 사용. plan emit 은 B.2 후에.
+  const cumulativePrd = compactCumulativePrd(history, text);
+  return {
+    kind: 'code_change_clear',
+    reason: 'clarified via follow-up answer',
+    cumulativePrd,
+  };
+}
+
+/**
+ * History 의 모든 user turn + 최신 텍스트를 하나의 PRD 로 합침.
+ * caller (Slack/Chrome ext/Playground) 가 createJob 할 때 cumulativePrd
+ * 우선 사용. assistant turn 의 clarifying Q 들은 컨텍스트로만 PRD 에는
+ * 포함 X (PRD 는 사용자 의도만 담는 게 깨끗).
+ *
+ * @param {HistoryTurn[]} history
+ * @param {string} latestText
+ * @returns {string}
+ */
+function compactCumulativePrd(history, latestText) {
+  const userTurns = history
+    .filter((t) => t?.role === 'user')
+    .map((t) => (t.content || '').trim())
+    .filter(Boolean);
+  return [...userTurns, latestText].join('\n\n').trim();
 }
 
 /**

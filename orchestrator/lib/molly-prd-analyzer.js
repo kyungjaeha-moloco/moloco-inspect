@@ -33,7 +33,13 @@ const SYSTEM_PROMPT = `당신은 molly 의 PRD 명확도 검사자입니다. 사
 clarifyingQuestion 작성 규칙:
 - 한 번에 하나만 물음 (멀티-Q 안 됨)
 - 명확하면 빈 문자열
-- 한국어, 친근한 톤, 1-2 문장`;
+- 한국어, 친근한 톤, 1-2 문장
+
+누적 컨텍스트 모드:
+- 입력에 "이전 대화" 가 함께 주어지면 — 사용자가 이전 clarifying question 의 답을 한 것입니다.
+- 이전 PRD + 모든 답변을 합쳐서 *지금 작업 시작할 만큼 명확한지* 판정합니다.
+- 답변이 부분적이고 여전히 모호하면 다음 clarifying Q (한 번에 하나만, 이미 답한 것 다시 묻지 말 것).
+- 누적해서 명확해졌으면 clarity=clear 반환. 빈 clarifyingQuestion.`;
 
 /**
  * @param {string} text — 사용자 PRD 본문 (mention strip 등 cleanup 후)
@@ -43,7 +49,19 @@ clarifyingQuestion 작성 규칙:
 export async function analyzePrdClarity(text, ctx = {}) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-  const userMessage = `PRD 후보:\n${text}\n\n분석해주세요.`;
+  // Sub-phase B.1 — history 있으면 cumulative 컨텍스트로 분석. 사용자가
+  // 이전 clarifying Q 의 답을 한 시나리오. 모든 user turn + 이번 답변
+  // 합쳐서 system prompt 의 "누적 컨텍스트 모드" 가 작동.
+  const history = Array.isArray(ctx.history) ? ctx.history : [];
+  let userMessage;
+  if (history.length > 0) {
+    const turns = history
+      .map((t) => `${t.role === 'user' ? '사용자' : 'molly'}: ${(t.content || '').slice(0, 500)}`)
+      .join('\n');
+    userMessage = `이전 대화:\n${turns}\n\n사용자의 현재 답변/추가 정보:\n${text}\n\n위 누적 컨텍스트로 PRD 가 이제 명확한지 판정해주세요.`;
+  } else {
+    userMessage = `PRD 후보:\n${text}\n\n분석해주세요.`;
+  }
   const useThinking = PRD_THINKING_BUDGET > 0;
   // thinking 켜면 max_tokens 가 thinking + 응답 합 — 여유 있게.
   const maxTokens = useThinking ? PRD_THINKING_BUDGET + 600 : 400;
