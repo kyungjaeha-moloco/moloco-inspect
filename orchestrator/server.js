@@ -2585,6 +2585,10 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         recentMessages: Array.isArray(payload?.recentMessages) ? payload.recentMessages : [],
         channel: payload?.channel,
         threadTs: payload?.threadTs,
+        // Phase 3 Task 3.1 sub-phase A — multi-turn 지원. 클라이언트가
+        // 직전 IntakeResult.kind 를 assistant turn 의 kind 로 저장해서
+        // 보내야 dispatcher 가 정확한 routing. 길이 제한 10 (토큰 비용).
+        history: Array.isArray(payload?.history) ? payload.history.slice(-10) : [],
         listJobs,
         getJob,
       };
