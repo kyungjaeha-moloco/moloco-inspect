@@ -3348,7 +3348,28 @@ const timelineLogStyle: React.CSSProperties = {
   wordBreak: 'break-word',
 };
 
+// Phase-based progress messages — UX 피드백 (2026-04-30): 단순 dot 만
+// 보이면 사용자가 뭘 기다리는지 모름. 시간 흐르며 phase 별 안내:
+//   0s    "의도 분석 중..."           classifier (~0.5s)
+//   2s    "PRD 명확도 검토 중..."      analyzer (~3-10s, thinking ON)
+//   8s    "계획 만드는 중... (10-20초)" plan emit (~15-25s, DS context)
+//   20s   "조금만 더 기다려 주세요..."  timeout 가까워졌을 때
+const TYPING_PHASES = [
+  { atMs: 0, label: '의도 분석 중...' },
+  { atMs: 2000, label: 'PRD 명확도 검토 중...' },
+  { atMs: 8000, label: '계획 만드는 중... (10-20초)' },
+  { atMs: 20000, label: '조금만 더 기다려 주세요...' },
+] as const;
+
 function TypingIndicator() {
+  const [phaseIdx, setPhaseIdx] = useState(0);
+  useEffect(() => {
+    const timers = TYPING_PHASES.slice(1).map((p, i) =>
+      setTimeout(() => setPhaseIdx(i + 1), p.atMs),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, []);
+  const label = TYPING_PHASES[phaseIdx].label;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 2 }}>
       <div
@@ -3367,10 +3388,13 @@ function TypingIndicator() {
       >
         ✦
       </div>
-      <div style={{ display: 'flex', gap: 3 }}>
-        <Dot delay={0} />
-        <Dot delay={160} />
-        <Dot delay={320} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
+        <div style={{ display: 'flex', gap: 3 }}>
+          <Dot delay={0} />
+          <Dot delay={160} />
+          <Dot delay={320} />
+        </div>
       </div>
     </div>
   );
