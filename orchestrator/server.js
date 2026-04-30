@@ -2591,6 +2591,13 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         history: Array.isArray(payload?.history) ? payload.history.slice(-10) : [],
         listJobs,
         getJob,
+        // Sub-phase B.2 — molly-intake 의 handleClarificationAnswer / handlePlanEdit
+        // 가 emitPlan 호출 시 DS context 를 알아야 함. caller (Slack/Chrome ext/
+        // Playground) 가 client / routeOrPage 도 보내면 plan emitter 가 활용.
+        designSystemRoot: DESIGN_SYSTEM_ROOT,
+        requestSchemaPath: REQUEST_SCHEMA_PATH,
+        client: payload?.client,
+        routeOrPage: payload?.routeOrPage,
       };
       const result = await processIntake(text, ctx);
       return json(res, 200, { ok: true, ...result });
@@ -2659,169 +2666,39 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         });
       }
 
-      const apiKey =
-        process.env.ANTHROPIC_API_KEY ||
-        (SANDBOX_PROVIDER === 'anthropic' ? SANDBOX_API_KEY : null);
-      if (!apiKey) {
-        return json(res, 503, {
-          ok: false,
-          error:
-            'ANTHROPIC_API_KEY not configured. Set env var and restart orchestrator.',
-        });
-      }
-
-      // Load DS context from local design-system
-      const patternsPath = path.join(DESIGN_SYSTEM_ROOT, 'src', 'patterns.json');
-      const apiContractsPath = path.join(
-        DESIGN_SYSTEM_ROOT,
-        'src',
-        'api-ui-contracts.json',
-      );
-      const patterns = readJsonFile(patternsPath, {});
-      const apiContracts = readJsonFile(apiContractsPath, {});
-      const requestSchema = readJsonFile(REQUEST_SCHEMA_PATH, {});
-
-      const systemPrompt = `You help PMs at Moloco plan UI changes for the MSM Portal.
-
-You have access to a structured design system:
-- patterns.json: composition patterns (app-shell, list-page, detail-page, form-basic, etc.)
-- api-ui-contracts.json: entity definitions (Creative, Order, Advertiser, Product, AuctionOrder, PublisherTarget)
-- pm-sa-request-schema.json: structured request contract with a change_intent enum
-
-Your task: given a PM's goal, output a concrete plan as JSON. Ground your plan in real patterns, entities, and file paths from the DS resources provided.
-
-## Grounding rules (strict)
-- ONLY reference pattern_id values that exist in patterns.json. Never invent a pattern name.
-- ONLY reference entity names that exist in api-ui-contracts.json. Use null if unsure.
-- ONLY reference feature flag names, route keys, i18n keys, and component names that appear in the provided JSON. Never invent them.
-- For target_file, prefer the file paths or location templates that appear in patterns.json (layer_structure.location, file_checklist). When the exact file is unknown, use the pattern's template form (e.g. "src/apps/{client}/container/{entity}/list/MC{Entity}ListContainer.tsx") — do not guess a concrete filename.
-- If the request can't be met with the provided DS, say so in summary and mark affected plan_items with pattern_id: null.
-
-## Visual/UX constraints to carry forward (for downstream execution)
-Include the following in an array field "visual_constraints" at the top level. Downstream agents will use these when generating actual screens so the output matches the existing product:
-- "Follow the existing visual vocabulary of the target client (color, typography, spacing, density, shadow, radius)."
-- "Use tokens from design-system/src/tokens.json only. No hardcoded hex/px/font."
-- "No aggressive gradient backgrounds."
-- "No emoji unless the brand already uses them."
-- "No rounded-container-with-left-border-accent tropes."
-- "Do not draw icons/imagery as freehand SVG. Use icons from components.json icon catalog, or a placeholder box."
-- "Do not substitute overused fonts (Inter, Roboto, Arial, system). Use the DS typography tokens."
-- "A correct placeholder is better than a bad attempt at the real component."
-
-Output MUST be valid JSON only (no markdown, no prose). Schema:
-{
-  "intent": "<one of: copy_update|spacing_adjustment|token_alignment|component_swap|layout_adjustment|state_handling|accessibility_improvement|new_page|new_feature|data_display_change|form_field_addition|bulk_operation>",
-  "target_entity": "<Creative|Order|Advertiser|Product|AuctionOrder|PublisherTarget|null>",
-  "summary": "<1-2 sentence summary of what will change, in Korean>",
-  "visual_constraints": ["<string>", "..."],
-  "plan_items": [
-    {
-      "id": "<unique kebab-case id>",
-      "title": "<Short action description in Korean>",
-      "description": "<1-2 sentence technical detail in Korean>",
-      "pattern_id": "<pattern id from patterns.json or null>",
-      "target_file": "<relative file path or template form from patterns.json, or null>",
-      "depends_on": []
-    }
-  ]
-}
-
-Generate 3-8 plan items covering the full scope — nav changes, route registration, i18n keys, container/component files, feature flags, etc.`;
-
-      const userPrompt = `PM 요청:
-Goal: ${goal}
-Client: ${client}
-Target page: ${routeOrPage}
-${jiraUrl ? `Jira: ${jiraUrl}\n` : ''}${prdUrl ? `PRD: ${prdUrl}\n` : ''}
----
-
-pm-sa-request-schema:
-${JSON.stringify(requestSchema, null, 2)}
-
----
-
-patterns.json:
-${JSON.stringify(patterns, null, 2)}
-
----
-
-api-ui-contracts.json:
-${JSON.stringify(apiContracts, null, 2)}
-
----
-
-위 DS 리소스를 근거로 계획을 JSON으로 출력하세요.`;
-
-      const model = process.env.PLAN_MODEL || 'claude-sonnet-4-20250514';
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 4096,
-          system: systemPrompt,
-          messages: [{ role: 'user', content: userPrompt }],
-        }),
-      });
-
-      if (!resp.ok) {
-        const errText = await resp.text();
-        console.error(
-          `[Plan] Anthropic ${resp.status}:`,
-          errText.slice(0, 400),
-        );
-        return json(res, 502, {
-          ok: false,
-          error: `LLM error: ${resp.status}`,
-          detail: errText.slice(0, 400),
-        });
-      }
-
-      const result = await resp.json();
-      const text = (result.content?.[0]?.text || '').trim();
-      if (!text) {
-        return json(res, 502, { ok: false, error: 'Empty LLM response' });
-      }
-
-      const cleaned = text
-        .replace(/^```json?\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim();
-      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error('[Plan] No JSON in response:', cleaned.slice(0, 200));
-        return json(res, 502, {
-          ok: false,
-          error: 'LLM response not JSON',
-          raw: cleaned.slice(0, 500),
-        });
-      }
-
-      let plan;
+      // Sub-phase B.2 — emitPlan lib 으로 추출. 에러 메시지로 status 분기.
       try {
-        plan = JSON.parse(jsonMatch[0]);
-      } catch (parseErr) {
-        console.error('[Plan] JSON parse failed:', parseErr.message);
-        return json(res, 502, {
-          ok: false,
-          error: 'LLM returned invalid JSON',
-          raw: jsonMatch[0].slice(0, 500),
-        });
+        const { emitPlan } = await import('./lib/molly-plan-emitter.js');
+        const plan = await emitPlan(
+          { goal, client, routeOrPage, jiraUrl, prdUrl },
+          {
+            designSystemRoot: DESIGN_SYSTEM_ROOT,
+            requestSchemaPath: REQUEST_SCHEMA_PATH,
+          },
+        );
+        return json(res, 200, { ok: true, plan });
+      } catch (err) {
+        const msg = err?.message ?? String(err);
+        if (/not configured/.test(msg)) {
+          return json(res, 503, { ok: false, error: msg });
+        }
+        if (/required/.test(msg)) {
+          return json(res, 400, { ok: false, error: msg });
+        }
+        if (/LLM error|LLM response|not JSON|invalid JSON|empty LLM/.test(msg)) {
+          return json(res, 502, { ok: false, error: msg });
+        }
+        console.error('[Plan] emitPlan failed:', err);
+        return json(res, 500, { ok: false, error: msg });
       }
-
-      console.log(
-        `[Plan] Generated ${plan.plan_items?.length || 0} items for client=${client} route=${routeOrPage}`,
-      );
-      return json(res, 200, { ok: true, plan });
     } catch (error) {
       console.error('[Plan] Unexpected error:', error);
       return json(res, 500, { ok: false, error: error.message });
     }
   }
+
+  // (Old inline /api/plan body extracted to orchestrator/lib/molly-plan-emitter.js
+  // in sub-phase B.2 — see commit history for original prompt + parsing.)
 
   // Canvas Tweak — generate alternative variant prompts from an approved plan.
   // Returns 2 variations: a layout/placement alternative and a more novel approach.
