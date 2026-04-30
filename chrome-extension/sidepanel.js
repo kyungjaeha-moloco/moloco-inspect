@@ -3704,7 +3704,11 @@
 
       try {
         const baseUrl = await getServerUrl();
-        const r = await fetch(`${baseUrl}/api/molly/respond`, {
+        // Phase 3 Task 3.2 — /api/molly/respond → /api/intake.
+        // 응답 shape: kind ∈ chat / status_query / code_change_clear /
+        // code_change_ambiguous (4 종). code_change 분기는 _clear / _ambiguous
+        // 로 명시화 — 기존 clarity 필드 검사 불필요.
+        const r = await fetch(`${baseUrl}/api/intake`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: userInput, surface: 'chrome-ext' }),
@@ -3717,17 +3721,17 @@
             addMollyChatMessage(data.response || '(빈 응답)', kind);
             return; // 잡/change-request 안 만듦
           }
-          // code_change + ambiguous → clarifying Q 만 surface, 잡 안 만듦
-          if (kind === 'code_change' && data?.clarity === 'ambiguous' && data?.clarifyingQuestion) {
+          // code_change_ambiguous → clarifying Q 만 surface, 잡 안 만듦
+          if (kind === 'code_change_ambiguous' && data?.clarifyingQuestion) {
             addMollyChatMessage(`🤔 ${data.clarifyingQuestion}`, 'clarify');
             return;
           }
-          // code_change + clear → 기존 흐름 (job 생성)
+          // code_change_clear → 기존 흐름 (job 생성). fall through.
         }
         // r.ok=false 면 fallback: code_change 진행 (사용자 의도 보호)
       } catch (err) {
         thinkingNode.remove();
-        console.warn('[molly] classifier fetch failed, falling back to code_change:', err.message);
+        console.warn('[molly] intake fetch failed, falling back to code_change:', err.message);
       }
     }
 
