@@ -2082,6 +2082,40 @@
    * templated 응답을 사용자에게 보여줌. progress card 와 다르게
    * lifecycle 없음 — pure 답변.
    */
+  /**
+   * Phase 3 Task 3.2 follow-up — molly 가 처리 중일 때 사용자가 뭘 기다
+   * 리고 있는지 보여주는 thinking indicator. 단순 "잠깐만요…" 가 아니라
+   * 시간이 흐르면서 phase 별 안내로 업데이트:
+   *   0s   "🤔 의도 분석 중..."           classifier (~0.5s)
+   *   2s   "📋 PRD 명확도 검토 중..."      analyzer (~3-10s, thinking ON)
+   *   8s   "🛠️ 계획 만드는 중..."          plan emit (~15-25s, DS context)
+   *   20s  "⌛ 조금만 더 기다려 주세요..."  timeout 가까워졌을 때
+   *
+   * 반환: { dismiss() } — 응답 도착하면 호출. setTimeout 들 정리 + node 제거.
+   */
+  function showMollyThinking(messagesEl) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg msg-system molly-thinking';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble molly-chat-card';
+    bubble.textContent = '🤔 의도 분석 중...';
+    wrap.appendChild(bubble);
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    const timers = [];
+    timers.push(setTimeout(() => { bubble.textContent = '📋 PRD 명확도 검토 중...'; }, 2000));
+    timers.push(setTimeout(() => { bubble.textContent = '🛠️ 계획 만드는 중... (10-20초)'; }, 8000));
+    timers.push(setTimeout(() => { bubble.textContent = '⌛ 조금만 더 기다려 주세요...'; }, 20000));
+
+    return {
+      dismiss() {
+        for (const t of timers) clearTimeout(t);
+        if (wrap.parentNode) wrap.remove();
+      },
+    };
+  }
+
   function addMollyChatMessage(text, kind) {
     removeWelcome();
     const wrap = document.createElement('div');
@@ -3711,14 +3745,7 @@
     const userInput = String(payload.userInput || payload.text || '').trim();
     if (userInput) {
       // Typing indicator — classifier + LLM 1-1.5s 동안 UX 신호.
-      const thinkingNode = document.createElement('div');
-      thinkingNode.className = 'msg msg-system molly-thinking';
-      const tBubble = document.createElement('div');
-      tBubble.className = 'msg-bubble molly-chat-card';
-      tBubble.textContent = '🤔 잠깐만요…';
-      thinkingNode.appendChild(tBubble);
-      messagesEl.appendChild(thinkingNode);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      const thinking = showMollyThinking(messagesEl);
 
       try {
         const baseUrl = await getServerUrl();
@@ -3731,7 +3758,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: userInput, surface: 'chrome-ext', history: mollyChatHistory.slice() }),
         });
-        thinkingNode.remove();
+        thinking.dismiss();
         if (r.ok) {
           const data = await r.json();
           const kind = data?.kind;
@@ -3748,7 +3775,7 @@
         }
         // r.ok=false 면 fallback: code_change 진행 (사용자 의도 보호)
       } catch (err) {
-        thinkingNode.remove();
+        thinking.dismiss();
         console.warn('[molly] intake fetch failed, falling back to code_change:', err.message);
       }
     }
@@ -3860,14 +3887,7 @@
     // 인사만 했는데 plan 부터 봐야 했던 버그). pendingClarification 중
     // 에는 우회 — 진행 중인 clarification 흐름 끊지 않게.
     if (!pendingClarification) {
-      const thinkingNode = document.createElement('div');
-      thinkingNode.className = 'msg msg-system molly-thinking';
-      const tBubble = document.createElement('div');
-      tBubble.className = 'msg-bubble molly-chat-card';
-      tBubble.textContent = '🤔 잠깐만요…';
-      thinkingNode.appendChild(tBubble);
-      messagesEl.appendChild(thinkingNode);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      const thinking = showMollyThinking(messagesEl);
       try {
         const baseUrl = await getServerUrl();
         const r = await fetch(`${baseUrl}/api/intake`, {
@@ -3875,7 +3895,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text, surface: 'chrome-ext', history: mollyChatHistory.slice() }),
         });
-        thinkingNode.remove();
+        thinking.dismiss();
         if (r.ok) {
           const data = await r.json();
           const kind = data?.kind;
@@ -3899,7 +3919,7 @@
         }
         // r.ok=false 면 fallback: plan 생성 (사용자 의도 보호)
       } catch (err) {
-        thinkingNode.remove();
+        thinking.dismiss();
         console.warn('[molly] intake gate failed in submit(), falling back to plan generation:', err.message);
       }
     }
