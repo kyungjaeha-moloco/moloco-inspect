@@ -1697,18 +1697,18 @@
       console.warn('[Moloco Inspect] loadPlaygrounds failed:', err);
     }
 
-    const { selectedPlaygroundId } = await new Promise((resolve) =>
-      chrome.storage.local.get(['selectedPlaygroundId'], resolve),
+    const { selectedPlaygroundId, lastPlaygroundId } = await new Promise((resolve) =>
+      chrome.storage.local.get(['selectedPlaygroundId', 'lastPlaygroundId'], resolve),
     );
 
     // Repaint <select>. New default order:
-    //   1) 🆕 New playground (auto-create on next send)  ← default
+    //   1) 🆕 새 작업 (auto-create on next send)  ← default when no lastPlaygroundId
     //   2) optgroup "Existing playgrounds" — pick to attach to one
     //   3) optgroup "Advanced" — stateless escape hatch
     playgroundSelect.innerHTML = '';
     const auto = document.createElement('option');
     auto.value = AUTO_PLAYGROUND_SENTINEL;
-    auto.textContent = '🆕 New playground (자동 생성)';
+    auto.textContent = '🆕 새 작업 (자동 생성)';
     playgroundSelect.appendChild(auto);
 
     if (pgs.length > 0) {
@@ -1732,17 +1732,20 @@
     grpAdvanced.appendChild(stateless);
     playgroundSelect.appendChild(grpAdvanced);
 
-    // Restore last selection if still present. Two-tier fallback:
-    //   - existing playground id no longer present → auto-create mode
-    //     (NOT stateless — we want users defaulting to fresh sandboxes)
-    //   - never-set / undefined → auto-create mode
+    // Default selection priority:
+    //   1) selectedPlaygroundId (explicit user selection in this session)
+    //   2) lastPlaygroundId (last playground used for a Job) — reuse if still active
+    //   3) AUTO_PLAYGROUND_SENTINEL (new task, auto-create on next send)
     let next;
-    if (selectedPlaygroundId === AUTO_PLAYGROUND_SENTINEL || selectedPlaygroundId == null) {
+    if (selectedPlaygroundId === AUTO_PLAYGROUND_SENTINEL) {
       next = AUTO_PLAYGROUND_SENTINEL;
     } else if (selectedPlaygroundId === '') {
       next = ''; // user explicitly chose stateless
-    } else if (pgs.some((p) => p.id === selectedPlaygroundId)) {
+    } else if (selectedPlaygroundId && pgs.some((p) => p.id === selectedPlaygroundId)) {
       next = selectedPlaygroundId;
+    } else if (lastPlaygroundId && pgs.some((p) => p.id === lastPlaygroundId)) {
+      // Reuse last-used playground as default (Slack thread parity)
+      next = lastPlaygroundId;
     } else {
       next = AUTO_PLAYGROUND_SENTINEL;
     }
@@ -1830,8 +1833,10 @@
     // Persist the new id and refresh the dropdown so the user sees the
     // selector now points to the just-created playground (no longer in
     // auto-create mode for the next message).
+    // Also save as lastPlaygroundId so future sessions default to reuse
+    // (Slack thread parity: same task = same playground).
     await new Promise((resolve) =>
-      chrome.storage.local.set({ selectedPlaygroundId: newId }, resolve),
+      chrome.storage.local.set({ selectedPlaygroundId: newId, lastPlaygroundId: newId }, resolve),
     );
     await loadPlaygrounds();
     return newId;
@@ -1847,6 +1852,27 @@
         selectedPlaygroundId: playgroundSelect.value,
       });
       updatePlaygroundMeta();
+    });
+  }
+
+  const newTaskBtn = document.getElementById('newTaskBtn');
+  if (newTaskBtn) {
+    newTaskBtn.addEventListener('click', () => {
+      // Clear lastPlaygroundId so the next send boots a fresh playground.
+      // Also reset selectedPlaygroundId to AUTO so loadPlaygrounds picks it up.
+      chrome.storage.local.remove(['lastPlaygroundId', 'selectedPlaygroundId'], () => {
+        playgroundSelect.value = AUTO_PLAYGROUND_SENTINEL;
+        chrome.storage.local.set({ selectedPlaygroundId: AUTO_PLAYGROUND_SENTINEL });
+        updatePlaygroundMeta();
+        if (inputStatus) {
+          inputStatus.textContent = '새 작업 시작 — 다음 메시지가 새 playground 를 부팅합니다.';
+          setTimeout(() => {
+            if (inputStatus.textContent.startsWith('새 작업 시작')) {
+              inputStatus.textContent = '';
+            }
+          }, 4000);
+        }
+      });
     });
   }
 
@@ -3744,6 +3770,11 @@
             addJobProgressMessage(response.jobId, response.playgroundId, payload);
             inputStatus.textContent = '';
             startHttpJobPolling(response.jobId);
+            // Save lastPlaygroundId so next session defaults to reuse
+            // (Slack thread parity: same task = same playground).
+            if (response.playgroundId) {
+              chrome.storage.local.set({ lastPlaygroundId: response.playgroundId });
+            }
           } else if (response.mode === 'http' && response.requestId) {
             // Stateless / legacy path — single change-request, no Job.
             currentRequestId = response.requestId;
