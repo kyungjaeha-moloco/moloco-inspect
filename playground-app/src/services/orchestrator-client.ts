@@ -243,6 +243,12 @@ export async function mollyClassifyAndDispatch(
   }
 }
 
+/**
+ * @deprecated Use postIntake (Phase 3 Task 3.1, sub-phase C). postChat
+ * 은 single-turn 그리고 분류 게이트 따로 호출 (mollyClassifyAndDispatch).
+ * postIntake 는 history-aware multi-turn + classifier + analyzer + plan
+ * emitter 통합. /api/chat 은 deprecation 사이클 후 삭제 예정.
+ */
 export async function postChat(
   messages: ChatApiMessage[],
 ): Promise<ChatReply> {
@@ -270,6 +276,93 @@ export async function postChat(
     );
   }
   return data.reply;
+}
+
+// ── Unified Intake (Phase 3 Task 3.1, sub-phase C) ──────────
+
+export type IntakeKind =
+  | 'chat'
+  | 'status_query'
+  | 'code_change_clear'
+  | 'code_change_ambiguous'
+  | 'plan_emit'
+  | 'job_dispatched';
+
+export interface IntakeHistoryTurn {
+  role: ChatRole;
+  content: string;
+  /** assistant turn 만 — 직전 IntakeResult.kind. dispatcher 가 routing 결정에 사용. */
+  kind?: IntakeKind;
+  clarifyingQuestion?: string;
+  planItems?: RawPlanItem[];
+}
+
+export interface IntakeRequest {
+  text: string;
+  surface?: string;
+  history?: IntakeHistoryTurn[];
+  /** Optional — handleClarificationAnswer / handlePlanEdit 가 emitPlan 호출 시 활용. */
+  client?: string;
+  routeOrPage?: string;
+  channel?: string;
+  threadTs?: string;
+}
+
+export interface IntakeResult {
+  ok: true;
+  kind: IntakeKind;
+  reason: string;
+  /** chat / status_query 의 답변 본문. */
+  response?: string;
+  /** code_change_ambiguous 의 다음 질문. */
+  clarifyingQuestion?: string;
+  missingInfo?: string[];
+  /** plan_emit 의 plan items. */
+  planItems?: RawPlanItem[];
+  /** plan_emit 의 full plan (intent, summary, visual_constraints, plan_items). */
+  plan?: RawPlan;
+  /** plan_emit / job_dispatched 시 history 합친 PRD. */
+  cumulativePrd?: string;
+}
+
+/**
+ * Unified intake — surface 무관 entry point. classifier + chat/status +
+ * PRD analyzer + plan emitter 의 통합 dispatch. ctx.history 보내면
+ * multi-turn (clarification + plan ceremony) 처리.
+ */
+export async function postIntake(args: IntakeRequest): Promise<IntakeResult> {
+  const resp = await fetch(`${ORCHESTRATOR_URL}/api/intake`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: args.text,
+      surface: args.surface ?? 'playground',
+      history: args.history ?? [],
+      client: args.client,
+      routeOrPage: args.routeOrPage,
+      channel: args.channel,
+      threadTs: args.threadTs,
+    }),
+  });
+
+  let data: { ok?: boolean; error?: string; [k: string]: unknown } = {};
+  try {
+    data = await resp.json();
+  } catch {
+    throw new OrchestratorError(
+      `Intake 응답 파싱 실패 (HTTP ${resp.status})`,
+      resp.status,
+    );
+  }
+
+  if (!resp.ok || !data.ok) {
+    throw new OrchestratorError(
+      typeof data.error === 'string' ? data.error : `HTTP ${resp.status}`,
+      resp.status,
+      data,
+    );
+  }
+  return data as unknown as IntakeResult;
 }
 
 // ── Playground (v3) ─────────────────────────────────

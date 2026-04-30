@@ -16,6 +16,9 @@ import {
 } from '../store/playground-store';
 import {
   postChat,
+  postIntake,
+  type IntakeHistoryTurn,
+  type IntakeResult,
   mollyClassifyAndDispatch,
   postChangeRequest,
   subscribeChangeRequest,
@@ -459,6 +462,99 @@ export const AIPanel = React.memo(function AIPanel({
 
     setSending(true);
     try {
+      // Phase 3 Task 3.1 sub-phase C — history-aware intake feature flag.
+      // localStorage.MOLLY_HISTORY_AWARE='1' 이면 새 path (postIntake) 로
+      // 통합. 기존 path (mollyClassifyAndDispatch + postChat) 는 default.
+      // 점진 도입 — 사용자가 직접 활성화 후 회귀 검증.
+      const historyAware =
+        typeof window !== 'undefined' &&
+        window.localStorage?.getItem('MOLLY_HISTORY_AWARE') === '1';
+
+      if (historyAware) {
+        // 새 user msg 는 current 의 마지막. history 는 그 이전 turn 들.
+        // assistant 메시지의 kind 는 plan 유무로 best-effort 추정 (옛
+        // 메시지엔 metadata 없음). 후속 슬라이스에서 message store 에
+        // kind 추가하면 정확해짐.
+        const prevMessages = current.slice(0, -1);
+        const history: IntakeHistoryTurn[] = prevMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          kind:
+            m.role === 'assistant'
+              ? m.plan
+                ? 'plan_emit'
+                : 'chat'
+              : undefined,
+        }));
+        const elementCtx = lastPickedElement
+          ? `${formatElementContext(lastPickedElement)}\n\n`
+          : '';
+        const intakeText = `${elementCtx}${trimmed}`;
+        let result: IntakeResult;
+        try {
+          result = await postIntake({
+            text: intakeText,
+            surface: 'playground',
+            history,
+            client: playgroundClient ?? undefined,
+            routeOrPage: currentRoute ?? undefined,
+          });
+        } catch (err) {
+          if (!isStillActive()) return;
+          const msg =
+            err instanceof OrchestratorError
+              ? err.status === 503
+                ? 'AI 서비스 미설정 — ANTHROPIC_API_KEY 설정 후 orchestrator 재시작.'
+                : `Intake 실패: ${err.message}`
+              : err instanceof Error
+                ? err.message
+                : 'Intake 실패';
+          console.error('[AIPanel] postIntake failed:', err);
+          addAssistantMessage({ content: `⚠️ ${msg}` });
+          setError(msg);
+          return;
+        }
+        if (!isStillActive()) return;
+        switch (result.kind) {
+          case 'chat':
+          case 'status_query':
+            addAssistantMessage({ content: result.response ?? '(빈 응답)' });
+            break;
+          case 'code_change_ambiguous':
+            addAssistantMessage({
+              content: `🤔 ${result.clarifyingQuestion ?? '추가 정보를 알려주세요.'}`,
+            });
+            break;
+          case 'plan_emit':
+            if (result.plan) {
+              addAssistantMessage({
+                content: result.plan.summary || '아래 계획으로 진행 가능합니다:',
+                plan: rawToPlan(result.plan),
+              });
+            } else {
+              addAssistantMessage({ content: '계획이 준비됐어요.' });
+            }
+            break;
+          case 'job_dispatched':
+            // TODO sub-phase C 후속 — cumulativePrd + planItems 로 실제
+            // createJob 트리거. 지금은 안내만 (legacy 의 plan card 승인
+            // 흐름이 잡 생성 담당). MVP 는 새 path 가 응답하는지만 검증.
+            addAssistantMessage({
+              content:
+                '✅ 계획 승인 — 잡 자동 시작은 다음 슬라이스에서 완성됩니다. 지금은 위 plan 카드의 승인 버튼 사용해주세요.',
+            });
+            break;
+          case 'code_change_clear':
+            addAssistantMessage({
+              content:
+                'PRD 가 명확합니다. (잡 자동 시작은 다음 슬라이스에서 — 지금은 plan 단계 클릭으로 진행해주세요.)',
+            });
+            break;
+        }
+        return;
+      }
+
+      // LEGACY path (default) — mollyClassifyAndDispatch + postChat.
       // molly 분류 게이트 — 매 turn 거침. 사용자가 mid-Wizard 에 status
       // 질의 / chat 던질 수 있어야 함 ("지금 서버상태 어때?" 같은). 단점:
       // Wizard 의 clarifying 답변 ("TVING") 이 chat 으로 misclassify 가능.
