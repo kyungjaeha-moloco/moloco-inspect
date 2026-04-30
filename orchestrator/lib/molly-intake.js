@@ -160,12 +160,27 @@ async function handleClarificationAnswer(text, history, ctx) {
       missingInfo: analysis.missingInfo,
     };
   }
-  // Clear — cumulative PRD 만들어 caller 가 사용. plan emit 은 B.2 후에.
+  // Clear — cumulative PRD + plan emit (sub-phase B.2). emitPlan 실패
+  // 시 code_change_clear 폴백 (caller 가 cumulativePrd 로 직접 createJob).
   const cumulativePrd = compactCumulativePrd(history, text);
+  let plan;
+  try {
+    const { emitPlan } = await import('./molly-plan-emitter.js');
+    plan = await emitPlan(cumulativePrd, ctx);
+  } catch (err) {
+    console.warn(`[molly-intake] emitPlan failed (clarification): ${err.message?.slice(0, 120)} — falling back to code_change_clear`);
+    return {
+      kind: 'code_change_clear',
+      reason: `clarified but plan emit failed: ${err.message?.slice(0, 80)}`,
+      cumulativePrd,
+    };
+  }
   return {
-    kind: 'code_change_clear',
-    reason: 'clarified via follow-up answer',
+    kind: 'plan_emit',
+    reason: 'clarified, plan ready',
     cumulativePrd,
+    planItems: plan?.plan_items ?? [],
+    plan,
   };
 }
 
@@ -188,9 +203,14 @@ function compactCumulativePrd(history, latestText) {
 }
 
 /**
- * Sub-phase B 에서 구현. prev=plan_emit 일 때 사용자가 plan 을 보고
- * "이대로 진행" / 자유 피드백 한 것. 승인이면 job_dispatched 시그널,
- * 피드백이면 plan re-emit.
+ * Sub-phase B.4 (2026-04-30) — prev=plan_emit 일 때 사용자가 plan 을 보고
+ * "이대로 진행" / 자유 피드백 한 것 처리.
+ *
+ * - APPROVE 휴리스틱 매칭 → kind=job_dispatched. caller (서버/surface) 가
+ *   cumulativePrd + planItems 로 createJob 부름. lib 은 stateless — 잡
+ *   생성 안 함.
+ * - 자유 피드백 → cumulativePrd + "[추가 피드백]" + 사용자 텍스트로
+ *   emitPlan 재호출 → kind=plan_emit (재출력).
  *
  * @param {string} text
  * @param {HistoryTurn[]} history
@@ -198,10 +218,50 @@ function compactCumulativePrd(history, latestText) {
  * @returns {Promise<IntakeResult>}
  */
 async function handlePlanEdit(text, history, ctx) {
-  // TODO sub-phase B — APPROVE 휴리스틱 + plan re-emit.
-  console.log(`[molly-intake] prev=plan_emit, dispatching plan edit (TODO sub-phase B). text="${text.slice(0, 60)}"`);
-  throw new Error('TODO sub-phase B: handlePlanEdit not implemented');
+  const trimmed = text.trim();
+  if (APPROVE_RE.test(trimmed)) {
+    // 승인 — caller 가 createJob. lib 은 시그널 + 누적 PRD/planItems 만.
+    const prev = lastAssistantTurn(history);
+    const cumulativePrd = compactCumulativePrd(history, '');
+    console.log(`[molly-intake] plan_emit → job_dispatched (approve match: "${trimmed.slice(0, 40)}")`);
+    return {
+      kind: 'job_dispatched',
+      reason: 'user approved plan',
+      cumulativePrd,
+      planItems: prev?.planItems ?? [],
+    };
+  }
+  // 자유 피드백 → plan re-emit. 이전 PRD + "[추가 피드백]" + 사용자 텍스트.
+  const baseCumulative = compactCumulativePrd(history, '');
+  const cumulativePrd = baseCumulative
+    ? `${baseCumulative}\n\n[추가 피드백]\n${trimmed}`
+    : trimmed;
+  console.log(`[molly-intake] plan_emit → re-emit (feedback: "${trimmed.slice(0, 40)}")`);
+  let plan;
+  try {
+    const { emitPlan } = await import('./molly-plan-emitter.js');
+    plan = await emitPlan(cumulativePrd, ctx);
+  } catch (err) {
+    console.warn(`[molly-intake] emitPlan failed (plan edit): ${err.message?.slice(0, 120)}`);
+    return {
+      kind: 'code_change_clear',
+      reason: `plan re-emit failed: ${err.message?.slice(0, 80)}`,
+      cumulativePrd,
+    };
+  }
+  return {
+    kind: 'plan_emit',
+    reason: 'plan revised per feedback',
+    cumulativePrd,
+    planItems: plan?.plan_items ?? [],
+    plan,
+  };
 }
+
+// "이대로 / 진행 / 승인 / approve / ok / 네 / 예 / yes" 류 일반적 승인
+// 표현. plan 카드 보고 사용자가 짧게 답할 때만 매칭. 길거나 다른 단어
+// 섞이면 자유 피드백으로.
+const APPROVE_RE = /^(이대로( 진행)?|진행( 해줘|해)?|승인|approve|ok|okay|네|네\.|예|예\.|yes)\.?$/i;
 
 /**
  * History 의 마지막 assistant turn. 없으면 null.
