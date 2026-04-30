@@ -84,6 +84,15 @@
   // ─── State ──────────────────────────────────────────────────────────
   let currentElement = null;
   let selectedElements = [];
+  // Phase 3 Task 3.1 sub-phase D — molly chat history. submit/performSubmit
+  // 의 /api/intake 호출 시 동봉 → server 의 dispatcher 가 prev kind 보고
+  // multi-turn (clarification + plan) 라우팅. session 단위 (sidepanel
+  // reload 시 초기화) — 길어지면 메모리 부담이라 last N=10 만 유지.
+  let mollyChatHistory = [];
+  function pushMollyHistory(role, content, kind) {
+    mollyChatHistory.push({ role, content: String(content || '').slice(0, 1000), kind: kind || undefined });
+    if (mollyChatHistory.length > 10) mollyChatHistory.shift();
+  }
   let currentRequestId = null; // HTTP mode: orchestrator request ID
   let currentJobId = null; // Phase 2: job pipeline mode
   let currentJobInProgress = false; // blocks send while a job is active on the same playground
@@ -2041,6 +2050,10 @@
     msg.appendChild(bubble);
     messagesEl.appendChild(msg);
     scrollToBottom();
+    // Sub-phase D — molly intake history 에 user turn 기록. element/
+    // capture 컨텍스트는 텍스트엔 안 합쳐 — 서버 dispatcher 는 텍스트만
+    // 보고 routing.
+    pushMollyHistory('user', text);
     return msg;
   }
 
@@ -2087,6 +2100,11 @@
     wrap.appendChild(bubble);
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+    // Sub-phase D — history 에 assistant turn 기록. 'clarify' kind 는
+    // server 의 'code_change_ambiguous' 와 매핑 — dispatcher 가 다음
+    // 사용자 입력을 follow-up answer 로 라우팅.
+    const intakeKind = kind === 'clarify' ? 'code_change_ambiguous' : (kind || 'chat');
+    pushMollyHistory('assistant', text, intakeKind);
   }
 
   function getProgressPhaseCopy(phase, latestLog, payload) {
@@ -3711,7 +3729,7 @@
         const r = await fetch(`${baseUrl}/api/intake`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: userInput, surface: 'chrome-ext' }),
+          body: JSON.stringify({ text: userInput, surface: 'chrome-ext', history: mollyChatHistory.slice() }),
         });
         thinkingNode.remove();
         if (r.ok) {
@@ -3855,7 +3873,7 @@
         const r = await fetch(`${baseUrl}/api/intake`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, surface: 'chrome-ext' }),
+          body: JSON.stringify({ text, surface: 'chrome-ext', history: mollyChatHistory.slice() }),
         });
         thinkingNode.remove();
         if (r.ok) {
