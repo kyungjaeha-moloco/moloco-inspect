@@ -2125,6 +2125,33 @@ const server = http.createServer(async (req, res) => {
           proxyRes.on('data', c => chunks.push(c));
           proxyRes.on('end', () => {
             let html = Buffer.concat(chunks).toString('utf-8');
+            // Vite EPIPE auto-recovery — esbuild 자식 프로세스가 죽으면
+            // vite 가 "The service is no longer running" HTML 을 반환.
+            // 감지 시 supervisorctl restart vite 백그라운드 호출 + 503
+            // refresh 페이지로 사용자 안내 (5초 후 자동 새로고침).
+            if (html.includes('The service is no longer running') ||
+                html.includes('plugin:vite:esbuild')) {
+              const containerName = state?.sandbox?.containerName || state?.sandbox?.containerId;
+              if (containerName) {
+                console.warn(`[preview-proxy] vite EPIPE detected for ${reqId}, triggering supervisorctl restart vite on ${containerName}`);
+                execAsync(`docker exec ${containerName} supervisorctl restart vite`, { timeout: 10_000 })
+                  .then(() => console.log(`[preview-proxy] vite restarted for ${reqId}`))
+                  .catch((err) => console.warn(`[preview-proxy] vite restart failed for ${reqId}: ${err.message}`));
+              } else {
+                console.warn(`[preview-proxy] vite EPIPE detected for ${reqId} but no containerName — manual restart needed`);
+              }
+              res.writeHead(503, {
+                'Content-Type': 'text/html; charset=utf-8',
+                'Refresh': '5',
+                'Cache-Control': 'no-store',
+              });
+              res.end(`<!doctype html><meta charset="utf-8"><title>Preview restarting…</title>
+<style>body{font-family:system-ui;padding:48px;text-align:center;color:#444;background:#fafafa}h2{color:#666;margin-bottom:8px}p{color:#888;margin:8px 0}.spin{display:inline-block;animation:spin 1.2s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style>
+<h2><span class="spin">🔄</span> Preview server 재시작 중…</h2>
+<p>Vite (esbuild) 가 멈춰서 자동으로 다시 시작했습니다.</p>
+<p>5초 후 자동 새로고침됩니다.</p>`);
+              return;
+            }
             // Rewrite absolute asset paths to go through the preview proxy
             html = html.replace(/(src|href)="\/(?!\/)/g, `$1="${proxyBase}/`);
             html = html.replace(/(from\s+")\/(@[^"]+)/g, `$1${proxyBase}/$2`);
