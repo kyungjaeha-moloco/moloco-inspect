@@ -297,9 +297,9 @@ export function JobCard({ jobId }: { jobId: string }) {
                   );
                   return runAction(() => updateJobTasks(job.id, next));
                 }}
-                onRetry={() => runAction(() => retryJobTask(job.id, task.id))}
-                onAccept={() => runAction(() => acceptJobTask(job.id, task.id))}
-                onSkip={() => runAction(() => skipJobTask(job.id, task.id))}
+                onRetry={(reason) => runAction(() => retryJobTask(job.id, task.id, reason ? { reason } : undefined))}
+                onAccept={(reason) => runAction(() => acceptJobTask(job.id, task.id, reason ? { reason } : undefined))}
+                onSkip={(reason) => runAction(() => skipJobTask(job.id, task.id, reason ? { reason } : undefined))}
                 onUnblock={() => runAction(() => unblockJobTask(job.id, task.id))}
               />
             );
@@ -483,9 +483,9 @@ function TaskRow({
   onSaveEdit?: (
     updated: Pick<JobTask, 'id' | 'title' | 'description' | 'dependsOn'>,
   ) => void | Promise<unknown>;
-  onRetry: () => void;
-  onAccept: () => void;
-  onSkip: () => void;
+  onRetry: (reason?: string) => void;
+  onAccept: (reason?: string) => void;
+  onSkip: (reason?: string) => void;
   onUnblock: () => void;
 }) {
   const canRetry = task.status === 'failed';
@@ -753,7 +753,7 @@ function TaskRow({
       {expanded && hasActions && (
         <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
           {canRetry && (
-            <button disabled={disabled} onClick={onRetry} style={tinyBtn}>
+            <button disabled={disabled} onClick={() => onRetry()} style={tinyBtn}>
               retry
             </button>
           )}
@@ -763,7 +763,7 @@ function TaskRow({
             </button>
           )}
           {canSkip && (
-            <button disabled={disabled} onClick={onSkip} style={tinyBtn}>
+            <button disabled={disabled} onClick={() => onSkip()} style={tinyBtn}>
               skip
             </button>
           )}
@@ -1049,6 +1049,17 @@ function PixelAgentSprite() {
 // retry first (most common, cheapest), accept-anyway second (escape
 // hatch for the "agent overshot scope but result is still useful"
 // case), skip last (most destructive — also blocks downstream tasks).
+const ACTION_REASON_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: '— 사유 선택 (선택사항) —' },
+  { value: 'syntax_error', label: '문법/타입 에러' },
+  { value: 'logic_error', label: '논리/구현 오류' },
+  { value: 'scope_creep', label: '범위 벗어남 (PRD 외 변경)' },
+  { value: 'partial', label: '부분 구현 (요구사항 일부만)' },
+  { value: 'wrong_target', label: '잘못된 파일/컴포넌트' },
+  { value: 'over_delivered', label: '오버 딜리버 (과한 변경)' },
+  { value: 'other', label: '기타' },
+];
+
 function ReviewFailActions({
   disabled,
   onRetry,
@@ -1056,10 +1067,11 @@ function ReviewFailActions({
   onSkip,
 }: {
   disabled: boolean;
-  onRetry: () => void;
-  onAccept: () => void;
-  onSkip: () => void;
+  onRetry: (reason?: string) => void;
+  onAccept: (reason?: string) => void;
+  onSkip: (reason?: string) => void;
 }) {
+  const [reason, setReason] = useState('');
   return (
     <div
       style={{
@@ -1080,13 +1092,35 @@ function ReviewFailActions({
       >
         다음 단계
       </span>
+      <select
+        value={reason}
+        disabled={disabled}
+        onChange={(e) => setReason(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          fontSize: 11,
+          padding: '3px 6px',
+          borderRadius: 4,
+          border: '1px solid var(--border-primary)',
+          background: 'var(--surface-secondary, #f5f5f5)',
+          color: 'var(--text-primary)',
+          cursor: 'pointer',
+          width: '100%',
+        }}
+      >
+        {ACTION_REASON_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <button
           type="button"
           disabled={disabled}
           onClick={(e) => {
             e.stopPropagation();
-            onRetry();
+            onRetry(reason || undefined);
           }}
           style={primaryActionBtn}
           title="위 피드백을 반영해 다시 작성"
@@ -1098,7 +1132,7 @@ function ReviewFailActions({
           disabled={disabled}
           onClick={(e) => {
             e.stopPropagation();
-            onAccept();
+            onAccept(reason || undefined);
           }}
           style={secondaryActionBtn}
           title="결과물을 받아들이고 후속 태스크 진행 (오버딜리버 케이스 등)"
@@ -1110,7 +1144,7 @@ function ReviewFailActions({
           disabled={disabled}
           onClick={(e) => {
             e.stopPropagation();
-            onSkip();
+            onSkip(reason || undefined);
           }}
           style={dangerActionBtn}
           title="이 태스크를 건너뛰고 진행 (의존하는 후속 태스크들도 차단됩니다)"

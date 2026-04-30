@@ -664,12 +664,21 @@ async function jobAction(
 }
 
 export const approveJobPlan = (id: string) => jobAction(id, 'approve-plan');
-export const retryJobTask = (id: string, taskId: string) =>
-  jobAction(id, 'retry-task', { taskId });
-export const acceptJobTask = (id: string, taskId: string) =>
-  jobAction(id, 'accept-task', { taskId });
-export const skipJobTask = (id: string, taskId: string) =>
-  jobAction(id, 'skip-task', { taskId });
+export const retryJobTask = (
+  id: string,
+  taskId: string,
+  actionMeta?: { reason?: string; reasonText?: string },
+) => jobAction(id, 'retry-task', { taskId, ...actionMeta });
+export const acceptJobTask = (
+  id: string,
+  taskId: string,
+  actionMeta?: { reason?: string; reasonText?: string },
+) => jobAction(id, 'accept-task', { taskId, ...actionMeta });
+export const skipJobTask = (
+  id: string,
+  taskId: string,
+  actionMeta?: { reason?: string; reasonText?: string },
+) => jobAction(id, 'skip-task', { taskId, ...actionMeta });
 export const unblockJobTask = (id: string, taskId: string) =>
   jobAction(id, 'unblock-task', { taskId });
 /**
