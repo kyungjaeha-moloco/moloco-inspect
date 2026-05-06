@@ -2615,7 +2615,24 @@ ${JSON.stringify(apiContracts, null, 2)}`;
       const result = await processIntake(text, ctx);
       return json(res, 200, { ok: true, ...result });
     } catch (err) {
-      return json(res, 500, { ok: false, error: err?.message ?? String(err) });
+      // #7 fallback 톤 가이드 — raw error 노출 X. timeout / API key /
+      // rate limit 별 사용자 친화 메시지 + 다음 행동 제안. raw 는
+      // detail 필드로 디버깅용 (surface 가 옵션으로 표시 가능).
+      const raw = err?.message ?? String(err);
+      let userMessage;
+      if (/timeout|timed out|aborted/i.test(raw)) {
+        userMessage = '⏱️ 응답이 늦어요. 잠시 후 다시 시도해 주세요.';
+      } else if (/api[\s_-]?key|not configured/i.test(raw)) {
+        userMessage = '🔧 AI 서비스 미설정 — orchestrator 의 ANTHROPIC_API_KEY 확인 후 재시작해 주세요.';
+      } else if (/rate.?limit|429/i.test(raw)) {
+        userMessage = '🚦 요청이 몰렸어요. 30초 후 다시 시도해 주세요.';
+      } else if (/network|ENOTFOUND|ECONNREFUSED|fetch failed/i.test(raw)) {
+        userMessage = '🌐 네트워크 문제로 응답을 못 받았어요. 다시 시도해 주세요.';
+      } else {
+        userMessage = '⚠️ 잠시 문제가 있어요. 다시 시도해 주세요. 계속 안 되면 orchestrator 로그를 확인해 주세요.';
+      }
+      console.error('[/api/intake] error:', err);
+      return json(res, 500, { ok: false, error: userMessage, detail: raw.slice(0, 200) });
     }
   }
 

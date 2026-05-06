@@ -60,9 +60,14 @@ const SYSTEM_PROMPT = `당신은 Moloco Inspect 의 AI 어시스턴트 "molly" �
 export async function composeChatReply(text, ctx = {}) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
+  // #8 surface awareness — Slack / Chrome ext / Playground 별 안내 메시지
+  // 정확도. ctx.surface 받으면 prompt 에 주입.
+  const surfaceHint = ctx.surface && ctx.surface !== 'unknown'
+    ? `(현재 surface: ${ctx.surface} — 안내 시 이 surface 의 입력 방식 우선 언급)\n\n`
+    : '';
   const userMessage = ctx.recentMessages?.length
-    ? `최근 대화:\n${ctx.recentMessages.slice(-3).map((m) => `- ${m}`).join('\n')}\n\n사용자: ${text}`
-    : `사용자: ${text}`;
+    ? `${surfaceHint}최근 대화:\n${ctx.recentMessages.slice(-3).map((m) => `- ${m}`).join('\n')}\n\n사용자: ${text}`
+    : `${surfaceHint}사용자: ${text}`;
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {

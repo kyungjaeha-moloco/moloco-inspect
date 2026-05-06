@@ -29,9 +29,18 @@ raw 데이터 형식: JSON 배열, 각 잡은 { id, status, tasks: [{status}], t
  * @returns {Promise<string>}
  */
 export async function composeStatusReply(text, ctx) {
-  const jobs = (ctx.listJobs?.() ?? [])
-    .slice()
-    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+  // #6 — 활성 잡 (running / queued / processing / paused) 우선, 그 다음
+  // 최근 종료 잡. 사용자가 보통 진행 중인 잡 상태 궁금. 토큰 줄어들고
+  // 답변 정확도 ↑.
+  const TERMINAL = new Set(['cancelled', 'complete']);
+  const allJobs = ctx.listJobs?.() ?? [];
+  const sorted = allJobs.slice().sort((a, b) => {
+    const aActive = !TERMINAL.has(a.status) ? 1 : 0;
+    const bActive = !TERMINAL.has(b.status) ? 1 : 0;
+    if (aActive !== bActive) return bActive - aActive; // active first
+    return (b.createdAt ?? 0) - (a.createdAt ?? 0);    // then most recent
+  });
+  const jobs = sorted
     .slice(0, 20)
     .map((j) => ({
       id: j.id,
@@ -55,8 +64,13 @@ export async function composeStatusReply(text, ctx) {
   }
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
+  // #8 surface awareness — Inspect Console / Slack / Chrome ext / Playground
+  // 별 안내 메시지 정확도. ctx.surface 받으면 prompt 에 주입.
+  const surfaceHint = ctx.surface && ctx.surface !== 'unknown'
+    ? `(현재 surface: ${ctx.surface} — Console 안내는 항상 포함하되, 사용자 surface 의 잡 카드 / 사이드패널 안내도 함께)\n\n`
+    : '';
   const userMessage =
-    `이 thread 매핑 정보:\nthisThreadPlayground = ${thisThreadPlayground ? `"${thisThreadPlayground}"` : 'null (아직 playground 안 만들어짐)'}\n\n잡 데이터 (createdAt 내림차순, 최대 20개):\n${JSON.stringify(jobs, null, 2)}\n\n사용자 질문: ${text}`;
+    `${surfaceHint}이 thread 매핑 정보:\nthisThreadPlayground = ${thisThreadPlayground ? `"${thisThreadPlayground}"` : 'null (아직 playground 안 만들어짐)'}\n\n잡 데이터 (active 우선 → createdAt 내림차순, 최대 20개):\n${JSON.stringify(jobs, null, 2)}\n\n사용자 질문: ${text}`;
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
