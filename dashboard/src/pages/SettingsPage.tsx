@@ -95,44 +95,61 @@ function MollySettingsPanel() {
 
   return (
     <div className="settings-section" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div
+        style={{
+          padding: '10px 12px',
+          background: 'var(--bg-base)',
+          border: '1px solid var(--border)',
+          borderRadius: 6,
+          fontSize: 'var(--text-xs)',
+          color: 'var(--text-secondary)',
+          lineHeight: 1.6,
+        }}
+      >
+        <strong>모델 선택</strong> — 각 단계가 어떤 LLM 으로 처리될지 결정. Haiku 4.5 = 가장 빠르고 저렴 (~$1/M tokens),
+        Sonnet 4 = 더 정확하지만 ~3× 비싸고 ~3× 느림 (~$3/M tokens).
+        <br />
+        <strong>thinking budget</strong> — AI 가 답하기 전에 *내부적으로* 생각하는 토큰 수. 0 = 즉답.
+        2048 = 약 2000 토큰만큼 추론 후 답. 사용자에게 thinking 내용은 안 보이지만 답변 품질에 영향.
+      </div>
       <SettingsSelect
         label="Classifier 모델"
-        hint="모든 입력의 첫 분류. Haiku 권장 (속도 + 비용)."
+        hint="모든 입력의 첫 단계 — chat / status / lifecycle / code_change 분류. 매 호출 거치므로 속도 중요. Haiku 권장 (Sonnet 으로 바꾸면 매 입력마다 +1-2s 추가)."
         value={draft.classifierModel}
         onChange={(v) => setDraft({ ...draft, classifierModel: v })}
         options={modelOpts}
       />
       <SettingsSelect
         label="Chat 모델"
-        hint="인사 / 자기소개 / 사용법 응답. Haiku 충분."
+        hint="인사 / 자기소개 / 사용법 안내 / molly 능력 질의 응답. 패턴이 단순해 Haiku 로 충분 (페르소나 톤 유지). Sonnet 으로 바꾸면 답변이 더 자연스러울 수 있지만 비용 ~3× ↑."
         value={draft.chatModel}
         onChange={(v) => setDraft({ ...draft, chatModel: v })}
         options={modelOpts}
       />
       <SettingsSelect
         label="Status 모델"
-        hint="잡 상태 자연어 답변. Haiku 권장."
+        hint='"활성 잡 몇 개?", "어제 만든 거 어떻게 됐어?" 같은 잡 상태 질의 응답. 잡 데이터를 자연어로 요약. 단순한 작업이라 Haiku 권장.'
         value={draft.statusModel}
         onChange={(v) => setDraft({ ...draft, statusModel: v })}
         options={modelOpts}
       />
       <SettingsSelect
         label="PRD analyzer 모델"
-        hint="PRD 명확도 분석. Sonnet 권장 (판단 미묘함)."
+        hint="PRD 가 명확한지 판단 + 모호하면 후속 Q 생성. 미묘한 판단 (어디 / 무엇 / 어떻게) 필요해 Sonnet 권장. Haiku 도 동작하지만 missingInfo 정확도 ↓."
         value={draft.prdModel}
         onChange={(v) => setDraft({ ...draft, prdModel: v })}
         options={modelOpts}
       />
       <SettingsSelect
         label="Plan emitter 모델"
-        hint="DS 기반 plan 생성. Sonnet 권장."
+        hint="DS (patterns / api-contracts / schema) 기반으로 plan items 생성. 가장 무거운 단계 (input ~71K tokens). Sonnet 권장. Opus 로 정확도 ↑↑ 가능 (단 비용 5×)."
         value={draft.planModel}
         onChange={(v) => setDraft({ ...draft, planModel: v })}
         options={modelOpts}
       />
       <SettingsSlider
         label="PRD thinking budget"
-        hint="0 = off. 켜면 missingInfo 정확도 ↑, latency 5-10s ↑."
+        hint='"이 PRD 가 명확한가?" 판단 시 깊이. 0 = 즉답 (모호 시 단순 후속 Q). 2048 (default) = 후속 Q 가 후보를 풍부히 제시 ("어떤 광고 페이지? 광고 생성 / 관리 / 상세 등"). 4096 = 더 길고 구체. 켜면 latency +5-10s, 비용 +40-60%.'
         value={draft.prdThinkingBudget}
         onChange={(v) => setDraft({ ...draft, prdThinkingBudget: v })}
         min={0}
@@ -141,7 +158,7 @@ function MollySettingsPanel() {
       />
       <SettingsSlider
         label="Plan thinking budget"
-        hint="0 = off (default). 켜면 grounding 정확도 ↑, latency 5-10s ↑."
+        hint='Plan 만들 때 "어떤 패턴 / 파일 / 순서?" 추론 깊이. 0 = 즉답 (default). 2048 = pattern_id 매칭 정확도 ↑, target_file 더 정확 (template form → 실제 파일 추론). 4096 = depends_on 그래프까지 정교. 켜면 plan 생성 시 latency +5-10s.'
         value={draft.planThinkingBudget}
         onChange={(v) => setDraft({ ...draft, planThinkingBudget: v })}
         min={0}
