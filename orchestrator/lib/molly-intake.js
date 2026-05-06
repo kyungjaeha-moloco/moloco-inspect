@@ -16,6 +16,7 @@
 import { classifyMollyText } from './molly-classifier.js';
 import { composeChatReply } from './molly-chat.js';
 import { composeStatusReply } from './molly-status.js';
+import { composeLifecycleReply } from './molly-lifecycle.js';
 import { analyzePrdClarity } from './molly-prd-analyzer.js';
 
 /**
@@ -114,6 +115,13 @@ async function handleFirstTurn(text, ctx, history) {
   if (cls.kind === 'status_query') {
     const response = await composeStatusReply(text, enrichedCtx);
     return { kind: 'status_query', reason: cls.reason, response };
+  }
+
+  // #4 (2026-05-06) — lifecycle_action 분기. 새 카테고리. lifecycle lib
+  // 은 deterministic template (LLM 호출 X) — 잡 식별 + surface UI 안내.
+  if (cls.kind === 'lifecycle_action') {
+    const response = await composeLifecycleReply(text, enrichedCtx);
+    return { kind: 'lifecycle_action', reason: cls.reason, response };
   }
 
   // code_change → PRD analyzer
