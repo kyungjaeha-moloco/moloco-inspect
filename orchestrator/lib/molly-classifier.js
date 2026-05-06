@@ -1,22 +1,25 @@
 // orchestrator/lib/molly-classifier.js
 const CLASSIFY_MODEL = process.env.MOLLY_CLASSIFIER_MODEL || 'claude-haiku-4-5-20251001';
 
-const SYSTEM_PROMPT = `당신은 molly 의 분류기입니다. 사용자가 보낸 메시지를 다음 셋 중 하나로 분류하세요:
+const SYSTEM_PROMPT = `당신은 molly 의 분류기입니다. 사용자가 보낸 메시지를 다음 넷 중 하나로 분류하세요:
 
-1. **code_change** — 코드/UI/디자인 을 추가/변경/제거해달라는 요청. 페이지/컴포넌트/기능 작업 지시. 보통 명령형, 결과물 묘사. 예: "TAS 사이드바에 도움말 추가", "버튼을 빨강으로 바꿔줘", "PRD: ...".
-2. **status_query** — 기존 잡/플레이그라운드/시스템 상태 질의 *또는* 기존 잡에 대한 lifecycle 명령. 예: "지금 잡 어디까지 됐어?", "어제 만든 거 어떻게 됐어?", "이 잡 cancel 됐어?", "지금 활성 잡 몇 개?", "서버 잘 돌고 있어?", "이 잡 cancel 해줘", "dc1c2ccc 다시 시도해줘", "promote 진행해줘", "restart 해줘".
-3. **chat** — 그 외 대화. 인사 / 감사 / 자기소개 질의 / 사용법 / 개선 제안 / 일반 질문 / molly 가 무엇을 할 수 있는지 / 미래 기능 질의 / GitHub/Drive 같은 외부 도구 가능성 질의 등. 예: "안녕", "고마워", "molly 가 뭐야?", "어떻게 쓰는 거야?", "더 잘하는 방법?", "GitHub 도 검색할 수 있어?".
+1. **code_change** — 코드/UI/디자인 을 추가/변경/제거해달라는 요청. 페이지/컴포넌트/기능 작업 지시. 보통 명령형, 결과물 묘사. 예: "TAS 사이드바에 도움말 추가", "버튼을 빨강으로 바꿔줘".
+2. **lifecycle_action** — 기존 잡 에 대한 액션 명령 (cancel / 취소해 / promote / 다시 시도 / 재시도 / restart / 복구 / 롤백). 잡 ID 또는 "이 잡" 언급 + 명령형. 예: "이 잡 cancel 해줘", "dc1c2ccc 다시 시도해줘", "promote 진행해줘", "이 잡 취소해". *상태 질의는 아님.* (새 잡 만들지 않음, 기존 잡에 대한 액션 의도).
+3. **status_query** — 기존 잡/플레이그라운드/시스템 상태 *질의* (의문/조회). 예: "지금 잡 어디까지 됐어?", "어제 만든 거 어떻게 됐어?", "이 잡 cancel 됐어?" (질문!), "활성 잡 몇 개?", "서버 잘 돌고 있어?".
+4. **chat** — 그 외 대화. 인사 / 감사 / 자기소개 질의 / 사용법 / 개선 제안 / molly 능력 질의 / 외부 도구 가능성 질의. 예: "안녕", "molly 가 뭐야?", "GitHub 도 검색할 수 있어?".
 
 응답 형식 (반드시 JSON 만):
-{"kind": "code_change" | "status_query" | "chat", "reason": "<한 줄 한국어>"}
+{"kind": "code_change" | "lifecycle_action" | "status_query" | "chat", "reason": "<한 줄 한국어>"}
 
 규칙:
 - 애매하면 안전한 쪽 = **chat** (잡 안 만드는 게 부작용 0). code_change 는 *명백히* 새 코드 작업 지시일 때만.
-- 길이 < 10자 인 경우 거의 chat 또는 status_query.
-- 의문문이고 "어디", "어떻게", "됐어", "끝났어", "활성", "상태" 등 포함 → status_query 가능성 높음.
-- **lifecycle 명령** ("cancel", "취소해", "promote", "다시 시도", "재시도", "restart", "복구", "롤백", 잡 ID 또는 "이 잡" 언급 + 명령형) → **status_query** (기존 잡에 대한 액션이지 새 코드 작업 아님). 새 잡 만들지 않음.
-- 평서문/명령문이고 "추가", "수정", "변경", "만들어", "바꿔" + 구체적 *코드/UI 대상* (페이지/컴포넌트/파일 등) 포함 → code_change. 단 위 lifecycle 명령은 우선 적용.
-- "할 수 있어?", "가능해?", "지원해?" 류 능력 질의 → chat.`;
+- 길이 < 10자 인 경우 거의 chat 또는 status_query 또는 lifecycle_action.
+- "어디까지", "됐어?", "어떻게 됐어?", "끝났어?", "활성", "상태" 의문 → status_query.
+- **lifecycle 키워드** ("cancel/취소/promote/다시 시도/재시도/restart/복구/롤백") + 명령형 (의문 X) → **lifecycle_action**. 잡 ID 또는 "이 잡" 명시 또는 추론 가능 시 더 명백.
+  - 예: "이 잡 cancel 해줘" = lifecycle_action (명령)
+  - 예: "이 잡 cancel 됐어?" = status_query (질문)
+- "추가/수정/변경/만들어/바꿔" + 구체적 *코드/UI 대상* (페이지/컴포넌트/파일) → code_change. 단 위 lifecycle 키워드 우선.
+- "할 수 있어?", "가능해?", "지원해?" 능력 질의 → chat.`;
 
 /**
  * @param {string} text — 사용자 입력 (멘션 텍스트 stripped 등 cleanup 된 상태)
@@ -42,7 +45,12 @@ export async function classifyMollyText(text, ctx = {}) {
       body: JSON.stringify({
         model: CLASSIFY_MODEL,
         max_tokens: 200,
-        system: SYSTEM_PROMPT,
+        // Caching (#1): 매 호출 거치는 핫패스 — system prompt 가 짧아도
+        // (~500 tokens) cache_control 마커 둠. Haiku threshold (~2048)
+        // 미달이면 API 자동 무시. 향후 prompt 확장 시 자동 캐시.
+        system: [
+          { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+        ],
         messages: [{ role: 'user', content: userMessage }],
       }),
       signal: AbortSignal.timeout(15000),
@@ -80,7 +88,7 @@ export async function classifyMollyText(text, ctx = {}) {
   } catch (err) {
     return { kind: 'chat', reason: `classifier parse failed: ${err.message?.slice(0, 80)}, defaulting to chat` };
   }
-  if (!['code_change', 'status_query', 'chat'].includes(parsed?.kind)) {
+  if (!['code_change', 'lifecycle_action', 'status_query', 'chat'].includes(parsed?.kind)) {
     return { kind: 'chat', reason: `classifier returned invalid kind="${parsed?.kind}", defaulting to chat` };
   }
 
@@ -95,8 +103,11 @@ export async function classifyMollyText(text, ctx = {}) {
     reason = `chat → code_change (PRD-like heuristic): ${reason}`;
   }
 
+  const u = data?.usage || {};
   console.log(
-    `[molly-classifier] input="${text.slice(0, 80)}" → kind=${kind} reason="${reason.slice(0, 80)}"`,
+    `[molly-classifier] input="${text.slice(0, 80)}" → kind=${kind} reason="${reason.slice(0, 80)}" | ` +
+    `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
+    `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
   );
   return { kind, reason };
 }

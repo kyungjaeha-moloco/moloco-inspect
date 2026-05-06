@@ -15,6 +15,18 @@ import fs from 'node:fs';
 
 const DEFAULT_PLAN_MODEL = 'claude-sonnet-4-20250514';
 
+// #2 — extended thinking 옵션 (2026-05-06). plan emit 은 추론 부담 큰 단계
+// (pattern_id 매칭 / entity 매칭 / target_file 템플릿 / depends_on 그래프).
+// off 로 끄려면 MOLLY_PLAN_THINKING=0. 켜면 latency ±5-10s, grounding
+// 정확도 기대.
+const PLAN_THINKING_BUDGET = (() => {
+  const raw = process.env.MOLLY_PLAN_THINKING;
+  if (raw === '0' || raw === 'off' || raw === 'false') return 0;
+  const n = Number(raw);
+  if (Number.isFinite(n) && n >= 0) return n;
+  return 0; // default off — 사용자가 명시 활성 시에만
+})();
+
 const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal.
 
 You have access to a structured design system:
@@ -99,31 +111,39 @@ export async function emitPlan(args, ctx = {}) {
   const apiContracts = readJsonSafe(apiContractsPath, {});
   const requestSchema = readJsonSafe(requestSchemaPath, {});
 
+  // Phase: prompt caching (#1) — DS resources 는 호출마다 동일한 큰 정적
+  // 블록. 마지막 블록에 cache_control: ephemeral 두면 누적 prefix 가
+  // 캐시됨. 첫 호출은 cache_creation_input_tokens 발생, 두 번째부터
+  // cache_read_input_tokens 로 latency + 비용 절감.
+  const systemBlocks = [
+    { type: 'text', text: SYSTEM_PROMPT },
+    { type: 'text', text: `pm-sa-request-schema:\n${JSON.stringify(requestSchema, null, 2)}` },
+    { type: 'text', text: `patterns.json:\n${JSON.stringify(patterns, null, 2)}` },
+    {
+      type: 'text',
+      text: `api-ui-contracts.json:\n${JSON.stringify(apiContracts, null, 2)}`,
+      cache_control: { type: 'ephemeral' },
+    },
+  ];
+
   const userPrompt = `PM 요청:
 Goal: ${goal}
 Client: ${client}
 Target page: ${routeOrPage}
 ${jiraUrl ? `Jira: ${jiraUrl}\n` : ''}${prdUrl ? `PRD: ${prdUrl}\n` : ''}
----
-
-pm-sa-request-schema:
-${JSON.stringify(requestSchema, null, 2)}
-
----
-
-patterns.json:
-${JSON.stringify(patterns, null, 2)}
-
----
-
-api-ui-contracts.json:
-${JSON.stringify(apiContracts, null, 2)}
-
----
-
-위 DS 리소스를 근거로 계획을 JSON으로 출력하세요.`;
+위 system 의 DS 리소스 (pm-sa-request-schema / patterns.json / api-ui-contracts.json) 를 근거로 계획을 JSON으로 출력하세요.`;
 
   const model = process.env.PLAN_MODEL || DEFAULT_PLAN_MODEL;
+  const useThinking = PLAN_THINKING_BUDGET > 0;
+  const reqBody = {
+    model,
+    max_tokens: useThinking ? PLAN_THINKING_BUDGET + 4096 : 4096,
+    system: systemBlocks,
+    messages: [{ role: 'user', content: userPrompt }],
+  };
+  if (useThinking) {
+    reqBody.thinking = { type: 'enabled', budget_tokens: PLAN_THINKING_BUDGET };
+  }
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -131,12 +151,7 @@ ${JSON.stringify(apiContracts, null, 2)}
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },
-    body: JSON.stringify({
-      model,
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userPrompt }],
-    }),
+    body: JSON.stringify(reqBody),
   });
 
   if (!resp.ok) {
@@ -146,7 +161,10 @@ ${JSON.stringify(apiContracts, null, 2)}
   }
 
   const result = await resp.json();
-  const text = (result.content?.[0]?.text || '').trim();
+  // thinking 켜면 content[0] 가 thinking block — type=text 블록만 추출.
+  const blocks = Array.isArray(result?.content) ? result.content : [];
+  const textBlock = blocks.find((b) => b?.type === 'text');
+  const text = (textBlock?.text || '').trim();
   if (!text) {
     throw new Error('emitPlan: empty LLM response');
   }
@@ -166,7 +184,12 @@ ${JSON.stringify(apiContracts, null, 2)}
     throw new Error(`emitPlan: invalid JSON — ${err.message}`);
   }
 
-  console.log(`[plan-emitter] Generated ${plan.plan_items?.length || 0} items for client=${client} route=${routeOrPage}`);
+  const u = result?.usage || {};
+  console.log(
+    `[plan-emitter] Generated ${plan.plan_items?.length || 0} items for client=${client} route=${routeOrPage} | ` +
+    `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
+    `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
+  );
   return plan;
 }
 

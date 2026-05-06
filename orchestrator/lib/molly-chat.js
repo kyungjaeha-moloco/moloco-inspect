@@ -1,5 +1,10 @@
 // orchestrator/lib/molly-chat.js
-const CHAT_MODEL = process.env.MOLLY_CHAT_MODEL || 'claude-sonnet-4-20250514';
+//
+// #3 (2026-05-06): default 모델 Sonnet 4 → Haiku 4.5. chat 응답 패턴
+// (인사 / 자기소개 / 사용법 / 기능 안내 / 짧은 1-2 줄 ~ 2-4 문단) 은
+// Haiku 로 충분. 페르소나 톤 유지 가능. latency 3-5s → ~1s 기대.
+// Sonnet 으로 되돌리려면 MOLLY_CHAT_MODEL=claude-sonnet-4-20250514.
+const CHAT_MODEL = process.env.MOLLY_CHAT_MODEL || 'claude-haiku-4-5-20251001';
 
 const SYSTEM_PROMPT = `당신은 Moloco Inspect 의 AI 어시스턴트 "molly" 입니다. 톤은 친근하고 간결한 한국어. 답변은 2-4 문단, 필요하면 1-2 줄로 더 짧게.
 
@@ -68,7 +73,12 @@ export async function composeChatReply(text, ctx = {}) {
     body: JSON.stringify({
       model: CHAT_MODEL,
       max_tokens: 600,
-      system: SYSTEM_PROMPT,
+      // Caching (#1): SYSTEM_PROMPT 가 호출마다 동일 → 단일 블록 +
+      // cache_control 로 캐시. min token threshold (Sonnet 1024 / Haiku
+      // 2048) 미달 시 API 가 자동 무시하므로 안전.
+      system: [
+        { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+      ],
       messages: [{ role: 'user', content: userMessage }],
     }),
     signal: AbortSignal.timeout(30000),
@@ -80,8 +90,11 @@ export async function composeChatReply(text, ctx = {}) {
   const data = await resp.json();
   const content = data?.content?.[0]?.text ?? '';
   const reply = content.trim() || '음… 답을 못 만들었어요. 다시 시도해 주세요.';
+  const u = data?.usage || {};
   console.log(
-    `[molly-chat] input="${text.slice(0, 80)}" → reply len=${reply.length}`,
+    `[molly-chat] input="${text.slice(0, 80)}" → reply len=${reply.length} | ` +
+    `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
+    `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
   );
   return reply;
 }

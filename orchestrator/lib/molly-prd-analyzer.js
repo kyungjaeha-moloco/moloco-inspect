@@ -68,7 +68,11 @@ export async function analyzePrdClarity(text, ctx = {}) {
   const reqBody = {
     model: PRD_MODEL,
     max_tokens: maxTokens,
-    system: SYSTEM_PROMPT,
+    // Caching (#1): SYSTEM_PROMPT (~700 tokens) cache_control. Sonnet
+    // threshold ~1024 — borderline. API 가 자동 결정.
+    system: [
+      { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+    ],
     messages: [{ role: 'user', content: userMessage }],
   };
   if (useThinking) {
@@ -111,6 +115,11 @@ export async function analyzePrdClarity(text, ctx = {}) {
   const clarity = parsed?.clarity === 'ambiguous' ? 'ambiguous' : 'clear';
   const clarifyingQuestion = typeof parsed?.clarifyingQuestion === 'string' ? parsed.clarifyingQuestion.slice(0, 300) : '';
   const missingInfo = Array.isArray(parsed?.missingInfo) ? parsed.missingInfo.slice(0, 5).map(String) : [];
-  console.log(`[prd-analyzer] input="${text.slice(0, 80)}" → clarity=${clarity} q="${clarifyingQuestion.slice(0, 60)}"`);
+  const u = data?.usage || {};
+  console.log(
+    `[prd-analyzer] input="${text.slice(0, 80)}" → clarity=${clarity} q="${clarifyingQuestion.slice(0, 60)}" | ` +
+    `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
+    `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
+  );
   return { clarity, clarifyingQuestion, missingInfo };
 }

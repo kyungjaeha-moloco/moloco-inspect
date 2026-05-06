@@ -21,22 +21,7 @@ raw 데이터 형식: JSON 배열, 각 잡은 { id, status, tasks: [{status}], t
 - 잡 데이터에 같은 playground 가 보인다고 해서 "그게 이 thread 에 새로 생긴 거" 라고 답하면 안 됨. 다른 thread / 다른 surface 가 만든 playground 일 수 있음.
 - thisThreadPlayground 가 null 인데 사용자가 "playground 만들어졌어?" 류 질문을 하면 명시적으로 "아직 없음" 이라고 답.
 
-**lifecycle 액션 (cancel / promote / restart / 재시도 / 다시 시도) 명령에 대한 절대 규칙:**
-
-당신은 *상태 리포터* 일 뿐 잡을 cancel / promote / restart / retry / approve 할 능력이 없습니다. 사용자가 "이 잡 cancel 해줘", "다시 시도해줘", "promote 진행해줘", "restart 해", "취소해" 같은 명령을 하면 — 절대 다음과 같이 *수행 약속* 하지 말 것:
-- ❌ "cancel 해드릴게요"
-- ❌ "다시 시도할게요"
-- ❌ "진행해드릴게요"
-- ❌ "취소했습니다"
-
-대신 다음 형식으로 답:
-1. raw 데이터에서 어떤 잡인지 식별 (잡 ID 첫 8자, 현재 status, prdText 요약). 잡 ID 가 모호하면 "어떤 잡을 말씀하시는지 알려주실 수 있나요?" 되묻기.
-2. "저는 상태만 확인할 수 있어요. 직접 액션은 다음 surface 에서 하실 수 있습니다:" 명시.
-3. UI 안내:
-   - **Inspect Console** — http://localhost:4174 의 Jobs 탭에서 잡 카드 클릭 → 액션 버튼
-   - **Slack** — molly 가 보낸 plan 카드의 [✅ 승인 / ❌ 취소 / 🚀 Promote] 버튼
-   - **Chrome ext / Playground** — 사이드패널 / 채팅창의 잡 카드 버튼
-4. 어느 surface 에서 사용자가 물었는지에 따라 가장 가까운 안내 우선 (Slack 이면 plan 카드 + Console, Playground 면 잡 카드 + Console 등).`;
+(lifecycle 액션 명령 — "cancel 해줘", "다시 시도해", "promote 진행해" 등 — 은 별도 lifecycle handler 가 처리함. 이 status reporter 는 *순수 상태 질의* 만 받음. 만에 하나 lifecycle 명령이 들어오면 안전하게 "직접 액션은 Inspect Console (http://localhost:4174) 에서" 안내.)`;
 
 /**
  * @param {string} text — 사용자 질문
@@ -82,7 +67,11 @@ export async function composeStatusReply(text, ctx) {
     body: JSON.stringify({
       model: STATUS_MODEL,
       max_tokens: 600,
-      system: SYSTEM_PROMPT,
+      // Caching (#1): SYSTEM_PROMPT 캐시. Haiku 4.5 minimum cacheable
+      // ~2048 tokens 추정 — system prompt 가 미달이면 API 가 자동 무시.
+      system: [
+        { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+      ],
       messages: [{ role: 'user', content: userMessage }],
     }),
     signal: AbortSignal.timeout(30000),
@@ -97,8 +86,11 @@ export async function composeStatusReply(text, ctx) {
   const content = data?.content?.[0]?.text ?? '';
   const trimmed = content.trim();
   const reply = trimmed.length >= 30 ? trimmed : templatedFallback(jobs);
+  const u = data?.usage || {};
   console.log(
-    `[molly-status] input="${text.slice(0, 80)}" → jobs=${jobs.length} reply len=${reply.length}`,
+    `[molly-status] input="${text.slice(0, 80)}" → jobs=${jobs.length} reply len=${reply.length} | ` +
+    `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
+    `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
   );
   return reply;
 }
