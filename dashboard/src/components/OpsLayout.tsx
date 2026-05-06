@@ -54,6 +54,13 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M13.5 8a5.5 5.5 0 01-.3 1.8l1.3.8-1 1.7-1.3-.8a5.5 5.5 0 01-1.5.9V14h-2v-1.6a5.5 5.5 0 01-1.5-.9l-1.3.8-1-1.7 1.3-.8A5.5 5.5 0 014.5 8a5.5 5.5 0 01.3-1.8L3.5 5.4l1-1.7 1.3.8a5.5 5.5 0 011.5-.9V2h2v1.6a5.5 5.5 0 011.5.9l1.3-.8 1 1.7-1.3.8a5.5 5.5 0 01.2 1.8z" />
     </svg>
   ),
+  metrics: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 14V2" />
+      <path d="M2 14h12" />
+      <path d="M5 11l2-3 2.5 2L13 5" />
+    </svg>
+  ),
 };
 
 export function OpsLayout({ children }: { children: React.ReactNode }) {

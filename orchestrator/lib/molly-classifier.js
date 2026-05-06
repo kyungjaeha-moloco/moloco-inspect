@@ -1,5 +1,6 @@
 // orchestrator/lib/molly-classifier.js
 import { getMollySettings } from './molly-settings.js';
+import { recordEvent } from './molly-metrics.js';
 
 const SYSTEM_PROMPT = `당신은 molly 의 분류기입니다. 사용자가 보낸 메시지를 다음 넷 중 하나로 분류하세요:
 
@@ -47,8 +48,16 @@ export async function classifyMollyText(text, ctx = {}) {
   const fast = fastPathClassify(text);
   if (fast) {
     console.log(`[molly-classifier] fast-path → kind=${fast.kind} reason="${fast.reason}"`);
+    recordEvent('lib_call', {
+      lib: 'molly-classifier',
+      surface: ctx.surface,
+      latency_ms: 0,
+      kind: fast.kind,
+      fastPath: true,
+    });
     return fast;
   }
+  const t0 = Date.now();
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
   const userMessage = ctx.recentMessages?.length
@@ -131,6 +140,18 @@ export async function classifyMollyText(text, ctx = {}) {
     `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
     `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
   );
+  recordEvent('lib_call', {
+    lib: 'molly-classifier',
+    surface: ctx.surface,
+    model: getMollySettings().classifierModel,
+    latency_ms: Date.now() - t0,
+    kind,
+    fastPath: false,
+    input_tokens: u.input_tokens ?? 0,
+    output_tokens: u.output_tokens ?? 0,
+    cache_create: u.cache_creation_input_tokens ?? 0,
+    cache_read: u.cache_read_input_tokens ?? 0,
+  });
   return { kind, reason };
 }
 

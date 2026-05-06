@@ -8,6 +8,7 @@ import { RequestDetailPage } from './pages/RequestDetailPage';
 import { JobsPage } from './pages/JobsPage';
 import { JobDetailPage } from './pages/JobDetailPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { MollyMetricsPage } from './pages/MollyMetricsPage';
 
 export function App() {
   return (
@@ -21,6 +22,7 @@ export function App() {
         <Route path="/jobs/:jobId" element={<JobDetailPage />} />
         <Route path="/requests" element={<RequestsPage />} />
         <Route path="/requests/:requestId" element={<RequestDetailPage />} />
+        <Route path="/molly" element={<MollyMetricsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
 
         {/* Legacy redirects */}

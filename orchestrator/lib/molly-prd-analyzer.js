@@ -3,6 +3,7 @@
 // 모델 + thinking budget 은 molly-settings store 에서 dynamic. UI 변경
 // 즉시 반영 (재시작 X).
 import { getMollySettings } from './molly-settings.js';
+import { recordEvent } from './molly-metrics.js';
 
 const SYSTEM_PROMPT = `당신은 molly 의 PRD 명확도 검사자입니다. 사용자가 코드 작업을 요청하는 PRD 를 받아 그 작업을 *지금 바로 시작할 만큼 명확한지* 판정합니다.
 
@@ -41,6 +42,7 @@ clarifyingQuestion 작성 규칙:
  * @returns {Promise<{clarity: 'clear'|'ambiguous', clarifyingQuestion: string, missingInfo: string[]}>}
  */
 export async function analyzePrdClarity(text, ctx = {}) {
+  const t0 = Date.now();
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
   // Sub-phase B.1 — history 있으면 cumulative 컨텍스트로 분석. 사용자가
@@ -117,5 +119,17 @@ export async function analyzePrdClarity(text, ctx = {}) {
     `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
     `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
   );
+  recordEvent('lib_call', {
+    lib: 'prd-analyzer',
+    surface: ctx.surface,
+    model: settings.prdModel,
+    latency_ms: Date.now() - t0,
+    clarity,
+    thinking: useThinking,
+    thinking_budget: useThinking ? thinkingBudget : 0,
+    has_history: history.length > 0,
+    input_tokens: u.input_tokens ?? 0,
+    output_tokens: u.output_tokens ?? 0,
+  });
   return { clarity, clarifyingQuestion, missingInfo };
 }

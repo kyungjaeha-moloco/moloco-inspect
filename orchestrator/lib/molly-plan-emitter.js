@@ -16,6 +16,7 @@ import fs from 'node:fs';
 // 모델 + thinking budget 은 molly-settings store 에서 dynamic 로 — Inspect
 // Console UI (Settings) 에서 런타임 변경 가능.
 import { getMollySettings } from './molly-settings.js';
+import { recordEvent } from './molly-metrics.js';
 
 const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal.
 
@@ -73,6 +74,7 @@ Generate 3-8 plan items covering the full scope — nav changes, route registrat
  * @throws {Error} `emitPlan: <reason>` — caller 는 메시지로 분기 (required / not configured / LLM error / invalid JSON)
  */
 export async function emitPlan(args, ctx = {}) {
+  const t0 = Date.now();
   const goal = typeof args === 'string' ? args : args?.goal;
   if (!goal || typeof goal !== 'string' || !goal.trim()) {
     throw new Error('emitPlan: goal required');
@@ -181,6 +183,19 @@ ${jiraUrl ? `Jira: ${jiraUrl}\n` : ''}${prdUrl ? `PRD: ${prdUrl}\n` : ''}
     `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
     `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
   );
+  recordEvent('lib_call', {
+    lib: 'plan-emitter',
+    surface: ctx.surface,
+    model: settings.planModel,
+    latency_ms: Date.now() - t0,
+    n_items: plan.plan_items?.length ?? 0,
+    thinking: useThinking,
+    thinking_budget: useThinking ? thinkingBudget : 0,
+    input_tokens: u.input_tokens ?? 0,
+    output_tokens: u.output_tokens ?? 0,
+    cache_create: u.cache_creation_input_tokens ?? 0,
+    cache_read: u.cache_read_input_tokens ?? 0,
+  });
   return plan;
 }
 

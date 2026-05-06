@@ -16,6 +16,8 @@
 //   - listJobs 에서 startsWith match — 식별
 //   - 못 찾으면 활성 잡 1개면 그것, 여럿이면 "어떤 잡?" 되묻기
 
+import { recordEvent } from './molly-metrics.js';
+
 const ACTION_KEYWORDS = {
   cancel: ['cancel', '취소', '캔슬'],
   promote: ['promote', '프로모트', '머지', 'merge'],
@@ -49,6 +51,7 @@ const SURFACE_INSTRUCTIONS = {
  * @returns {Promise<string>} — Slack mrkdwn 호환 응답
  */
 export async function composeLifecycleReply(text, ctx = {}) {
+  const t0 = Date.now();
   const action = detectAction(text);
   const jobs = (ctx.listJobs?.() ?? [])
     .slice()
@@ -59,6 +62,15 @@ export async function composeLifecycleReply(text, ctx = {}) {
 
   const matchedJob = matchJob(text, jobs);
   const ambiguousJobs = !matchedJob ? findCandidateJobs(action, jobs) : [];
+
+  recordEvent('lib_call', {
+    lib: 'molly-lifecycle',
+    surface: ctx.surface,
+    latency_ms: Date.now() - t0,
+    action,
+    jobMatched: !!matchedJob,
+    candidates: matchedJob ? 1 : ambiguousJobs.length,
+  });
 
   // 1. 잡 식별 못 함 + 후보 여럿 → 되묻기
   if (!matchedJob && ambiguousJobs.length > 1) {

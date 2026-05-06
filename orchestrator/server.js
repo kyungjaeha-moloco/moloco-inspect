@@ -2583,6 +2583,17 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
+  // Molly metrics — 운영 지표 집계. window=1h|24h|7d.
+  if (pathname === '/api/molly/metrics' && req.method === 'GET') {
+    try {
+      const { getMetrics } = await import('./lib/molly-metrics.js');
+      const w = url.searchParams.get('window') || '1h';
+      return json(res, 200, { ok: true, ...getMetrics(w) });
+    } catch (err) {
+      return json(res, 500, { ok: false, error: err?.message ?? String(err) });
+    }
+  }
+
   // Molly settings — Inspect Console UI 에서 런타임 변경 가능. 모델 /
   // thinking budget 즉시 반영 (재시작 X). 부팅 시 env defaults +
   // orchestrator/state/molly-settings.json 영구 저장.
@@ -2640,6 +2651,14 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         routeOrPage: payload?.routeOrPage,
       };
       const result = await processIntake(text, ctx);
+      // 메트릭 — intake 의 최종 kind 기록.
+      try {
+        const { recordEvent } = await import('./lib/molly-metrics.js');
+        recordEvent('intake_result', {
+          surface: ctx.surface,
+          kind: result.kind,
+        });
+      } catch {}
       return json(res, 200, { ok: true, ...result });
     } catch (err) {
       // #7 fallback 톤 가이드 — raw error 노출 X. timeout / API key /
@@ -2659,6 +2678,16 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         userMessage = '⚠️ 잠시 문제가 있어요. 다시 시도해 주세요. 계속 안 되면 orchestrator 로그를 확인해 주세요.';
       }
       console.error('[/api/intake] error:', err);
+      // 메트릭 — error category 기록.
+      try {
+        const { recordEvent } = await import('./lib/molly-metrics.js');
+        let category = 'other';
+        if (/timeout|timed out|aborted/i.test(raw)) category = 'timeout';
+        else if (/api[\s_-]?key|not configured/i.test(raw)) category = 'api_key';
+        else if (/rate.?limit|429/i.test(raw)) category = 'rate_limit';
+        else if (/network|ENOTFOUND|ECONNREFUSED|fetch failed/i.test(raw)) category = 'network';
+        recordEvent('intake_error', { category, raw: raw.slice(0, 200) });
+      } catch {}
       return json(res, 500, { ok: false, error: userMessage, detail: raw.slice(0, 200) });
     }
   }

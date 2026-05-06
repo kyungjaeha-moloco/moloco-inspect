@@ -2,6 +2,7 @@
 
 import { getPlaygroundIdForThread } from './slack-thread-map.js';
 import { getMollySettings } from './molly-settings.js';
+import { recordEvent } from './molly-metrics.js';
 
 const SYSTEM_PROMPT = `당신은 molly 의 status reporter 입니다. 사용자가 잡/시스템 상태에 대해 질문하면 아래 raw 데이터를 보고 친근한 한국어로 답변합니다.
 
@@ -28,6 +29,7 @@ raw 데이터 형식: JSON 배열, 각 잡은 { id, status, tasks: [{status}], t
  * @returns {Promise<string>}
  */
 export async function composeStatusReply(text, ctx) {
+  const t0 = Date.now();
   // #6 — 활성 잡 (running / queued / processing / paused) 우선, 그 다음
   // 최근 종료 잡. 사용자가 보통 진행 중인 잡 상태 궁금. 토큰 줄어들고
   // 답변 정확도 ↑.
@@ -105,6 +107,15 @@ export async function composeStatusReply(text, ctx) {
     `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
     `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
   );
+  recordEvent('lib_call', {
+    lib: 'molly-status',
+    surface: ctx.surface,
+    model: getMollySettings().statusModel,
+    latency_ms: Date.now() - t0,
+    jobs_count: jobs.length,
+    input_tokens: u.input_tokens ?? 0,
+    output_tokens: u.output_tokens ?? 0,
+  });
   return reply;
 }
 
