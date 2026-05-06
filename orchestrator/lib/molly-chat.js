@@ -1,10 +1,8 @@
 // orchestrator/lib/molly-chat.js
 //
-// #3 (2026-05-06): default 모델 Sonnet 4 → Haiku 4.5. chat 응답 패턴
-// (인사 / 자기소개 / 사용법 / 기능 안내 / 짧은 1-2 줄 ~ 2-4 문단) 은
-// Haiku 로 충분. 페르소나 톤 유지 가능. latency 3-5s → ~1s 기대.
-// Sonnet 으로 되돌리려면 MOLLY_CHAT_MODEL=claude-sonnet-4-20250514.
-const CHAT_MODEL = process.env.MOLLY_CHAT_MODEL || 'claude-haiku-4-5-20251001';
+// 모델은 molly-settings store 에서 dynamic 로 — Inspect Console UI
+// (Settings 탭) 에서 런타임 변경 가능. env 부팅 default + 파일 영구 저장.
+import { getMollySettings } from './molly-settings.js';
 
 const SYSTEM_PROMPT = `당신은 Moloco Inspect 의 AI 어시스턴트 "molly" 입니다. 톤은 친근하고 간결한 한국어. 답변은 2-4 문단, 필요하면 1-2 줄로 더 짧게.
 
@@ -76,7 +74,7 @@ export async function composeChatReply(text, ctx = {}) {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: CHAT_MODEL,
+      model: getMollySettings().chatModel,
       max_tokens: 600,
       // Caching (#1): SYSTEM_PROMPT 가 호출마다 동일 → 단일 블록 +
       // cache_control 로 캐시. min token threshold (Sonnet 1024 / Haiku

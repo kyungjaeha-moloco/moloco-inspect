@@ -1,5 +1,5 @@
 // orchestrator/lib/molly-classifier.js
-const CLASSIFY_MODEL = process.env.MOLLY_CLASSIFIER_MODEL || 'claude-haiku-4-5-20251001';
+import { getMollySettings } from './molly-settings.js';
 
 const SYSTEM_PROMPT = `당신은 molly 의 분류기입니다. 사용자가 보낸 메시지를 다음 넷 중 하나로 분류하세요:
 
@@ -65,7 +65,7 @@ export async function classifyMollyText(text, ctx = {}) {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: CLASSIFY_MODEL,
+        model: getMollySettings().classifierModel,
         max_tokens: 200,
         // Caching (#1): 매 호출 거치는 핫패스 — system prompt 가 짧아도
         // (~500 tokens) cache_control 마커 둠. Haiku threshold (~2048)

@@ -1,14 +1,8 @@
 // orchestrator/lib/molly-prd-analyzer.js
-const PRD_MODEL = process.env.MOLLY_PRD_MODEL || 'claude-sonnet-4-20250514';
-// Extended thinking 실험 (2026-04-30) — clarity 판단 정확도 향상 가능성.
-// off 로 끄려면 MOLLY_PRD_THINKING=0. budget 0 도 사실상 off.
-const PRD_THINKING_BUDGET = (() => {
-  const raw = process.env.MOLLY_PRD_THINKING;
-  if (raw === '0' || raw === 'off' || raw === 'false') return 0;
-  const n = Number(raw);
-  if (Number.isFinite(n) && n >= 0) return n;
-  return 2048; // default on
-})();
+//
+// 모델 + thinking budget 은 molly-settings store 에서 dynamic. UI 변경
+// 즉시 반영 (재시작 X).
+import { getMollySettings } from './molly-settings.js';
 
 const SYSTEM_PROMPT = `당신은 molly 의 PRD 명확도 검사자입니다. 사용자가 코드 작업을 요청하는 PRD 를 받아 그 작업을 *지금 바로 시작할 만큼 명확한지* 판정합니다.
 
@@ -62,11 +56,13 @@ export async function analyzePrdClarity(text, ctx = {}) {
   } else {
     userMessage = `PRD 후보:\n${text}\n\n분석해주세요.`;
   }
-  const useThinking = PRD_THINKING_BUDGET > 0;
+  const settings = getMollySettings();
+  const thinkingBudget = settings.prdThinkingBudget;
+  const useThinking = thinkingBudget > 0;
   // thinking 켜면 max_tokens 가 thinking + 응답 합 — 여유 있게.
-  const maxTokens = useThinking ? PRD_THINKING_BUDGET + 600 : 400;
+  const maxTokens = useThinking ? thinkingBudget + 600 : 400;
   const reqBody = {
-    model: PRD_MODEL,
+    model: settings.prdModel,
     max_tokens: maxTokens,
     // Caching (#1): SYSTEM_PROMPT (~700 tokens) cache_control. Sonnet
     // threshold ~1024 — borderline. API 가 자동 결정.
@@ -76,7 +72,7 @@ export async function analyzePrdClarity(text, ctx = {}) {
     messages: [{ role: 'user', content: userMessage }],
   };
   if (useThinking) {
-    reqBody.thinking = { type: 'enabled', budget_tokens: PRD_THINKING_BUDGET };
+    reqBody.thinking = { type: 'enabled', budget_tokens: thinkingBudget };
   }
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',

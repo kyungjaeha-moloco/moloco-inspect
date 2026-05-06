@@ -13,19 +13,9 @@
 import path from 'node:path';
 import fs from 'node:fs';
 
-const DEFAULT_PLAN_MODEL = 'claude-sonnet-4-20250514';
-
-// #2 — extended thinking 옵션 (2026-05-06). plan emit 은 추론 부담 큰 단계
-// (pattern_id 매칭 / entity 매칭 / target_file 템플릿 / depends_on 그래프).
-// off 로 끄려면 MOLLY_PLAN_THINKING=0. 켜면 latency ±5-10s, grounding
-// 정확도 기대.
-const PLAN_THINKING_BUDGET = (() => {
-  const raw = process.env.MOLLY_PLAN_THINKING;
-  if (raw === '0' || raw === 'off' || raw === 'false') return 0;
-  const n = Number(raw);
-  if (Number.isFinite(n) && n >= 0) return n;
-  return 0; // default off — 사용자가 명시 활성 시에만
-})();
+// 모델 + thinking budget 은 molly-settings store 에서 dynamic 로 — Inspect
+// Console UI (Settings) 에서 런타임 변경 가능.
+import { getMollySettings } from './molly-settings.js';
 
 const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal.
 
@@ -133,16 +123,17 @@ Target page: ${routeOrPage}
 ${jiraUrl ? `Jira: ${jiraUrl}\n` : ''}${prdUrl ? `PRD: ${prdUrl}\n` : ''}
 위 system 의 DS 리소스 (pm-sa-request-schema / patterns.json / api-ui-contracts.json) 를 근거로 계획을 JSON으로 출력하세요.`;
 
-  const model = process.env.PLAN_MODEL || DEFAULT_PLAN_MODEL;
-  const useThinking = PLAN_THINKING_BUDGET > 0;
+  const settings = getMollySettings();
+  const thinkingBudget = settings.planThinkingBudget;
+  const useThinking = thinkingBudget > 0;
   const reqBody = {
-    model,
-    max_tokens: useThinking ? PLAN_THINKING_BUDGET + 4096 : 4096,
+    model: settings.planModel,
+    max_tokens: useThinking ? thinkingBudget + 4096 : 4096,
     system: systemBlocks,
     messages: [{ role: 'user', content: userPrompt }],
   };
   if (useThinking) {
-    reqBody.thinking = { type: 'enabled', budget_tokens: PLAN_THINKING_BUDGET };
+    reqBody.thinking = { type: 'enabled', budget_tokens: thinkingBudget };
   }
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',

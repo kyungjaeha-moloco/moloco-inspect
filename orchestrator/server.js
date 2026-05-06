@@ -2583,6 +2583,33 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
+  // Molly settings — Inspect Console UI 에서 런타임 변경 가능. 모델 /
+  // thinking budget 즉시 반영 (재시작 X). 부팅 시 env defaults +
+  // orchestrator/state/molly-settings.json 영구 저장.
+  if (pathname === '/api/molly/settings') {
+    if (req.method === 'GET') {
+      try {
+        const { describeMollySettings } = await import('./lib/molly-settings.js');
+        return json(res, 200, { ok: true, ...describeMollySettings() });
+      } catch (err) {
+        return json(res, 500, { ok: false, error: err?.message ?? String(err) });
+      }
+    }
+    if (req.method === 'POST') {
+      try {
+        const { setMollySettings, describeMollySettings } = await import('./lib/molly-settings.js');
+        const payload = await parseBody(req);
+        if (!payload || typeof payload !== 'object') {
+          return json(res, 400, { ok: false, error: 'JSON object required' });
+        }
+        const updated = setMollySettings(payload);
+        return json(res, 200, { ok: true, current: updated, ...describeMollySettings() });
+      } catch (err) {
+        return json(res, 400, { ok: false, error: err?.message ?? String(err) });
+      }
+    }
+  }
+
   // Unified intake — surface 무관 entry point. classifier + chat/status +
   // PRD analyzer 를 한 lib (molly-intake.js) 로 묶어 4 종 kind 반환.
   // Phase 2 of unified intake plan. 기존 /api/molly/respond 는 alias 로 유지

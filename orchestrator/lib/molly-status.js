@@ -1,8 +1,7 @@
 // orchestrator/lib/molly-status.js
 
 import { getPlaygroundIdForThread } from './slack-thread-map.js';
-
-const STATUS_MODEL = process.env.MOLLY_STATUS_MODEL || 'claude-haiku-4-5-20251001';
+import { getMollySettings } from './molly-settings.js';
 
 const SYSTEM_PROMPT = `당신은 molly 의 status reporter 입니다. 사용자가 잡/시스템 상태에 대해 질문하면 아래 raw 데이터를 보고 친근한 한국어로 답변합니다.
 
@@ -79,7 +78,7 @@ export async function composeStatusReply(text, ctx) {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: STATUS_MODEL,
+      model: getMollySettings().statusModel,
       max_tokens: 600,
       // Caching (#1): SYSTEM_PROMPT 캐시. Haiku 4.5 minimum cacheable
       // ~2048 tokens 추정 — system prompt 가 미달이면 API 가 자동 무시.
