@@ -283,6 +283,7 @@ export async function postChat(
 export type IntakeKind =
   | 'chat'
   | 'status_query'
+  | 'lifecycle_action'
   | 'code_change_clear'
   | 'code_change_ambiguous'
   | 'plan_emit'
@@ -407,6 +408,14 @@ export interface Playground {
   updatedAt: number;
   lastActivityAt: number;
   archivedDiffPath?: string;
+  /**
+   * How this playground reached `status==='archived'`.
+   *  - `'user'`: explicit archive action (patches exported, container removed)
+   *  - `'reattach-missing'`: orchestrator startup couldn't `docker inspect`
+   *    the container — likely a daemon race after host wake / Docker restart.
+   *    Reattach re-checks these on every boot so the entry can self-heal.
+   */
+  archivedReason?: 'user' | 'reattach-missing';
   /** ms since epoch of the most recent promote run (any outcome). */
   promotedAt?: number;
   /** Branch name pushed to the host `msm-portal` origin on last promote. */

@@ -13,6 +13,7 @@ import { create } from 'zustand';
 import {
   getChatMessages,
   putChatMessages,
+  type IntakeKind,
   type Playground,
 } from '../services/orchestrator-client';
 import type { BridgeElementContext } from '../services/playground-bridge';
@@ -87,6 +88,17 @@ export interface ChatMessage {
   };
   /** Plan has been accepted / rejected — dimmed or highlighted in UI. */
   planResolved?: 'accepted' | 'rejected';
+  /**
+   * assistant 만 — 직전 IntakeResult.kind. history-aware intake (sub-phase C)
+   * 가 multi-turn dispatch 결정에 사용. 옛 메시지엔 없으니 reader 는
+   * `m.kind ?? heuristic` 폴백 (m.plan 보유 → 'plan_emit' 추정).
+   */
+  kind?: IntakeKind;
+  /**
+   * code_change_ambiguous 시 IntakeResult.clarifyingQuestion. UI 렌더 +
+   * 후속 turn 의 dispatcher 가 컨텍스트로 활용.
+   */
+  clarifyingQuestion?: string;
   /** Present when this message is showing an execution. */
   execution?: ExecutionState;
   /**

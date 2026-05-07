@@ -75,6 +75,7 @@ export const AIPanel = React.memo(function AIPanel({
     addUserMessage,
     addAssistantMessage,
     archiveMessagesAfter,
+    updateMessage,
     updateExecution,
     setSending,
     setError,
@@ -100,6 +101,7 @@ export const AIPanel = React.memo(function AIPanel({
       addUserMessage: s.addUserMessage,
       addAssistantMessage: s.addAssistantMessage,
       archiveMessagesAfter: s.archiveMessagesAfter,
+      updateMessage: s.updateMessage,
       updateExecution: s.updateExecution,
       setSending: s.setSending,
       setError: s.setError,
@@ -194,7 +196,7 @@ export const AIPanel = React.memo(function AIPanel({
   const epochRef = useRef(0);
 
   const executePlan = useCallback(
-    async (m: ChatMessage) => {
+    async (m: ChatMessage, opts?: { userPromptOverride?: string }) => {
       if (!m.plan) return;
       if (!playgroundId) {
         setError('Playground가 선택되지 않았습니다.');
@@ -209,7 +211,13 @@ export const AIPanel = React.memo(function AIPanel({
       const priorUser = [...history.slice(0, idx)]
         .reverse()
         .find((x) => x.role === 'user');
-      const userPrompt = priorUser?.content ?? plan.meta.summary ?? m.content;
+      // history-aware 흐름에서 priorUser 가 "이대로" 같은 짧은 승인 텍스트일 수 있음.
+      // override 가 명시적으로 지정됐으면 (빈 문자열 포함) 그걸 사용 — server 가
+      // 의도적으로 비울 수 있음. 미지정 (undefined) 시에만 priorUser/summary 폴백.
+      const userPrompt =
+        opts?.userPromptOverride !== undefined
+          ? opts.userPromptOverride
+          : (priorUser?.content ?? plan.meta.summary ?? m.content);
 
       // Playground is bound to a single app — its `client` always wins over
       // whatever the plan came back with. Otherwise the agent happily edits
@@ -462,29 +470,35 @@ export const AIPanel = React.memo(function AIPanel({
 
     setSending(true);
     try {
-      // Phase 3 Task 3.1 sub-phase C — history-aware intake feature flag.
-      // localStorage.MOLLY_HISTORY_AWARE='1' 이면 새 path (postIntake) 로
-      // 통합. 기존 path (mollyClassifyAndDispatch + postChat) 는 default.
-      // 점진 도입 — 사용자가 직접 활성화 후 회귀 검증.
-      const historyAware =
+      // Phase 3 Task 3.1 sub-phase C 마무리 (2026-05-06) — history-aware intake
+      // default ON. 우선순위:
+      //   1. build-time `VITE_MOLLY_HISTORY_AWARE='0'` → 전체 강제 OFF (회귀 시 hot-fix)
+      //   2. 사용자별 `localStorage.MOLLY_HISTORY_AWARE='0'` → opt-out (개별 폴백)
+      //   3. 기본 ON
+      // 1-2주 운영 후 legacy path (mollyClassifyAndDispatch + postChat) 삭제 예정.
+      // 회귀 신고 backout: console 에서 `localStorage.setItem('MOLLY_HISTORY_AWARE','0')`.
+      const buildEnvForceOff =
+        import.meta.env.VITE_MOLLY_HISTORY_AWARE === '0';
+      const userOptOut =
         typeof window !== 'undefined' &&
-        window.localStorage?.getItem('MOLLY_HISTORY_AWARE') === '1';
+        window.localStorage?.getItem('MOLLY_HISTORY_AWARE') === '0';
+      const historyAware = !buildEnvForceOff && !userOptOut;
 
       if (historyAware) {
         // 새 user msg 는 current 의 마지막. history 는 그 이전 turn 들.
-        // assistant 메시지의 kind 는 plan 유무로 best-effort 추정 (옛
-        // 메시지엔 metadata 없음). 후속 슬라이스에서 message store 에
-        // kind 추가하면 정확해짐.
+        // sub-phase C 마무리 (2026-05-06) — assistant.kind 는 store 에
+        // 기록된 m.kind 우선, 옛 메시지는 plan 유무로 폴백 추정.
         const prevMessages = current.slice(0, -1);
         const history: IntakeHistoryTurn[] = prevMessages.map((m) => ({
           role: m.role,
           content: m.content,
           kind:
             m.role === 'assistant'
-              ? m.plan
-                ? 'plan_emit'
-                : 'chat'
+              ? (m.kind ?? (m.plan ? 'plan_emit' : 'chat'))
               : undefined,
+          ...(m.role === 'assistant' && m.clarifyingQuestion
+            ? { clarifyingQuestion: m.clarifyingQuestion }
+            : {}),
         }));
         const elementCtx = lastPickedElement
           ? `${formatElementContext(lastPickedElement)}\n\n`
@@ -517,12 +531,28 @@ export const AIPanel = React.memo(function AIPanel({
         if (!isStillActive()) return;
         switch (result.kind) {
           case 'chat':
+            addAssistantMessage({
+              content: result.response ?? '(빈 응답)',
+              kind: 'chat',
+            });
+            break;
           case 'status_query':
-            addAssistantMessage({ content: result.response ?? '(빈 응답)' });
+            addAssistantMessage({
+              content: result.response ?? '(빈 응답)',
+              kind: 'status_query',
+            });
+            break;
+          case 'lifecycle_action':
+            addAssistantMessage({
+              content: result.response ?? '(빈 응답)',
+              kind: 'lifecycle_action',
+            });
             break;
           case 'code_change_ambiguous':
             addAssistantMessage({
               content: `🤔 ${result.clarifyingQuestion ?? '추가 정보를 알려주세요.'}`,
+              kind: 'code_change_ambiguous',
+              clarifyingQuestion: result.clarifyingQuestion,
             });
             break;
           case 'plan_emit':
@@ -530,24 +560,48 @@ export const AIPanel = React.memo(function AIPanel({
               addAssistantMessage({
                 content: result.plan.summary || '아래 계획으로 진행 가능합니다:',
                 plan: rawToPlan(result.plan),
+                kind: 'plan_emit',
               });
             } else {
-              addAssistantMessage({ content: '계획이 준비됐어요.' });
+              addAssistantMessage({ content: '계획이 준비됐어요.', kind: 'plan_emit' });
             }
             break;
-          case 'job_dispatched':
-            // TODO sub-phase C 후속 — cumulativePrd + planItems 로 실제
-            // createJob 트리거. 지금은 안내만 (legacy 의 plan card 승인
-            // 흐름이 잡 생성 담당). MVP 는 새 path 가 응답하는지만 검증.
+          case 'job_dispatched': {
+            // Sub-phase C 마무리 (2026-05-06) — 직전 plan_emit 메시지
+            // 자동 lookup → executePlan 으로 잡 시작. archived /
+            // planResolved=accepted 가드로 중복 dispatch 차단.
+            const planMsg = [...current].reverse().find(
+              (x) =>
+                x.role === 'assistant' &&
+                !x.archived &&
+                x.planResolved !== 'accepted' &&
+                (x.kind === 'plan_emit' || !!x.plan),
+            );
+            if (!planMsg?.plan) {
+              addAssistantMessage({
+                content:
+                  '⚠️ 승인된 계획을 찾지 못했어요. plan 카드의 승인 버튼을 사용해주세요.',
+                kind: 'job_dispatched',
+              });
+              break;
+            }
+            updateMessage(planMsg.id, { planResolved: 'accepted' });
             addAssistantMessage({
-              content:
-                '✅ 계획 승인 — 잡 자동 시작은 다음 슬라이스에서 완성됩니다. 지금은 위 plan 카드의 승인 버튼 사용해주세요.',
+              content: '✅ 계획 승인 — 잡을 시작합니다.',
+              kind: 'job_dispatched',
             });
+            // cumulativePrd 가 있으면 priorUser ("이대로") 대신 사용 —
+            // clarification 거친 경우 누적 PRD 가 정답.
+            void executePlan(planMsg, { userPromptOverride: result.cumulativePrd });
             break;
+          }
           case 'code_change_clear':
+            // 첫 턴에 plan_emit 으로 묶이지 않은 fallback 케이스 (서버
+            // emitPlan 실패 등). plan 카드 없으니 사용자에게 그렇게 안내.
             addAssistantMessage({
               content:
-                'PRD 가 명확합니다. (잡 자동 시작은 다음 슬라이스에서 — 지금은 plan 단계 클릭으로 진행해주세요.)',
+                'PRD 가 명확합니다. 다만 지금은 plan 카드를 만들 수 없어요. 잠시 후 다시 같은 요청을 보내주세요 (또는 좀 더 구체적으로 적어주시면 plan 이 바로 떠요).',
+              kind: 'code_change_clear',
             });
             break;
         }
@@ -599,6 +653,8 @@ export const AIPanel = React.memo(function AIPanel({
     setError,
     addUserMessage,
     addAssistantMessage,
+    updateMessage,
+    executePlan,
     lastPickedElement,
     setLastPickedElement,
   ]);

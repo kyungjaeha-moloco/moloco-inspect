@@ -20,9 +20,10 @@ import { composeLifecycleReply } from './molly-lifecycle.js';
 import { analyzePrdClarity } from './molly-prd-analyzer.js';
 
 /**
- * @typedef {'chat'|'status_query'|'code_change_clear'|'code_change_ambiguous'|'plan_emit'|'job_dispatched'} IntakeKind
+ * @typedef {'chat'|'status_query'|'lifecycle_action'|'code_change_clear'|'code_change_ambiguous'|'plan_emit'|'job_dispatched'} IntakeKind
  *
  * - chat / status_query / code_change_clear / code_change_ambiguous: 첫 턴 흐름
+ * - lifecycle_action: cancel/retry 등 잡 lifecycle 명령. deterministic template 응답 (LLM X)
  * - plan_emit: clarification 끝나고 plan items 반환 (sub-phase B)
  * - job_dispatched: 사용자가 plan 승인 → caller 가 createJob 부르는 시그널 (sub-phase B)
  */
@@ -135,9 +136,32 @@ async function handleFirstTurn(text, ctx, history) {
     };
   }
 
+  // PRD 가 첫 턴에 단번에 명확 → emitPlan 도 같은 응답에 묶어서 반환.
+  // 클라이언트가 plan_emit 받으면 plan 카드 뜸. emitPlan 실패 시 안전한
+  // code_change_clear + cumulativePrd 폴백 (caller 가 직접 createJob 가능).
+  // 이전 동작은 emitPlan 호출 안 하고 code_change_clear 만 반환 — 클라이언트
+  // 가 "plan 단계가 곧 emit 됩니다" 안내하지만 실제 plan 안 옴 (dead-end).
+  const cumulativePrd = text;
+  let plan;
+  try {
+    const { emitPlan } = await import('./molly-plan-emitter.js');
+    plan = await emitPlan(cumulativePrd, enrichedCtx);
+  } catch (err) {
+    console.warn(
+      `[molly-intake] emitPlan failed (first-turn): ${err.message?.slice(0, 120)} — falling back to code_change_clear`,
+    );
+    return {
+      kind: 'code_change_clear',
+      reason: `clear but plan emit failed: ${err.message?.slice(0, 80)}`,
+      cumulativePrd,
+    };
+  }
   return {
-    kind: 'code_change_clear',
+    kind: 'plan_emit',
     reason: cls.reason,
+    cumulativePrd,
+    planItems: plan?.plan_items ?? [],
+    plan,
   };
 }
 
