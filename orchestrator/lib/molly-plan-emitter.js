@@ -22,15 +22,20 @@ const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal
 
 You have access to a structured design system:
 - patterns.json: composition patterns (app-shell, list-page, detail-page, form-basic, etc.)
+- components.json: full MSM Portal component catalog — name, importStatement, when_to_use, do_not_use, antiPatterns, functional_category, status (~112 components across 16 categories)
 - api-ui-contracts.json: entity definitions (Creative, Order, Advertiser, Product, AuctionOrder, PublisherTarget)
 - pm-sa-request-schema.json: structured request contract with a change_intent enum
 
-Your task: given a PM's goal, output a concrete plan as JSON. Ground your plan in real patterns, entities, and file paths from the DS resources provided.
+Your task: given a PM's goal, output a concrete plan as JSON. Ground your plan in real patterns, entities, components, and file paths from the DS resources provided.
 
 ## Grounding rules (strict)
 - ONLY reference pattern_id values that exist in patterns.json. Never invent a pattern name.
 - ONLY reference entity names that exist in api-ui-contracts.json. Use null if unsure.
 - ONLY reference feature flag names, route keys, i18n keys, and component names that appear in the provided JSON. Never invent them.
+- ONLY reference component names that appear in components.json. If a desired functionality has no matching component, say so explicitly in the plan summary rather than guessing a name.
+- When mentioning a component in plan_item descriptions, use its \`importStatement\` verbatim — do not reconstruct import paths from memory. The \`importPath\` / \`importStatement\` fields in components.json are authoritative.
+- Honor each component's \`when_to_use\` / \`do_not_use\` / \`antiPatterns\`: if a component matches the goal but its do_not_use rule applies, pick a different one (or say none fits).
+- For prop usage, plan_item descriptions can describe intent ("text input with placeholder") but should NOT specify exact prop names unless components.json shortDescription / when_to_use explicitly supports it. Prop-level correctness is enforced downstream by a typecheck verification step (\`runTypecheck\` in the change-request pipeline) — keep this layer honest about intent and let the typechecker catch prop-level mismatches.
 - For target_file, prefer the file paths or location templates that appear in patterns.json (layer_structure.location, file_checklist). When the exact file is unknown, use the pattern's template form (e.g. "src/apps/{client}/container/{entity}/list/MC{Entity}ListContainer.tsx") — do not guess a concrete filename.
 - If the request can't be met with the provided DS, say so in summary and mark affected plan_items with pattern_id: null.
 
@@ -99,21 +104,38 @@ export async function emitPlan(args, ctx = {}) {
   const requestSchemaPath = ctx.requestSchemaPath || path.join(dsRoot, 'src', 'pm-sa-request-schema.json');
   const patternsPath = path.join(dsRoot, 'src', 'patterns.json');
   const apiContractsPath = path.join(dsRoot, 'src', 'api-ui-contracts.json');
+  const componentsPath = path.join(dsRoot, 'src', 'components.json');
   const patterns = readJsonSafe(patternsPath, {});
   const apiContracts = readJsonSafe(apiContractsPath, {});
   const requestSchema = readJsonSafe(requestSchemaPath, {});
+  // C (2026-05-07): inject the full component catalog. Without this the
+  // emitter only knows pattern names + entity names — it has to guess
+  // which concrete components to compose, which produced hallucinated
+  // imports / wrong prop intent (incident 2026-05-07: TS2769 / TS2741 in
+  // a generated demo section). Plan: docs/superpowers/plans/
+  // 2026-05-07-plan-emitter-design-system-manifest.md
+  //
+  // mtime-aware cache so design-system updates propagate without an
+  // orchestrator restart. components.json is the largest block (~458KB)
+  // and the most likely to drift, so the staleness cost is highest here —
+  // patterns / api-contracts / request-schema are still per-call reads
+  // (cheap relative to the LLM call) which is fine for now.
+  const components = readComponentsCached(componentsPath);
 
   // Phase: prompt caching (#1) — DS resources 는 호출마다 동일한 큰 정적
   // 블록. 마지막 블록에 cache_control: ephemeral 두면 누적 prefix 가
   // 캐시됨. 첫 호출은 cache_creation_input_tokens 발생, 두 번째부터
-  // cache_read_input_tokens 로 latency + 비용 절감.
+  // cache_read_input_tokens 로 latency + 비용 절감. components.json 이
+  // 가장 큰 블록 (~458KB) 이라 cache hit 의 가치가 큼 — 마지막 cache_control
+  // 블록에 components 까지 포함되도록 순서 유지.
   const systemBlocks = [
     { type: 'text', text: SYSTEM_PROMPT },
     { type: 'text', text: `pm-sa-request-schema:\n${JSON.stringify(requestSchema, null, 2)}` },
     { type: 'text', text: `patterns.json:\n${JSON.stringify(patterns, null, 2)}` },
+    { type: 'text', text: `api-ui-contracts.json:\n${JSON.stringify(apiContracts, null, 2)}` },
     {
       type: 'text',
-      text: `api-ui-contracts.json:\n${JSON.stringify(apiContracts, null, 2)}`,
+      text: `components.json:\n${JSON.stringify(components, null, 2)}`,
       cache_control: { type: 'ephemeral' },
     },
   ];
@@ -123,7 +145,7 @@ Goal: ${goal}
 Client: ${client}
 Target page: ${routeOrPage}
 ${jiraUrl ? `Jira: ${jiraUrl}\n` : ''}${prdUrl ? `PRD: ${prdUrl}\n` : ''}
-위 system 의 DS 리소스 (pm-sa-request-schema / patterns.json / api-ui-contracts.json) 를 근거로 계획을 JSON으로 출력하세요.`;
+위 system 의 DS 리소스 (pm-sa-request-schema / patterns.json / api-ui-contracts.json / components.json) 를 근거로 계획을 JSON으로 출력하세요.`;
 
   const settings = getMollySettings();
   const thinkingBudget = settings.planThinkingBudget;
@@ -206,4 +228,31 @@ function readJsonSafe(filePath, fallback = {}) {
   } catch {
     return fallback;
   }
+}
+
+// Module-scoped cache for components.json — the file is ~458KB and dominates
+// system-prompt construction time. Re-parsing on every emitPlan call is
+// wasteful; restarting the orchestrator on every design-system tweak is
+// painful. Compromise: stat once per call, reuse the parsed object while
+// mtime is unchanged. Mirrors the molly-settings.js mtime-cache pattern.
+let _componentsCache = null;
+let _componentsCacheMtimeMs = 0;
+
+function readComponentsCached(filePath) {
+  let currentMtimeMs = 0;
+  try {
+    currentMtimeMs = fs.statSync(filePath).mtimeMs;
+  } catch {
+    // file missing — fall through; cache stays as-is or rebuilds empty
+  }
+  if (_componentsCache && currentMtimeMs === _componentsCacheMtimeMs) {
+    return _componentsCache;
+  }
+  const next = readJsonSafe(filePath, {});
+  _componentsCache = next;
+  _componentsCacheMtimeMs = currentMtimeMs;
+  console.log(
+    `[plan-emitter] components.json loaded (mtime=${new Date(currentMtimeMs).toISOString()})`,
+  );
+  return _componentsCache;
 }
