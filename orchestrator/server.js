@@ -1392,6 +1392,16 @@ async function runPipeline(id) {
       const diffViewUrl = `http://127.0.0.1:${PORT}/api/diff-view/${id}`;
       const livePreviewUrl = vitePort ? `http://127.0.0.1:${vitePort}${pagePath}` : null;
       updateRequest(id, { previewUrl: diffViewUrl, livePreviewUrl });
+
+      // D (2026-05-07): Verify the change-set typechecks before exposing it
+      // as `preview` to the user. Without this, plan-emitter hallucinations
+      // (imports of components that don't exist) ship as silent renders —
+      // the page loads but the new section never mounts because vite fails
+      // to resolve the module. Catching that here turns silent failure into
+      // an explicit `verification_failed` state the UI can surface.
+      const verifyOk = await runTypecheck(id, sandbox.containerId, state);
+      if (!verifyOk) return; // runTypecheck already wrote error state
+
       updateRequest(id, { status: 'preview', phase: 'preview_ready' });
       appendAnalyticsEvent(state, 'preview_ready', { summary: 'Playground change applied', previewUrl: diffViewUrl });
       appendLog(id, 'Change applied to playground');
@@ -1415,13 +1425,13 @@ async function runPipeline(id) {
         timeout: 180000,
       });
 
-      // TypeScript check (after pnpm install so node_modules exists)
-      try {
-        updateRequest(id, { phase: 'validating' });
-        appendLog(id, 'Running TypeScript check...');
-        const tc = await execInContainer({ containerId: sandbox.containerId, command: 'cd /workspace/msm-portal && pnpm exec tsc --noEmit -p js/msm-portal-web/tsconfig.json 2>&1', timeout: 60000 });
-        appendLog(id, tc.exitCode === 0 ? 'Typecheck passed' : 'Typecheck warning: ' + (tc.stdout + tc.stderr).slice(0, 300));
-      } catch (e) { appendLog(id, 'Typecheck skipped: ' + e.message); }
+      // D (2026-05-07): Hard-gate the legacy one-shot preview on typecheck
+      // success too — same rationale as the playground branch above. Used to
+      // be a soft warning that only appended to the log; that meant
+      // hallucinated imports surfaced as silent runtime failures during
+      // preview rather than as an explicit error the user can act on.
+      const verifyOk = await runTypecheck(id, sandbox.containerId, state);
+      if (!verifyOk) return;
 
       // Auth: fetch real tokens from MSM API and inject into sandbox
       const msmApiUrl = 'https://msm-api-test.moloco.cloud/msm/v1';
@@ -1773,6 +1783,98 @@ async function handleReject(id, feedback) {
   // Re-run pipeline
   runPipeline(id);
   return state;
+}
+
+/**
+ * Run `tsc --noEmit` against the change-set inside the sandbox container.
+ *
+ * Approach: the codebase has a non-trivial baseline of pre-existing TS
+ * errors (msm-portal-bff missing zod/fastify, draft hooks with implicit any,
+ * etc.). We can't fail on overall non-zero exit because the baseline is
+ * non-zero even with no changes. Instead we **filter the tsc output to
+ * lines whose path matches a file in the change-set** and surface those as
+ * the regression set. If empty, the change is considered clean.
+ *
+ * On pass: returns true.
+ * On fail (regression in changed files, exec timeout, or other error):
+ * writes `status='error'`, `phase='verification_failed'`, surfaces the
+ * first regression line, appends an analytics event, and returns false.
+ * Caller should `return` to skip the `preview_ready` transition.
+ *
+ * Catches the silent-failure mode that triggered this slice (incident
+ * 2026-05-07): plan-emitter generated demo code with type errors (TS2741
+ * missing prop, TS2769 overload mismatch). Without this gate the change
+ * would `preview_ready` and silently fail to render in the browser.
+ */
+async function runTypecheck(id, containerId, state) {
+  const changedFiles = Array.isArray(state.changedFiles) ? state.changedFiles : [];
+  // tsc paths are cwd-relative (cwd = js/msm-portal-web), state.changedFiles
+  // are repo-root relative. Strip the workspace prefix so substring match
+  // works ("src/apps/..." appears in both).
+  const changedSuffixes = changedFiles.map((p) =>
+    p.replace(/^js\/msm-portal-web\//, ''),
+  );
+
+  let result;
+  try {
+    updateRequest(id, { phase: 'verifying' });
+    appendLog(id, 'Running TypeScript check...');
+    result = await execInContainer({
+      containerId,
+      command:
+        // tsconfig.app.json is the actual app project (root tsconfig is a
+        // composite shell with `files: []` + references). NODE_OPTIONS bumps
+        // the heap because the codebase is large enough that the default 2GB
+        // OOMs partway through type-checking.
+        "cd /workspace/msm-portal/js/msm-portal-web && NODE_OPTIONS='--max-old-space-size=4096' pnpm exec tsc --noEmit -p tsconfig.app.json 2>&1",
+      timeout: 300_000,
+    });
+  } catch (err) {
+    const msg = err.message || String(err);
+    appendLog(id, `Verify exec failed: ${msg}`);
+    updateRequest(id, {
+      status: 'error',
+      phase: 'verification_failed',
+      error: `Verification failed before completion: ${msg}`.slice(0, 500),
+    });
+    appendAnalyticsEvent(state, 'verification_failed', {
+      summary: msg.slice(0, 200),
+      phase: 'verification_failed',
+    });
+    return false;
+  }
+
+  const output = ((result?.stdout ?? '') + (result?.stderr ?? ''));
+  // Filter tsc lines to those that (a) look like a TS error, and (b) point
+  // at a file in this change-set. Anything outside that set is baseline
+  // noise we deliberately ignore.
+  const regressionLines = output
+    .split('\n')
+    .filter((line) => /\(\d+,\d+\): error TS\d+/.test(line))
+    .filter((line) =>
+      changedSuffixes.some((suffix) => suffix && line.startsWith(suffix)),
+    );
+
+  if (regressionLines.length === 0) {
+    appendLog(id, 'Typecheck clean for changed files ✓');
+    return true;
+  }
+
+  const firstError = regressionLines[0];
+  const summary = `${regressionLines.length} type error${regressionLines.length > 1 ? 's' : ''} in changed files`;
+  const verifyOutput = regressionLines.slice(0, 50).join('\n');
+  appendLog(id, `Typecheck FAILED — ${summary}:\n${verifyOutput}`);
+  updateRequest(id, {
+    status: 'error',
+    phase: 'verification_failed',
+    error: firstError.trim().slice(0, 500),
+    verifyOutput,
+  });
+  appendAnalyticsEvent(state, 'verification_failed', {
+    summary: `${summary}: ${firstError.slice(0, 160)}`,
+    phase: 'verification_failed',
+  });
+  return false;
 }
 
 async function cleanup(id) {
