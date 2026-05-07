@@ -28,6 +28,7 @@ import {
   getPlaygroundLog,
   promotePlayground,
   restorePlaygroundHead,
+  resumePlayground,
   type PlaygroundCommit,
   type PromoteResult,
 } from '../services/orchestrator-client';
@@ -91,6 +92,15 @@ export function PlaygroundDetail() {
     }
     prevHeadRef.current = head;
   }, [current?.headCommitSha]);
+
+  const handleResume = useCallback(async () => {
+    if (!id) return;
+    const pg = await resumePlayground(id);
+    setCurrent(pg);
+    // Force iframe re-mount once vitePort lands so we don't try loading
+    // against a stale (pre-resume) port.
+    setReloadNonce((n) => n + 1);
+  }, [id, setCurrent]);
 
   const handleRestoreHead = async () => {
     if (!id) return;
@@ -280,6 +290,7 @@ export function PlaygroundDetail() {
               playground={current}
               mode={mode}
               reloadNonce={reloadNonce}
+              onResume={handleResume}
             />
           </div>
         </main>

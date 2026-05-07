@@ -54,6 +54,13 @@ interface LivePreviewProps {
    * patch (observed when Fast Refresh hiccups in the embedded context).
    */
   reloadNonce?: number;
+  /**
+   * Called when the user clicks the "재개" button on the hibernated
+   * placeholder. Parent should call `resumePlayground(id)` and update
+   * the playground in the store; LivePreview will rerender as `active`
+   * once the new playground prop arrives.
+   */
+  onResume?: () => Promise<void>;
 }
 
 /**
@@ -69,7 +76,7 @@ export function LivePreview(props: LivePreviewProps) {
   return <LivePreviewInner key={key} {...props} />;
 }
 
-function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProps) {
+function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LivePreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   // Mirror of the parent `mode` prop so bridge callbacks always read the
@@ -325,18 +332,11 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0 }: LivePreviewProp
   if (status !== 'active') {
     return (
       <div style={placeholderStyle}>
-        <div>
-          <strong>상태: {status}</strong>
-          <div
-            style={{
-              color: 'var(--text-tertiary)',
-              fontSize: 12,
-              marginTop: 4,
-            }}
-          >
-            Resume 후 라이브 미리보기를 로드할 수 있습니다.
-          </div>
-        </div>
+        <HibernatedPlaceholder
+          status={status}
+          archivedReason={playground.archivedReason}
+          onResume={onResume}
+        />
       </div>
     );
   }
@@ -705,3 +705,104 @@ const pinActionButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
   fontFamily: 'inherit',
 };
+
+// ── Placeholder shown when status !== 'active' ──────────────────────
+
+function HibernatedPlaceholder({
+  status,
+  archivedReason,
+  onResume,
+}: {
+  status: Playground['status'];
+  archivedReason: Playground['archivedReason'];
+  onResume?: () => Promise<void>;
+}) {
+  const [resuming, setResuming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleClick = async () => {
+    if (!onResume || resuming) return;
+    setError(null);
+    setResuming(true);
+    try {
+      await onResume();
+      // Parent updates the playground prop → status becomes 'active' →
+      // this placeholder unmounts. We don't need to flip `resuming` back
+      // ourselves, but reset for the rare case where parent skipped the
+      // update (shouldn't happen).
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setResuming(false);
+    }
+  };
+
+  const message = describeStatus(status, archivedReason);
+  const showResumeButton = status === 'hibernated' && !!onResume;
+
+  return (
+    <div style={{ textAlign: 'center', padding: 24 }}>
+      <div style={{ fontSize: 14, fontWeight: 600 }}>상태: {status}</div>
+      <div
+        style={{
+          color: 'var(--text-tertiary)',
+          fontSize: 12,
+          marginTop: 6,
+          maxWidth: 360,
+        }}
+      >
+        {message}
+      </div>
+      {showResumeButton && (
+        <button
+          type="button"
+          onClick={handleClick}
+          disabled={resuming}
+          style={{
+            marginTop: 16,
+            padding: '6px 16px',
+            fontSize: 13,
+            fontWeight: 500,
+            border: '1px solid var(--border-primary)',
+            borderRadius: 'var(--radius-sm)',
+            background: resuming ? 'var(--bg-secondary)' : 'var(--bg-primary)',
+            color: 'var(--text-primary)',
+            cursor: resuming ? 'wait' : 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          {resuming ? '재개 중…' : '재개'}
+        </button>
+      )}
+      {error && (
+        <div
+          style={{
+            marginTop: 12,
+            color: 'var(--danger, #c53030)',
+            fontSize: 11,
+          }}
+        >
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function describeStatus(
+  status: Playground['status'],
+  archivedReason: Playground['archivedReason'],
+): string {
+  if (status === 'hibernated') {
+    return '컨테이너가 정지된 상태입니다. 재개하면 다시 부팅합니다.';
+  }
+  if (status === 'archived') {
+    if (archivedReason === 'reattach-missing') {
+      return '컨테이너 인식 실패로 자동 보관됨. 다음 orchestrator 재시작 시 자동 복구를 시도합니다.';
+    }
+    return '보관된 Playground 입니다. 변경사항은 patch 로 export 되어 있습니다.';
+  }
+  if (status === 'crashed') {
+    return '크래시 상태 — orchestrator 로그를 확인하세요.';
+  }
+  return '';
+}

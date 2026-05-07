@@ -65,6 +65,13 @@ console.log(`[playground] restored ${playgrounds.size} playgrounds from disk`);
  * @property {string} workBranch
  * @property {string} baseBranch
  * @property {string | undefined} archivedDiffPath
+ * @property {'user' | 'reattach-missing' | undefined} archivedReason
+ *   How this playground reached `status==='archived'`. `'user'` = explicit
+ *   `archivePlayground()` call (patches exported, container removed).
+ *   `'reattach-missing'` = `reattachOnStartup` couldn't `docker inspect` the
+ *   container (likely a daemon race after host wake/Docker restart). Reattach
+ *   re-checks `'reattach-missing'` entries on every boot so a transient daemon
+ *   miss doesn't permanently bury a playground.
  * @property {number | undefined} hibernatedAt
  * @property {number} createdAt
  * @property {number} updatedAt
@@ -498,6 +505,7 @@ export async function archivePlayground(id) {
   if (pg.opencodePort) releasePort(pg.opencodePort);
 
   pg.status = 'archived';
+  pg.archivedReason = 'user';
   pg.vitePort = undefined;
   pg.opencodePort = undefined;
   pg.archivedDiffPath = patchesDir;
@@ -912,60 +920,134 @@ function buildPrBody(pg, { applied, skipped, branch }) {
  * Transitions:
  *   persisted 'active'      + container running   → keep active, re-query ports
  *   persisted 'active'      + container stopped   → mark 'hibernated'
- *   persisted 'active'      + container missing   → mark 'archived'
- *   persisted 'hibernated'  + container missing   → mark 'archived'
- *   persisted 'archived'                          → unchanged
+ *   persisted 'active'      + container missing   → mark 'archived' (reattach-missing)
+ *   persisted 'hibernated'  + container missing   → mark 'archived' (reattach-missing)
+ *   persisted 'archived' (user)                   → unchanged (skip)
+ *   persisted 'archived' (reattach-missing)       → re-inspect; recover to running/stopped if container reappears
+ *
+ * "Container missing" judgments use `inspectContainerWithRetry` so a slow
+ * docker daemon (e.g., right after macOS wake or Docker Desktop restart)
+ * doesn't permanently bury a playground.
  */
 export async function reattachOnStartup() {
   let touched = 0;
+  let missingCount = 0;
   for (const pg of playgrounds.values()) {
-    if (pg.status === 'archived') continue;
+    // Skip true user archives (or legacy archives that exported patches).
+    // 'reattach-missing' entries (and undefined-reason archives without
+    // patches) are re-checked so transient docker misses can self-heal.
+    const isUserArchive =
+      pg.status === 'archived' &&
+      (pg.archivedReason === 'user' ||
+        (!pg.archivedReason && pg.archivedDiffPath));
+    if (isUserArchive) continue;
+
     try {
-      const { stdout } = await execAsync(
-        `docker inspect -f "{{.State.Running}}" ${pg.sandboxContainerName} 2>/dev/null || echo MISSING`,
-        { timeout: 5_000 },
-      );
-      const out = stdout.trim();
-      if (out === 'MISSING' || out === '') {
-        pg.status = 'archived';
-        pg.vitePort = undefined;
-        pg.opencodePort = undefined;
-        pg.updatedAt = nowMs();
-        persist(pg);
-        touched++;
-        console.log(`[playground] reattach ${pg.id}: container missing → archived`);
-        continue;
-      }
-      if (out === 'true') {
-        // Container alive. Re-query ports regardless of previous status.
-        const oc = await queryDockerPort(pg.sandboxContainerName, 4096).catch(() => undefined);
-        const vt = await queryDockerPort(pg.sandboxContainerName, 5173).catch(() => undefined);
-        if (pg.status !== 'active' || pg.opencodePort !== oc || pg.vitePort !== vt) {
-          pg.status = 'active';
-          pg.opencodePort = oc;
-          pg.vitePort = vt;
+      const out = await inspectContainerWithRetry(pg.sandboxContainerName);
+
+      if (out === 'MISSING') {
+        missingCount++;
+        if (
+          pg.status !== 'archived' ||
+          pg.archivedReason !== 'reattach-missing'
+        ) {
+          pg.status = 'archived';
+          pg.archivedReason = 'reattach-missing';
+          pg.vitePort = undefined;
+          pg.opencodePort = undefined;
           pg.updatedAt = nowMs();
           persist(pg);
           touched++;
-          console.log(`[playground] reattach ${pg.id}: running (oc=${oc} vite=${vt})`);
+          console.log(
+            `[playground] reattach ${pg.id}: container missing → archived (reason=reattach-missing)`,
+          );
+        }
+        continue;
+      }
+
+      if (out === 'true') {
+        // Container alive. Re-query ports regardless of previous status.
+        const oc = await queryDockerPort(pg.sandboxContainerName, 4096).catch(
+          () => undefined,
+        );
+        const vt = await queryDockerPort(pg.sandboxContainerName, 5173).catch(
+          () => undefined,
+        );
+        const recovered = pg.status === 'archived';
+        if (
+          pg.status !== 'active' ||
+          pg.opencodePort !== oc ||
+          pg.vitePort !== vt ||
+          pg.archivedReason
+        ) {
+          pg.status = 'active';
+          pg.opencodePort = oc;
+          pg.vitePort = vt;
+          if (pg.archivedReason) pg.archivedReason = undefined;
+          pg.updatedAt = nowMs();
+          persist(pg);
+          touched++;
+          console.log(
+            `[playground] reattach ${pg.id}: ${recovered ? 'recovered → ' : ''}running (oc=${oc} vite=${vt})`,
+          );
         }
       } else if (out === 'false') {
-        if (pg.status !== 'hibernated') {
+        const recovered = pg.status === 'archived';
+        if (pg.status !== 'hibernated' || pg.archivedReason) {
           pg.status = 'hibernated';
           pg.vitePort = undefined;
           pg.opencodePort = undefined;
           pg.hibernatedAt = pg.hibernatedAt ?? nowMs();
+          if (pg.archivedReason) pg.archivedReason = undefined;
           pg.updatedAt = nowMs();
           persist(pg);
           touched++;
-          console.log(`[playground] reattach ${pg.id}: stopped → hibernated`);
+          console.log(
+            `[playground] reattach ${pg.id}: ${recovered ? 'recovered → ' : 'stopped → '}hibernated`,
+          );
         }
       }
     } catch (err) {
       console.warn(`[playground] reattach ${pg.id} error:`, err.message);
     }
   }
-  if (touched) console.log(`[playground] reattach: reconciled ${touched} playgrounds`);
+  if (touched) {
+    console.log(`[playground] reattach: reconciled ${touched} playgrounds`);
+  }
+  if (missingCount >= 3) {
+    console.warn(
+      `[playground] WARN: ${missingCount} containers missing on reattach — possible docker daemon race. Affected entries marked archivedReason='reattach-missing' and will retry on next boot.`,
+    );
+  }
+}
+
+/**
+ * Probe `docker inspect` with progressive timeout + backoff so a slow daemon
+ * doesn't get reported as MISSING. Returns one of `'true'` / `'false'` /
+ * `'MISSING'`. Most calls return on the first attempt (~tens of ms); only
+ * cold-start or sleep/wake scenarios see retries.
+ */
+async function inspectContainerWithRetry(containerName) {
+  const attempts = [
+    { timeoutMs: 2_000, delayMs: 0 },
+    { timeoutMs: 8_000, delayMs: 1_500 },
+    { timeoutMs: 15_000, delayMs: 4_000 },
+  ];
+  for (const { timeoutMs, delayMs } of attempts) {
+    if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+    try {
+      const { stdout } = await execAsync(
+        `docker inspect -f "{{.State.Running}}" ${containerName} 2>/dev/null || echo MISSING`,
+        { timeout: timeoutMs },
+      );
+      const out = stdout.trim();
+      if (out === 'true' || out === 'false') return out;
+      // MISSING / empty → fall through to next attempt.
+    } catch {
+      // exec timeout or spawn failure → fall through.
+    }
+  }
+  return 'MISSING';
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -1021,6 +1103,7 @@ export function serializePlayground(pg) {
     updatedAt: pg.updatedAt,
     lastActivityAt: pg.lastActivityAt,
     archivedDiffPath: pg.archivedDiffPath,
+    archivedReason: pg.archivedReason,
     createdBy: pg.createdBy,
     promotedAt: pg.promotedAt,
     promotedBranch: pg.promotedBranch,
