@@ -2696,6 +2696,20 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
+  // Molly cost — LLM 비용 집계. window=24h|7d|30d.
+  // lib_call event (input/output/cache 토큰) × molly-pricing 단가 + sandbox
+  // agent 의 USD 직접 합산. 결과: total_usd, by_model, by_source,
+  // hourly_series, unknown_model_calls.
+  if (pathname === '/api/molly/cost' && req.method === 'GET') {
+    try {
+      const { getCostMetrics } = await import('./lib/molly-cost.js');
+      const w = url.searchParams.get('window') || '24h';
+      return json(res, 200, { ok: true, ...getCostMetrics(w) });
+    } catch (err) {
+      return json(res, 500, { ok: false, error: err?.message ?? String(err) });
+    }
+  }
+
   // Molly settings — Inspect Console UI 에서 런타임 변경 가능. 모델 /
   // thinking budget 즉시 반영 (재시작 X). 부팅 시 env defaults +
   // orchestrator/state/molly-settings.json 영구 저장.

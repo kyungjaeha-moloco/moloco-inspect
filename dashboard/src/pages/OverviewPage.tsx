@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  Bar, CartesianGrid, Cell, ComposedChart, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, Bar, CartesianGrid, Cell, ComposedChart, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { API_BASE, AnalyticsRecord } from '../analytics/types';
 import { formatDuration, formatPercent, getStatusBadgeClass, truncate } from '../analytics/helpers';
@@ -415,6 +415,269 @@ function AgentPerformanceChart({ statusCounts, total }: { statusCounts: Record<s
 }
 
 /* ------------------------------------------------------------------ */
+/*  LLM Cost Section                                                   */
+/* ------------------------------------------------------------------ */
+
+type CostWindow = '24h' | '7d' | '30d';
+
+type CostData = {
+  window: CostWindow;
+  total_usd: number;
+  by_model: Record<string, { calls: number; tokens: number; usd: number }>;
+  by_source: Record<string, { calls: number; usd: number }>;
+  hourly_series: Array<{ hour: string; usd: number }>;
+  unknown_model_calls: number;
+};
+
+const WINDOW_LABELS: Record<CostWindow, string> = {
+  '24h': '오늘',
+  '7d': '7일',
+  '30d': '30일',
+};
+
+function fmtUsd(n: number): string {
+  if (n >= 100) return `$${n.toFixed(0)}`;
+  if (n >= 10) return `$${n.toFixed(1)}`;
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  return `$${n.toFixed(4)}`;
+}
+
+function shortModelLabel(modelId: string): string {
+  if (modelId.startsWith('claude-haiku')) return 'Haiku 4.5';
+  if (modelId === 'claude-sonnet-4-20250514') return 'Sonnet 4 (deprecated)';
+  if (modelId.startsWith('claude-sonnet-4-5')) return 'Sonnet 4.5';
+  if (modelId === 'claude-sonnet-4-6') return 'Sonnet 4.6';
+  if (modelId.startsWith('claude-opus-4-5')) return 'Opus 4.5';
+  if (modelId === 'claude-opus-4-6') return 'Opus 4.6';
+  if (modelId === 'claude-opus-4-7') return 'Opus 4.7';
+  return modelId.slice(0, 28);
+}
+
+function shortSourceLabel(source: string): string {
+  return source
+    .replace(/^molly-/, '')
+    .replace('plan-emitter', 'plan emitter')
+    .replace('prd-analyzer', 'PRD analyzer');
+}
+
+function useCostData(window: CostWindow) {
+  const [data, setData] = useState<CostData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchOnce = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/molly/cost?window=${window}`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const j = await res.json();
+        if (cancelled) return;
+        if (j.ok === false) throw new Error(j.error || 'cost endpoint error');
+        setData(j as CostData);
+        setError(null);
+      } catch (err: any) {
+        if (cancelled) return;
+        setError(err?.message ?? String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    setLoading(true);
+    void fetchOnce();
+    const id = setInterval(fetchOnce, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [window]);
+
+  return { data, loading, error };
+}
+
+function CostBar({
+  rows,
+  total,
+}: {
+  rows: Array<{ key: string; label: string; usd: number; calls: number }>;
+  total: number;
+}) {
+  if (rows.length === 0) {
+    return <div className="empty-state" style={{ padding: '12px 0' }}>No data</div>;
+  }
+  return (
+    <div className="coverage-list">
+      {rows.map((r) => {
+        const pct = total > 0 ? Math.round((r.usd / total) * 100) : 0;
+        return (
+          <div key={r.key} className="coverage-item">
+            <div className="coverage-item-header">
+              <span className="coverage-page-name">{r.label}</span>
+              <span className="coverage-count">
+                {fmtUsd(r.usd)} · {r.calls} call{r.calls !== 1 ? 's' : ''} ({pct}%)
+              </span>
+            </div>
+            <div className="coverage-bar">
+              <div className="coverage-bar-fill" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CostSection() {
+  const [window, setWindow] = useState<CostWindow>('24h');
+  const { data, loading, error } = useCostData(window);
+
+  const chartData = useMemo(() => {
+    if (!data) return [];
+    return data.hourly_series.map((p) => ({
+      label: new Date(p.hour).toLocaleString('ko-KR', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+      }),
+      usd: Number(p.usd) || 0,
+    }));
+  }, [data]);
+
+  const modelRows = useMemo(() => {
+    if (!data) return [];
+    return Object.entries(data.by_model)
+      .map(([k, v]) => ({ key: k, label: shortModelLabel(k), usd: v.usd, calls: v.calls }))
+      .sort((a, b) => b.usd - a.usd);
+  }, [data]);
+
+  const sourceRows = useMemo(() => {
+    if (!data) return [];
+    return Object.entries(data.by_source)
+      .map(([k, v]) => ({ key: k, label: shortSourceLabel(k), usd: v.usd, calls: v.calls }))
+      .sort((a, b) => b.usd - a.usd);
+  }, [data]);
+
+  return (
+    <div className="chart-panel">
+      <div
+        className="chart-panel-title"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+      >
+        <span>LLM 비용</span>
+        <div className="daily-range-presets">
+          {(['24h', '7d', '30d'] as CostWindow[]).map((w) => (
+            <button
+              key={w}
+              className={`daily-range-btn${window === w ? ' active' : ''}`}
+              onClick={() => setWindow(w)}
+            >
+              {WINDOW_LABELS[w]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {error && (
+        <div className="empty-state" style={{ padding: '16px 0', color: 'var(--danger)' }}>
+          비용 데이터 로드 실패: {error}
+        </div>
+      )}
+
+      {loading && !data && <div className="loading-state">Loading cost data...</div>}
+
+      {data && (
+        <>
+          {/* KPI: total + Top model + Top source */}
+          <div className="stat-row" style={{ marginTop: 8, marginBottom: 16 }}>
+            <StatCard value={fmtUsd(data.total_usd)} label={`${WINDOW_LABELS[window]} 누적`} />
+            <StatCard
+              value={modelRows[0] ? fmtUsd(modelRows[0].usd) : '$0'}
+              label={modelRows[0] ? `최대 모델: ${modelRows[0].label}` : '모델 데이터 없음'}
+            />
+            <StatCard
+              value={sourceRows[0] ? fmtUsd(sourceRows[0].usd) : '$0'}
+              label={sourceRows[0] ? `최대 소스: ${sourceRows[0].label}` : '소스 데이터 없음'}
+            />
+          </div>
+
+          {/* Trend chart */}
+          {chartData.length > 0 && (
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => fmtUsd(v)}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    color: 'var(--text-primary)',
+                  }}
+                  formatter={(v: number) => fmtUsd(v)}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="usd"
+                  stroke="var(--accent)"
+                  fill="var(--accent)"
+                  fillOpacity={0.2}
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+
+          {/* By model + By source */}
+          <div className="chart-row" style={{ marginTop: 16 }}>
+            <div>
+              <div className="chart-panel-title" style={{ fontSize: 13, marginBottom: 8 }}>
+                모델별 분포
+              </div>
+              <CostBar rows={modelRows} total={data.total_usd} />
+            </div>
+            <div>
+              <div className="chart-panel-title" style={{ fontSize: 13, marginBottom: 8 }}>
+                소스별 분포
+              </div>
+              <CostBar rows={sourceRows} total={data.total_usd} />
+            </div>
+          </div>
+
+          {data.unknown_model_calls > 0 && (
+            <div
+              className="empty-state"
+              style={{
+                marginTop: 12,
+                padding: '8px 12px',
+                color: 'var(--danger)',
+                fontSize: 12,
+                textAlign: 'left',
+              }}
+            >
+              ⚠️ 지원 안 되는 모델 호출 {data.unknown_model_calls} 건 — pricing 테이블 누락 (orchestrator/lib/molly-pricing.js 추가 필요)
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Stat Card with trend                                               */
 /* ------------------------------------------------------------------ */
 
@@ -648,6 +911,9 @@ export function OverviewPage() {
               {jobsOverview.total} total →
             </NavLink>
           </div>
+
+          {/* Section 2.5: LLM Cost — 운영 비용 가시화 */}
+          <CostSection />
 
           {/* Section 3: Daily Trend (full width) */}
           <div className="chart-panel">

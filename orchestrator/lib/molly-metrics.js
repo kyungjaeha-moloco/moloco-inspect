@@ -68,13 +68,16 @@ export function getMetrics(window = '1h') {
 
 /**
  * 메모리 ring + 파일 (필요한 최근 N day) 합쳐서 cutoff 이후 events 반환.
+ *
+ * Exported — molly-cost.js 에서도 같은 events stream 위에 cost 집계 수행.
  */
-function loadEvents(cutoff) {
+export function loadEvents(cutoff, opts = {}) {
   const fromRing = ring.filter((e) => e.t >= cutoff);
   // 파일에서도 — 24h+ 윈도우면 어제 파일도 로드
   const days = Math.ceil((Date.now() - cutoff) / (24 * 60 * 60 * 1000)) + 1;
+  const dayCap = Number.isFinite(opts.maxDays) ? opts.maxDays : 8;
   const fileEvents = [];
-  for (let i = 0; i < Math.min(days, 8); i++) {
+  for (let i = 0; i < Math.min(days, dayCap); i++) {
     const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
     const f = fileForDay(d);
     if (!fs.existsSync(f)) continue;
