@@ -136,7 +136,7 @@ export async function emitPlan(args, ctx = {}) {
     {
       type: 'text',
       text: `components.json:\n${JSON.stringify(components, null, 2)}`,
-      cache_control: { type: 'ephemeral' },
+      cache_control: { type: 'ephemeral', ttl: '1h' },
     },
   ];
 
