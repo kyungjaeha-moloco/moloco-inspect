@@ -70,11 +70,23 @@ export async function createSandbox({
  * Copy files from host into the container's msm-portal workspace.
  */
 export async function copyFilesIn({ containerId, sourceDir, containerDir = '/workspace/msm-portal' }) {
-  // Copy source into container via tar, excluding .git and node_modules
+  // Copy source into container via tar, excluding .git / node_modules / .omc.
+  // COPYFILE_DISABLE=1 stops macOS BSD tar from emitting AppleDouble ('._*')
+  // companion files for xattrs — on Linux those expand into invalid TS/JS
+  // siblings that crash esbuild's dep scan inside the sandbox (incident
+  // 2026-05-06: 5428 stray ._*.ts files killed vite in restart loop).
   await execAsync(
-    `cd "${sourceDir}" && tar cf - --exclude='.git' --exclude='node_modules' --exclude='.omc' --exclude='._*' . | docker exec -i "${containerId}" tar xf - -C "${containerDir}/"`,
+    `cd "${sourceDir}" && COPYFILE_DISABLE=1 tar cf - --exclude='.git' --exclude='node_modules' --exclude='.omc' --exclude='._*' . | docker exec -i "${containerId}" tar xf - -C "${containerDir}/"`,
     { timeout: 300_000, maxBuffer: 50 * 1024 * 1024 },
   );
+  // Defense-in-depth: nuke any AppleDouble that slipped through. Must run
+  // before the baseline commit so they aren't pinned in git history.
+  await execAsync(
+    `docker exec "${containerId}" find "${containerDir}" -name '._*' -type f -delete`,
+    { timeout: 60_000 },
+  ).catch((err) => {
+    console.warn(`[sandbox] AppleDouble cleanup warning: ${err.message?.slice(0, 200)}`);
+  });
 
   // Re-initialize git and commit baseline
   // safe.directory is needed because tar-copied files have different ownership
