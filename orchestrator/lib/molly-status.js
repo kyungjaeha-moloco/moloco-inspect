@@ -7,14 +7,19 @@ import { recordEvent } from './molly-metrics.js';
 const SYSTEM_PROMPT = `당신은 molly 의 status reporter 입니다. 사용자가 잡/시스템 상태에 대해 질문하면 아래 raw 데이터를 보고 친근한 한국어로 답변합니다.
 
 답변 형식:
-- 사용자가 묻는 것 (활성 / 어제 / 특정 잡 등) 만 골라 답
-- 잡이 많으면 5개 이내로 요약
-- 잡 id 는 첫 8자만 (백틱)
-- 진행 중인 잡은 reviewed 수 / total 수, 상태, targetRoute
-- "자세한 건 Inspect Console (http://localhost:4174) 의 Jobs 탭" 안내 한 줄
+- 사용자가 묻는 것 (활성 / 어제 / 특정 작업 등) 만 골라 답
+- 작업이 많으면 5개 이내로 요약
+- id 는 첫 8자만 (백틱)
+- 진행 중인 작업은 reviewed 수 / total 수, 상태, targetRoute / phase
+- "자세한 건 Inspect Console (http://localhost:4174) 의 Jobs / Requests 탭" 안내 한 줄
 - 답변 길이 2-4 문단, 필요하면 1-2 줄
 
-raw 데이터 형식: JSON 배열, 각 잡은 { id, status, tasks: [{status}], targetRoute, createdAt, prdText (앞 80자), playgroundId }
+raw 데이터 형식: JSON 배열, 각 작업은:
+- 공통: { id, kind, status, prdText (앞 80자), playgroundId, createdAt }
+- kind='job' (Slack/Chrome ext 가 만든 큰 잡): + { tasks: [{status}], targetRoute }
+- kind='change-request' (Playground 의 plan 카드 승인이 만든 작업): + { phase }
+
+답변 시 사용자에게 "잡" 과 "change-request" 차이 노출하지 말 것 — 둘 다 "작업" 으로 자연스럽게 부르세요. kind 는 LLM 이 정확한 답을 만들기 위한 내부 신호일 뿐.
 
 중요:
 - 사용자가 "이 thread 의 playground", "playground 가 새로 만들어졌어?" 같이 *현재 thread* 의 playground 매핑 상태를 물으면, raw 데이터의 thisThreadPlayground 필드를 그대로 답에 사용. null 이면 "이 thread 에는 아직 playground 가 없어요. 원하는 작업을 한 줄로 보내주시면 이 thread 에 새 playground 가 만들어집니다." 라고 답.
@@ -30,28 +35,54 @@ raw 데이터 형식: JSON 배열, 각 잡은 { id, status, tasks: [{status}], t
  */
 export async function composeStatusReply(text, ctx) {
   const t0 = Date.now();
-  // #6 — 활성 잡 (running / queued / processing / paused) 우선, 그 다음
-  // 최근 종료 잡. 사용자가 보통 진행 중인 잡 상태 궁금. 토큰 줄어들고
-  // 답변 정확도 ↑.
-  const TERMINAL = new Set(['cancelled', 'complete']);
-  const allJobs = ctx.listJobs?.() ?? [];
-  const sorted = allJobs.slice().sort((a, b) => {
+  // #6 — 활성 작업 (running / queued / processing / paused / preview / pending /
+  // ...) 우선, 그 다음 최근 종료 작업. 사용자가 보통 진행 중 상태 궁금. 토큰
+  // 줄어들고 답변 정확도 ↑. terminal 집합은 jobs 와 change-requests 양쪽
+  // 의 종결 상태를 포괄.
+  const TERMINAL = new Set([
+    'cancelled', // job
+    'complete',  // job
+    'approved',  // change-request 사용자 승인 후 종결
+    'rejected',  // change-request
+    'error',     // change-request
+    'no_change_needed', // change-request
+  ]);
+
+  // Normalize both entities into a single shape so the LLM sees them
+  // uniformly. Jobs come from the job lib (`/api/job`); change-requests
+  // are the playground plan-card → executePlan flow tracked by server.js
+  // (`/api/change-request`). Without merging, status_query answers miss
+  // anything created from a Playground card.
+  const allJobs = (ctx.listJobs?.() ?? []).map((j) => ({
+    id: j.id,
+    kind: 'job',
+    status: j.status,
+    tasks: (j.tasks ?? []).map((t) => ({ status: t.status })),
+    targetRoute: j.targetRoute || null,
+    createdAt: j.createdAt || null, // epoch ms
+    prdText: (j.prdText || '').slice(0, 80),
+    playgroundId: j.playgroundId || null,
+  }));
+
+  const allRequests = (ctx.listRequests?.() ?? []).map((r) => ({
+    id: r.id,
+    kind: 'change-request',
+    status: r.status,
+    phase: r.phase || null,
+    createdAt: parseTimestamp(r.createdAt),
+    prdText: ((r.payload?.userPrompt) || '').slice(0, 80),
+    // change-request 는 payload.playgroundId 에 보관 (top-level 아님).
+    playgroundId: r.payload?.playgroundId || r.playgroundId || null,
+  }));
+
+  const merged = [...allJobs, ...allRequests];
+  const sorted = merged.slice().sort((a, b) => {
     const aActive = !TERMINAL.has(a.status) ? 1 : 0;
     const bActive = !TERMINAL.has(b.status) ? 1 : 0;
     if (aActive !== bActive) return bActive - aActive; // active first
     return (b.createdAt ?? 0) - (a.createdAt ?? 0);    // then most recent
   });
-  const jobs = sorted
-    .slice(0, 20)
-    .map((j) => ({
-      id: j.id,
-      status: j.status,
-      tasks: (j.tasks ?? []).map((t) => ({ status: t.status })),
-      targetRoute: j.targetRoute || null,
-      createdAt: j.createdAt || null,
-      prdText: (j.prdText || '').slice(0, 80),
-      playgroundId: j.playgroundId || null,
-    }));
+  const jobs = sorted.slice(0, 20);
 
   // 이 thread 에 매핑된 playground (Slack 의 thread → playground 1:1).
   // null 이면 PRD 가 아직 안 와서 playground 가 안 만들어진 상태.
@@ -117,6 +148,20 @@ export async function composeStatusReply(text, ctx) {
     output_tokens: u.output_tokens ?? 0,
   });
   return reply;
+}
+
+/**
+ * Normalize createdAt to epoch ms. Jobs store epoch ms directly; change-
+ * requests store an ISO string ("2026-05-07T04:07:40.079Z"). We sort by
+ * recency across both, so they need a uniform numeric form.
+ */
+function parseTimestamp(raw) {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  if (typeof raw === 'string' && raw) {
+    const ms = Date.parse(raw);
+    return Number.isNaN(ms) ? 0 : ms;
+  }
+  return 0;
 }
 
 function templatedFallback(jobs) {

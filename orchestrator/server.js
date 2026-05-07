@@ -2642,6 +2642,11 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         history: Array.isArray(payload?.history) ? payload.history.slice(-10) : [],
         listJobs,
         getJob,
+        // Playground 의 plan 카드 → executePlan → change-request 흐름이 만든
+        // 작업도 status_query 답변에 포함. 이걸 빼면 사용자가 만든 작업이
+        // /api/job 에 안 잡혀 있을 때 Molly 가 "잡 못 찾음" 답변 (정직하지만
+        // UI 의 잡 카드와 모순).
+        listRequests: () => [...requests.values()],
         // Sub-phase B.2 — molly-intake 의 handleClarificationAnswer / handlePlanEdit
         // 가 emitPlan 호출 시 DS context 를 알아야 함. caller (Slack/Chrome ext/
         // Playground) 가 client / routeOrPage 도 보내면 plan emitter 가 활용.
@@ -2713,7 +2718,11 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         return json(res, 200, { ok: true, kind, reason, response });
       }
       if (kind === 'status_query') {
-        const response = await composeStatusReply(text, { listJobs, getJob });
+        const response = await composeStatusReply(text, {
+          listJobs,
+          getJob,
+          listRequests: () => [...requests.values()],
+        });
         return json(res, 200, { ok: true, kind, reason, response });
       }
       // code_change — clarity 분석 후 결과에 따라 응답 다름
