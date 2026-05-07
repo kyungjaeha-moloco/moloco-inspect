@@ -10,7 +10,8 @@
     "validate": "node scripts/validate-schemas.mjs",
     "validate:ds": "tsx scripts/validate.ts",
     "generate:css": "node scripts/generate-css-variables.mjs",
-    "prop-check": "node scripts/prop-check.mjs"
+    "prop-check": "node scripts/prop-check.mjs",
+    "extract-props": "node scripts/extract-props.mjs"
   },
   "devDependencies": {
     "ajv": "^8.17.1",

@@ -23,6 +23,7 @@ const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal
 You have access to a structured design system:
 - patterns.json: composition patterns (app-shell, list-page, detail-page, form-basic, etc.)
 - components.json: full MSM Portal component catalog — name, importStatement, when_to_use, do_not_use, antiPatterns, functional_category, status (~112 components across 16 categories)
+- component-props.json: per-component props extracted via TypeScript Compiler API (ts-morph) — { name, type, required, description }. Authoritative for prop-level decisions. Subset of components.json — some entries may be absent (use the catalog as fallback).
 - api-ui-contracts.json: entity definitions (Creative, Order, Advertiser, Product, AuctionOrder, PublisherTarget)
 - pm-sa-request-schema.json: structured request contract with a change_intent enum
 
@@ -35,7 +36,7 @@ Your task: given a PM's goal, output a concrete plan as JSON. Ground your plan i
 - ONLY reference component names that appear in components.json. If a desired functionality has no matching component, say so explicitly in the plan summary rather than guessing a name.
 - When mentioning a component in plan_item descriptions, use its \`importStatement\` verbatim — do not reconstruct import paths from memory. The \`importPath\` / \`importStatement\` fields in components.json are authoritative.
 - Honor each component's \`when_to_use\` / \`do_not_use\` / \`antiPatterns\`: if a component matches the goal but its do_not_use rule applies, pick a different one (or say none fits).
-- For prop usage, plan_item descriptions can describe intent ("text input with placeholder") but should NOT specify exact prop names unless components.json shortDescription / when_to_use explicitly supports it. Prop-level correctness is enforced downstream by a typecheck verification step (\`runTypecheck\` in the change-request pipeline) — keep this layer honest about intent and let the typechecker catch prop-level mismatches.
+- For prop usage, consult component-props.json first. When a component appears there, mention any \`required: true\` props verbatim in the plan_item description so downstream agents know they must be set. Do NOT invent prop names that are absent from component-props.json. If a component is not in component-props.json, fall back to intent-only language ("text input with placeholder"). Prop-level correctness remains enforced downstream by a typecheck verification step (\`runTypecheck\` in the change-request pipeline) — component-props.json reduces mismatch frequency, the typechecker is the safety net.
 - For target_file, prefer the file paths or location templates that appear in patterns.json (layer_structure.location, file_checklist). When the exact file is unknown, use the pattern's template form (e.g. "src/apps/{client}/container/{entity}/list/MC{Entity}ListContainer.tsx") — do not guess a concrete filename.
 - If the request can't be met with the provided DS, say so in summary and mark affected plan_items with pattern_id: null.
 
@@ -105,6 +106,7 @@ export async function emitPlan(args, ctx = {}) {
   const patternsPath = path.join(dsRoot, 'src', 'patterns.json');
   const apiContractsPath = path.join(dsRoot, 'src', 'api-ui-contracts.json');
   const componentsPath = path.join(dsRoot, 'src', 'components.json');
+  const componentPropsPath = path.join(dsRoot, 'src', 'component-props.json');
   const patterns = readJsonSafe(patternsPath, {});
   const apiContracts = readJsonSafe(apiContractsPath, {});
   const requestSchema = readJsonSafe(requestSchemaPath, {});
@@ -121,6 +123,9 @@ export async function emitPlan(args, ctx = {}) {
   // patterns / api-contracts / request-schema are still per-call reads
   // (cheap relative to the LLM call) which is fine for now.
   const components = readComponentsCached(componentsPath);
+  // S2 (2026-05-07): component-props.json — extracted via ts-morph for
+  // prop-level grounding. mtime-aware cache like components.json.
+  const componentProps = readComponentPropsCached(componentPropsPath);
 
   // Phase: prompt caching (#1) — DS resources 는 호출마다 동일한 큰 정적
   // 블록. 마지막 블록에 cache_control: ephemeral 두면 누적 prefix 가
@@ -133,9 +138,10 @@ export async function emitPlan(args, ctx = {}) {
     { type: 'text', text: `pm-sa-request-schema:\n${JSON.stringify(requestSchema, null, 2)}` },
     { type: 'text', text: `patterns.json:\n${JSON.stringify(patterns, null, 2)}` },
     { type: 'text', text: `api-ui-contracts.json:\n${JSON.stringify(apiContracts, null, 2)}` },
+    { type: 'text', text: `components.json:\n${JSON.stringify(components, null, 2)}` },
     {
       type: 'text',
-      text: `components.json:\n${JSON.stringify(components, null, 2)}`,
+      text: `component-props.json:\n${JSON.stringify(componentProps, null, 2)}`,
       cache_control: { type: 'ephemeral', ttl: '1h' },
     },
   ];
@@ -255,4 +261,31 @@ function readComponentsCached(filePath) {
     `[plan-emitter] components.json loaded (mtime=${new Date(currentMtimeMs).toISOString()})`,
   );
   return _componentsCache;
+}
+
+// S2 (2026-05-07): same mtime-cache pattern for component-props.json
+// (ts-morph extracted props). component-props.json is regenerated by
+// design-system/scripts/extract-props.mjs — this cache picks up new
+// extractions on the next plan call without an orchestrator restart.
+let _componentPropsCache = null;
+let _componentPropsCacheMtimeMs = 0;
+
+function readComponentPropsCached(filePath) {
+  let currentMtimeMs = 0;
+  try {
+    currentMtimeMs = fs.statSync(filePath).mtimeMs;
+  } catch {
+    // file missing — fall through; absent file degrades to empty object,
+    // SYSTEM_PROMPT already says to fall back to components.json in that case.
+  }
+  if (_componentPropsCache && currentMtimeMs === _componentPropsCacheMtimeMs) {
+    return _componentPropsCache;
+  }
+  const next = readJsonSafe(filePath, {});
+  _componentPropsCache = next;
+  _componentPropsCacheMtimeMs = currentMtimeMs;
+  console.log(
+    `[plan-emitter] component-props.json loaded (mtime=${new Date(currentMtimeMs).toISOString()})`,
+  );
+  return _componentPropsCache;
 }
