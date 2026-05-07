@@ -51,6 +51,11 @@ Include the following in an array field "visual_constraints" at the top level. D
 - "Do not substitute overused fonts (Inter, Roboto, Arial, system). Use the DS typography tokens."
 - "A correct placeholder is better than a bad attempt at the real component."
 
+## Component reference tracking (S3 — surface to user)
+- After composing plan_items, list every DS component you referenced under top-level field \`referenced_components\` with the exact { name, importStatement, status } as found in components.json. Deduplicate.
+- If a desired functionality has no exact match in components.json (do NOT invent one), list it under \`unresolved_components\` with: { intent (1 line, in Korean — what the user wants), closest_match (closest existing component name from components.json, or null if nothing close), reason (1 line, in Korean — why none of the catalog components fits) }. Empty array is fine.
+- These two fields enable the 3 surfaces (Slack/Playground/Chrome ext) to render component badges and a "DS missing" UX so the user sees what was used and what was not. Be honest and exhaustive — over-listing is better than missing entries.
+
 Output MUST be valid JSON only (no markdown, no prose). Schema:
 {
   "intent": "<one of: copy_update|spacing_adjustment|token_alignment|component_swap|layout_adjustment|state_handling|accessibility_improvement|new_page|new_feature|data_display_change|form_field_addition|bulk_operation>",
@@ -66,6 +71,12 @@ Output MUST be valid JSON only (no markdown, no prose). Schema:
       "target_file": "<relative file path or template form from patterns.json, or null>",
       "depends_on": []
     }
+  ],
+  "referenced_components": [
+    { "name": "<MC* component name from components.json>", "importStatement": "<verbatim from components.json>", "status": "<status field from components.json>" }
+  ],
+  "unresolved_components": [
+    { "intent": "<Korean — what the user wanted>", "closest_match": "<MC* name or null>", "reason": "<Korean — why nothing fits>" }
   ]
 }
 
