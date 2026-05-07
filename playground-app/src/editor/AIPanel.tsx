@@ -2285,10 +2285,13 @@ function renderInlineMarkdown(text: string): React.ReactNode {
 }
 
 function renderInlineSegments(line: string): React.ReactNode[] {
-  // Tokenize on **bold** and `code` in a single pass. Greedy enough for
-  // short assistant replies; not a full CommonMark parser.
+  // Tokenize on **bold**, `code`, and bare http(s) URLs in a single pass.
+  // Greedy enough for short assistant replies; not a full CommonMark parser.
+  // URL regex: scheme http/https only (whitelist — avoids `javascript:` etc.),
+  // followed by non-whitespace. Trailing punctuation (.,!?:;)] etc.) is
+  // trimmed before linking so "see http://x.com." doesn't link the period.
   const parts: React.ReactNode[] = [];
-  const re = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  const re = /(\*\*[^*]+\*\*|`[^`]+`|https?:\/\/[^\s<>`)]+)/g;
   let lastIdx = 0;
   let match: RegExpExecArray | null;
   let key = 0;
@@ -2303,7 +2306,7 @@ function renderInlineSegments(line: string): React.ReactNode[] {
           {token.slice(2, -2)}
         </strong>,
       );
-    } else {
+    } else if (token.startsWith('`')) {
       parts.push(
         <code
           key={`c${key++}`}
@@ -2319,6 +2322,24 @@ function renderInlineSegments(line: string): React.ReactNode[] {
           {token.slice(1, -1)}
         </code>,
       );
+    } else {
+      // Bare URL — strip trailing punctuation so it doesn't get pulled into
+      // the link target ("...http://x.com." → href=http://x.com, then "." text).
+      const trailMatch = token.match(/[.,!?:;)]+$/);
+      const trailing = trailMatch?.[0] ?? '';
+      const href = trailing ? token.slice(0, -trailing.length) : token;
+      parts.push(
+        <a
+          key={`u${key++}`}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}
+        >
+          {href}
+        </a>,
+      );
+      if (trailing) parts.push(trailing);
     }
     lastIdx = match.index + token.length;
   }
