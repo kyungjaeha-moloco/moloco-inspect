@@ -450,6 +450,11 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
       channel: event.channel,
       threadTs,
       history,
+      // S2 fix (2026-05-07): emitPlan in handleFirstTurn requires
+      // designSystemRoot via ctx — was missing, causing fallback to
+      // code_change_clear (cumulativePrd-only response without a plan).
+      designSystemRoot: opts.designSystemRoot,
+      requestSchemaPath: opts.requestSchemaPath,
     });
   } catch (err) {
     logger.warn(`[molly] processIntake failed, falling back to chat: ${err.message}`);

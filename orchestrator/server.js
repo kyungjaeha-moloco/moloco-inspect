@@ -3717,6 +3717,13 @@ server.listen(PORT, '0.0.0.0', () => {
   // (no circular imports, no reach-around).
   startMolly({
     defaultPlaygroundId: process.env.MOLLY_PLAYGROUND_ID?.trim() || null,
+    // S2 fix (2026-05-07): Slack-originated processIntake calls were missing
+    // designSystemRoot, so emitPlan's first-turn auto-emit threw and the
+    // user fell back to code_change_clear ("plan 곧 emit 됩니다" 거짓 약속).
+    // /api/intake (line 2769) already sets these — propagate to the Slack
+    // path too so the three surfaces stay symmetric.
+    designSystemRoot: DESIGN_SYSTEM_ROOT,
+    requestSchemaPath: REQUEST_SCHEMA_PATH,
     createJob,
     getJob,
     listJobs,
