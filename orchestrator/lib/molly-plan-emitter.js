@@ -15,7 +15,7 @@ import fs from 'node:fs';
 
 // 모델 + thinking budget 은 molly-settings store 에서 dynamic 로 — Inspect
 // Console UI (Settings) 에서 런타임 변경 가능.
-import { getMollySettings } from './molly-settings.js';
+import { getMollySettings, buildThinkingConfig } from './molly-settings.js';
 import { recordEvent } from './molly-metrics.js';
 
 const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal.
@@ -133,10 +133,11 @@ ${jiraUrl ? `Jira: ${jiraUrl}\n` : ''}${prdUrl ? `PRD: ${prdUrl}\n` : ''}
     max_tokens: useThinking ? thinkingBudget + 4096 : 4096,
     system: systemBlocks,
     messages: [{ role: 'user', content: userPrompt }],
+    // Per-model thinking control. Adaptive models (Opus/Sonnet 4.6+)
+    // get `thinking:{type:'adaptive'}` + `output_config.effort`; older
+    // models get the legacy `budget_tokens`. See molly-settings.js.
+    ...buildThinkingConfig(settings.planModel, thinkingBudget),
   };
-  if (useThinking) {
-    reqBody.thinking = { type: 'enabled', budget_tokens: thinkingBudget };
-  }
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {

@@ -30,12 +30,20 @@ const DEFAULT_SONNET = 'claude-sonnet-4-20250514';
  * @property {number} planThinkingBudget — 0 = off
  */
 
+// Allowed model IDs. Verified against `GET /v1/models` (Anthropic API
+// 2026-05-07): Opus 4.7 ships as the alias `claude-opus-4-7` only —
+// no dated variant exists. The earlier `claude-opus-4-7-20251201` entry
+// was a phantom that returned 404 on /v1/messages, silently breaking
+// emitPlan and PRD analysis. If you add a new model here, double-check
+// it against the live model list before merging.
 const ALLOWED_MODELS = [
   DEFAULT_HAIKU,
   DEFAULT_SONNET,
   'claude-sonnet-4-5-20250929',
   'claude-opus-4-5-20251101',
-  'claude-opus-4-7-20251201',
+  'claude-opus-4-6',
+  'claude-sonnet-4-6',
+  'claude-opus-4-7',
 ];
 
 function envDefaults() {
@@ -57,13 +65,78 @@ function parseThinking(raw, fallback) {
   return fallback;
 }
 
+// Models that use the new adaptive thinking API. On these, the legacy
+// `thinking: {type:'enabled', budget_tokens:N}` request body returns 400 —
+// we must use `thinking: {type:'adaptive'}` plus `output_config.effort`.
+// (Source: docs.claude.com/build-with-claude/extended-thinking + /effort,
+// fetched 2026-05-07.)
+const ADAPTIVE_THINKING_MODELS = new Set([
+  'claude-opus-4-7',
+  'claude-opus-4-6',
+  'claude-sonnet-4-6',
+]);
+
+/**
+ * Translate a legacy `budget_tokens` value into the per-model thinking
+ * request fields. Returns an object meant to be `Object.assign`-ed into
+ * the messages request body.
+ *
+ * - Adaptive models (Opus/Sonnet 4.6+) → `{thinking:{type:'adaptive'}, output_config:{effort}}`.
+ * - Older models → legacy `{thinking:{type:'enabled', budget_tokens:N}}`.
+ * - `budget <= 0` → no thinking fields (caller still gets `{}` to spread safely).
+ *
+ * Effort mapping is intentionally coarse (budget bands → effort levels) and
+ * conservative — the docs note effort is a behavioral signal, not a strict
+ * budget, so an exact translation isn't possible. Callers can override via
+ * settings if a different default is wanted.
+ *
+ * @param {string} modelId
+ * @param {number} budgetTokens — settings value (0 = no thinking)
+ * @returns {object} Partial request body (`thinking` / `output_config`).
+ */
+export function buildThinkingConfig(modelId, budgetTokens) {
+  if (!budgetTokens || budgetTokens <= 0) return {};
+  if (ADAPTIVE_THINKING_MODELS.has(modelId)) {
+    let effort;
+    if (budgetTokens <= 1024) effort = 'low';
+    else if (budgetTokens <= 3000) effort = 'medium';
+    else if (budgetTokens <= 8000) effort = 'high';
+    else effort = 'xhigh';
+    return {
+      thinking: { type: 'adaptive' },
+      output_config: { effort },
+    };
+  }
+  return {
+    thinking: { type: 'enabled', budget_tokens: budgetTokens },
+  };
+}
+
+/** True if `modelId` uses adaptive thinking (no token-based budget). */
+export function usesAdaptiveThinking(modelId) {
+  return ADAPTIVE_THINKING_MODELS.has(modelId);
+}
+
 /** @type {MollySettings} */
 let cache = null;
+/** mtime (ms) of SETTINGS_PATH at the time `cache` was populated. Used to
+ *  detect out-of-band edits (e.g., direct sed of the JSON, or manual fix
+ *  during incident triage) without requiring a full process restart. */
+let cacheMtimeMs = 0;
 
 /** @returns {MollySettings} */
 export function getMollySettings() {
-  if (cache) return cache;
-  // 부팅 시 file 우선, 없으면 env defaults
+  // Cheap stat() each call — invalidate cache if the JSON file changed
+  // since we last loaded. Keeps `setMollySettings` (in-process patches)
+  // fast while letting external edits land within one call.
+  let currentMtimeMs = 0;
+  try {
+    currentMtimeMs = fs.statSync(SETTINGS_PATH).mtimeMs;
+  } catch {
+    // file missing — fall through; cache stays as-is or rebuilds from defaults
+  }
+  if (cache && currentMtimeMs === cacheMtimeMs) return cache;
+
   const defaults = envDefaults();
   let fileSettings = {};
   try {
@@ -74,6 +147,7 @@ export function getMollySettings() {
     console.warn('[molly-settings] file read failed, using env defaults:', err.message);
   }
   cache = { ...defaults, ...fileSettings };
+  cacheMtimeMs = currentMtimeMs;
   return cache;
 }
 
@@ -89,6 +163,9 @@ export function setMollySettings(patch) {
   try {
     if (!fs.existsSync(STATE_DIR)) fs.mkdirSync(STATE_DIR, { recursive: true });
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(cache, null, 2));
+    // Sync the mtime checkpoint so `getMollySettings` doesn't treat our
+    // own write as an external edit and re-read the same content back.
+    cacheMtimeMs = fs.statSync(SETTINGS_PATH).mtimeMs;
   } catch (err) {
     console.warn('[molly-settings] file write failed (in-memory still applied):', err.message);
   }

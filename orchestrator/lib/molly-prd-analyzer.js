@@ -2,7 +2,7 @@
 //
 // 모델 + thinking budget 은 molly-settings store 에서 dynamic. UI 변경
 // 즉시 반영 (재시작 X).
-import { getMollySettings } from './molly-settings.js';
+import { getMollySettings, buildThinkingConfig } from './molly-settings.js';
 import { recordEvent } from './molly-metrics.js';
 
 const SYSTEM_PROMPT = `당신은 molly 의 PRD 명확도 검사자입니다. 사용자가 코드 작업을 요청하는 PRD 를 받아 그 작업을 *지금 바로 시작할 만큼 명확한지* 판정합니다.
@@ -72,10 +72,10 @@ export async function analyzePrdClarity(text, ctx = {}) {
       { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
     ],
     messages: [{ role: 'user', content: userMessage }],
+    // Per-model thinking — adaptive on Opus/Sonnet 4.6+, legacy budget
+    // on older models (see molly-settings.js for the mapping).
+    ...buildThinkingConfig(settings.prdModel, thinkingBudget),
   };
-  if (useThinking) {
-    reqBody.thinking = { type: 'enabled', budget_tokens: thinkingBudget };
-  }
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
