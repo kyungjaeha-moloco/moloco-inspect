@@ -1044,13 +1044,45 @@
     messagesEl.appendChild(msg);
     scrollToBottom();
 
-    confirmBtn.addEventListener('click', () => {
+    confirmBtn.addEventListener('click', async () => {
       confirmBtn.disabled = true;
       editBtn.disabled = true;
       bubble.classList.add('clarification-complete');
       pendingExecutionPlan = null;
-      inputStatus.textContent = 'Got it. Starting work on this plan.';
-      performSubmit(plan);
+      inputStatus.textContent = 'Plan 분석 중…';
+
+      const prdText = plan.finalPrompt || plan.originalPrompt || '';
+      const clientId = plan.payload?.client || null;
+      const routeOrPage = plan.payload?.pagePath || plan.payload?.pageUrl || '/';
+
+      try {
+        const baseUrl = await getServerUrl();
+        const planRes = await fetch(`${baseUrl}/api/plan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            goal: prdText,
+            client: clientId || 'msm-default',
+            routeOrPage,
+          }),
+        });
+        const planBody = await planRes.json();
+        inputStatus.textContent = '';
+        if (!planRes.ok || planBody.ok === false) {
+          addSystemMessage(
+            `Plan 생성 실패: ${planBody.error || `HTTP ${planRes.status}`}`,
+            'error',
+          );
+          return;
+        }
+        // plan 카드 표시 — 사용자가 [실행하기] 눌러야 job 생성
+        addPlanItemsCard(planBody.plan, prdText, { client: clientId, routeOrPage });
+      } catch (err) {
+        inputStatus.textContent = '';
+        console.warn('[molly] /api/plan fetch failed, falling back to performSubmit:', err.message);
+        // 폴백: 기존 직접 실행 흐름
+        performSubmit(plan);
+      }
     });
 
     editBtn.addEventListener('click', () => {
@@ -2447,6 +2479,239 @@
     setTimeout(poll, 1500);
   }
 
+  // ─── Plan Items Card (PRD → /api/plan 응답) ─────────────────────────
+  /**
+   * Fast-track intent set — Task 1 plan-intent.js 와 동일 5종.
+   * skipDecomposer:true 로 job 생성 시 decomposer 단계를 건너뜀.
+   */
+  const FAST_TRACK_INTENTS_CHROME = new Set([
+    'copy_update',
+    'spacing_adjustment',
+    'token_alignment',
+    'accessibility_improvement',
+    'state_handling',
+  ]);
+
+  function isFastTrackIntentChrome(intent) {
+    return typeof intent === 'string' && FAST_TRACK_INTENTS_CHROME.has(intent);
+  }
+
+  /**
+   * Plan items 카드 — PRD 제출 직후 /api/plan 응답으로 만들어짐.
+   * 사용자가 plan 확인하고 [실행하기] 누르면 /api/playground/:id/job 호출
+   * (decomposer 우회 옵션 포함).
+   *
+   * 버튼: [취소] [✏️ 다시 계획] [실행하기 →]
+   *
+   * fast-track intent 면 헤더에 ⚡ 배지 + skipDecomposer:true.
+   *
+   * @param {object} plan        - /api/plan 응답의 plan 객체
+   * @param {string} cumulativePrd - 사용자 최종 PRD 텍스트
+   * @param {object} ctx         - { client, routeOrPage, playgroundId? }
+   */
+  function addPlanItemsCard(plan, cumulativePrd, ctx) {
+    const isFastTrack = isFastTrackIntentChrome(plan.intent);
+    const wrap = document.createElement('div');
+    wrap.className = 'msg msg-system';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble plan-card';
+
+    const title = document.createElement('div');
+    title.className = 'progress-card-title';
+    title.textContent = isFastTrack
+      ? `📋 Plan (${(plan.plan_items || []).length} items) — ⚡ 빠른 실행`
+      : `📋 Plan (${(plan.plan_items || []).length} items)`;
+    bubble.appendChild(title);
+
+    if (plan.summary) {
+      const summary = document.createElement('div');
+      summary.style.fontSize = '12px';
+      summary.style.color = 'var(--text-muted, #888)';
+      summary.style.marginBottom = '8px';
+      summary.textContent = plan.summary;
+      bubble.appendChild(summary);
+    }
+
+    const ol = document.createElement('ol');
+    ol.style.margin = '8px 0';
+    ol.style.paddingLeft = '20px';
+    ol.style.fontSize = '12px';
+    for (const p of plan.plan_items || []) {
+      const li = document.createElement('li');
+      li.style.marginBottom = '6px';
+      const titleEl = document.createElement('strong');
+      titleEl.textContent = p.title || '(no title)';
+      li.appendChild(titleEl);
+      if (p.description) {
+        const desc = document.createElement('div');
+        desc.style.color = 'var(--text-muted, #888)';
+        desc.style.marginTop = '2px';
+        desc.textContent = p.description;
+        li.appendChild(desc);
+      }
+      if (p.target_file) {
+        const fileWrap = document.createElement('div');
+        fileWrap.style.marginTop = '2px';
+        const file = document.createElement('code');
+        file.style.fontSize = '10px';
+        file.style.color = 'var(--text-muted, #888)';
+        file.textContent = p.target_file;
+        fileWrap.appendChild(file);
+        li.appendChild(fileWrap);
+      }
+      ol.appendChild(li);
+    }
+    bubble.appendChild(ol);
+
+    // 버튼 3개
+    const actions = document.createElement('div');
+    actions.style.display = 'flex';
+    actions.style.gap = '6px';
+    actions.style.marginTop = '10px';
+    actions.style.flexWrap = 'wrap';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = '취소';
+    cancelBtn.className = 'plan-btn plan-btn-danger';
+
+    const redecBtn = document.createElement('button');
+    redecBtn.type = 'button';
+    redecBtn.textContent = '✏️ 다시 계획';
+    redecBtn.className = 'plan-btn';
+
+    const approveBtn = document.createElement('button');
+    approveBtn.type = 'button';
+    approveBtn.textContent = '실행하기 →';
+    approveBtn.className = 'plan-btn plan-btn-primary';
+
+    // closure 변수 — 다시 계획 결과 swap 을 위해
+    let currentPlan = plan;
+    let currentFastTrack = isFastTrack;
+
+    const lockPlanButtons = (note) => {
+      cancelBtn.disabled = true;
+      redecBtn.disabled = true;
+      approveBtn.disabled = true;
+      if (note) {
+        const stamp = document.createElement('div');
+        stamp.style.marginTop = '6px';
+        stamp.style.fontSize = '11px';
+        stamp.style.color = 'var(--text-muted, #888)';
+        stamp.textContent = note;
+        bubble.appendChild(stamp);
+      }
+    };
+
+    approveBtn.addEventListener('click', async () => {
+      lockPlanButtons('실행 시작 중…');
+      try {
+        const baseUrl = await getServerUrl();
+
+        // playground 확보 — ensureEffectivePlayground() 재활용
+        let playgroundId = ctx?.playgroundId;
+        if (!playgroundId) {
+          playgroundId = await ensureEffectivePlayground();
+        }
+        if (!playgroundId) throw new Error('playground id 없음');
+
+        const jobRes = await fetch(
+          `${baseUrl}/api/playground/${encodeURIComponent(playgroundId)}/job`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prdText: cumulativePrd,
+              planItems: currentPlan.plan_items,
+              autoApprove: true,
+              skipDecomposer: currentFastTrack,
+            }),
+          },
+        );
+        const jobBody = await jobRes.json();
+        if (!jobRes.ok || jobBody.ok === false) {
+          throw new Error(jobBody.error || `job create HTTP ${jobRes.status}`);
+        }
+
+        const jobId = jobBody.job?.id ?? jobBody.jobId;
+        if (!jobId) throw new Error('서버가 jobId 를 반환하지 않음');
+
+        lockPlanButtons('✅ 실행 시작됨');
+
+        // 기존 폴링 흐름 진입 — addJobProgressMessage + startHttpJobPolling
+        currentJobId = jobId;
+        currentJobInProgress = true;
+        addJobProgressMessage(jobId, playgroundId, { userPrompt: cumulativePrd });
+        startHttpJobPolling(jobId);
+        if (playgroundId) {
+          chrome.storage.local.set({ lastPlaygroundId: playgroundId });
+        }
+      } catch (err) {
+        lockPlanButtons(`❌ 실행 실패: ${err?.message ?? String(err)}`);
+      }
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      lockPlanButtons('❌ 취소됨');
+    });
+
+    redecBtn.addEventListener('click', async () => {
+      const feedback = window.prompt('어떻게 수정할까요? 예: "3번째 항목은 X 대신 Y 로"');
+      if (feedback === null) return; // 사용자가 prompt 취소
+      const savedStates = {
+        cancel: cancelBtn.disabled,
+        redec: redecBtn.disabled,
+        approve: approveBtn.disabled,
+      };
+      cancelBtn.disabled = true;
+      redecBtn.disabled = true;
+      approveBtn.disabled = true;
+      try {
+        const baseUrl = await getServerUrl();
+        const r = await fetch(`${baseUrl}/api/plan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            goal: cumulativePrd,
+            client: ctx?.client || 'msm-default',
+            routeOrPage: ctx?.routeOrPage || '/',
+            previousPlan: currentPlan,
+            feedback: feedback.trim(),
+          }),
+        });
+        const body = await r.json();
+        if (!r.ok || body.ok === false) {
+          throw new Error(body.error || `HTTP ${r.status}`);
+        }
+        // 카드 swap — 현재 카드 제거 후 동일 ctx 로 재호출
+        wrap.remove();
+        addPlanItemsCard(body.plan, cumulativePrd, ctx);
+      } catch (err) {
+        // 실패 시 버튼 복구
+        cancelBtn.disabled = savedStates.cancel;
+        redecBtn.disabled = savedStates.redec;
+        approveBtn.disabled = savedStates.approve;
+        const errStamp = document.createElement('div');
+        errStamp.style.marginTop = '6px';
+        errStamp.style.fontSize = '11px';
+        errStamp.style.color = 'var(--text-danger, #c0392b)';
+        errStamp.textContent = `❌ 다시 계획 실패: ${err?.message ?? String(err)}`;
+        bubble.appendChild(errStamp);
+      }
+    });
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(redecBtn);
+    actions.appendChild(approveBtn);
+    bubble.appendChild(actions);
+    wrap.appendChild(bubble);
+
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  // ─── Job Plan Approval Card (job.status=planning 시 read-only progress) ──
   /**
    * Plan card rendered when a job hits status=planning. Mirrors the
    * Slack molly plan blocks: tasks list + risks + qa strategy +
@@ -2464,7 +2729,7 @@
 
     const title = document.createElement('div');
     title.className = 'progress-card-title';
-    title.textContent = `📋 작업 계획 (${(job.tasks || []).length} tasks)`;
+    title.textContent = `📋 진행 상황 (${(job.tasks || []).length} tasks)`;
     bubble.appendChild(title);
 
     const taskList = document.createElement('ol');
@@ -2535,11 +2800,6 @@
     actions.style.marginTop = '10px';
     actions.style.flexWrap = 'wrap';
 
-    const approveBtn = document.createElement('button');
-    approveBtn.type = 'button';
-    approveBtn.textContent = '✅ 승인하고 시작';
-    approveBtn.className = 'plan-btn plan-btn-primary';
-
     const redecBtn = document.createElement('button');
     redecBtn.type = 'button';
     redecBtn.textContent = '✏️ 다시 계획';
@@ -2551,7 +2811,6 @@
     cancelBtn.className = 'plan-btn plan-btn-danger';
 
     const lockButtons = (note) => {
-      approveBtn.disabled = true;
       redecBtn.disabled = true;
       cancelBtn.disabled = true;
       if (note) {
@@ -2563,19 +2822,6 @@
         bubble.appendChild(stamp);
       }
     };
-
-    approveBtn.addEventListener('click', async () => {
-      lockButtons('✅ 승인 처리 중…');
-      try {
-        const baseUrl = await baseUrlPromise;
-        await fetch(
-          `${baseUrl}/api/job/${encodeURIComponent(job.id)}/approve-plan`,
-          { method: 'POST' },
-        );
-      } catch (err) {
-        addSystemMessage(`승인 실패: ${err.message}`, 'error');
-      }
-    });
 
     redecBtn.addEventListener('click', async () => {
       const feedback = window.prompt(
@@ -2613,7 +2859,6 @@
       }
     });
 
-    actions.appendChild(approveBtn);
     actions.appendChild(redecBtn);
     actions.appendChild(cancelBtn);
     bubble.appendChild(actions);
