@@ -165,6 +165,46 @@ const QA_STRATEGY_LABELS_KO = {
 };
 
 /**
+ * CommonMark → Slack mrkdwn 변환.
+ *
+ * LLM (Anthropic) 은 CommonMark 로 출력하지만 Slack 은 mrkdwn 사용:
+ *  - 굵게:   `**텍스트**`        → `*텍스트*`
+ *  - 기울임: `*텍스트*` (단일)   → `_텍스트_`
+ *  - 취소:   `~~텍스트~~`        → `~텍스트~`
+ *  - 링크:   `[label](url)`      → `<url|label>`
+ *
+ * 인라인 코드 `` `x` `` / 코드블록 ```...``` / 인용 `>` / 리스트 `-` `*` 은
+ * 양쪽 동일. 헤더 `#` 는 Slack 에 미지원 — 그대로 두면 plain text 로 보임.
+ *
+ * 정책: 굵게/기울임 충돌을 피하려 placeholder 단계 거침.
+ *   1) `**...**` → 임시 토큰 (단일 `*` 가 italic 이라 헷갈리지 않게 격리)
+ *   2) 단일 `*...*` → `_..._`
+ *   3) 임시 토큰 → `*...*` 복원
+ *
+ * Slack 외 surface (Playground / Chrome ext) 는 CommonMark 그대로 원하니
+ * 이 변환은 Slack 출력 직전에만 적용.
+ */
+function toSlackMrkdwn(text) {
+  if (!text || typeof text !== 'string') return text;
+  return (
+    text
+      // 1) 마크다운 링크: [label](url) → <url|label>
+      .replace(
+        /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
+        '<$2|$1>',
+      )
+      // 2) 굵게 보호 (단일 * italic 변환에서 격리)
+      .replace(/\*\*([^*\n]+)\*\*/g, 'BOLD$1/BOLD')
+      // 3) 단일 * italic → _italic_ (앞뒤 공백 / 줄바꿈 / 문장부호 경계에서만)
+      .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/g, '$1_$2_')
+      // 4) 굵게 복원: *bold*
+      .replace(/BOLD([^]+)\/BOLD/g, '*$1*')
+      // 5) 취소선: ~~text~~ → ~text~
+      .replace(/~~([^~\n]+)~~/g, '~$1~')
+  );
+}
+
+/**
  * The decomposer sometimes emits sub-bullets on the same line as the
  * prose — e.g. "...페이지가 보입니다. (1) 제목... (2) 안내문구...".
  * Slack mrkdwn doesn't auto-wrap before parenthesised numbers, so the
@@ -469,7 +509,10 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     if (thinkingTs) {
       try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
     }
-    await say({ thread_ts: threadTs, text: result.response || '(빈 응답)' });
+    await say({
+      thread_ts: threadTs,
+      text: toSlackMrkdwn(result.response) || '(빈 응답)',
+    });
     return;
   }
 
@@ -479,7 +522,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     }
     await say({
       thread_ts: threadTs,
-      text: `🤔 ${result.clarifyingQuestion}`,
+      text: `🤔 ${toSlackMrkdwn(result.clarifyingQuestion) ?? ''}`,
     });
     return;
   }
@@ -1245,8 +1288,10 @@ function buildPlanBlocks(job) {
     // line, which dropped the bulk of the user-visible plan.
     // Slack section blocks cap at 3000 chars; trunc to 2500 for safety.
     job.tasks.forEach((t, i) => {
-      const desc = normalizeBullets((t.description || '').trim());
-      const md = [`*${i + 1}. ${t.title}*`, '', trunc(desc, 2500)].join('\n');
+      // LLM (decomposer) 이 CommonMark 로 출력 — Slack mrkdwn 으로 변환.
+      const desc = toSlackMrkdwn(normalizeBullets((t.description || '').trim()));
+      const title = toSlackMrkdwn((t.title || '').trim());
+      const md = [`*${i + 1}. ${title}*`, '', trunc(desc, 2500)].join('\n');
       blocks.push({
         type: 'section',
         text: { type: 'mrkdwn', text: md },
