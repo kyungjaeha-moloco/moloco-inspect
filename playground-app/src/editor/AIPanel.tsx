@@ -618,6 +618,12 @@ export const AIPanel = React.memo(function AIPanel({
           ? `${formatElementContext(lastPickedElement)}\n\n`
           : '';
         const intakeText = `${elementCtx}${trimmed}`;
+        // plan_feedback (2026-05-11) — 가장 최근 assistant message 중에서
+        // plan 있고 planResolved 가 아직 없는 것 → "pending plan" 으로 classifier 에 알림.
+        // 그러면 사용자가 채팅으로 자연어 수정 요청 보낼 때 plan_feedback 으로 분류됨.
+        const pendingPlanMsg = [...prevMessages]
+          .reverse()
+          .find((m) => m.role === 'assistant' && !!m.plan && !m.planResolved && !m.archived);
         let result: IntakeResult;
         try {
           result = await postIntake({
@@ -626,6 +632,8 @@ export const AIPanel = React.memo(function AIPanel({
             history,
             client: playgroundClient ?? undefined,
             routeOrPage: currentRoute ?? undefined,
+            hasPendingPlan: !!pendingPlanMsg,
+            pendingPlanSummary: pendingPlanMsg?.plan?.meta?.summary ?? undefined,
           });
         } catch (err) {
           if (!isStillActive()) return;
@@ -717,6 +725,30 @@ export const AIPanel = React.memo(function AIPanel({
                 'PRD 가 명확합니다. 다만 지금은 plan 카드를 만들 수 없어요. 잠시 후 다시 같은 요청을 보내주세요 (또는 좀 더 구체적으로 적어주시면 plan 이 바로 떠요).',
               kind: 'code_change_clear',
             });
+            break;
+          case 'plan_feedback':
+            // 사용자 채팅이 "plan 수정 요청" 으로 분류됨 — pending plan 메시지를
+            // 찾아서 redecomposePlan(feedback) 호출. button "다시 계획" 흐름과 동등.
+            if (pendingPlanMsg) {
+              addAssistantMessage({
+                content: '✏️ 피드백 반영해서 plan 다시 만드는 중...',
+                kind: 'plan_feedback',
+              });
+              const feedback = result.feedback ?? trimmed;
+              redecomposePlan(pendingPlanMsg, feedback).catch((err) => {
+                console.error('[AIPanel] plan_feedback redecomposePlan failed:', err);
+                addAssistantMessage({
+                  content: `⚠️ 다시 계획 실패: ${err instanceof Error ? err.message : String(err)}`,
+                });
+              });
+            } else {
+              // hasPendingPlan 이 false 였으면 backend classifier 가 chat 으로
+              // downgrade 했을 텐데, 혹시 race 로 여기 도달하면 chat 폴백.
+              addAssistantMessage({
+                content: '⚠️ 수정할 plan 카드가 사라졌어요. 새 PRD 로 다시 요청해 주세요.',
+                kind: 'chat',
+              });
+            }
             break;
         }
         return;

@@ -302,7 +302,8 @@ export type IntakeKind =
   | 'code_change_clear'
   | 'code_change_ambiguous'
   | 'plan_emit'
-  | 'job_dispatched';
+  | 'job_dispatched'
+  | 'plan_feedback';
 
 export interface IntakeHistoryTurn {
   role: ChatRole;
@@ -322,6 +323,13 @@ export interface IntakeRequest {
   routeOrPage?: string;
   channel?: string;
   threadTs?: string;
+  /**
+   * plan_feedback 활성화 — plan 카드가 떠있고 사용자가 채팅으로 수정 요청
+   * 보낼 수 있는 상태일 때 true. classifier 가 plan_feedback kind 후보로
+   * 검토. summary 도 같이 보내면 정확도 ↑.
+   */
+  hasPendingPlan?: boolean;
+  pendingPlanSummary?: string;
 }
 
 export interface IntakeResult {
@@ -339,6 +347,8 @@ export interface IntakeResult {
   plan?: RawPlan;
   /** plan_emit / job_dispatched 시 history 합친 PRD. */
   cumulativePrd?: string;
+  /** plan_feedback kind 일 때 사용자 자연어 피드백 (원본 text 그대로). */
+  feedback?: string;
 }
 
 /**
@@ -358,6 +368,8 @@ export async function postIntake(args: IntakeRequest): Promise<IntakeResult> {
       routeOrPage: args.routeOrPage,
       channel: args.channel,
       threadTs: args.threadTs,
+      hasPendingPlan: args.hasPendingPlan,
+      pendingPlanSummary: args.pendingPlanSummary,
     }),
   });
 

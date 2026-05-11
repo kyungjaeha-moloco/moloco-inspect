@@ -516,6 +516,11 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
   // (clarification + plan) 가 dispatcher 에서 작동.
   // 폴백: intake 자체 throw (network / API key 없음 등) 시 안전하게 chat
   // 응답으로 (잡 안 만드는 게 부작용 0).
+  // plan_feedback (2026-05-11) 활성화 — thread 에 pending plan_items 카드 있는지
+  // lookup. planItemsContexts 의 channel:threadTs:* 형태 중 살아있는 entry 1개라도
+  // 있으면 hasPendingPlan=true. summary 는 분류 정확도 위해.
+  const pendingPlanForThread = findPendingPlanForThread(event.channel, threadTs);
+
   let result;
   try {
     const { processIntake } = await import('./molly-intake.js');
@@ -532,6 +537,9 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
       // code_change_clear (cumulativePrd-only response without a plan).
       designSystemRoot: opts.designSystemRoot,
       requestSchemaPath: opts.requestSchemaPath,
+      // plan_feedback 활성화 신호
+      hasPendingPlan: !!pendingPlanForThread,
+      pendingPlanSummary: pendingPlanForThread?.plan?.summary ?? null,
     });
   } catch (err) {
     logger.warn(`[molly] processIntake failed, falling back to chat: ${err.message}`);
@@ -583,6 +591,63 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
       });
       return;
     }
+  }
+
+  // plan_feedback (2026-05-11) — 사용자가 채팅으로 자연어 plan 수정 요청.
+  // hasPendingPlan 컨텍스트로 classifier 가 분류 → 여기서 직접 emitPlan
+  // (previousPlan + feedback) 재호출 후 카드 swap. 버튼 클릭으로 모달 띄우는
+  // 흐름과 동등한 결과. button 흐름은 그대로 유지 (mutex 안 필요 — Slack
+  // chat.update 가 idempotent).
+  if (result.kind === 'plan_feedback' && pendingPlanForThread) {
+    if (thinkingTs) {
+      try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
+    }
+    try {
+      const ack = await say({
+        thread_ts: threadTs,
+        text: '✏️ 피드백 반영해서 plan 다시 만드는 중...',
+      });
+      const { emitPlan } = await import('./molly-plan-emitter.js');
+      const newPlan = await emitPlan(
+        {
+          goal: pendingPlanForThread.cumulativePrd,
+          client: pendingPlanForThread.plan?.targetClient || 'msm-default',
+          routeOrPage: '/',
+          previousPlan: pendingPlanForThread.plan,
+          feedback: result.feedback,
+        },
+        {
+          designSystemRoot: opts.designSystemRoot,
+          requestSchemaPath: opts.requestSchemaPath,
+        },
+      );
+      const { isFastTrackIntent } = await import('./plan-intent.js');
+      const isFastTrack = isFastTrackIntent(newPlan.intent);
+      rememberPlanItemsContext(event.channel, threadTs, pendingPlanForThread.msgTs, {
+        plan: newPlan,
+        cumulativePrd: pendingPlanForThread.cumulativePrd,
+        isFastTrack,
+      });
+      await client.chat.update({
+        channel: event.channel,
+        ts: pendingPlanForThread.msgTs,
+        text: `📋 Plan (${(newPlan.plan_items || []).length} items)`,
+        blocks: buildPlanItemsBlocks(newPlan, isFastTrack),
+      });
+      // ack 메시지 정리
+      if (ack?.ts) {
+        try { await client.chat.delete({ channel: event.channel, ts: ack.ts }); } catch {}
+      }
+    } catch (err) {
+      logger.warn(`[molly] plan_feedback emitPlan failed: ${err.message?.slice(0, 120)}`);
+      try {
+        await say({
+          thread_ts: threadTs,
+          text: `❌ 다시 계획 실패: ${err.message?.slice(0, 200) ?? err}`,
+        });
+      } catch {}
+    }
+    return;
   }
 
   // result.kind === 'code_change_clear' — 기존 흐름 (createJob ...).
@@ -1326,6 +1391,29 @@ function rememberPlanItemsContext(channel, threadTs, msgTs, ctx) {
     ...ctx,
     expireAt: Date.now() + PLAN_ITEMS_CTX_TTL_MS,
   });
+}
+
+/**
+ * thread 단위로 살아있는 (만료 X) plan_items 컨텍스트 1개 찾음.
+ * 채팅으로 plan_feedback 들어왔을 때 어떤 plan 카드를 update 할지 결정.
+ * 여러 plan 카드가 같은 thread 에 있을 경우 expireAt 이 가장 늦은 (= 가장
+ * 최근 만들어진) 것 선택.
+ */
+function findPendingPlanForThread(channel, threadTs) {
+  const prefix = `${channel}:${threadTs}:`;
+  const now = Date.now();
+  let best = null;
+  let bestMsgTs = null;
+  for (const [key, ctx] of planItemsContexts) {
+    if (!key.startsWith(prefix)) continue;
+    if (ctx.expireAt <= now) continue;
+    if (!best || ctx.expireAt > best.expireAt) {
+      best = ctx;
+      bestMsgTs = key.slice(prefix.length);
+    }
+  }
+  if (!best) return null;
+  return { ...best, msgTs: bestMsgTs };
 }
 
 function getPlanItemsContext(channel, threadTs, msgTs) {

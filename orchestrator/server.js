@@ -3126,6 +3126,13 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         requestSchemaPath: REQUEST_SCHEMA_PATH,
         client: payload?.client,
         routeOrPage: payload?.routeOrPage,
+        // plan_feedback 활성화 (2026-05-11) — classifier 가 채팅 입력을
+        // "현재 plan 수정 요청" 으로 분류 가능. caller (surface) 가 pending
+        // plan 의 존재 여부 + summary 를 보내서 정확도 ↑.
+        hasPendingPlan: payload?.hasPendingPlan === true,
+        pendingPlanSummary: typeof payload?.pendingPlanSummary === 'string'
+          ? payload.pendingPlanSummary
+          : null,
       };
       const result = await processIntake(text, ctx);
       // 메트릭 — intake 의 최종 kind 기록.

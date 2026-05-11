@@ -2498,6 +2498,11 @@
     return typeof intent === 'string' && FAST_TRACK_INTENTS_CHROME.has(intent);
   }
 
+  // Active plan_items card 참조 — 채팅으로 plan_feedback 들어왔을 때 어느 카드
+  // 를 redecompose 할지 추적. 동시에 여러 카드 표시 안 함 정책 (Slack 와 다름):
+  // 새 카드 만들어지면 이전 참조 덮어씀.
+  let activePlanItemsCard = null;
+
   /**
    * Plan items 카드 — PRD 제출 직후 /api/plan 응답으로 만들어짐.
    * 사용자가 plan 확인하고 [실행하기] 누르면 /api/playground/:id/job 호출
@@ -2640,6 +2645,7 @@
         if (!jobId) throw new Error('서버가 jobId 를 반환하지 않음');
 
         lockPlanButtons('✅ 실행 시작됨');
+        if (activePlanItemsCard?.wrap === wrap) activePlanItemsCard = null;
 
         // 기존 폴링 흐름 진입 — addJobProgressMessage + startHttpJobPolling
         currentJobId = jobId;
@@ -2656,11 +2662,14 @@
 
     cancelBtn.addEventListener('click', () => {
       lockPlanButtons('❌ 취소됨');
+      if (activePlanItemsCard?.wrap === wrap) activePlanItemsCard = null;
     });
 
-    redecBtn.addEventListener('click', async () => {
-      const feedback = window.prompt('어떻게 수정할까요? 예: "3번째 항목은 X 대신 Y 로"');
-      if (feedback === null) return; // 사용자가 prompt 취소
+    // 다시 계획 — button 클릭과 chat plan_feedback 둘 다 사용. feedback 텍스트
+    // 받아서 /api/plan 재호출 + 카드 swap. 실패 시 버튼 복구 + error stamp.
+    async function doRedecompose(feedback) {
+      const trimmed = (feedback || '').trim();
+      if (!trimmed) return;
       const savedStates = {
         cancel: cancelBtn.disabled,
         redec: redecBtn.disabled,
@@ -2679,18 +2688,18 @@
             client: ctx?.client || 'msm-default',
             routeOrPage: ctx?.routeOrPage || '/',
             previousPlan: currentPlan,
-            feedback: feedback.trim(),
+            feedback: trimmed,
           }),
         });
         const body = await r.json();
         if (!r.ok || body.ok === false) {
           throw new Error(body.error || `HTTP ${r.status}`);
         }
-        // 카드 swap — 현재 카드 제거 후 동일 ctx 로 재호출
+        // 카드 swap — 현재 카드 제거 후 동일 ctx 로 재호출 (새 카드가 활성 참조 등록)
         wrap.remove();
+        if (activePlanItemsCard?.wrap === wrap) activePlanItemsCard = null;
         addPlanItemsCard(body.plan, cumulativePrd, ctx);
       } catch (err) {
-        // 실패 시 버튼 복구
         cancelBtn.disabled = savedStates.cancel;
         redecBtn.disabled = savedStates.redec;
         approveBtn.disabled = savedStates.approve;
@@ -2701,6 +2710,12 @@
         errStamp.textContent = `❌ 다시 계획 실패: ${err?.message ?? String(err)}`;
         bubble.appendChild(errStamp);
       }
+    }
+
+    redecBtn.addEventListener('click', async () => {
+      const feedback = window.prompt('어떻게 수정할까요? 예: "3번째 항목은 X 대신 Y 로"');
+      if (feedback === null) return; // 사용자가 prompt 취소
+      await doRedecompose(feedback);
     });
 
     actions.appendChild(cancelBtn);
@@ -2711,6 +2726,15 @@
 
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    // 채팅 plan_feedback 진입점 등록 — 새 카드가 만들어지면 이전 참조 덮어씀.
+    // approve / cancel / redecompose 성공 swap 시 모두 해제됨.
+    activePlanItemsCard = {
+      wrap,
+      doRedecompose,
+      getPlan: () => currentPlan,
+      getPrd: () => cumulativePrd,
+    };
   }
 
   // ─── Job Plan Approval Card (job.status=planning 시 read-only progress) ──
@@ -4062,10 +4086,21 @@
         // 응답 shape: kind ∈ chat / status_query / code_change_clear /
         // code_change_ambiguous (4 종). code_change 분기는 _clear / _ambiguous
         // 로 명시화 — 기존 clarity 필드 검사 불필요.
+        // plan_feedback (2026-05-11) — activePlanItemsCard 있으면 classifier 에
+        // 알려서 채팅 입력을 "현재 plan 수정 요청" 으로 분류 가능. plan summary 도
+        // 첨부 시 정확도 ↑.
+        const hasPendingPlan = !!activePlanItemsCard;
+        const pendingPlanSummary = activePlanItemsCard?.getPlan?.()?.summary ?? null;
         const r = await fetch(`${baseUrl}/api/intake`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: userInput, surface: 'chrome-ext', history: mollyChatHistory.slice() }),
+          body: JSON.stringify({
+            text: userInput,
+            surface: 'chrome-ext',
+            history: mollyChatHistory.slice(),
+            hasPendingPlan,
+            pendingPlanSummary,
+          }),
         });
         thinking.dismiss();
         if (r.ok) {
@@ -4078,6 +4113,16 @@
           // code_change_ambiguous → clarifying Q 만 surface, 잡 안 만듦
           if (kind === 'code_change_ambiguous' && data?.clarifyingQuestion) {
             addMollyChatMessage(`🤔 ${data.clarifyingQuestion}`, 'clarify');
+            return;
+          }
+          // plan_feedback (2026-05-11) — active 카드의 doRedecompose 호출.
+          // chat 으로 채팅 입력 → 자동으로 카드 swap.
+          if (kind === 'plan_feedback' && activePlanItemsCard) {
+            const feedback = data?.feedback || userInput;
+            addMollyChatMessage('✏️ 피드백 반영해서 plan 다시 만드는 중...', 'system');
+            activePlanItemsCard.doRedecompose(feedback).catch((err) => {
+              addMollyChatMessage(`⚠️ 다시 계획 실패: ${err?.message ?? String(err)}`, 'error');
+            });
             return;
           }
           // code_change_clear → 기존 흐름 (job 생성). fall through.
@@ -4211,10 +4256,19 @@
       const thinking = showMollyThinking(messagesEl);
       try {
         const baseUrl = await getServerUrl();
+        // plan_feedback (2026-05-11) — active plan_items 카드 있으면 classifier 에 알림.
+        const hasPendingPlan = !!activePlanItemsCard;
+        const pendingPlanSummary = activePlanItemsCard?.getPlan?.()?.summary ?? null;
         const r = await fetch(`${baseUrl}/api/intake`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, surface: 'chrome-ext', history: mollyChatHistory.slice() }),
+          body: JSON.stringify({
+            text,
+            surface: 'chrome-ext',
+            history: mollyChatHistory.slice(),
+            hasPendingPlan,
+            pendingPlanSummary,
+          }),
         });
         thinking.dismiss();
         if (r.ok) {
@@ -4227,6 +4281,15 @@
           }
           if (kind === 'code_change_ambiguous' && data?.clarifyingQuestion) {
             addMollyChatMessage(`🤔 ${data.clarifyingQuestion}`, 'clarify');
+            updateSendState();
+            return;
+          }
+          if (kind === 'plan_feedback' && activePlanItemsCard) {
+            const feedback = data?.feedback || text;
+            addMollyChatMessage('✏️ 피드백 반영해서 plan 다시 만드는 중...', 'system');
+            activePlanItemsCard.doRedecompose(feedback).catch((err) => {
+              addMollyChatMessage(`⚠️ 다시 계획 실패: ${err?.message ?? String(err)}`, 'error');
+            });
             updateSendState();
             return;
           }

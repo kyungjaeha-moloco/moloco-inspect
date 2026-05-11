@@ -20,7 +20,7 @@ import { composeLifecycleReply } from './molly-lifecycle.js';
 import { analyzePrdClarity } from './molly-prd-analyzer.js';
 
 /**
- * @typedef {'chat'|'status_query'|'lifecycle_action'|'code_change_clear'|'code_change_ambiguous'|'plan_emit'|'job_dispatched'} IntakeKind
+ * @typedef {'chat'|'status_query'|'lifecycle_action'|'code_change_clear'|'code_change_ambiguous'|'plan_emit'|'job_dispatched'|'plan_feedback'} IntakeKind
  *
  * - chat / status_query / code_change_clear / code_change_ambiguous: 첫 턴 흐름
  * - lifecycle_action: cancel/retry 등 잡 lifecycle 명령. deterministic template 응답 (LLM X)
@@ -123,6 +123,18 @@ async function handleFirstTurn(text, ctx, history) {
   if (cls.kind === 'lifecycle_action') {
     const response = await composeLifecycleReply(text, enrichedCtx);
     return { kind: 'lifecycle_action', reason: cls.reason, response };
+  }
+
+  // plan_feedback (2026-05-11) — 사용자가 plan 카드 떠있는 동안 자연어로
+  // 수정 요청. 여기선 LLM 호출 X — caller (Slack / Playground / Chrome ext)
+  // 가 자체 컨텍스트에서 emitPlan(previousPlan, feedback) 재호출 후 카드
+  // swap. intake 는 kind 만 전달하고 사용자 텍스트를 feedback 으로 반환.
+  if (cls.kind === 'plan_feedback') {
+    return {
+      kind: 'plan_feedback',
+      reason: cls.reason,
+      feedback: text,
+    };
   }
 
   // code_change → PRD analyzer
