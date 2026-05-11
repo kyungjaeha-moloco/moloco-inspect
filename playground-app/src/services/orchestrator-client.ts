@@ -63,6 +63,10 @@ export interface ChangeRequestInput {
   /** When set, the change runs through the playground-scoped queue and
    *  commits to the playground sandbox instead of the stateless path. */
   playgroundId?: string;
+  /** Playground 에서 plan 카드 승인 후 실행 — backend 의 추가 approve 단계 skip. */
+  autoApprove?: boolean;
+  /** intent 가 fast-track 5종 중 하나일 때 true — decomposer 우회. */
+  skipDecomposer?: boolean;
 }
 
 export interface ChangeRequestAck {
@@ -115,6 +119,8 @@ export async function postChangeRequest(
       component: input.component,
       requestContract: input.requestContract,
       playgroundId: input.playgroundId,
+      autoApprove: input.autoApprove,
+      skipDecomposer: input.skipDecomposer,
     }),
   });
 

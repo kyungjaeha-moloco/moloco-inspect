@@ -45,6 +45,20 @@ import { usePinStore, type PinComment } from '../store/pin-store';
 import type { BridgeElementContext } from '../services/playground-bridge';
 import { JobCard } from './JobCard';
 
+// orchestrator/lib/plan-intent.js 와 동기화 — 5종 intent 는 decomposer
+// 우회 (skipDecomposer:true). 변경 시 양쪽 같이 갱신.
+const FAST_TRACK_INTENTS = new Set<string>([
+  'copy_update',
+  'spacing_adjustment',
+  'token_alignment',
+  'accessibility_improvement',
+  'state_handling',
+]);
+
+function isFastTrackIntent(intent: string | undefined | null): boolean {
+  return typeof intent === 'string' && FAST_TRACK_INTENTS.has(intent);
+}
+
 /**
  * AIPanel — left-pane conversational interface for the Playground editor.
  *
@@ -246,6 +260,7 @@ export const AIPanel = React.memo(function AIPanel({
       });
 
       try {
+        const isFastTrack = isFastTrackIntent(plan.meta.intent);
         const ack = await postChangeRequest({
           userPrompt,
           pagePath,
@@ -254,6 +269,8 @@ export const AIPanel = React.memo(function AIPanel({
           planItems: enabledItems,
           visualConstraints: plan.meta.visualConstraints,
           playgroundId: sentPlaygroundId,
+          autoApprove: true,
+          skipDecomposer: isFastTrack,
         });
         if (!isStillActive()) return;
         updateExecution(execMsg.id, { requestId: ack.id, status: ack.status });
@@ -2741,6 +2758,9 @@ function PlanCard({
     <Card tone={resolved === 'accepted' ? 'accent' : 'default'} style={{ opacity: dim ? 0.5 : 1 }}>
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         <Chip label={plan.meta.intent} color="accent" />
+        {isFastTrackIntent(plan.meta.intent) && (
+          <Chip label="⚡ 빠른 실행" color="accent" />
+        )}
         {plan.meta.targetClient && <Chip label={plan.meta.targetClient} />}
         {plan.meta.targetRoute && <Chip label={plan.meta.targetRoute} />}
         {plan.meta.targetEntity && <Chip label={plan.meta.targetEntity} color="entity" />}
