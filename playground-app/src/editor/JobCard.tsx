@@ -335,70 +335,36 @@ export function JobCard({ jobId }: { jobId: string }) {
           marginTop: 10,
           paddingTop: 8,
           borderTop: '1px solid var(--border-primary)',
+          alignItems: 'center',
         }}
       >
-        {canApprove && (
-          <button
-            disabled={acting}
-            onClick={() => runAction(() => approveJobPlan(job.id))}
-            style={primaryBtn}
-          >
-            승인하고 시작 ▶
-          </button>
-        )}
-        {canResume && (
-          <button
-            disabled={acting}
-            onClick={() => runAction(() => resumeJob(job.id))}
-            style={primaryBtn}
-          >
-            재개
-          </button>
-        )}
-        {job.targetRoute &&
-          (job.status === 'qa' || job.status === 'complete') && (
-            <button
-              disabled={acting}
-              onClick={() => requestIframeNav(job.targetRoute!)}
-              style={secondaryBtn}
-              title={`작업중 탭을 ${job.targetRoute} 페이지로 이동시킵니다`}
-            >
-              결과 페이지 열기 ↗
-            </button>
-          )}
-        {canQaPass && (
-          <button
-            disabled={acting}
-            onClick={() => runAction(() => markQaPass(job.id))}
-            style={primaryBtn}
-            title="실제 앱에서 동작 확인 후 눌러주세요"
-          >
-            QA 통과 ✓
-          </button>
-        )}
-        {canPromote && (
-          <button
-            disabled={acting}
-            onClick={() =>
-              navigate(`/p/${encodeURIComponent(job.playgroundId)}`, {
-                state: { openPromote: true },
-              })
-            }
-            style={primaryBtn}
-          >
-            promote →
-          </button>
-        )}
-        {canRedecompose && (
-          <button
-            disabled={acting}
-            onClick={() => runAction(() => redecomposeJob(job.id))}
-            style={secondaryBtn}
-            title="현재 분해가 마음에 들지 않을 때, 다른 방식의 작업 분해를 다시 받습니다"
-          >
-            다시 계획 세우기
-          </button>
-        )}
+        {/* LEFT: Inspect Console icon link (작게, 아이콘만) */}
+        <a
+          href={`http://127.0.0.1:4174/jobs/${encodeURIComponent(job.id)}`}
+          target="_blank"
+          rel="noreferrer"
+          title={`Inspect Console 에서 이 잡(${job.id}) 의 상세 페이지를 엽니다`}
+          aria-label="Inspect Console"
+          style={{
+            ...secondaryBtn,
+            padding: '4px 8px',
+            fontSize: 14,
+            lineHeight: 1,
+            textDecoration: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 2,
+            // marginRight:auto 로 이후 모든 버튼을 오른쪽으로 밀어냄
+            marginRight: 'auto',
+          }}
+        >
+          📊
+          <span aria-hidden="true" style={{ fontSize: 10, opacity: 0.6 }}>↗</span>
+        </a>
+
+        {/* RIGHT 그룹 — 액션 순서: 취소 → 다시 계획 세우기 → 승인하고 시작 (또는 동등 primary).
+            QA 통과 / promote / 재개 / 결과 페이지 열기 같은 conditional 도 같은 그룹.
+            DOM 순서는 위치 순서. flex 라 줄바꿈 시 자연스럽게 wrap. */}
         {canCancel && (
           <button
             disabled={acting}
@@ -427,22 +393,68 @@ export function JobCard({ jobId }: { jobId: string }) {
             취소
           </button>
         )}
-        <a
-          href={`http://127.0.0.1:4174/jobs/${encodeURIComponent(job.id)}`}
-          target="_blank"
-          rel="noreferrer"
-          title={`Inspect Console 에서 이 잡(${job.id}) 의 상세 페이지를 엽니다`}
-          style={{
-            ...secondaryBtn,
-            marginLeft: 'auto',
-            textDecoration: 'none',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-          }}
-        >
-          📊 Inspect Console ↗
-        </a>
+        {canRedecompose && (
+          <button
+            disabled={acting}
+            onClick={() => runAction(() => redecomposeJob(job.id))}
+            style={secondaryBtn}
+            title="현재 분해가 마음에 들지 않을 때, 다른 방식의 작업 분해를 다시 받습니다"
+          >
+            다시 계획 세우기
+          </button>
+        )}
+        {job.targetRoute &&
+          (job.status === 'qa' || job.status === 'complete') && (
+            <button
+              disabled={acting}
+              onClick={() => requestIframeNav(job.targetRoute!)}
+              style={secondaryBtn}
+              title={`작업중 탭을 ${job.targetRoute} 페이지로 이동시킵니다`}
+            >
+              결과 페이지 열기 ↗
+            </button>
+          )}
+        {canResume && (
+          <button
+            disabled={acting}
+            onClick={() => runAction(() => resumeJob(job.id))}
+            style={primaryBtn}
+          >
+            재개
+          </button>
+        )}
+        {canQaPass && (
+          <button
+            disabled={acting}
+            onClick={() => runAction(() => markQaPass(job.id))}
+            style={primaryBtn}
+            title="실제 앱에서 동작 확인 후 눌러주세요"
+          >
+            QA 통과 ✓
+          </button>
+        )}
+        {canPromote && (
+          <button
+            disabled={acting}
+            onClick={() =>
+              navigate(`/p/${encodeURIComponent(job.playgroundId)}`, {
+                state: { openPromote: true },
+              })
+            }
+            style={primaryBtn}
+          >
+            promote →
+          </button>
+        )}
+        {canApprove && (
+          <button
+            disabled={acting}
+            onClick={() => runAction(() => approveJobPlan(job.id))}
+            style={primaryBtn}
+          >
+            승인하고 시작 ▶
+          </button>
+        )}
       </footer>
 
       {error && (
