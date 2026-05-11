@@ -1328,6 +1328,9 @@ function phaseLabelKo(phase: string): string {
     case 'collecting_diff': return '변경사항 수집 중';
     case 'preview_ready': return '미리보기 준비 완료';
     case 'validating': return '타입 검증 중';
+    case 'verifying': return '타입 검증 중';
+    case 'verification_retry': return '재시도 중 (검증 실패)';
+    case 'verification_failed': return '검증 실패';
     case 'capturing_screenshot': return '스크린샷 촬영 중';
     case 'creating_pr': return 'PR 생성 중';
     case 'queued_for_retry': return '재시도 대기 중';

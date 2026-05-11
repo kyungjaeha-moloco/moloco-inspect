@@ -1344,6 +1344,19 @@ async function runPipeline(id) {
     // sha. `--no-verify` skips husky+lint-staged (spike A1: saves 3-5s/req).
     if (state.playgroundId) {
       try {
+        // D+ (2026-05-11): commit 직전의 HEAD 를 parentSha 로 기록.
+        // verification_failed 자동 재시도 시 restoreToSha(parentSha) 로
+        // 깨끗한 상태 복원 가능. race 안전 — 같은 await 시퀀스 안에서 캡처.
+        try {
+          const parentRes = await execInContainer({
+            containerId: sandbox.containerId,
+            command: 'cd /workspace/msm-portal && git rev-parse HEAD',
+            timeout: 5_000,
+          });
+          state.parentSha = (parentRes.stdout || '').trim() || null;
+        } catch {
+          state.parentSha = null;
+        }
         const prompt = state.payload?.userPrompt || 'playground change';
         const msg = prompt.split('\n')[0].slice(0, 72).replace(/"/g, '\\"');
         await execInContainer({
@@ -1399,8 +1412,15 @@ async function runPipeline(id) {
       // the page loads but the new section never mounts because vite fails
       // to resolve the module. Catching that here turns silent failure into
       // an explicit `verification_failed` state the UI can surface.
-      const verifyOk = await runTypecheck(id, sandbox.containerId, state);
-      if (!verifyOk) return; // runTypecheck already wrote error state
+      //
+      // D+ (2026-05-11): runTypecheckWithRetry — type 에러 시 자동으로 최대
+      // 2회 agent 자기수정 재실행. verifyMaxRetries 설정 토글 가능 (=0 이면
+      // 기존 D 동작 그대로). 상세는 helper docstring 참고.
+      const verifyOk = await runTypecheckWithRetry(id, sandbox, state, {
+        originalPrompt: state.payload?.userPrompt || '',
+        client,
+      });
+      if (!verifyOk) return; // 호출자가 error state 작성 (writeVerificationFailed)
 
       updateRequest(id, { status: 'preview', phase: 'preview_ready' });
       appendAnalyticsEvent(state, 'preview_ready', { summary: 'Playground change applied', previewUrl: diffViewUrl });
@@ -1430,8 +1450,15 @@ async function runPipeline(id) {
       // be a soft warning that only appended to the log; that meant
       // hallucinated imports surfaced as silent runtime failures during
       // preview rather than as an explicit error the user can act on.
-      const verifyOk = await runTypecheck(id, sandbox.containerId, state);
-      if (!verifyOk) return;
+      //
+      // D+ (2026-05-11): runTypecheck 가 이제 {pass, feedback} 반환. legacy
+      // one-shot 은 retry 대상 아님 (별 sandbox, parentSha 추적 없음) — 실패
+      // 시 호출자가 writeVerificationFailed 호출 후 return.
+      const verifyResult = await runTypecheck(id, sandbox.containerId, state);
+      if (!verifyResult.pass) {
+        writeVerificationFailed(id, state, verifyResult.execError ? verifyResult : verifyResult.feedback, 0);
+        return;
+      }
 
       // Auth: fetch real tokens from MSM API and inject into sandbox
       const msmApiUrl = 'https://msm-api-test.moloco.cloud/msm/v1';
@@ -1806,6 +1833,25 @@ async function handleReject(id, feedback) {
  * missing prop, TS2769 overload mismatch). Without this gate the change
  * would `preview_ready` and silently fail to render in the browser.
  */
+/**
+ * Run tsc on the change-set and return a structured result.
+ *
+ * D+ (2026-05-11): caller 가 retry 분기 가능하도록 boolean → `{pass, feedback}`
+ * 로 리팩토. 실패 시 즉시 status='error' 쓰지 않고 호출자가 결정.
+ * 호출자는 retry 가능 시 `runTypecheckWithRetry` 사용, 단순 검증만 필요하면
+ * pass 만 보고 분기.
+ *
+ * @returns {Promise<{
+ *   pass: boolean,
+ *   feedback?: {
+ *     errorCount: number,
+ *     firstError: string,
+ *     verifyOutput: string,
+ *     structured: Array<{file: string, line: number, col: number, tsCode: string, message: string}>
+ *   },
+ *   execError?: string
+ * }>}
+ */
 async function runTypecheck(id, containerId, state) {
   const changedFiles = Array.isArray(state.changedFiles) ? state.changedFiles : [];
   // tsc paths are cwd-relative (cwd = js/msm-portal-web), state.changedFiles
@@ -1832,16 +1878,7 @@ async function runTypecheck(id, containerId, state) {
   } catch (err) {
     const msg = err.message || String(err);
     appendLog(id, `Verify exec failed: ${msg}`);
-    updateRequest(id, {
-      status: 'error',
-      phase: 'verification_failed',
-      error: `Verification failed before completion: ${msg}`.slice(0, 500),
-    });
-    appendAnalyticsEvent(state, 'verification_failed', {
-      summary: msg.slice(0, 200),
-      phase: 'verification_failed',
-    });
-    return false;
+    return { pass: false, execError: msg };
   }
 
   const output = ((result?.stdout ?? '') + (result?.stderr ?? ''));
@@ -1857,23 +1894,342 @@ async function runTypecheck(id, containerId, state) {
 
   if (regressionLines.length === 0) {
     appendLog(id, 'Typecheck clean for changed files ✓');
-    return true;
+    return { pass: true };
+  }
+
+  // 구조화 — buildVerifyFeedback 가 ±3줄 코드 컨텍스트 첨부할 때 file/line/col
+  // 사용. 형식 예시: "src/foo.tsx(12,5): error TS2741: Property 'variant' is..."
+  const structured = [];
+  for (const line of regressionLines.slice(0, 10)) {
+    const m = line.match(/^([^(]+)\((\d+),(\d+)\): error (TS\d+): (.+)$/);
+    if (m) {
+      structured.push({
+        file: m[1].trim(),
+        line: Number(m[2]),
+        col: Number(m[3]),
+        tsCode: m[4],
+        message: m[5].trim(),
+      });
+    }
   }
 
   const firstError = regressionLines[0];
   const summary = `${regressionLines.length} type error${regressionLines.length > 1 ? 's' : ''} in changed files`;
   const verifyOutput = regressionLines.slice(0, 50).join('\n');
   appendLog(id, `Typecheck FAILED — ${summary}:\n${verifyOutput}`);
+  return {
+    pass: false,
+    feedback: {
+      errorCount: regressionLines.length,
+      firstError: firstError.trim(),
+      verifyOutput,
+      structured,
+    },
+  };
+}
+
+/**
+ * Write verification_failed state — 호출자 (runTypecheckWithRetry 의 final
+ * exhausted 분기, 또는 simple caller) 가 사용.
+ */
+function writeVerificationFailed(id, state, feedback, attemptsUsed = 0) {
+  if (feedback?.execError) {
+    updateRequest(id, {
+      status: 'error',
+      phase: 'verification_failed',
+      error: `Verification failed before completion: ${feedback.execError}`.slice(0, 500),
+      verifyAttempts: attemptsUsed,
+    });
+    appendAnalyticsEvent(state, 'verification_failed', {
+      summary: feedback.execError.slice(0, 200),
+      phase: 'verification_failed',
+      attemptsUsed,
+    });
+    return;
+  }
   updateRequest(id, {
     status: 'error',
     phase: 'verification_failed',
-    error: firstError.trim().slice(0, 500),
-    verifyOutput,
+    error: (feedback?.firstError || 'Unknown verification error').slice(0, 500),
+    verifyOutput: feedback?.verifyOutput,
+    verifyAttempts: attemptsUsed,
   });
   appendAnalyticsEvent(state, 'verification_failed', {
-    summary: `${summary}: ${firstError.slice(0, 160)}`,
+    summary: `${feedback?.errorCount ?? '?'} errors: ${(feedback?.firstError || '').slice(0, 160)}`,
     phase: 'verification_failed',
+    attemptsUsed,
   });
+}
+
+/**
+ * D+ (2026-05-11): build a feedback block describing typecheck regressions
+ * with ±3 line code context for each error. Read from the container's
+ * filesystem (post-commit state — bad code still in place at this point).
+ *
+ * Format (sent to agent in retry prompt):
+ *   "이전 시도가 TypeScript 타입 검증에 실패했습니다.
+ *
+ *    발생한 에러:
+ *    1. src/foo.tsx (12, 5)
+ *       error TS2741: Property 'variant' is missing...
+ *       해당 코드:
+ *       10 | export function Bar() {
+ *       11 |   return (
+ *       12 |     <Button>저장</Button>
+ *       13 |   );
+ *       14 | }
+ *    ...
+ *
+ *    지시:
+ *    - 이전 접근법을 그대로 반복하지 말고 재검토하세요.
+ *    - components.json 의 prop 시그니처를 다시 확인하세요."
+ *
+ * @param {string} containerId
+ * @param {object} feedback — runTypecheck 의 feedback 필드 ({ structured, ... })
+ * @returns {Promise<string>}
+ */
+async function buildVerifyFeedback(containerId, feedback) {
+  if (!feedback?.structured?.length) {
+    return [
+      '이전 시도가 TypeScript 타입 검증에 실패했습니다.',
+      '',
+      feedback?.verifyOutput || feedback?.firstError || '(에러 상세 없음)',
+      '',
+      '지시:',
+      '- 이전 접근법을 그대로 반복하지 말고 재검토하세요.',
+      '- components.json 의 prop 시그니처를 다시 확인하세요.',
+    ].join('\n');
+  }
+
+  const blocks = [];
+  let idx = 1;
+  for (const err of feedback.structured.slice(0, 5)) {
+    // sed 로 ±3줄 추출 (line 1-3 부터 line+3 까지). 컨테이너 안에서 실행.
+    // 워크스페이스 prefix 자동 보정 — structured.file 은 cwd-relative (js/...).
+    const startLine = Math.max(1, err.line - 3);
+    const endLine = err.line + 3;
+    const filePath = `/workspace/msm-portal/js/msm-portal-web/${err.file}`;
+    let snippet = '';
+    try {
+      const r = await execInContainer({
+        containerId,
+        command: `sed -n '${startLine},${endLine}p' "${filePath}" 2>/dev/null | awk -v start=${startLine} '{ printf "%d | %s\\n", start+NR-1, $0 }'`,
+        timeout: 5_000,
+      });
+      snippet = (r?.stdout || '').trimEnd();
+    } catch {
+      snippet = '(코드 컨텍스트 읽기 실패)';
+    }
+    blocks.push(
+      [
+        `${idx}. ${err.file} (${err.line}, ${err.col})`,
+        `   error ${err.tsCode}: ${err.message}`,
+        '   해당 코드:',
+        snippet
+          .split('\n')
+          .map((l) => `   ${l}`)
+          .join('\n'),
+      ].join('\n'),
+    );
+    idx += 1;
+  }
+
+  return [
+    '이전 시도가 TypeScript 타입 검증에 실패했습니다.',
+    '',
+    '발생한 에러:',
+    blocks.join('\n\n'),
+    '',
+    '지시:',
+    '- 이전 접근법을 그대로 반복하지 말고 재검토하세요.',
+    '- components.json 의 prop 시그니처와 import 경로를 다시 확인하세요.',
+    '- 동일한 컴포넌트로 재시도하거나 다른 컴포넌트로 변경해도 됩니다.',
+  ].join('\n');
+}
+
+/**
+ * D+ (2026-05-11): typecheck + 실패 시 자동 재시도 orchestrator.
+ *
+ * 1차 typecheck → pass 면 즉시 true.
+ * fail 이면 최대 N 회 (기본 settings.verifyMaxRetries=2):
+ *   - restoreToSha(parentSha) — 깨끗한 상태 복원
+ *   - phase='verification_retry' + 로그
+ *   - buildVerifyFeedback — 에러 블록 + 코드 컨텍스트
+ *   - runAgentPrompt — 원래 prompt + feedback 으로 agent 재실행
+ *   - diff 수집 + git commit (새 SHA 추적)
+ *   - typecheck 재시도
+ * 모두 실패 → writeVerificationFailed (호출자가 return 하면 기존 D 흐름과 동일)
+ *
+ * Playground 전용 — legacy one-shot 흐름은 별도 sandbox 라 retry 안 함.
+ *
+ * @param {string} id
+ * @param {{containerId: string}} sandbox
+ * @param {object} state
+ * @param {{originalPrompt: string, client: any}} opts
+ * @returns {Promise<boolean>}
+ */
+async function runTypecheckWithRetry(id, sandbox, state, opts) {
+  const settings = (await import('./lib/molly-settings.js')).getMollySettings();
+  const MAX_RETRIES = Number(settings.verifyMaxRetries ?? 2);
+  const GLOBAL_TIMEOUT_MS = 15 * 60 * 1000;
+  const startedAt = Date.now();
+
+  let result = await runTypecheck(id, sandbox.containerId, state);
+  if (result.pass) return true;
+
+  // exec error 는 retry 무의미 — 즉시 fail
+  if (result.execError) {
+    writeVerificationFailed(id, state, result, 0);
+    return false;
+  }
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    if (Date.now() - startedAt > GLOBAL_TIMEOUT_MS) {
+      appendLog(id, `재시도 글로벌 타임아웃 (15분 초과) — 중단`);
+      appendAnalyticsEvent(state, 'verification_retry_failed', {
+        reason: 'global_timeout', attempt: attempt - 1,
+      });
+      writeVerificationFailed(id, state, result.feedback, attempt - 1);
+      return false;
+    }
+
+    // 1) restore
+    if (!state.parentSha) {
+      appendLog(id, `재시도 불가 — parentSha 없음`);
+      appendAnalyticsEvent(state, 'verification_retry_failed', {
+        reason: 'no_parent_sha', attempt,
+      });
+      writeVerificationFailed(id, state, result.feedback, attempt - 1);
+      return false;
+    }
+    try {
+      const { restoreToSha } = await import('./lib/playground.js');
+      await restoreToSha(state.playgroundId, state.parentSha);
+      appendLog(id, `이전 SHA (${state.parentSha.slice(0, 8)}) 로 복원 완료`);
+    } catch (err) {
+      appendLog(id, `복원 실패: ${err.message}`);
+      appendAnalyticsEvent(state, 'verification_retry_failed', {
+        reason: 'restore_error', attempt, message: err.message?.slice(0, 200),
+      });
+      writeVerificationFailed(id, state, result.feedback, attempt - 1);
+      return false;
+    }
+
+    // 2) phase / log / analytics
+    updateRequest(id, { phase: 'verification_retry', verifyAttempt: attempt });
+    appendLog(id, `타입 에러 발견 — 자동 재시도 중 (${attempt}/${MAX_RETRIES})`);
+    appendAnalyticsEvent(state, 'verification_retry_attempted', {
+      attempt,
+      errorCount: result.feedback?.errorCount ?? 0,
+      firstError: (result.feedback?.firstError ?? '').slice(0, 200),
+    });
+
+    // 3) build feedback + augmented prompt
+    const feedbackBlock = await buildVerifyFeedback(sandbox.containerId, result.feedback);
+    const retryPrompt = `${opts.originalPrompt}\n\n---\n\n${feedbackBlock}`;
+
+    // 4) re-run agent
+    let agentResult;
+    try {
+      agentResult = await runAgentPrompt(opts.client, {
+        prompt: retryPrompt,
+        provider: SANDBOX_PROVIDER,
+        model: SANDBOX_MODEL,
+      });
+      if (agentResult.error) {
+        throw new Error(`Agent: ${agentResult.error.name}: ${agentResult.error.data?.message || ''}`);
+      }
+    } catch (err) {
+      appendLog(id, `재시도 agent 실패: ${err.message}`);
+      appendAnalyticsEvent(state, 'verification_retry_failed', {
+        reason: 'agent_error', attempt, message: err.message?.slice(0, 200),
+      });
+      writeVerificationFailed(id, state, result.feedback, attempt - 1);
+      return false;
+    }
+    appendAnalyticsEvent(state, 'agent_done', {
+      summary: `Retry agent finished ($${(agentResult.cost || 0).toFixed(4)})`,
+      phase: 'verification_retry',
+      cost: agentResult.cost || 0,
+      isRetry: true,
+      attempt,
+    });
+    appendLog(id, `재시도 agent 완료 (cost: $${(agentResult.cost || 0).toFixed(4)})`);
+
+    // 5) diff 수집
+    const diff = await extractDiff({ containerId: sandbox.containerId });
+    updateRequest(id, { diff: diff.diffText, changedFiles: diff.changedFiles });
+    if (!diff.changedFiles.length) {
+      appendLog(id, `재시도 agent 가 변경 없음 — 자기수정 의지 X 로 판정, 중단`);
+      appendAnalyticsEvent(state, 'verification_retry_failed', {
+        reason: 'agent_no_change', attempt,
+      });
+      writeVerificationFailed(id, state, result.feedback, attempt - 1);
+      return false;
+    }
+
+    // 6) commit (parentSha 갱신 안 함 — 다음 retry 도 같은 fresh state 에서)
+    try {
+      const msg = `retry ${attempt}: typecheck fix`.replace(/"/g, '\\"');
+      await execInContainer({
+        containerId: sandbox.containerId,
+        command: [
+          'cd /workspace/msm-portal',
+          'git add -A',
+          `git commit --no-verify -m "${msg}" --allow-empty`,
+        ].join(' && '),
+        timeout: 15_000,
+      });
+      const shaRes = await execInContainer({
+        containerId: sandbox.containerId,
+        command: 'cd /workspace/msm-portal && git rev-parse HEAD',
+        timeout: 5_000,
+      });
+      const newSha = (shaRes.stdout || '').trim();
+      if (newSha) {
+        state.commitSha = newSha;
+        updatePlaygroundHead(state.playgroundId, newSha);
+        appendLog(id, `Re-committed ${newSha.slice(0, 8)}`);
+        try {
+          await execInContainer({
+            containerId: sandbox.containerId,
+            command: 'touch /workspace/.playground-invalidate',
+            timeout: 5_000,
+          });
+        } catch {}
+      }
+    } catch (err) {
+      appendLog(id, `재시도 commit 실패: ${err.message}`);
+      appendAnalyticsEvent(state, 'verification_retry_failed', {
+        reason: 'commit_error', attempt, message: err.message?.slice(0, 200),
+      });
+      writeVerificationFailed(id, state, result.feedback, attempt - 1);
+      return false;
+    }
+
+    // 7) re-typecheck
+    result = await runTypecheck(id, sandbox.containerId, state);
+    if (result.pass) {
+      appendAnalyticsEvent(state, 'verification_retry_succeeded', {
+        attempt, totalRetryMs: Date.now() - startedAt,
+      });
+      appendLog(id, `재시도 성공 (${attempt}회 만에 통과) — 누적 ${Math.round((Date.now() - startedAt) / 1000)}s`);
+      return true;
+    }
+    if (result.execError) {
+      writeVerificationFailed(id, state, result, attempt);
+      return false;
+    }
+    // 실패 → 루프 다음 회차 (또는 exhausted)
+  }
+
+  // 모든 retry 소진
+  appendAnalyticsEvent(state, 'verification_retry_exhausted', {
+    attempts: MAX_RETRIES,
+    finalError: (result.feedback?.firstError ?? '').slice(0, 200),
+    totalRetryMs: Date.now() - startedAt,
+  });
+  writeVerificationFailed(id, state, result.feedback, MAX_RETRIES);
   return false;
 }
 

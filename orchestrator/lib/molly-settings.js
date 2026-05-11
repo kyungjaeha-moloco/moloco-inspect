@@ -28,6 +28,7 @@ const DEFAULT_SONNET = 'claude-sonnet-4-20250514';
  * @property {string} planModel
  * @property {number} prdThinkingBudget — 0 = off
  * @property {number} planThinkingBudget — 0 = off
+ * @property {number} verifyMaxRetries — D+ 자동 재시도 횟수. 0 = off (D 동작), 기본 2.
  */
 
 // Allowed model IDs. Verified against `GET /v1/models` (Anthropic API
@@ -55,7 +56,15 @@ function envDefaults() {
     planModel: process.env.PLAN_MODEL || DEFAULT_SONNET,
     prdThinkingBudget: parseThinking(process.env.MOLLY_PRD_THINKING, 2048),
     planThinkingBudget: parseThinking(process.env.MOLLY_PLAN_THINKING, 0),
+    verifyMaxRetries: parseRetries(process.env.MOLLY_VERIFY_MAX_RETRIES, 2),
   };
+}
+
+function parseRetries(raw, fallback) {
+  if (raw === '0' || raw === 'off' || raw === 'false') return 0;
+  const n = Number(raw);
+  if (Number.isFinite(n) && n >= 0 && n <= 5) return Math.floor(n);
+  return fallback;
 }
 
 function parseThinking(raw, fallback) {
@@ -199,6 +208,13 @@ function validate(patch) {
       }
       out[k] = Math.floor(n);
     }
+  }
+  if (patch.verifyMaxRetries !== undefined) {
+    const n = Number(patch.verifyMaxRetries);
+    if (!Number.isFinite(n) || n < 0 || n > 5) {
+      throw new Error('verifyMaxRetries: 0~5 사이 정수 (0 = off)');
+    }
+    out.verifyMaxRetries = Math.floor(n);
   }
   return out;
 }
