@@ -85,10 +85,15 @@ Generate 3-8 plan items covering the full scope — nav changes, route registrat
 /**
  * Plan emit — PRD goal 을 받아 DS 기반 구조화된 plan 반환.
  *
- * @param {string|object} args — string = goal 만, object = { goal, client?, routeOrPage?, jiraUrl?, prdUrl? }
+ * @param {string|object} args — string = goal 만, object = { goal, client?, routeOrPage?, jiraUrl?, prdUrl?, previousPlan?, feedback? }
  * @param {object} [ctx] — { designSystemRoot, requestSchemaPath }
  * @returns {Promise<object>} plan — { intent, target_entity, summary, visual_constraints, plan_items }
  * @throws {Error} `emitPlan: <reason>` — caller 는 메시지로 분기 (required / not configured / LLM error / invalid JSON)
+ *
+ * "다시 계획" 호출:
+ *   args.previousPlan + args.feedback 같이 넘기면 user prompt 끝에
+ *   "이전 계획 + 사용자 피드백" 블록 추가. system / DS context 그대로 →
+ *   prompt cache (cacheRead) 그대로 사용 가능.
  */
 export async function emitPlan(args, ctx = {}) {
   const t0 = Date.now();
@@ -100,6 +105,9 @@ export async function emitPlan(args, ctx = {}) {
   const routeOrPage = (typeof args === 'object' && args?.routeOrPage) || ctx.routeOrPage || '/';
   const jiraUrl = (typeof args === 'object' ? args.jiraUrl : null) || null;
   const prdUrl = (typeof args === 'object' ? args.prdUrl : null) || null;
+  const previousPlan = (typeof args === 'object' ? args.previousPlan : null) || null;
+  const feedback =
+    typeof args === 'object' && typeof args.feedback === 'string' ? args.feedback.trim() : '';
 
   const apiKey = process.env.ANTHROPIC_API_KEY ||
     (process.env.SANDBOX_PROVIDER === 'anthropic'
@@ -157,12 +165,26 @@ export async function emitPlan(args, ctx = {}) {
     },
   ];
 
-  const userPrompt = `PM 요청:
+  let userPrompt = `PM 요청:
 Goal: ${goal}
 Client: ${client}
 Target page: ${routeOrPage}
 ${jiraUrl ? `Jira: ${jiraUrl}\n` : ''}${prdUrl ? `PRD: ${prdUrl}\n` : ''}
 위 system 의 DS 리소스 (pm-sa-request-schema / patterns.json / api-ui-contracts.json / components.json) 를 근거로 계획을 JSON으로 출력하세요.`;
+
+  // "다시 계획" 모드 — 이전 plan + 사용자 피드백 첨부.
+  if (previousPlan && feedback) {
+    userPrompt += `
+
+---
+이전 계획 (사용자가 일부 수정 요청):
+${JSON.stringify(previousPlan, null, 2)}
+
+사용자 피드백:
+${feedback}
+
+위 피드백을 반영해 plan 을 다시 만드세요. 항목 수는 유지하거나 늘려도 됩니다. DS 리소스 grounding rules 는 그대로 따릅니다.`;
+  }
 
   const settings = getMollySettings();
   const thinkingBudget = settings.planThinkingBudget;
@@ -220,6 +242,7 @@ ${jiraUrl ? `Jira: ${jiraUrl}\n` : ''}${prdUrl ? `PRD: ${prdUrl}\n` : ''}
   const u = result?.usage || {};
   console.log(
     `[plan-emitter] Generated ${plan.plan_items?.length || 0} items for client=${client} route=${routeOrPage} | ` +
+    `refs=${plan.referenced_components?.length ?? 'null'} unresolved=${plan.unresolved_components?.length ?? 'null'} | ` +
     `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
     `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
   );

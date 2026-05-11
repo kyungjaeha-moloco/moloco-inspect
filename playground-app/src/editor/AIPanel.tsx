@@ -30,6 +30,7 @@ import {
   restorePlaygroundToSha,
   OrchestratorError,
   createJob,
+  ORCHESTRATOR_URL,
   type ChangeRequestEvent,
   type RawPlan,
 } from '../services/orchestrator-client';
@@ -82,6 +83,7 @@ export const AIPanel = React.memo(function AIPanel({
     reset,
     togglePlanItem,
     resolvePlan,
+    replacePlan,
     setCurrent,
     iframeMode,
     setIframeMode,
@@ -108,6 +110,7 @@ export const AIPanel = React.memo(function AIPanel({
       reset: s.reset,
       togglePlanItem: s.togglePlanItem,
       resolvePlan: s.resolvePlan,
+      replacePlan: s.replacePlan,
       setCurrent: s.setCurrent,
       iframeMode: s.mode,
       setIframeMode: s.setMode,
@@ -325,6 +328,98 @@ export const AIPanel = React.memo(function AIPanel({
       setError,
       setCurrent,
     ],
+  );
+
+  /**
+   * "다시 계획" — 이전 plan + 사용자 피드백을 /api/plan 에 보내 새 plan 으로 교체.
+   * executePlan 과 같은 priorUser 폴백 로직으로 원래 goal 추출.
+   *
+   * 성공: replacePlan 으로 in-place swap, planResolved 도 reset (다시 결정 필요).
+   * 실패: throw — PlanCard 가 내부 상태로 에러 표시.
+   */
+  const redecomposePlan = useCallback(
+    async (m: ChatMessage, feedback: string): Promise<void> => {
+      if (!m.plan) return;
+      const trimmed = feedback.trim();
+      if (!trimmed) throw new Error('피드백을 입력하세요');
+
+      const history = usePlaygroundStore.getState().messages;
+      const idx = history.findIndex((x) => x.id === m.id);
+      const priorUser = [...history.slice(0, idx)]
+        .reverse()
+        .find((x) => x.role === 'user');
+      const goal =
+        priorUser?.content ?? m.plan.meta.summary ?? m.content ?? '';
+      if (!goal.trim()) throw new Error('원래 PRD 를 찾을 수 없습니다');
+
+      const targetClient: TargetClient =
+        ((playgroundClient as TargetClient | null) ??
+          m.plan.meta.targetClient ??
+          'msm-default') as TargetClient;
+      const routeOrPage = m.plan.meta.targetRoute ?? '/';
+
+      // Backend (emitPlan) 의 previousPlan 입력은 원본 emit 결과 shape
+      // (intent, target_entity, summary, visual_constraints, plan_items[]).
+      // store 의 plan.items 는 {id,title,description,...,enabled} 형태 →
+      // backend 가 기대하는 plan_items shape 으로 변환 (enabled 도 보내서
+      // 비활성 항목을 LLM 이 인지하도록).
+      const previousPlan = {
+        intent: m.plan.meta.intent,
+        target_entity: m.plan.meta.targetEntity ?? null,
+        summary: m.plan.meta.summary ?? '',
+        plan_items: m.plan.items.map((it) => ({
+          id: it.id,
+          title: it.title,
+          description: it.description ?? '',
+          pattern_id: it.patternId ?? null,
+          target_file: it.targetFile ?? null,
+          depends_on: [],
+          enabled: it.enabled,
+        })),
+      };
+
+      const res = await fetch(`${ORCHESTRATOR_URL}/api/plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          goal,
+          client: targetClient,
+          routeOrPage,
+          previousPlan,
+          feedback: trimmed,
+        }),
+      });
+      const body = await res.json().catch(() => ({ ok: false, error: 'invalid response' }));
+      if (!res.ok || !body.ok) {
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const newPlan = body.plan;
+
+      // /api/plan 응답 → store 의 plan shape 으로 변환 (executePlan 흐름 참고)
+      const items = (newPlan.plan_items || []).map((it: any) => ({
+        id: String(it.id),
+        title: String(it.title ?? ''),
+        description: it.description ?? undefined,
+        patternId: it.pattern_id ?? undefined,
+        targetFile: it.target_file ?? undefined,
+        dependsOn: Array.isArray(it.depends_on) ? it.depends_on : [],
+        enabled: true,
+      }));
+      replacePlan(m.id, {
+        meta: {
+          intent: newPlan.intent ?? m.plan.meta.intent,
+          targetEntity: newPlan.target_entity ?? null,
+          summary: newPlan.summary ?? '',
+          visualConstraints: Array.isArray(newPlan.visual_constraints)
+            ? newPlan.visual_constraints
+            : (m.plan.meta.visualConstraints ?? []),
+          targetClient,
+          targetRoute: routeOrPage,
+        },
+        items,
+      });
+    },
+    [playgroundClient, replacePlan],
   );
 
   const handleCheckoutCommit = useCallback(
@@ -953,6 +1048,7 @@ export const AIPanel = React.memo(function AIPanel({
                       void executePlan(m);
                     }}
                     onRejectPlan={() => resolvePlan(m.id, 'rejected')}
+                    onRedecomposePlan={(feedback) => redecomposePlan(m, feedback)}
                     onCheckoutCommit={handleCheckoutCommit}
                     onRestoreToSha={handleRestoreToSha}
                   />,
@@ -2107,6 +2203,7 @@ function MessageRow({
   onTogglePlanItem,
   onAcceptPlan,
   onRejectPlan,
+  onRedecomposePlan,
   onCheckoutCommit,
   onRestoreToSha,
 }: {
@@ -2119,6 +2216,7 @@ function MessageRow({
   onTogglePlanItem: (itemId: string) => void;
   onAcceptPlan: () => void;
   onRejectPlan: () => void;
+  onRedecomposePlan: (feedback: string) => Promise<void>;
   onCheckoutCommit: (sha: string) => void;
   onRestoreToSha: (sha: string, labelHint?: string) => void;
 }) {
@@ -2169,6 +2267,7 @@ function MessageRow({
           onToggleItem={onTogglePlanItem}
           onAccept={onAcceptPlan}
           onReject={onRejectPlan}
+          onRedecompose={onRedecomposePlan}
         />
       )}
 
@@ -2600,18 +2699,43 @@ function PlanCard({
   onToggleItem,
   onAccept,
   onReject,
+  onRedecompose,
 }: {
   plan: { meta: PlanMeta; items: PlanItem[] };
   resolved?: 'accepted' | 'rejected';
   onToggleItem: (id: string) => void;
   onAccept: () => void;
   onReject: () => void;
+  /** "다시 계획" — feedback 받아 plan-emitter 재호출. 성공 시 plan 자동 swap. */
+  onRedecompose?: (feedback: string) => Promise<void>;
 }) {
   const enabledCount = useMemo(
     () => plan.items.filter((i) => i.enabled).length,
     [plan.items],
   );
   const dim = resolved === 'rejected';
+
+  // "다시 계획" inline editor state
+  const [redecomposeOpen, setRedecomposeOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const submitRedecompose = useCallback(async () => {
+    if (!onRedecompose) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await onRedecompose(feedbackText);
+      // 성공 — 인라인 영역 접고 텍스트 초기화 (새 plan 이 swap 됨)
+      setRedecomposeOpen(false);
+      setFeedbackText('');
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }, [feedbackText, onRedecompose]);
 
   return (
     <Card tone={resolved === 'accepted' ? 'accent' : 'default'} style={{ opacity: dim ? 0.5 : 1 }}>
@@ -2760,38 +2884,155 @@ function PlanCard({
       </ul>
 
       {!resolved ? (
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 10 }}>
-          <button
-            onClick={onReject}
-            style={{
-              padding: '6px 12px',
-              border: '1px solid var(--border-primary)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--bg-primary)',
-              cursor: 'pointer',
-              fontSize: 12,
-              color: 'var(--text-secondary)',
-            }}
-          >
-            거부
-          </button>
-          <button
-            onClick={onAccept}
-            disabled={enabledCount === 0}
-            style={{
-              padding: '6px 14px',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              background: enabledCount === 0 ? 'var(--bg-tertiary)' : 'var(--approve-bg)',
-              color: enabledCount === 0 ? 'var(--text-tertiary)' : '#fff',
-              cursor: enabledCount === 0 ? 'not-allowed' : 'pointer',
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            실행하기 →
-          </button>
-        </div>
+        <>
+          {/* "다시 계획" inline editor — onRedecompose 가 있고 사용자가 button 눌렀을 때만 */}
+          {redecomposeOpen && onRedecompose && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: 10,
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--border-primary)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                어떻게 수정할까요? (예: "3번째 항목은 X 대신 Y 로 해줘")
+              </div>
+              <textarea
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                disabled={submitting}
+                placeholder="피드백을 자유롭게 입력하세요..."
+                rows={3}
+                style={{
+                  fontSize: 12,
+                  fontFamily: 'inherit',
+                  padding: 8,
+                  border: '1px solid var(--border-primary)',
+                  borderRadius: 'var(--radius-sm)',
+                  resize: 'vertical',
+                  background: submitting ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                }}
+              />
+              {submitError && (
+                <div style={{ fontSize: 11, color: 'var(--danger)' }}>
+                  ⚠️ {submitError}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    setRedecomposeOpen(false);
+                    setSubmitError(null);
+                  }}
+                  disabled={submitting}
+                  style={{
+                    padding: '4px 10px',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'transparent',
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    fontSize: 12,
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  닫기
+                </button>
+                <button
+                  onClick={submitRedecompose}
+                  disabled={submitting || !feedbackText.trim()}
+                  style={{
+                    padding: '4px 12px',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    background:
+                      submitting || !feedbackText.trim()
+                        ? 'var(--bg-tertiary)'
+                        : 'var(--approve-bg)',
+                    color:
+                      submitting || !feedbackText.trim()
+                        ? 'var(--text-tertiary)'
+                        : '#fff',
+                    cursor:
+                      submitting || !feedbackText.trim() ? 'not-allowed' : 'pointer',
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  {submitting ? '재생성 중…' : '다시 만들기'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 10 }}>
+            <button
+              onClick={onReject}
+              style={{
+                padding: '6px 12px',
+                border: '1px solid var(--border-primary)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-primary)',
+                cursor: 'pointer',
+                fontSize: 12,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              취소
+            </button>
+            {onRedecompose && (
+              <button
+                onClick={() => {
+                  setRedecomposeOpen((v) => !v);
+                  setSubmitError(null);
+                }}
+                disabled={submitting}
+                style={{
+                  padding: '6px 12px',
+                  border: '1px solid var(--border-primary)',
+                  borderRadius: 'var(--radius-md)',
+                  background: redecomposeOpen
+                    ? 'var(--bg-tertiary)'
+                    : 'var(--bg-primary)',
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  fontSize: 12,
+                  color: 'var(--text-secondary)',
+                }}
+                title="피드백을 주고 plan 을 다시 만듭니다"
+              >
+                ✏️ 다시 계획
+              </button>
+            )}
+            <button
+              onClick={onAccept}
+              disabled={enabledCount === 0 || submitting}
+              style={{
+                padding: '6px 14px',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                background:
+                  enabledCount === 0 || submitting
+                    ? 'var(--bg-tertiary)'
+                    : 'var(--approve-bg)',
+                color:
+                  enabledCount === 0 || submitting
+                    ? 'var(--text-tertiary)'
+                    : '#fff',
+                cursor:
+                  enabledCount === 0 || submitting ? 'not-allowed' : 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              실행하기 →
+            </button>
+          </div>
+        </>
       ) : (
         <div
           style={{

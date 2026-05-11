@@ -207,6 +207,11 @@ interface PlaygroundStoreState {
   updateExecution(messageId: string, patch: Partial<ExecutionState>): void;
   resolvePlan(messageId: string, outcome: 'accepted' | 'rejected'): void;
   togglePlanItem(messageId: string, itemId: string): void;
+  /**
+   * "다시 계획" — 같은 message 의 plan 자체를 새 plan 으로 교체.
+   * meta + items 통째로 swap. planResolved 는 reset (다시 결정 필요).
+   */
+  replacePlan(messageId: string, plan: { meta: PlanMeta; items: PlanItem[] }): void;
 
   /** Drop all per-playground state — used when leaving /p/:id. */
   reset(): void;
@@ -468,6 +473,19 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
               it.id === itemId ? { ...it, enabled: !it.enabled } : it,
             ),
           },
+        };
+      }),
+    })),
+
+  replacePlan: (messageId, plan) =>
+    set((state) => ({
+      messages: state.messages.map((m) => {
+        if (m.id !== messageId) return m;
+        return {
+          ...m,
+          plan,
+          // 새 plan — 이전 accept/reject 결정 무효화. 사용자가 다시 결정.
+          planResolved: undefined,
         };
       }),
     })),

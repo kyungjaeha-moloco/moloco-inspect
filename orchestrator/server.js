@@ -3224,7 +3224,7 @@ ${JSON.stringify(apiContracts, null, 2)}`;
   if (pathname === '/api/plan' && req.method === 'POST') {
     try {
       const payload = await parseBody(req);
-      const { goal, client, routeOrPage, jiraUrl, prdUrl } = payload || {};
+      const { goal, client, routeOrPage, jiraUrl, prdUrl, previousPlan, feedback } = payload || {};
 
       if (!goal || !client || !routeOrPage) {
         return json(res, 400, {
@@ -3234,10 +3234,12 @@ ${JSON.stringify(apiContracts, null, 2)}`;
       }
 
       // Sub-phase B.2 — emitPlan lib 으로 추출. 에러 메시지로 status 분기.
+      // "다시 계획" (2026-05-11): previousPlan + feedback 옵셔널 — emitPlan 이
+      // 이전 plan + 사용자 피드백을 user prompt 끝에 첨부. system 캐시 그대로.
       try {
         const { emitPlan } = await import('./lib/molly-plan-emitter.js');
         const plan = await emitPlan(
-          { goal, client, routeOrPage, jiraUrl, prdUrl },
+          { goal, client, routeOrPage, jiraUrl, prdUrl, previousPlan, feedback },
           {
             designSystemRoot: DESIGN_SYSTEM_ROOT,
             requestSchemaPath: REQUEST_SCHEMA_PATH,
