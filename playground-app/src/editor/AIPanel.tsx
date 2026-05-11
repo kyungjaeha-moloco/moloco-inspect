@@ -2671,13 +2671,17 @@ function PlanCard({
             >
               {item.enabled ? '✓' : '○'}
             </span>
-            <div style={{ flex: 1 }}>
+            {/* flex 자식은 minWidth:0 가 없으면 콘텐츠 폭으로 커져 부모를 밀어냄.
+                긴 파일 경로가 description / title 에 inline 으로 들어가는 경우
+                좌측 클리핑 발생 → minWidth:0 으로 자연스럽게 wrap. */}
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div
                 style={{
                   color: item.enabled ? 'var(--text-primary)' : 'var(--text-tertiary)',
                   textDecoration: item.enabled ? 'none' : 'line-through',
                   fontWeight: 500,
                   lineHeight: 1.4,
+                  overflowWrap: 'anywhere',
                 }}
               >
                 {item.title}
@@ -2689,6 +2693,7 @@ function PlanCard({
                     color: 'var(--text-tertiary)',
                     lineHeight: 1.45,
                     marginTop: 2,
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   {item.description}
