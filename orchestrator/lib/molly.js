@@ -376,6 +376,43 @@ export function startMolly(options) {
     }
   });
 
+  // Plan items card — 3 buttons (approve / redecompose / cancel).
+  appInstance.action('molly_planitems_approve', async (ctx) => {
+    await ctx.ack();
+    try {
+      await handlePlanItemsApprove(ctx);
+    } catch (err) {
+      ctx.logger.error(`[molly] planitems_approve crashed: ${err?.stack ?? err}`);
+    }
+  });
+
+  appInstance.action('molly_planitems_redecompose', async (ctx) => {
+    await ctx.ack();
+    try {
+      await handlePlanItemsRedecomposeOpen(ctx);
+    } catch (err) {
+      ctx.logger.error(`[molly] planitems_redecompose crashed: ${err?.stack ?? err}`);
+    }
+  });
+
+  appInstance.action('molly_planitems_cancel', async (ctx) => {
+    await ctx.ack();
+    try {
+      await handlePlanItemsCancel(ctx);
+    } catch (err) {
+      ctx.logger.error(`[molly] planitems_cancel crashed: ${err?.stack ?? err}`);
+    }
+  });
+
+  appInstance.view('molly_planitems_redecompose_submit', async (ctx) => {
+    await ctx.ack();
+    try {
+      await handlePlanItemsRedecomposeSubmit(ctx);
+    } catch (err) {
+      ctx.logger.error(`[molly] planitems_redecompose_submit crashed: ${err?.stack ?? err}`);
+    }
+  });
+
   appInstance.error(async (err) => {
     console.error('[molly] error:', err);
   });
@@ -525,6 +562,27 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
       text: `🤔 ${toSlackMrkdwn(result.clarifyingQuestion) ?? ''}`,
     });
     return;
+  }
+
+  if (result.kind === 'plan_emit') {
+    if (thinkingTs) {
+      try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
+    }
+    if (!result.plan || !Array.isArray(result.plan.plan_items)) {
+      // 안전 fallback — plan 없으면 기존 code_change_clear 흐름으로 떨어뜨림
+    } else {
+      const { isFastTrackIntent } = await import('./plan-intent.js');
+      const isFastTrack = isFastTrackIntent(result.plan.intent);
+      await postPlanItemsMessage({
+        client,
+        channel: event.channel,
+        threadTs,
+        plan: result.plan,
+        cumulativePrd: result.cumulativePrd ?? text,
+        isFastTrack,
+      });
+      return;
+    }
   }
 
   // result.kind === 'code_change_clear' — 기존 흐름 (createJob ...).
@@ -1238,6 +1296,323 @@ function stampPendingRedecomposeBlocks(_originalBlocks, userId, feedback) {
     },
   ];
   return out;
+}
+
+// ── Plan items card (pre-decomposer fast-track) ────────────────────
+
+// Plan items 카드 컨텍스트 캐시 — action handler 에서 lookup 용.
+// key = `${channel}:${threadTs}:${msgTs}` → { plan, cumulativePrd, isFastTrack, expireAt }
+// TTL 30분 + capacity 500 LRU-ish (size 초과 시 expired 정리, 그래도 가득이면 oldest drop)
+const PLAN_ITEMS_CTX_TTL_MS = 30 * 60 * 1000;
+const PLAN_ITEMS_CTX_MAX = 500;
+const planItemsContexts = new Map();
+
+function planItemsCtxKey(channel, threadTs, msgTs) {
+  return `${channel}:${threadTs}:${msgTs}`;
+}
+
+function rememberPlanItemsContext(channel, threadTs, msgTs, ctx) {
+  if (planItemsContexts.size >= PLAN_ITEMS_CTX_MAX) {
+    const now = Date.now();
+    for (const [k, v] of planItemsContexts) {
+      if (v.expireAt <= now) planItemsContexts.delete(k);
+    }
+    if (planItemsContexts.size >= PLAN_ITEMS_CTX_MAX) {
+      const oldest = planItemsContexts.keys().next().value;
+      if (oldest) planItemsContexts.delete(oldest);
+    }
+  }
+  planItemsContexts.set(planItemsCtxKey(channel, threadTs, msgTs), {
+    ...ctx,
+    expireAt: Date.now() + PLAN_ITEMS_CTX_TTL_MS,
+  });
+}
+
+function getPlanItemsContext(channel, threadTs, msgTs) {
+  const v = planItemsContexts.get(planItemsCtxKey(channel, threadTs, msgTs));
+  if (!v || v.expireAt <= Date.now()) {
+    if (v) planItemsContexts.delete(planItemsCtxKey(channel, threadTs, msgTs));
+    return null;
+  }
+  return v;
+}
+
+async function postPlanItemsMessage({ client, channel, threadTs, plan, cumulativePrd, isFastTrack }) {
+  const blocks = buildPlanItemsBlocks(plan, isFastTrack);
+  const result = await client.chat.postMessage({
+    channel,
+    thread_ts: threadTs,
+    text: `📋 Plan (${(plan.plan_items || []).length} items)`,
+    blocks,
+  });
+  if (result?.ts) {
+    rememberPlanItemsContext(channel, threadTs, result.ts, { plan, cumulativePrd, isFastTrack });
+  }
+}
+
+function buildPlanItemsBlocks(plan, isFastTrack) {
+  const items = plan.plan_items || [];
+  const headerText = isFastTrack
+    ? `📋 Plan (${items.length} items) — ⚡ 빠른 실행`
+    : `📋 Plan (${items.length} items)`;
+  const blocks = [
+    { type: 'header', text: { type: 'plain_text', text: headerText } },
+  ];
+  if (plan.summary) {
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: toSlackMrkdwn(plan.summary) },
+    });
+  }
+  items.forEach((p, i) => {
+    const descRaw = p.description ? toSlackMrkdwn(trunc(p.description, 1000)) : '';
+    const desc = descRaw ? `\n${descRaw}` : '';
+    const file = p.target_file ? `\n\`${p.target_file}\`` : '';
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*${i + 1}. ${toSlackMrkdwn(p.title || '(no title)')}*${desc}${file}` },
+    });
+  });
+  blocks.push({
+    type: 'actions',
+    elements: [
+      { type: 'button', action_id: 'molly_planitems_cancel', text: { type: 'plain_text', text: '취소' }, style: 'danger' },
+      { type: 'button', action_id: 'molly_planitems_redecompose', text: { type: 'plain_text', text: '✏️ 다시 계획' } },
+      { type: 'button', action_id: 'molly_planitems_approve', text: { type: 'plain_text', text: '실행하기 →' }, style: 'primary' },
+    ],
+  });
+  return blocks;
+}
+
+function stampPlanItemsApproved(blocks, userId) {
+  const stripped = (blocks || []).filter((b) => b.type !== 'actions');
+  return [
+    ...stripped,
+    {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `✅ <@${userId}> 님이 실행 시작했습니다.` }],
+    },
+  ];
+}
+
+function stampPlanItemsCancelled(blocks, userId) {
+  const stripped = (blocks || []).filter((b) => b.type !== 'actions');
+  return [
+    ...stripped,
+    {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `❌ <@${userId}> 님이 취소했습니다.` }],
+    },
+  ];
+}
+
+async function handlePlanItemsApprove({ body, client }) {
+  const { channel, message, user } = body;
+  const threadTs = message.thread_ts ?? message.ts;
+  const planCtx = getPlanItemsContext(channel.id, threadTs, message.ts);
+  if (!planCtx) {
+    try {
+      await client.chat.postMessage({
+        channel: channel.id,
+        thread_ts: threadTs,
+        text: '⏱️ 플랜 컨텍스트가 만료되었습니다. 다시 멘션해 주세요.',
+      });
+    } catch {}
+    return;
+  }
+
+  // 카드 disable — actions 블록 제거 후 승인 stamp context 블록 추가
+  try {
+    const newBlocks = stampPlanItemsApproved(message.blocks, user.id);
+    await client.chat.update({
+      channel: channel.id,
+      ts: message.ts,
+      text: '계획 승인 — 실행 중…',
+      blocks: newBlocks,
+    });
+  } catch (err) {
+    /* best-effort */
+  }
+
+  // playground 보장 후 createJob(autoApprove:true, skipDecomposer:isFastTrack)
+  let playgroundId = getPlaygroundIdForThread(channel.id, threadTs);
+  let pg = playgroundId ? opts.getPlayground(playgroundId) : null;
+  if (!pg || pg.status !== 'active') {
+    if (playgroundId) {
+      clearPlaygroundForThread(channel.id, threadTs);
+      playgroundId = null;
+      pg = null;
+    }
+    if (!opts?.createPlayground) {
+      await client.chat.postMessage({
+        channel: channel.id,
+        thread_ts: threadTs,
+        text: '⚠️ Playground 생성 hook 이 없습니다.',
+      });
+      return;
+    }
+    try {
+      pg = await opts.createPlayground({
+        surface: 'slack',
+        slackChannel: channel.id,
+        slackThreadTs: threadTs,
+        requestedBy: user.id,
+      });
+      if (pg?.id) {
+        setPlaygroundIdForThread(channel.id, threadTs, pg.id);
+        playgroundId = pg.id;
+      }
+    } catch (err) {
+      await client.chat.postMessage({
+        channel: channel.id,
+        thread_ts: threadTs,
+        text: `❌ Playground 생성 실패: ${err.message?.slice(0, 200) ?? err}`,
+      });
+      return;
+    }
+  }
+
+  if (!opts?.createJob) {
+    await client.chat.postMessage({
+      channel: channel.id,
+      thread_ts: threadTs,
+      text: '⚠️ Job 생성 hook 이 없습니다.',
+    });
+    return;
+  }
+
+  try {
+    await opts.createJob({
+      prdText: planCtx.cumulativePrd,
+      planItems: planCtx.plan.plan_items,
+      autoApprove: true,
+      skipDecomposer: planCtx.isFastTrack,
+      playgroundId: pg?.id ?? playgroundId,
+      slackContext: { channel: channel.id, threadTs },
+      surface: 'slack',
+    });
+  } catch (err) {
+    await client.chat.postMessage({
+      channel: channel.id,
+      thread_ts: threadTs,
+      text: `❌ Job 생성 실패: ${err.message?.slice(0, 200) ?? err}`,
+    });
+  }
+}
+
+async function handlePlanItemsRedecomposeOpen({ body, client }) {
+  const { channel, message, trigger_id } = body;
+  const threadTs = message.thread_ts ?? message.ts;
+  const planCtx = getPlanItemsContext(channel.id, threadTs, message.ts);
+  if (!planCtx) return;
+
+  await client.views.open({
+    trigger_id,
+    view: {
+      type: 'modal',
+      callback_id: 'molly_planitems_redecompose_submit',
+      private_metadata: JSON.stringify({
+        channel: channel.id,
+        threadTs,
+        msgTs: message.ts,
+      }),
+      title: { type: 'plain_text', text: '계획 다시 만들기' },
+      submit: { type: 'plain_text', text: '제출' },
+      close: { type: 'plain_text', text: '닫기' },
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: '어떻게 수정할까요? 예: "3번째 항목은 X 대신 Y 로"',
+          },
+        },
+        {
+          type: 'input',
+          block_id: 'feedback_input',
+          element: {
+            type: 'plain_text_input',
+            action_id: 'feedback',
+            multiline: true,
+            placeholder: { type: 'plain_text', text: '피드백을 자유롭게 입력하세요' },
+          },
+          label: { type: 'plain_text', text: '피드백' },
+        },
+      ],
+    },
+  });
+}
+
+async function handlePlanItemsRedecomposeSubmit({ body, view, client, logger }) {
+  const meta = JSON.parse(view.private_metadata);
+  const feedback = view.state.values.feedback_input?.feedback?.value?.trim() || '';
+  if (!feedback) return;
+
+  const planCtx = getPlanItemsContext(meta.channel, meta.threadTs, meta.msgTs);
+  if (!planCtx) return;
+
+  let newPlan;
+  try {
+    const { emitPlan } = await import('./molly-plan-emitter.js');
+    newPlan = await emitPlan(
+      {
+        goal: planCtx.cumulativePrd,
+        client: planCtx.plan?.targetClient || 'msm-default',
+        routeOrPage: '/',
+        previousPlan: planCtx.plan,
+        feedback,
+      },
+      {
+        designSystemRoot: opts.designSystemRoot,
+        requestSchemaPath: opts.requestSchemaPath,
+      },
+    );
+  } catch (err) {
+    logger?.warn(`[molly] planitems redecompose emitPlan failed: ${err.message?.slice(0, 120)}`);
+    try {
+      await client.chat.postMessage({
+        channel: meta.channel,
+        thread_ts: meta.threadTs,
+        text: `❌ 다시 계획 실패: ${err.message?.slice(0, 200) ?? err}`,
+      });
+    } catch {}
+    return;
+  }
+
+  const { isFastTrackIntent } = await import('./plan-intent.js');
+  const isFastTrack = isFastTrackIntent(newPlan.intent);
+
+  rememberPlanItemsContext(meta.channel, meta.threadTs, meta.msgTs, {
+    plan: newPlan,
+    cumulativePrd: planCtx.cumulativePrd,
+    isFastTrack,
+  });
+
+  try {
+    await client.chat.update({
+      channel: meta.channel,
+      ts: meta.msgTs,
+      text: `📋 Plan (${(newPlan.plan_items || []).length} items)`,
+      blocks: buildPlanItemsBlocks(newPlan, isFastTrack),
+    });
+  } catch (err) {
+    logger?.warn(`[molly] planitems redecompose chat.update failed: ${err.message}`);
+  }
+}
+
+async function handlePlanItemsCancel({ body, client }) {
+  const { channel, message, user } = body;
+  try {
+    const newBlocks = stampPlanItemsCancelled(message.blocks, user.id);
+    await client.chat.update({
+      channel: channel.id,
+      ts: message.ts,
+      text: '계획 취소됨',
+      blocks: newBlocks,
+    });
+  } catch (err) {
+    /* best-effort */
+  }
 }
 
 // ── Plan message + button helpers ──────────────────────────────────
