@@ -157,6 +157,32 @@ export const AIPanel = React.memo(function AIPanel({
     stickToBottomRef.current = true;
   }, [messages, isSending]);
 
+  // SELECTED ELEMENT 해제 — Escape 키. picker 로 element 선택 후 사용자가
+  // "이 선택 그만" 하고 싶을 때 직관적인 키. input 안에서의 Escape (textarea
+  // blur 등) 는 그 핸들러가 stopPropagation 으로 처리하므로 충돌 X. 글로벌
+  // listener 는 lastPickedElement 가 있을 때만 활성화.
+  useEffect(() => {
+    if (!lastPickedElement) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // 입력 필드 (textarea / input / contenteditable) 안에서 Escape 누른
+      // 경우 — 그쪽 동작 (blur 등) 우선이라 element 해제는 skip. 단 그
+      // 입력이 비어있으면 ESC 의 의도가 "선택 해제" 일 가능성이 높아 처리.
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'INPUT' ||
+        target?.isContentEditable === true;
+      const inputValue =
+        target && (target as HTMLInputElement | HTMLTextAreaElement).value;
+      if (isInput && inputValue) return;
+      e.preventDefault();
+      setLastPickedElement(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lastPickedElement, setLastPickedElement]);
+
   // First paint + every playground switch: defer two frames so JobCards
   // and other async-mounted children have a chance to lay out before
   // we measure scrollHeight. Without this, the first render lands at
