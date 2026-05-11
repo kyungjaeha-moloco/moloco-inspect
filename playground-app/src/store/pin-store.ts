@@ -9,6 +9,7 @@
 
 import { create } from 'zustand';
 import type { BridgeElementContext } from '../services/playground-bridge';
+import { pinClient } from '../services/orchestrator-client';
 
 /**
  * Identifier bundle pulled from the sandbox's React tree via the Vite
@@ -125,8 +126,24 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
   selectedPinId: null,
 
   loadForPlayground: (playgroundId) => {
-    const pins = readPins(playgroundId);
-    set({ pins, editingPinId: null, selectedPinId: null });
+    // localStorage 먼저 (즉시 표시)
+    const stored = readPins(playgroundId);
+    set({ pins: stored, editingPinId: null, selectedPinId: null });
+    // 그 다음 server sync (latency 후 reconcile)
+    void pinClient.list(playgroundId).then((serverPins) => {
+      if (serverPins.length === 0 && stored.length > 0) {
+        // server 가 empty 인데 local 에 있음 — 첫 서버 진입 migration → backfill
+        for (const p of stored) {
+          void pinClient.create(playgroundId, p);
+        }
+        return; // local 유지
+      }
+      // server 에 데이터 있으면 server 가 source of truth
+      set({ pins: serverPins });
+      writePins(playgroundId, serverPins);
+    }).catch((err) =>
+      console.warn('[pin-store.loadForPlayground] server sync failed', err),
+    );
   },
 
   addPin: ({ playgroundId, x, y, commitSha, route, element }) => {
@@ -144,20 +161,34 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
     const next = [...get().pins, pin];
     writePins(playgroundId, next);
     set({ pins: next, editingPinId: pin.id });
+    // background server sync
+    void pinClient.create(playgroundId, pin).catch((err) =>
+      console.warn('[pin-store.addPin] server sync failed', err),
+    );
     return pin;
   },
 
   updatePinText: (id, text) => {
     const pins = get().pins.map((p) => (p.id === id ? { ...p, text } : p));
     const first = pins.find((p) => p.id === id);
-    if (first) writePins(first.playgroundId, pins);
+    if (first) {
+      writePins(first.playgroundId, pins);
+      void pinClient.update(first.playgroundId, id, { text }).catch((err) =>
+        console.warn('[pin-store.updatePinText] server sync failed', err),
+      );
+    }
     set({ pins });
   },
 
   deletePin: (id) => {
     const target = get().pins.find((p) => p.id === id);
     const next = get().pins.filter((p) => p.id !== id);
-    if (target) writePins(target.playgroundId, next);
+    if (target) {
+      writePins(target.playgroundId, next);
+      void pinClient.delete(target.playgroundId, id).catch((err) =>
+        console.warn('[pin-store.deletePin] server sync failed', err),
+      );
+    }
     set({
       pins: next,
       editingPinId: get().editingPinId === id ? null : get().editingPinId,
@@ -170,8 +201,13 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
         ? { ...p, resolvedAt: p.resolvedAt ? undefined : Date.now() }
         : p,
     );
-    const first = pins.find((p) => p.id === id);
-    if (first) writePins(first.playgroundId, pins);
+    const updated = pins.find((p) => p.id === id);
+    if (updated) {
+      writePins(updated.playgroundId, pins);
+      void pinClient.update(updated.playgroundId, id, { resolvedAt: updated.resolvedAt }).catch((err) =>
+        console.warn('[pin-store.toggleResolved] server sync failed', err),
+      );
+    }
     set({ pins });
   },
 
@@ -191,7 +227,12 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
       p.id === pinId ? { ...p, replies: [...(p.replies ?? []), reply] } : p,
     );
     const first = pins.find((p) => p.id === pinId);
-    if (first) writePins(first.playgroundId, pins);
+    if (first) {
+      writePins(first.playgroundId, pins);
+      void pinClient.addReply(first.playgroundId, pinId, reply).catch((err) =>
+        console.warn('[pin-store.addReply] server sync failed', err),
+      );
+    }
     set({ pins });
   },
 
@@ -206,7 +247,12 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
       };
     });
     const first = pins.find((p) => p.id === pinId);
-    if (first) writePins(first.playgroundId, pins);
+    if (first) {
+      writePins(first.playgroundId, pins);
+      void pinClient.updateReply(first.playgroundId, pinId, replyId, { text }).catch((err) =>
+        console.warn('[pin-store.updateReplyText] server sync failed', err),
+      );
+    }
     set({ pins });
   },
 
@@ -219,7 +265,12 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
       };
     });
     const first = pins.find((p) => p.id === pinId);
-    if (first) writePins(first.playgroundId, pins);
+    if (first) {
+      writePins(first.playgroundId, pins);
+      void pinClient.deleteReply(first.playgroundId, pinId, replyId).catch((err) =>
+        console.warn('[pin-store.deleteReply] server sync failed', err),
+      );
+    }
     set({ pins });
   },
 

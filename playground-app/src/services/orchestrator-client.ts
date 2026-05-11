@@ -914,3 +914,127 @@ export async function putChatMessages<T = unknown>(
     throw new Error(`putChat ${resp.status}: ${await resp.text()}`);
   }
 }
+
+// ── Pin (comment) CRUD — server sync (P5.3) ────────────────
+
+import type { PinComment, PinReply } from '../store/pin-store';
+
+export const pinClient = {
+  list: async (playgroundId: string): Promise<PinComment[]> => {
+    const r = await fetch(
+      `${ORCHESTRATOR_URL}/api/playground/${encodeURIComponent(playgroundId)}/pins`,
+    );
+    const body = await r.json().catch(() => ({ ok: false }));
+    if (!r.ok || body.ok === false) return [];
+    return Array.isArray(body.pins) ? (body.pins as PinComment[]) : [];
+  },
+
+  create: async (playgroundId: string, pin: PinComment): Promise<PinComment | null> => {
+    const r = await fetch(
+      `${ORCHESTRATOR_URL}/api/playground/${encodeURIComponent(playgroundId)}/pins`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pin),
+      },
+    );
+    const body = await r.json().catch(() => ({ ok: false }));
+    if (!r.ok || body.ok === false) {
+      console.warn('[pinClient.create] failed', body?.error || r.status);
+      return null;
+    }
+    return body.pin as PinComment;
+  },
+
+  update: async (
+    playgroundId: string,
+    pinId: string,
+    patch: Partial<PinComment>,
+  ): Promise<PinComment | null> => {
+    const r = await fetch(
+      `${ORCHESTRATOR_URL}/api/playground/${encodeURIComponent(playgroundId)}/pins/${encodeURIComponent(pinId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      },
+    );
+    const body = await r.json().catch(() => ({ ok: false }));
+    if (!r.ok || body.ok === false) {
+      console.warn('[pinClient.update] failed', body?.error || r.status);
+      return null;
+    }
+    return body.pin as PinComment;
+  },
+
+  delete: async (playgroundId: string, pinId: string): Promise<boolean> => {
+    const r = await fetch(
+      `${ORCHESTRATOR_URL}/api/playground/${encodeURIComponent(playgroundId)}/pins/${encodeURIComponent(pinId)}`,
+      { method: 'DELETE' },
+    );
+    if (!r.ok) {
+      console.warn('[pinClient.delete] failed', r.status);
+      return false;
+    }
+    return true;
+  },
+
+  addReply: async (
+    playgroundId: string,
+    pinId: string,
+    reply: PinReply,
+  ): Promise<PinReply | null> => {
+    const r = await fetch(
+      `${ORCHESTRATOR_URL}/api/playground/${encodeURIComponent(playgroundId)}/pins/${encodeURIComponent(pinId)}/replies`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reply),
+      },
+    );
+    const body = await r.json().catch(() => ({ ok: false }));
+    if (!r.ok || body.ok === false) {
+      console.warn('[pinClient.addReply] failed', body?.error || r.status);
+      return null;
+    }
+    return body.reply as PinReply;
+  },
+
+  updateReply: async (
+    playgroundId: string,
+    pinId: string,
+    replyId: string,
+    patch: Partial<PinReply>,
+  ): Promise<PinReply | null> => {
+    const r = await fetch(
+      `${ORCHESTRATOR_URL}/api/playground/${encodeURIComponent(playgroundId)}/pins/${encodeURIComponent(pinId)}/replies/${encodeURIComponent(replyId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      },
+    );
+    const body = await r.json().catch(() => ({ ok: false }));
+    if (!r.ok || body.ok === false) {
+      console.warn('[pinClient.updateReply] failed', body?.error || r.status);
+      return null;
+    }
+    return body.reply as PinReply;
+  },
+
+  deleteReply: async (
+    playgroundId: string,
+    pinId: string,
+    replyId: string,
+  ): Promise<boolean> => {
+    const r = await fetch(
+      `${ORCHESTRATOR_URL}/api/playground/${encodeURIComponent(playgroundId)}/pins/${encodeURIComponent(pinId)}/replies/${encodeURIComponent(replyId)}`,
+      { method: 'DELETE' },
+    );
+    if (!r.ok) {
+      console.warn('[pinClient.deleteReply] failed', r.status);
+      return false;
+    }
+    return true;
+  },
+};
