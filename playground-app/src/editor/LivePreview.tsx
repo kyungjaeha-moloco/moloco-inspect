@@ -175,6 +175,8 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
               route: msg.route,
               element: msg.element,
             });
+            // 핀 작성 완료 → 자동으로 interactive 복귀
+            setMode('interactive');
           } else if (m === 'pick') {
             setMode('interactive');
             setLastPicked(msg.element, msg.bbox);
@@ -264,6 +266,48 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
     // path, the token bumps and this effect re-fires.
   }, [bridge, bridgeReady, requestedIframeNav]);
 
+  // 'C' 단축키 — comment mode 토글 (interactive ↔ comment).
+  // ESC 도 comment mode 종료에 사용. 입력 필드 (textarea / input /
+  // contenteditable) 안에서는 skip — 텍스트 입력 흐름을 가로채지 않음.
+  // Cmd+C / Ctrl+C 같은 조합 무시 (복사 안 가로챔).
+  // AIPanel 의 ESC 핸들러 (lastPickedElement 해제) 와는 독립적:
+  //   - 그쪽은 lastPickedElement 가 있을 때만 등록됨
+  //   - 이쪽은 mode === 'comment' 일 때 ESC 처리
+  //   - 두 상태가 동시에 활성화되는 시나리오 없음
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // ESC → comment mode 종료
+      if (e.key === 'Escape') {
+        if (mode !== 'comment') return;
+        const t = e.target as HTMLElement | null;
+        const isInput =
+          t?.tagName === 'TEXTAREA' ||
+          t?.tagName === 'INPUT' ||
+          t?.isContentEditable === true;
+        const inputValue =
+          t && (t as HTMLInputElement | HTMLTextAreaElement).value;
+        if (isInput && inputValue) return;
+        e.preventDefault();
+        setMode('interactive');
+        return;
+      }
+      // 'C' / 'c' / 'ㅊ' (한글 IME 인접 키) → comment mode 토글
+      if (e.key !== 'c' && e.key !== 'C' && e.key !== 'ㅊ') return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t?.tagName === 'TEXTAREA' ||
+        t?.tagName === 'INPUT' ||
+        t?.isContentEditable === true
+      )
+        return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      e.preventDefault();
+      setMode(mode === 'comment' ? 'interactive' : 'comment');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mode, setMode]);
+
   // Compose iframe src with handshake query. Bridge is guaranteed to be
   // non-null here when vitePort + status are ready, because both go
   // through the `useState` init — and the outer key forces a remount
@@ -336,6 +380,8 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
       commitSha: headCommitSha,
       route,
     });
+    // 핀 작성 완료 → 자동으로 interactive 복귀
+    setMode('interactive');
   };
 
   if (status !== 'active') {
@@ -428,6 +474,25 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
           catches clicks inside the iframe. Marker pointerEvents remain
           auto so the parent still handles edit / delete interactions
           with existing pins. */}
+      {mode === 'comment' && (
+        <div
+          aria-live="polite"
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            fontSize: 11,
+            padding: '4px 10px',
+            background: 'var(--bg-elevated, rgba(0,0,0,0.7))',
+            color: 'var(--text-primary, #fff)',
+            borderRadius: 4,
+            pointerEvents: 'none',
+            zIndex: 10,
+          }}
+        >
+          📍 Comment mode — C / ESC 키로 종료
+        </div>
+      )}
       {mode === 'comment' && (
         <div style={pinLayerStyle}>
           {pins.map((pin, idx) => {
