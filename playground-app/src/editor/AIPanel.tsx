@@ -41,7 +41,7 @@ import {
   Chip,
   type InputAreaToolbarButton,
 } from '../shared-ui';
-import { usePinStore, type PinComment } from '../store/pin-store';
+import { usePinStore, type PinComment, isPinStale } from '../store/pin-store';
 import type { BridgeElementContext } from '../services/playground-bridge';
 import { JobCard } from './JobCard';
 
@@ -1710,10 +1710,21 @@ function CommentsList({
   const requestIframeNav = usePlaygroundStore((s) => s.requestIframeNav);
   const currentRoute = usePlaygroundStore((s) => s.currentRoute);
 
+  const [archivedOpen, setArchivedOpen] = useState(false);
+
   const pins = useMemo(
     () => allPins.filter((p) => p.playgroundId === playgroundId),
     [allPins, playgroundId],
   );
+
+  const { active, archived } = useMemo(() => {
+    const out: { active: PinComment[]; archived: PinComment[] } = { active: [], archived: [] };
+    for (const p of pins) {
+      if (isPinStale(p, headCommitSha)) out.archived.push(p);
+      else out.active.push(p);
+    }
+    return out;
+  }, [pins, headCommitSha]);
 
   if (!playgroundId) {
     return (
@@ -1721,7 +1732,7 @@ function CommentsList({
     );
   }
 
-  if (pins.length === 0) {
+  if (active.length === 0 && archived.length === 0) {
     return (
       <div style={commentsEmptyStyle}>
         <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -1737,31 +1748,55 @@ function CommentsList({
     );
   }
 
+  const renderCommentRow = (pin: PinComment, idx: number) => (
+    <CommentRow
+      key={pin.id}
+      pin={pin}
+      index={idx + 1}
+      isStale={!!pin.commitSha && pin.commitSha !== headCommitSha}
+      onEditText={(text) => updatePinText(pin.id, text)}
+      onToggleResolved={() => toggleResolved(pin.id)}
+      onDelete={() => deletePin(pin.id)}
+      onAddReply={(text) => addReply(pin.id, text)}
+      onUpdateReplyText={(replyId, text) =>
+        updateReplyText(pin.id, replyId, text)
+      }
+      onDeleteReply={(replyId) => deleteReply(pin.id, replyId)}
+      onActivate={() => {
+        selectPin(pin.id);
+        if (pin.route && pin.route !== currentRoute) {
+          requestIframeNav(pin.route);
+        }
+      }}
+      onSendToMolly={() => onSendToMolly?.(pin)}
+    />
+  );
+
   return (
     <div className="ui-scroll" style={commentsListStyle}>
-      {pins.map((pin, idx) => (
-        <CommentRow
-          key={pin.id}
-          pin={pin}
-          index={idx + 1}
-          isStale={!!pin.commitSha && pin.commitSha !== headCommitSha}
-          onEditText={(text) => updatePinText(pin.id, text)}
-          onToggleResolved={() => toggleResolved(pin.id)}
-          onDelete={() => deletePin(pin.id)}
-          onAddReply={(text) => addReply(pin.id, text)}
-          onUpdateReplyText={(replyId, text) =>
-            updateReplyText(pin.id, replyId, text)
-          }
-          onDeleteReply={(replyId) => deleteReply(pin.id, replyId)}
-          onActivate={() => {
-            selectPin(pin.id);
-            if (pin.route && pin.route !== currentRoute) {
-              requestIframeNav(pin.route);
-            }
-          }}
-          onSendToMolly={() => onSendToMolly?.(pin)}
-        />
-      ))}
+      {active.map((pin, idx) => renderCommentRow(pin, idx))}
+
+      {archived.length > 0 && (
+        <div style={{ borderTop: '1px solid var(--border-secondary)', marginTop: 12 }}>
+          <button
+            type="button"
+            onClick={() => setArchivedOpen((v) => !v)}
+            style={{
+              width: '100%',
+              padding: '10px 16px',
+              fontSize: 11,
+              color: 'var(--text-tertiary)',
+              background: 'none',
+              border: 'none',
+              textAlign: 'left',
+              cursor: 'pointer',
+            }}
+          >
+            {archivedOpen ? '▾' : '▸'} Archived ({archived.length})
+          </button>
+          {archivedOpen && archived.map((pin, idx) => renderCommentRow(pin, idx))}
+        </div>
+      )}
     </div>
   );
 }

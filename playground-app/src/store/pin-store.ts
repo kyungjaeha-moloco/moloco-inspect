@@ -225,3 +225,18 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
 
   reset: () => set({ pins: [], editingPinId: null, selectedPinId: null }),
 }));
+
+export const STALE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Stale: sha가 현재 HEAD와 다르고 createdAt이 7일 이상 지났음.
+ * 또는 resolved + resolvedAt이 7일 이상 지났음.
+ * Active list에서 빼고 Archive 섹션으로.
+ */
+export function isPinStale(pin: PinComment, headSha: string | null): boolean {
+  const now = Date.now();
+  if (pin.resolvedAt && (now - pin.resolvedAt) > STALE_AGE_MS) return true;
+  if (!pin.commitSha || !headSha) return false;
+  if (pin.commitSha === headSha) return false;
+  return (now - pin.createdAt) > STALE_AGE_MS;
+}
