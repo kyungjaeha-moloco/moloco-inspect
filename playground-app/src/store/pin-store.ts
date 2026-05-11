@@ -60,6 +60,8 @@ interface PinStoreState {
   pins: PinComment[];
   /** Pin currently being edited (focused input), or null. */
   editingPinId: string | null;
+  /** Pin currently selected in the UI (e.g., highlighted in CommentRow, pulsing in iframe). */
+  selectedPinId: string | null;
 
   loadForPlayground(playgroundId: string): void;
   addPin(input: {
@@ -75,6 +77,7 @@ interface PinStoreState {
   deletePin(id: string): void;
   toggleResolved(id: string): void;
   setEditing(id: string | null): void;
+  selectPin(id: string | null): void;
 
   /** Append a reply under an existing pin. */
   addReply(pinId: string, text: string): void;
@@ -119,10 +122,11 @@ function nextId() {
 export const usePinStore = create<PinStoreState>((set, get) => ({
   pins: [],
   editingPinId: null,
+  selectedPinId: null,
 
   loadForPlayground: (playgroundId) => {
     const pins = readPins(playgroundId);
-    set({ pins, editingPinId: null });
+    set({ pins, editingPinId: null, selectedPinId: null });
   },
 
   addPin: ({ playgroundId, x, y, commitSha, route, element }) => {
@@ -173,6 +177,8 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
 
   setEditing: (id) => set({ editingPinId: id }),
 
+  selectPin: (id) => set({ selectedPinId: id }),
+
   addReply: (pinId, text) => {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -217,5 +223,5 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
     set({ pins });
   },
 
-  reset: () => set({ pins: [], editingPinId: null }),
+  reset: () => set({ pins: [], editingPinId: null, selectedPinId: null }),
 }));
