@@ -2481,8 +2481,10 @@
 
   // ─── Plan Items Card (PRD → /api/plan 응답) ─────────────────────────
   /**
-   * Fast-track intent set — Task 1 plan-intent.js 와 동일 5종.
-   * skipDecomposer:true 로 job 생성 시 decomposer 단계를 건너뜀.
+   * **Source of truth: orchestrator/lib/plan-intent.js**
+   * 여기는 vanilla JS chrome-ext 라 별도 정의가 필요해 미러링. 5종 intent 는
+   * decomposer 우회 (skipDecomposer:true). 추가/변경 시 반드시 plan-intent.js
+   * (backend) + playground-app/src/editor/AIPanel.tsx 까지 3 곳 모두 함께 갱신.
    */
   const FAST_TRACK_INTENTS_CHROME = new Set([
     'copy_update',

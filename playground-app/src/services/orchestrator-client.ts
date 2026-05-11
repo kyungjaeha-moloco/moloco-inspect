@@ -63,9 +63,18 @@ export interface ChangeRequestInput {
   /** When set, the change runs through the playground-scoped queue and
    *  commits to the playground sandbox instead of the stateless path. */
   playgroundId?: string;
-  /** Playground 에서 plan 카드 승인 후 실행 — backend 의 추가 approve 단계 skip. */
+  /**
+   * Playground 에서 plan 카드 승인 후 실행 — fast-track flags.
+   *
+   * NOTE: /api/change-request 흐름 (Playground) 은 본래 decomposer / approval
+   * gate 가 없어 이 두 옵션은 payload 에 보존만 되고 실제 backend 동작에는
+   * 영향을 주지 않음. Slack / Chrome ext 의 /api/playground/:id/job 흐름은
+   * 두 옵션을 createJob 에 정상 전달 (decomposer 우회 + 자동 advance).
+   * Playground 의 ⚡ 배지는 사용자에게 fast-track intent 임을 알리는 visual UX
+   * 역할이며, 동작 자체는 변경 없음.
+   */
   autoApprove?: boolean;
-  /** intent 가 fast-track 5종 중 하나일 때 true — decomposer 우회. */
+  /** Source of truth: orchestrator/lib/plan-intent.js 의 FAST_TRACK_INTENTS. */
   skipDecomposer?: boolean;
 }
 

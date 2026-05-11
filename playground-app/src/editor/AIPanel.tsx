@@ -45,8 +45,10 @@ import { usePinStore, type PinComment } from '../store/pin-store';
 import type { BridgeElementContext } from '../services/playground-bridge';
 import { JobCard } from './JobCard';
 
-// orchestrator/lib/plan-intent.js 와 동기화 — 5종 intent 는 decomposer
-// 우회 (skipDecomposer:true). 변경 시 양쪽 같이 갱신.
+// **Source of truth: orchestrator/lib/plan-intent.js**
+// 여기는 TS surface 라 별도 정의가 필요해 미러링. 5종 intent 는 decomposer
+// 우회 (skipDecomposer:true). 추가/변경 시 반드시 plan-intent.js (backend) +
+// chrome-extension/sidepanel.js 까지 3 곳 모두 함께 갱신.
 const FAST_TRACK_INTENTS = new Set<string>([
   'copy_update',
   'spacing_adjustment',
