@@ -133,6 +133,12 @@ export const AIPanel = React.memo(function AIPanel({
     })),
   );
 
+  const selectPin = usePinStore((s) => s.selectPin);
+  const requestIframeNav = usePlaygroundStore((s) => s.requestIframeNav);
+  const pinsForPlayground = usePinStore((s) =>
+    playgroundId ? s.pins.filter((p) => p.playgroundId === playgroundId) : [],
+  );
+
   /** Sha the sandbox is actually sitting on now — either a time-travel
    *  checkout or HEAD when there is no checkout. Drives the "현재 이 시점"
    *  / "이 시점으로 돌아가기" split on ExecutionCard. */
@@ -522,6 +528,28 @@ export const AIPanel = React.memo(function AIPanel({
     }
     return out;
   }, [messages]);
+
+  // Chat 탭 스트림: messages + pinsForPlayground 를 createdAt 기준 시간순 mix.
+  // ChatMessage 에 createdAt 필드가 없으므로 배열 index 를 fallback 으로 사용.
+  type StreamItem =
+    | { kind: 'message'; createdAt: number; data: ChatMessage }
+    | { kind: 'pin'; createdAt: number; data: PinComment };
+  const chatStream = useMemo((): StreamItem[] => {
+    const items: StreamItem[] = [
+      ...messages.map((m, i) => ({
+        kind: 'message' as const,
+        createdAt: i,
+        data: m,
+      })),
+      ...pinsForPlayground.map((p) => ({
+        kind: 'pin' as const,
+        createdAt: p.createdAt,
+        data: p,
+      })),
+    ];
+    items.sort((a, b) => a.createdAt - b.createdAt);
+    return items;
+  }, [messages, pinsForPlayground]);
 
   const sendPrompt = useCallback(async (rawText: string) => {
     const trimmed = rawText.trim();
@@ -1124,7 +1152,28 @@ export const AIPanel = React.memo(function AIPanel({
                 );
                 archivedRun = [];
               };
-              messages.forEach((m, idx) => {
+              let msgIdx = 0;
+              chatStream.forEach((item) => {
+                if (item.kind === 'pin') {
+                  flushArchived();
+                  const pin = item.data;
+                  out.push(
+                    <CommentInlineCard
+                      key={`c-${pin.id}`}
+                      pin={pin}
+                      onActivate={() => {
+                        selectPin(pin.id);
+                        if (pin.route && pin.route !== currentRoute) {
+                          requestIframeNav(pin.route);
+                        }
+                      }}
+                      onSendToMolly={() => handleSendCommentToMolly(pin)}
+                    />,
+                  );
+                  return;
+                }
+                const m = item.data;
+                const idx = msgIdx++;
                 if (m.archived) {
                   archivedRun.push(m);
                   return;
@@ -1132,7 +1181,7 @@ export const AIPanel = React.memo(function AIPanel({
                 flushArchived();
                 out.push(
                   <MessageRow
-                    key={m.id}
+                    key={`m-${m.id}`}
                     message={m}
                     activeSha={activeSha}
                     onChoice={handleChoice}
@@ -2332,6 +2381,77 @@ function EmptyState() {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function CommentInlineCard({
+  pin,
+  onActivate,
+  onSendToMolly,
+}: {
+  pin: PinComment;
+  onActivate: () => void;
+  onSendToMolly: () => void;
+}) {
+  const target =
+    pin.element?.label ??
+    pin.element?.testId ??
+    pin.element?.displayName ??
+    pin.route ??
+    `(${pin.x}, ${pin.y})`;
+  const when = formatWhen(pin.createdAt);
+
+  return (
+    <div
+      onClick={(e) => {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag === 'BUTTON' || tag === 'A') return;
+        onActivate();
+      }}
+      style={{
+        padding: '8px 10px',
+        background: 'var(--bg-secondary)',
+        borderLeft: '3px solid var(--accent)',
+        borderRadius: 4,
+        fontSize: 12,
+        display: 'flex',
+        gap: 8,
+        alignItems: 'flex-start',
+        cursor: 'pointer',
+      }}
+      title="클릭해서 iframe 에서 위치 확인"
+    >
+      <span style={{ fontSize: 14, flex: '0 0 auto' }}>💬</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 500, overflowWrap: 'anywhere', lineHeight: 1.4 }}>
+          {pin.text || '(내용 없음)'}
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>
+          {target} · {when}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onSendToMolly();
+        }}
+        disabled={!pin.text?.trim()}
+        style={{
+          fontSize: 11,
+          padding: '2px 6px',
+          background: 'transparent',
+          border: '1px solid var(--border-primary)',
+          borderRadius: 3,
+          cursor: pin.text?.trim() ? 'pointer' : 'not-allowed',
+          opacity: pin.text?.trim() ? 1 : 0.4,
+          flex: '0 0 auto',
+        }}
+        title="이 코멘트를 PRD 로 변환해 Molly 에 작업 요청"
+      >
+        🤖
+      </button>
     </div>
   );
 }
