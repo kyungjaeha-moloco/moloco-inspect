@@ -1631,6 +1631,9 @@ function CommentsList({
   const addReply = usePinStore((s) => s.addReply);
   const updateReplyText = usePinStore((s) => s.updateReplyText);
   const deleteReply = usePinStore((s) => s.deleteReply);
+  const selectPin = usePinStore((s) => s.selectPin);
+  const requestIframeNav = usePlaygroundStore((s) => s.requestIframeNav);
+  const currentRoute = usePlaygroundStore((s) => s.currentRoute);
 
   const pins = useMemo(
     () => allPins.filter((p) => p.playgroundId === playgroundId),
@@ -1675,6 +1678,12 @@ function CommentsList({
             updateReplyText(pin.id, replyId, text)
           }
           onDeleteReply={(replyId) => deleteReply(pin.id, replyId)}
+          onActivate={() => {
+            selectPin(pin.id);
+            if (pin.route && pin.route !== currentRoute) {
+              requestIframeNav(pin.route);
+            }
+          }}
         />
       ))}
     </div>
@@ -1691,6 +1700,7 @@ function CommentRow({
   onAddReply,
   onUpdateReplyText,
   onDeleteReply,
+  onActivate,
 }: {
   pin: PinComment;
   index: number;
@@ -1701,6 +1711,7 @@ function CommentRow({
   onAddReply: (text: string) => void;
   onUpdateReplyText: (replyId: string, text: string) => void;
   onDeleteReply: (replyId: string) => void;
+  onActivate: () => void;
 }) {
   const resolved = !!pin.resolvedAt;
   const replyCount = pin.replies?.length ?? 0;
@@ -1716,6 +1727,11 @@ function CommentRow({
 
   return (
     <div
+      onClick={(e) => {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag === 'BUTTON' || tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'A') return;
+        onActivate();
+      }}
       style={{
         padding: '14px 16px',
         borderBottom: '1px solid var(--border-secondary)',
@@ -1723,6 +1739,7 @@ function CommentRow({
         flexDirection: 'column',
         gap: 8,
         opacity: resolved ? 0.6 : 1,
+        cursor: 'pointer',
       }}
     >
       {/* Header: number + target + time */}
@@ -1781,7 +1798,7 @@ function CommentRow({
         />
       ) : (
         <div
-          onClick={() => setIsEditingBody(true)}
+          onClick={(e) => { e.stopPropagation(); setIsEditingBody(true); }}
           style={{
             fontSize: 14,
             lineHeight: 1.5,
@@ -1968,7 +1985,7 @@ function ReplyCompose({
         onChange={(e) => setValue(e.target.value)}
         placeholder="댓글 입력…"
         onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+          if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             submit();
           } else if (e.key === 'Escape') {
