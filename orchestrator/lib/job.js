@@ -135,31 +135,83 @@ function shortId() {
 // ── CRUD ────────────────────────────────────────────────────────────
 
 /**
- * @param {{ playgroundId: string, prdText: string, baselineHeadSha?: string }} input
+ * Map plan_items (from fast-track intake) to the internal Task shape.
+ * Only items with `enabled !== false` are included.
+ *
+ * @param {Array<{ id?: string, title?: string, description?: string, target_file?: string, pattern_id?: string, enabled?: boolean }> | undefined} planItems
+ * @returns {Task[]}
+ */
+function planItemsToTasks(planItems) {
+  if (!Array.isArray(planItems)) return [];
+  return planItems
+    .filter((p) => p.enabled !== false)
+    .map((p, i) => ({
+      id: p.id ?? `task-${i + 1}`,
+      title: p.title ?? '(no title)',
+      description: p.description ?? '',
+      targetFile: p.target_file ?? null,
+      patternId: p.pattern_id ?? null,
+      dependsOn: [],
+      status: /** @type {import('./job-state.js').TaskStatus} */ ('pending'),
+      attempt: 0,
+    }));
+}
+
+/**
+ * @param {{
+ *   playgroundId: string,
+ *   prdText: string,
+ *   baselineHeadSha?: string,
+ *   autoApprove?: boolean,
+ *   skipDecomposer?: boolean,
+ *   planItems?: Array<{ id?: string, title?: string, description?: string, target_file?: string, pattern_id?: string, enabled?: boolean }>,
+ * }} input
  *   `baselineHeadSha` is the playground's HEAD at the moment the job is
  *   created — recorded so cancel can offer "rewind everything this job
  *   committed" without losing work that landed before this job started.
+ *   `autoApprove` — when true, skips the `planning` (user approval) phase
+ *   and transitions directly to `delegating`.
+ *   `skipDecomposer` — when true, uses `planItems` as the task list instead
+ *   of calling the LLM decomposer. Requires `planItems` to be non-empty.
  * @returns {Job}
  */
-export function createJob({ playgroundId, prdText, baselineHeadSha }) {
+export function createJob({ playgroundId, prdText, baselineHeadSha, autoApprove = false, skipDecomposer = false, planItems }) {
   if (!playgroundId) throw new Error('playgroundId required');
   if (typeof prdText !== 'string' || !prdText.trim()) {
     throw new Error('prdText required');
   }
+
+  const initialTasks = skipDecomposer ? planItemsToTasks(planItems) : [];
+
+  if (skipDecomposer && initialTasks.length === 0) {
+    throw new Error('skipDecomposer requires at least one enabled planItem');
+  }
+
   /** @type {Job} */
   const job = {
     id: shortId(),
     playgroundId,
     prdText,
-    status: 'decomposing',
-    tasks: [],
+    // skipDecomposer jobs start in `planning` (tasks already populated).
+    // Normal jobs start in `decomposing` (LLM decomposer fills tasks).
+    status: /** @type {import('./job-state.js').JobStatus} */ (skipDecomposer ? 'planning' : 'decomposing'),
+    tasks: initialTasks,
     baselineHeadSha,
+    autoApprove,
+    skipDecomposer,
     createdAt: nowMs(),
     updatedAt: nowMs(),
   };
   jobs.set(job.id, job);
   persist(job);
-  return job;
+
+  // autoApprove: skip the planning (user-approval) phase and go straight
+  // to delegating. Uses setJobStatus so the FSM transition is validated.
+  if (autoApprove && skipDecomposer) {
+    setJobStatus(job.id, 'delegating');
+  }
+
+  return getJob(job.id);
 }
 
 /**

@@ -3662,6 +3662,8 @@ Generate 2 variations (v2, v3).`;
       if (existing) return json(res, 409, { ok: false, error: 'job_active', jobId: existing.id });
       try {
         const body = await parseBody(req);
+        const autoApprove = body?.autoApprove === true;
+        const skipDecomposer = body?.skipDecomposer === true;
         const job = createJob({
           playgroundId: pgId,
           prdText: body?.prdText ?? '',
@@ -3669,10 +3671,22 @@ Generate 2 variations (v2, v3).`;
           // offer a one-click rewind to this sha to undo every commit
           // this job landed without touching prior history.
           baselineHeadSha: pg.headCommitSha ?? pg.baselineCommitSha ?? undefined,
+          autoApprove,
+          skipDecomposer,
+          planItems: body?.planItems,
         });
-        // Kick off decompose in background — client polls /api/job/:id
-        // and flips the UI when status transitions to `planning`.
-        decomposeJobInBackground(job.id);
+        if (skipDecomposer) {
+          // plan_items already mapped to tasks in createJob; no decomposer needed.
+          // If autoApprove was also set, job is already in `delegating` — kick runner.
+          if (autoApprove) {
+            runJobInBackground(job.id);
+          }
+          // Otherwise job lands in `planning` — user approves via normal route.
+        } else {
+          // Kick off decompose in background — client polls /api/job/:id
+          // and flips the UI when status transitions to `planning`.
+          decomposeJobInBackground(job.id);
+        }
         return json(res, 200, { ok: true, job });
       } catch (err) {
         return json(res, 400, { ok: false, error: err.message });
