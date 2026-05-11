@@ -117,6 +117,8 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
   const updatePinText = usePinStore((s) => s.updatePinText);
   const deletePin = usePinStore((s) => s.deletePin);
   const setEditing = usePinStore((s) => s.setEditing);
+  const selectedPinId = usePinStore((s) => s.selectedPinId);
+  const selectPin = usePinStore((s) => s.selectPin);
 
   const currentRoute = usePlaygroundStore((s) => s.currentRoute);
   const setCurrentRoute = usePlaygroundStore((s) => s.setCurrentRoute);
@@ -130,6 +132,13 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
   useEffect(() => {
     loadForPlayground(playgroundId);
   }, [playgroundId, loadForPlayground]);
+
+  // Auto-deselect pin after 4 s (pulse animation runs for ~2.4 s).
+  useEffect(() => {
+    if (!selectedPinId) return;
+    const timer = setTimeout(() => selectPin(null), 4000);
+    return () => clearTimeout(timer);
+  }, [selectedPinId, selectPin]);
 
   // ─── Bridge creation ──────────────────────────────────────────────
   //
@@ -438,6 +447,7 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
                 liveBbox={liveBbox ?? null}
                 orphaned={orphaned}
                 isEditing={editingPinId === pin.id}
+                isActive={pin.id === selectedPinId}
                 isStale={!!pin.commitSha && pin.commitSha !== headCommitSha}
                 onFocus={() => setEditing(pin.id)}
                 onBlurText={(text) => {
@@ -483,6 +493,7 @@ function PinMarker({
   liveBbox,
   orphaned,
   isEditing,
+  isActive,
   isStale,
   onFocus,
   onBlurText,
@@ -501,6 +512,7 @@ function PinMarker({
    * anchor". */
   orphaned: boolean;
   isEditing: boolean;
+  isActive: boolean;
   isStale: boolean;
   onFocus: () => void;
   onBlurText: (text: string) => void;
@@ -533,6 +545,26 @@ function PinMarker({
       title={orphaned ? '연결된 요소를 찾을 수 없어요 — 화면에서 사라졌거나 다른 페이지로 이동했을 수 있습니다.' : undefined}
       onClick={(e) => e.stopPropagation()}
     >
+      {isActive && (
+        <>
+          <style>{`
+            @keyframes pin-pulse {
+              0%, 100% { opacity: 0.5; transform: scale(1); }
+              50% { opacity: 1; transform: scale(1.18); }
+            }
+          `}</style>
+          <div
+            style={{
+              position: 'absolute',
+              inset: -6,
+              borderRadius: '50%',
+              border: '2px solid var(--accent, #4c8bff)',
+              animation: 'pin-pulse 1.2s ease-in-out 2',
+              pointerEvents: 'none',
+            }}
+          />
+        </>
+      )}
       <button
         type="button"
         onClick={(e) => {
