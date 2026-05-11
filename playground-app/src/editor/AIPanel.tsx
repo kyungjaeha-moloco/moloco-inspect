@@ -2705,12 +2705,27 @@ function PlanCard({
                     background: 'var(--bg-secondary)',
                     padding: '3px 6px',
                     borderRadius: 4,
-                    wordBreak: 'break-all',
+                    // 파일 경로 줄바꿈 정책:
+                    // - 가능한 한 `/` 경계에서 줄바꿈 (wbr 삽입)
+                    // - 단일 segment 가 컨테이너 폭 초과 시에만 단어 중간 끊기
+                    //   (overflow-wrap:anywhere). 둘 다 폭 초과 누락 안 됨.
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'normal',
                     lineHeight: 1.4,
                   }}
                   title={item.targetFile}
                 >
-                  📄 {item.targetFile}
+                  📄{' '}
+                  {item.targetFile.split('/').map((segment, i, arr) => (
+                    <span key={i}>
+                      {segment}
+                      {i < arr.length - 1 && (
+                        <>
+                          /<wbr />
+                        </>
+                      )}
+                    </span>
+                  ))}
                 </div>
               )}
               {item.patternId && (
