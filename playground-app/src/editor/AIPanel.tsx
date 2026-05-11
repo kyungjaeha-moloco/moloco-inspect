@@ -831,6 +831,26 @@ export const AIPanel = React.memo(function AIPanel({
     setLastPickedElement,
   ]);
 
+  const handleSendCommentToMolly = useCallback(
+    (pin: PinComment) => {
+      const parts: string[] = ['[코멘트 기반 요청]', pin.text?.trim() || ''];
+      const target =
+        pin.element?.label ??
+        pin.element?.testId ??
+        pin.element?.displayName ??
+        pin.route ??
+        `(${pin.x}, ${pin.y})`;
+      parts.push('', `대상: ${target}`);
+      if (pin.element?.sourceFile) parts.push(`파일: ${pin.element.sourceFile}`);
+      if (pin.route && pin.route !== target) parts.push(`Route: ${pin.route}`);
+      const prd = parts.join('\n');
+      setActiveTab('chat');
+      if (pin.element) setLastPickedElement(pin.element);
+      void sendPrompt(prd);
+    },
+    [sendPrompt, setActiveTab, setLastPickedElement],
+  );
+
   const handleSend = useCallback(() => {
     const trimmed = input.trim();
     if (!trimmed) return;
@@ -1230,7 +1250,11 @@ export const AIPanel = React.memo(function AIPanel({
           )}
         </>
       ) : (
-        <CommentsList playgroundId={playgroundId} headCommitSha={headCommitSha} />
+        <CommentsList
+            playgroundId={playgroundId}
+            headCommitSha={headCommitSha}
+            onSendToMolly={handleSendCommentToMolly}
+          />
       )}
       {prdModalOpen && playgroundId && (
         <PrdModal
@@ -1620,9 +1644,11 @@ function PickedElementChip({
 function CommentsList({
   playgroundId,
   headCommitSha,
+  onSendToMolly,
 }: {
   playgroundId: string | null;
   headCommitSha: string | null;
+  onSendToMolly?: (pin: PinComment) => void;
 }) {
   const allPins = usePinStore((s) => s.pins);
   const deletePin = usePinStore((s) => s.deletePin);
@@ -1684,6 +1710,7 @@ function CommentsList({
               requestIframeNav(pin.route);
             }
           }}
+          onSendToMolly={() => onSendToMolly?.(pin)}
         />
       ))}
     </div>
@@ -1701,6 +1728,7 @@ function CommentRow({
   onUpdateReplyText,
   onDeleteReply,
   onActivate,
+  onSendToMolly,
 }: {
   pin: PinComment;
   index: number;
@@ -1712,6 +1740,7 @@ function CommentRow({
   onUpdateReplyText: (replyId: string, text: string) => void;
   onDeleteReply: (replyId: string) => void;
   onActivate: () => void;
+  onSendToMolly: () => void;
 }) {
   const resolved = !!pin.resolvedAt;
   const replyCount = pin.replies?.length ?? 0;
@@ -1882,6 +1911,26 @@ function CommentRow({
           {resolved ? '↺ 다시 열기' : '✓ 해결'}
         </button>
         <span style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSendToMolly();
+          }}
+          style={{
+            fontSize: 11,
+            padding: '4px 10px',
+            background: 'transparent',
+            border: '1px solid var(--border-primary)',
+            borderRadius: 4,
+            cursor: 'pointer',
+            color: 'var(--text-secondary)',
+          }}
+          title="이 코멘트를 PRD 로 변환해 Molly 에 작업 요청"
+          disabled={!pin.text?.trim()}
+        >
+          🤖 Molly 에 작업 요청
+        </button>
         <button
           type="button"
           onClick={onDelete}
