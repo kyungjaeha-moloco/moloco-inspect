@@ -3066,6 +3066,92 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
+  // Pin (comment) CRUD — Playground 코멘트 영구화 + 다중 사용자 공유.
+  // Spec: docs/superpowers/plans/2026-05-11-comment-ux-overhaul.md (P5.2)
+  {
+    const m = pathname.match(/^\/api\/playground\/([^/]+)\/pins$/);
+    if (m && req.method === 'GET') {
+      try {
+        const { listPins } = await import('./lib/pins.js');
+        return json(res, 200, { ok: true, pins: listPins(decodeURIComponent(m[1])) });
+      } catch (err) {
+        return json(res, 500, { ok: false, error: err?.message ?? String(err) });
+      }
+    }
+    if (m && req.method === 'POST') {
+      try {
+        const payload = await parseBody(req);
+        const { createPin } = await import('./lib/pins.js');
+        const pin = createPin(decodeURIComponent(m[1]), payload);
+        return json(res, 200, { ok: true, pin });
+      } catch (err) {
+        return json(res, 400, { ok: false, error: err?.message ?? String(err) });
+      }
+    }
+  }
+  {
+    const m = pathname.match(/^\/api\/playground\/([^/]+)\/pins\/([^/]+)$/);
+    if (m && req.method === 'PATCH') {
+      try {
+        const payload = await parseBody(req);
+        const { updatePin } = await import('./lib/pins.js');
+        const pin = updatePin(decodeURIComponent(m[1]), decodeURIComponent(m[2]), payload);
+        if (!pin) return json(res, 404, { ok: false, error: 'pin not found' });
+        return json(res, 200, { ok: true, pin });
+      } catch (err) {
+        return json(res, 400, { ok: false, error: err?.message ?? String(err) });
+      }
+    }
+    if (m && req.method === 'DELETE') {
+      try {
+        const { deletePin } = await import('./lib/pins.js');
+        const ok = deletePin(decodeURIComponent(m[1]), decodeURIComponent(m[2]));
+        if (!ok) return json(res, 404, { ok: false, error: 'pin not found' });
+        return json(res, 200, { ok: true });
+      } catch (err) {
+        return json(res, 500, { ok: false, error: err?.message ?? String(err) });
+      }
+    }
+  }
+  {
+    const m = pathname.match(/^\/api\/playground\/([^/]+)\/pins\/([^/]+)\/replies$/);
+    if (m && req.method === 'POST') {
+      try {
+        const payload = await parseBody(req);
+        const { addReply } = await import('./lib/pins.js');
+        const reply = addReply(decodeURIComponent(m[1]), decodeURIComponent(m[2]), payload);
+        if (!reply) return json(res, 404, { ok: false, error: 'pin not found' });
+        return json(res, 200, { ok: true, reply });
+      } catch (err) {
+        return json(res, 400, { ok: false, error: err?.message ?? String(err) });
+      }
+    }
+  }
+  {
+    const m = pathname.match(/^\/api\/playground\/([^/]+)\/pins\/([^/]+)\/replies\/([^/]+)$/);
+    if (m && req.method === 'PATCH') {
+      try {
+        const payload = await parseBody(req);
+        const { updateReply } = await import('./lib/pins.js');
+        const reply = updateReply(decodeURIComponent(m[1]), decodeURIComponent(m[2]), decodeURIComponent(m[3]), payload);
+        if (!reply) return json(res, 404, { ok: false, error: 'reply not found' });
+        return json(res, 200, { ok: true, reply });
+      } catch (err) {
+        return json(res, 400, { ok: false, error: err?.message ?? String(err) });
+      }
+    }
+    if (m && req.method === 'DELETE') {
+      try {
+        const { deleteReply } = await import('./lib/pins.js');
+        const ok = deleteReply(decodeURIComponent(m[1]), decodeURIComponent(m[2]), decodeURIComponent(m[3]));
+        if (!ok) return json(res, 404, { ok: false, error: 'reply not found' });
+        return json(res, 200, { ok: true });
+      } catch (err) {
+        return json(res, 500, { ok: false, error: err?.message ?? String(err) });
+      }
+    }
+  }
+
   // Molly settings — Inspect Console UI 에서 런타임 변경 가능. 모델 /
   // thinking budget 즉시 반영 (재시작 X). 부팅 시 env defaults +
   // orchestrator/state/molly-settings.json 영구 저장.
