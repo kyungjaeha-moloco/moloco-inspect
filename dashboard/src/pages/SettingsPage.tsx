@@ -106,50 +106,50 @@ function MollySettingsPanel() {
           lineHeight: 1.6,
         }}
       >
-        <strong>모델 선택</strong> — 각 단계가 어떤 LLM 으로 처리될지 결정. Haiku 4.5 = 가장 빠르고 저렴 (~$1/M tokens),
-        Sonnet 4 = 더 정확하지만 ~3× 비싸고 ~3× 느림 (~$3/M tokens).
+        <strong>Model selection</strong> — determines which LLM handles each stage. Haiku 4.5 = fastest and cheapest (~$1/M tokens),
+        Sonnet 4 = more accurate but ~3× more expensive and ~3× slower (~$3/M tokens).
         <br />
-        <strong>thinking budget</strong> — AI 가 답하기 전에 *내부적으로* 생각하는 토큰 수. 0 = 즉답.
-        2048 = 약 2000 토큰만큼 추론 후 답. 사용자에게 thinking 내용은 안 보이지만 답변 품질에 영향.
+        <strong>Thinking budget</strong> — number of tokens the AI uses to reason *internally* before responding. 0 = immediate answer.
+        2048 = ~2,000 tokens of reasoning before answering. The thinking content is not visible to users but affects answer quality.
       </div>
       <SettingsSelect
-        label="Classifier 모델"
-        hint="모든 입력의 첫 단계 — chat / status / lifecycle / code_change 분류. 매 호출 거치므로 속도 중요. Haiku 권장 (Sonnet 으로 바꾸면 매 입력마다 +1-2s 추가)."
+        label="Classifier model"
+        hint="First stage for all inputs — classifies as chat / status / lifecycle / code_change. Called on every request so speed matters. Haiku recommended (switching to Sonnet adds +1-2s per input)."
         value={draft.classifierModel}
         onChange={(v) => setDraft({ ...draft, classifierModel: v })}
         options={modelOpts}
       />
       <SettingsSelect
-        label="Chat 모델"
-        hint="인사 / 자기소개 / 사용법 안내 / molly 능력 질의 응답. 패턴이 단순해 Haiku 로 충분 (페르소나 톤 유지). Sonnet 으로 바꾸면 답변이 더 자연스러울 수 있지만 비용 ~3× ↑."
+        label="Chat model"
+        hint="Handles greetings, introductions, usage guidance, and questions about Molly's capabilities. Patterns are simple so Haiku is sufficient (maintains persona tone). Switching to Sonnet may produce more natural responses but costs ~3× more."
         value={draft.chatModel}
         onChange={(v) => setDraft({ ...draft, chatModel: v })}
         options={modelOpts}
       />
       <SettingsSelect
-        label="Status 모델"
-        hint='"활성 잡 몇 개?", "어제 만든 거 어떻게 됐어?" 같은 잡 상태 질의 응답. 잡 데이터를 자연어로 요약. 단순한 작업이라 Haiku 권장.'
+        label="Status model"
+        hint='Answers job status queries like "how many active jobs?" or "what happened to the one I created yesterday?". Summarizes job data in natural language. Simple task — Haiku recommended.'
         value={draft.statusModel}
         onChange={(v) => setDraft({ ...draft, statusModel: v })}
         options={modelOpts}
       />
       <SettingsSelect
-        label="PRD analyzer 모델"
-        hint="PRD 가 명확한지 판단 + 모호하면 후속 Q 생성. 미묘한 판단 (어디 / 무엇 / 어떻게) 필요해 Sonnet 권장. Haiku 도 동작하지만 missingInfo 정확도 ↓."
+        label="PRD analyzer model"
+        hint="Evaluates PRD clarity and generates follow-up questions when ambiguous. Requires nuanced judgment (where / what / how) so Sonnet recommended. Haiku works but missingInfo accuracy is lower."
         value={draft.prdModel}
         onChange={(v) => setDraft({ ...draft, prdModel: v })}
         options={modelOpts}
       />
       <SettingsSelect
-        label="Plan emitter 모델"
-        hint="DS (patterns / api-contracts / schema) 기반으로 plan items 생성. 가장 무거운 단계 (input ~71K tokens). Sonnet 권장. Opus 로 정확도 ↑↑ 가능 (단 비용 5×)."
+        label="Plan emitter model"
+        hint="Generates plan items from DS context (patterns / api-contracts / schema). Heaviest stage (input ~71K tokens). Sonnet recommended. Opus improves accuracy further but costs 5×."
         value={draft.planModel}
         onChange={(v) => setDraft({ ...draft, planModel: v })}
         options={modelOpts}
       />
       <SettingsSlider
         label="PRD thinking budget"
-        hint='"이 PRD 가 명확한가?" 판단 시 깊이. 0 = 즉답 (모호 시 단순 후속 Q). 2048 (default) = 후속 Q 가 후보를 풍부히 제시 ("어떤 광고 페이지? 광고 생성 / 관리 / 상세 등"). 4096 = 더 길고 구체. 켜면 latency +5-10s, 비용 +40-60%.'
+        hint='Reasoning depth for "is this PRD clear?" judgment. 0 = immediate answer (simple follow-up when ambiguous). 2048 (default) = richer follow-up candidates ("which ad page? creation / management / detail, etc."). 4096 = longer and more specific. Enabling adds latency +5-10s, cost +40-60%.'
         value={draft.prdThinkingBudget}
         onChange={(v) => setDraft({ ...draft, prdThinkingBudget: v })}
         min={0}
@@ -158,7 +158,7 @@ function MollySettingsPanel() {
       />
       <SettingsSlider
         label="Plan thinking budget"
-        hint='Plan 만들 때 "어떤 패턴 / 파일 / 순서?" 추론 깊이. 0 = 즉답 (default). 2048 = pattern_id 매칭 정확도 ↑, target_file 더 정확 (template form → 실제 파일 추론). 4096 = depends_on 그래프까지 정교. 켜면 plan 생성 시 latency +5-10s.'
+        hint='Reasoning depth for "which patterns / files / order?" when building a plan. 0 = immediate answer (default). 2048 = better pattern_id matching, more accurate target_file (template form → inferred real file). 4096 = refined depends_on graph. Enabling adds latency +5-10s during plan generation.'
         value={draft.planThinkingBudget}
         onChange={(v) => setDraft({ ...draft, planThinkingBudget: v })}
         min={0}
@@ -178,7 +178,7 @@ function MollySettingsPanel() {
           className="btn"
           onClick={reset}
           disabled={saving}
-          title="env 부팅 default 로 되돌림 (저장 누르면 적용)"
+          title="Revert to env boot defaults (takes effect on save)"
         >
           Reset to env defaults
         </button>
@@ -192,16 +192,16 @@ function MollySettingsPanel() {
         {error && <span style={{ color: 'crimson', marginLeft: 8 }}>⚠️ {error}</span>}
         {savedAt && !dirty && (
           <span style={{ opacity: 0.6, fontSize: 12, marginLeft: 8 }}>
-            저장됨 ({Math.floor((Date.now() - savedAt) / 1000)}s 전)
+            Saved ({Math.floor((Date.now() - savedAt) / 1000)}s ago)
           </span>
         )}
       </div>
       <div style={{ opacity: 0.55, fontSize: 12, lineHeight: 1.5 }}>
-        변경 즉시 다음 호출부터 반영 (orchestrator 재시작 X). 영구 저장은
+        Changes apply immediately to the next call (no orchestrator restart needed). Persisted to
         <span className="mono"> orchestrator/state/molly-settings.json</span>.
-        env 변수 (<span className="mono">MOLLY_*_MODEL</span>,
+        Env vars (<span className="mono">MOLLY_*_MODEL</span>,
         <span className="mono"> MOLLY_PRD_THINKING</span>,
-        <span className="mono"> MOLLY_PLAN_THINKING</span>) 는 부팅 default 만 결정.
+        <span className="mono"> MOLLY_PLAN_THINKING</span>) only set the boot defaults.
       </div>
     </div>
   );
@@ -366,7 +366,7 @@ export function SettingsPage() {
         <div className="section-header">
           <h2 className="section-title">Molly Settings</h2>
           <span style={{ opacity: 0.55, fontSize: 12, marginLeft: 12 }}>
-            모델 / thinking budget — 변경 즉시 반영
+            model / thinking budget — changes apply immediately
           </span>
         </div>
         <MollySettingsPanel />

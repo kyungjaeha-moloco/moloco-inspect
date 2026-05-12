@@ -176,12 +176,12 @@ export function JobsPage() {
       <div className="page-header">
         <h1 className="page-title">Jobs</h1>
         <p className="page-subtitle">
-          PRD 단위 작업 묶음. 각 잡은 N task 로 쪼개지고, 각 task 가 1개 이상의 change-request 를
-          만듭니다. raw 한 단위가 보고 싶으면{' '}
+          PRD-level work bundles. Each job is split into N tasks, and each task produces one or more change-requests.
+          For the raw granular view, see the{' '}
           <NavLink to="/requests" style={{ color: 'var(--accent)' }}>
             Requests
           </NavLink>{' '}
-          탭으로.
+          tab.
         </p>
       </div>
 

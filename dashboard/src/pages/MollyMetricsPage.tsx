@@ -78,7 +78,7 @@ export function MollyMetricsPage() {
       <div className="page-header">
         <h1 className="page-title">Molly Metrics</h1>
         <p className="page-subtitle">
-          molly lib 호출 / intake 결과 집계. 자동 새로고침 30s.
+          Molly lib call and intake result aggregation. Auto-refreshes every 30s.
         </p>
       </div>
 
@@ -110,8 +110,8 @@ export function MollyMetricsPage() {
           >
             {updatedAt && (
               <span>
-                마지막 갱신 {Math.floor((Date.now() - updatedAt) / 1000)}s 전
-                · 이벤트 {data?.eventCount ?? 0}건
+                Last updated {Math.floor((Date.now() - updatedAt) / 1000)}s ago
+                · {data?.eventCount ?? 0} events
               </span>
             )}
             <button
@@ -142,7 +142,7 @@ export function MollyMetricsPage() {
             <KpiCard
               label="Cache hit ratio"
               value={`${pct(data.cache.hitRatio)}%`}
-              hint={`${data.cache.planCalls} 호출`}
+              hint={`${data.cache.planCalls} calls`}
               tone={data.cache.hitRatio > 0.5 ? 'success' : undefined}
             />
             <KpiCard
@@ -153,11 +153,11 @@ export function MollyMetricsPage() {
             <KpiCard
               label="Fast-path hit"
               value={data.fastPath.total ? `${pct(data.fastPath.fastPath / data.fastPath.total)}%` : '—'}
-              hint={`${data.fastPath.fastPath} / ${data.fastPath.total} 우회`}
+              hint={`${data.fastPath.fastPath} / ${data.fastPath.total} bypassed`}
               tone="accent"
             />
             <KpiCard
-              label="Lifecycle 매칭"
+              label="Lifecycle match"
               value={data.lifecycle.total ? `${pct(data.lifecycle.matchRatio)}%` : '—'}
               hint={`${data.lifecycle.matched} / ${data.lifecycle.total}`}
             />
@@ -178,22 +178,22 @@ export function MollyMetricsPage() {
           <div className="chart-row">
             <ChartCard
               title="Cache hit ratio (plan-emitter)"
-              subtitle="DS context 71K 토큰 캐시 효율"
+              subtitle="DS context 71K token cache efficiency"
             >
               {data.cache.buckets.length > 0 ? (
                 <RatioLineChart buckets={data.cache.buckets} color="var(--success)" />
               ) : (
-                <ChartEmpty>plan-emitter 호출 누적 시 표시</ChartEmpty>
+                <ChartEmpty>Appears once plan-emitter calls accumulate</ChartEmpty>
               )}
             </ChartCard>
             <ChartCard
-              title="PRD ambiguous 비율"
-              subtitle="모호 PRD / 전체 비율"
+              title="PRD ambiguous ratio"
+              subtitle="Ambiguous PRDs / total ratio"
             >
               {data.ambiguous.buckets.length > 0 ? (
                 <RatioLineChart buckets={data.ambiguous.buckets} color="var(--accent)" />
               ) : (
-                <ChartEmpty>code_change 입력 누적 시 표시</ChartEmpty>
+                <ChartEmpty>Appears once code_change inputs accumulate</ChartEmpty>
               )}
             </ChartCard>
           </div>
@@ -201,17 +201,17 @@ export function MollyMetricsPage() {
           {/* Bar charts row */}
           <div className="chart-row">
             <ChartCard
-              title="Intake kind 분포"
-              subtitle="모든 intake 결과 카운트"
+              title="Intake kind distribution"
+              subtitle="Count of all intake results"
             >
               <CategoryBars categories={data.intakeKinds} />
             </ChartCard>
             <ChartCard
-              title="Fallback 카테고리"
-              subtitle="intake 에러 분포"
+              title="Fallback categories"
+              subtitle="Intake error distribution"
             >
               {Object.keys(data.fallback).length === 0 ? (
-                <ChartEmpty>에러 없음 ✅</ChartEmpty>
+                <ChartEmpty>No errors ✅</ChartEmpty>
               ) : (
                 <CategoryBars categories={data.fallback} color="var(--danger)" />
               )}
@@ -223,29 +223,29 @@ export function MollyMetricsPage() {
             <div className="section-header">
               <h2 className="section-title">PRD thinking ON vs OFF</h2>
               <span style={{ marginLeft: 12, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                latency 비교 — 같은 PRD 분석을 thinking 켜고/끄고 수행한 결과
+                Latency comparison — same PRD analysis run with thinking on vs. off
               </span>
             </div>
             <div className="stat-row">
               <KpiCard
                 label="Thinking ON"
                 value={data.thinking.prdOn.n ? `${data.thinking.prdOn.mean}ms` : '—'}
-                hint={`${data.thinking.prdOn.n} 호출 · 평균`}
+                hint={`${data.thinking.prdOn.n} calls · avg`}
                 tone="accent"
               />
               <KpiCard
                 label="Thinking OFF"
                 value={data.thinking.prdOff.n ? `${data.thinking.prdOff.mean}ms` : '—'}
-                hint={`${data.thinking.prdOff.n} 호출 · 평균`}
+                hint={`${data.thinking.prdOff.n} calls · avg`}
               />
               <KpiCard
-                label="차이"
+                label="Difference"
                 value={
                   data.thinking.prdOn.n && data.thinking.prdOff.n
                     ? `${data.thinking.prdOn.mean - data.thinking.prdOff.mean}ms`
                     : '—'
                 }
-                hint="ON - OFF (큰 값일수록 thinking overhead 큼)"
+                hint="ON - OFF (larger value = more thinking overhead)"
               />
             </div>
           </div>
@@ -407,7 +407,7 @@ function CategoryBars({
   color?: string;
 }) {
   const data = Object.entries(categories).map(([k, v]) => ({ name: k, count: v }));
-  if (data.length === 0) return <ChartEmpty>데이터 없음</ChartEmpty>;
+  if (data.length === 0) return <ChartEmpty>No data</ChartEmpty>;
   return (
     <ResponsiveContainer width="100%" height={180}>
       <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>

@@ -430,9 +430,9 @@ type CostData = {
 };
 
 const WINDOW_LABELS: Record<CostWindow, string> = {
-  '24h': '오늘',
-  '7d': '7일',
-  '30d': '30일',
+  '24h': 'Today',
+  '7d': '7d',
+  '30d': '30d',
 };
 
 function fmtUsd(n: number): string {
@@ -536,7 +536,7 @@ function CostSection() {
   const chartData = useMemo(() => {
     if (!data) return [];
     return data.hourly_series.map((p) => ({
-      label: new Date(p.hour).toLocaleString('ko-KR', {
+      label: new Date(p.hour).toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
         hour: 'numeric',
@@ -565,7 +565,7 @@ function CostSection() {
         className="chart-panel-title"
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
       >
-        <span>LLM 비용</span>
+        <span>LLM Cost</span>
         <div className="daily-range-presets">
           {(['24h', '7d', '30d'] as CostWindow[]).map((w) => (
             <button
@@ -581,7 +581,7 @@ function CostSection() {
 
       {error && (
         <div className="empty-state" style={{ padding: '16px 0', color: 'var(--danger)' }}>
-          비용 데이터 로드 실패: {error}
+          Failed to load cost data: {error}
         </div>
       )}
 
@@ -591,14 +591,14 @@ function CostSection() {
         <>
           {/* KPI: total + Top model + Top source */}
           <div className="stat-row" style={{ marginTop: 8, marginBottom: 16 }}>
-            <StatCard value={fmtUsd(data.total_usd)} label={`${WINDOW_LABELS[window]} 누적`} />
+            <StatCard value={fmtUsd(data.total_usd)} label={`${WINDOW_LABELS[window]} total`} />
             <StatCard
               value={modelRows[0] ? fmtUsd(modelRows[0].usd) : '$0'}
-              label={modelRows[0] ? `최대 모델: ${modelRows[0].label}` : '모델 데이터 없음'}
+              label={modelRows[0] ? `Top model: ${modelRows[0].label}` : 'No model data'}
             />
             <StatCard
               value={sourceRows[0] ? fmtUsd(sourceRows[0].usd) : '$0'}
-              label={sourceRows[0] ? `최대 소스: ${sourceRows[0].label}` : '소스 데이터 없음'}
+              label={sourceRows[0] ? `Top source: ${sourceRows[0].label}` : 'No source data'}
             />
           </div>
 
@@ -645,13 +645,13 @@ function CostSection() {
           <div className="chart-row" style={{ marginTop: 16 }}>
             <div>
               <div className="chart-panel-title" style={{ fontSize: 13, marginBottom: 8 }}>
-                모델별 분포
+                By model
               </div>
               <CostBar rows={modelRows} total={data.total_usd} />
             </div>
             <div>
               <div className="chart-panel-title" style={{ fontSize: 13, marginBottom: 8 }}>
-                소스별 분포
+                By source
               </div>
               <CostBar rows={sourceRows} total={data.total_usd} />
             </div>
@@ -668,7 +668,7 @@ function CostSection() {
                 textAlign: 'left',
               }}
             >
-              ⚠️ 지원 안 되는 모델 호출 {data.unknown_model_calls} 건 — pricing 테이블 누락 (orchestrator/lib/molly-pricing.js 추가 필요)
+              ⚠️ {data.unknown_model_calls} call{data.unknown_model_calls !== 1 ? 's' : ''} from unsupported models — missing from pricing table (add to orchestrator/lib/molly-pricing.js)
             </div>
           )}
         </>
@@ -903,7 +903,7 @@ export function OverviewPage() {
                 fontWeight: jobsOverview.active > 0 ? 600 : 400,
                 textDecoration: 'none',
               }}
-              title="Job 단위 진행 상황 보기"
+              title="View progress by job"
             >
               📦 {jobsOverview.active} active job{jobsOverview.active !== 1 ? 's' : ''}
               {jobsOverview.paused > 0 ? ` · ${jobsOverview.paused} paused` : ''}

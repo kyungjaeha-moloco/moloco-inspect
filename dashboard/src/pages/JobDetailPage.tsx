@@ -223,7 +223,7 @@ export function JobDetailPage() {
             color: job.qaAutoResult.passed ? '#1b7a43' : '#c62828',
           }}
         >
-          🧪 자동 QA {job.qaAutoResult.passed ? '통과' : '실패'} — {job.qaAutoResult.notes}
+          🧪 Auto QA {job.qaAutoResult.passed ? 'passed' : 'failed'} — {job.qaAutoResult.notes}
         </div>
       )}
 
@@ -246,7 +246,7 @@ export function JobDetailPage() {
         </a>
         {job.targetRoute && (
           <span style={{ fontSize: 13, color: '#6b7280', alignSelf: 'center' }}>
-            결과 페이지: <code>{job.targetRoute}</code>
+            Result page: <code>{job.targetRoute}</code>
           </span>
         )}
       </div>

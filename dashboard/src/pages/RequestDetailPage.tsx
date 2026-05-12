@@ -155,7 +155,7 @@ export function RequestDetailPage() {
             className="rd-back"
             to={`/jobs/${encodeURIComponent((req?.request as any).jobId)}`}
             style={{ marginLeft: 12, color: '#1453b6' }}
-            title="이 request 가 속한 Job 으로 이동"
+            title="Go to the job this request belongs to"
           >
             ⤴ Job {String((req?.request as any).jobId).slice(0, 8)}
             {(req?.request as any)?.taskId
@@ -283,7 +283,7 @@ export function RequestDetailPage() {
                   <strong>review {taskContext.review.verdict}:</strong> {taskContext.review.notes}
                   {taskContext.review.acceptedByUser && (
                     <span style={{ marginLeft: 6, fontStyle: 'italic' }}>
-                      (사용자가 그대로 인정)
+                      (accepted as-is by user)
                     </span>
                   )}
                 </div>
