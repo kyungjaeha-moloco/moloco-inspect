@@ -26,7 +26,20 @@
         "criteria": "Is this component used internally by other components and not directly imported by page developers?"
       }
     },
-    "governance": "See governance.json for audit cycles, promotion/deprecation queues"
+    "governance": "See governance.json for audit cycles, promotion/deprecation queues",
+    "ontology_xref": {
+      "generator": "scripts/extract-cross-refs.mjs",
+      "generatedAt": "2026-05-12T10:16:44.623Z",
+      "fields": [
+        "usedInPatterns",
+        "relatedComponents",
+        "requiredProviders",
+        "usage_stats.file_count"
+      ],
+      "codebase_scanned": true,
+      "codebase_file_count": 3615,
+      "notes": "usedInPatterns derived from patterns.json code blocks; requiredProviders sourced from component-dependencies.json with codebase import-inference backfill when missing; relatedComponents = union(existing, commonly_paired_with, same-folder siblings); usage_stats.file_count = distinct *.{ts,tsx} files referencing the component across msm-portal-web/src (when SOURCE_WORKSPACE available)."
+    }
   },
   "categories": [
     {
@@ -41,8 +54,9 @@
           "functional_category": "input",
           "status": "stable",
           "usage_stats": {
-            "file_count": 106,
-            "last_scanned": "2026-04-08"
+            "file_count": 104,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/input/MCFormTextInput",
           "importStatement": "import MCFormTextInput from '@msm-portal/common/component/form/v1/input/MCFormTextInput';",
@@ -271,7 +285,35 @@
               "Error state: border color changes to palette.foundation.negative"
             ]
           },
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [
+            "accessibility",
+            "create-page",
+            "edit-page",
+            "field-layout",
+            "form-basic",
+            "form-full-page"
+          ],
+          "relatedComponents": [
+            "MCFormChipInput",
+            "MCFormColorInput",
+            "MCFormDateRangePicker",
+            "MCFormDateTimeRangePicker",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldLabel",
+            "MCFormNumberInput",
+            "MCFormOptionalFrequencyInput",
+            "MCFormPanel",
+            "MCFormSkippableVideoInput",
+            "MCFormSwitchInput",
+            "MCFormTextArea",
+            "MCFormWeeklyTimeTablePicker"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormTextArea",
@@ -282,7 +324,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/input/MCFormTextArea",
           "importStatement": "import MCFormTextArea from '@msm-portal/common/component/form/v1/input/MCFormTextArea';",
@@ -424,7 +467,28 @@
             "Don't use for single-line inputs — use MCFormTextInput"
           ],
           "example": "<MCFormTextArea name=\"description\" fieldLabel=\"Description\" required />",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormChipInput",
+            "MCFormColorInput",
+            "MCFormDateRangePicker",
+            "MCFormDateTimeRangePicker",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldLabel",
+            "MCFormNumberInput",
+            "MCFormOptionalFrequencyInput",
+            "MCFormPanel",
+            "MCFormSkippableVideoInput",
+            "MCFormSwitchInput",
+            "MCFormTextInput",
+            "MCFormWeeklyTimeTablePicker"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormNumberInput",
@@ -434,8 +498,9 @@
           "functional_category": "input",
           "status": "stable",
           "usage_stats": {
-            "file_count": 42,
-            "last_scanned": "2026-04-08"
+            "file_count": 41,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/input/MCFormNumberInput",
           "importStatement": "import MCFormNumberInput from '@msm-portal/common/component/form/v1/input/MCFormNumberInput';",
@@ -568,7 +633,28 @@
             "Don't use for phone numbers or zip codes — use MCFormTextInput"
           ],
           "example": "<MCFormNumberInput name=\"budget\" fieldLabel=\"Daily Budget\" required />",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormChipInput",
+            "MCFormColorInput",
+            "MCFormDateRangePicker",
+            "MCFormDateTimeRangePicker",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldLabel",
+            "MCFormOptionalFrequencyInput",
+            "MCFormPanel",
+            "MCFormSkippableVideoInput",
+            "MCFormSwitchInput",
+            "MCFormTextArea",
+            "MCFormTextInput",
+            "MCFormWeeklyTimeTablePicker"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormCheckBox",
@@ -579,7 +665,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/checkbox/MCFormCheckBox",
           "importStatement": "import MCFormCheckBox from '@msm-portal/common/component/form/v1/checkbox/MCFormCheckBox';",
@@ -725,7 +812,18 @@
             "Don't use for mutually exclusive options — use MCFormRadioGroup"
           ],
           "example": "<MCFormCheckBox name=\"agreeToTerms\" fieldLabel=\"I agree to terms\" required />",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldGroup",
+            "MCFormFieldLabel"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormSwitchInput",
@@ -736,7 +834,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/input/MCFormSwitchInput",
           "importStatement": "import MCFormSwitchInput from '@msm-portal/common/component/form/v1/input/MCFormSwitchInput';",
@@ -850,7 +949,26 @@
             "Don't use inside form submission flow — use MCFormCheckBox instead"
           ],
           "example": "<MCFormSwitchInput name=\"isEnabled\" fieldLabel=\"Enable feature\" />",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormChipInput",
+            "MCFormColorInput",
+            "MCFormDateRangePicker",
+            "MCFormDateTimeRangePicker",
+            "MCFormField",
+            "MCFormFieldLabel",
+            "MCFormNumberInput",
+            "MCFormOptionalFrequencyInput",
+            "MCFormSkippableVideoInput",
+            "MCFormTextArea",
+            "MCFormTextInput",
+            "MCFormWeeklyTimeTablePicker"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormRadioGroup",
@@ -860,8 +978,9 @@
           "functional_category": "input",
           "status": "stable",
           "usage_stats": {
-            "file_count": 82,
-            "last_scanned": "2026-04-08"
+            "file_count": 83,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/radio/MCFormRadioGroup",
           "importStatement": "import MCFormRadioGroup from '@msm-portal/common/component/form/v1/radio/MCFormRadioGroup';",
@@ -1012,7 +1131,19 @@
             "Don't use for non-exclusive choices — use MCFormCheckBox"
           ],
           "example": "<MCFormRadioGroup\n  name=\"paymentType\"\n  fieldLabel=\"Payment Type\"\n  direction=\"row\"\n  options={[\n    { label: 'CPC', value: 'cpc' },\n    { label: 'CPM', value: 'cpm' },\n  ]}\n/>",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldLabel",
+            "MCFormPanel",
+            "MCRadioGroup"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormSingleRichSelect",
@@ -1022,8 +1153,9 @@
           "functional_category": "input",
           "status": "stable",
           "usage_stats": {
-            "file_count": 39,
-            "last_scanned": "2026-04-08"
+            "file_count": 38,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/select/MCFormSingleRichSelect",
           "importStatement": "import MCFormSingleRichSelect from '@msm-portal/common/component/form/v1/select/MCFormSingleRichSelect';",
@@ -1191,7 +1323,21 @@
             "Don't use for 2-3 options — use MCFormRadioGroup"
           ],
           "example": "<MCFormSingleRichSelect<string>\n  name=\"status\"\n  fieldLabel=\"Status\"\n  required\n  options={statusOptions}\n/>",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormCardSelect",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldLabel",
+            "MCFormInlineChipRichSelect",
+            "MCFormMultiRichSelect",
+            "MCFormPanel"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormMultiRichSelect",
@@ -1202,7 +1348,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/select/MCFormMultiRichSelect",
           "importStatement": "import MCFormMultiRichSelect from '@msm-portal/common/component/form/v1/select/MCFormMultiRichSelect';",
@@ -1347,7 +1494,21 @@
             "Don't use for single selection — use MCFormSingleRichSelect"
           ],
           "example": "<MCFormMultiRichSelect<string>\n  name=\"tags\"\n  fieldLabel=\"Tags\"\n  options={tagOptions}\n/>",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormCardSelect",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldLabel",
+            "MCFormInlineChipRichSelect",
+            "MCFormPanel",
+            "MCFormSingleRichSelect"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormCardSelect",
@@ -1359,7 +1520,8 @@
           "adoption": "low",
           "usage_stats": {
             "file_count": 1,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/select/MCFormCardSelect",
           "importStatement": "import MCFormCardSelect from '@msm-portal/common/component/form/v1/select/MCFormCardSelect';",
@@ -1482,7 +1644,20 @@
             "Don't use for simple text-only options — use MCFormRadioGroup"
           ],
           "example": "<MCFormCardSelect\n  name=\"planType\"\n  fieldLabel=\"Plan Type\"\n  options={[\n    { label: 'Basic', value: 'basic', description: 'Entry level plan' },\n  ]}\n/>",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormField",
+            "MCFormFieldLabel",
+            "MCFormInlineChipRichSelect",
+            "MCFormMultiRichSelect",
+            "MCFormPanel",
+            "MCFormSingleRichSelect"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormInlineChipRichSelect",
@@ -1493,7 +1668,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 9,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/select/MCFormInlineChipRichSelect",
           "importStatement": "import MCFormInlineChipRichSelect from '@msm-portal/common/component/form/v1/select/MCFormInlineChipRichSelect';",
@@ -1645,7 +1821,21 @@
             "Don't use if more than 10 options — use MCFormMultiRichSelect with dropdown"
           ],
           "example": "<MCFormInlineChipRichSelect<string>\n  name=\"targetCountries\"\n  fieldLabel=\"Target Countries\"\n  required\n  options={countryOptions}\n/>",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormCardSelect",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldLabel",
+            "MCFormMultiRichSelect",
+            "MCFormPanel",
+            "MCFormSingleRichSelect"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormDateRangePicker",
@@ -1657,7 +1847,8 @@
           "adoption": "low",
           "usage_stats": {
             "file_count": 1,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/input/MCFormDateRangePicker",
           "importStatement": "import MCFormDateRangePicker from '@msm-portal/common/component/form/v1/input/MCFormDateRangePicker';",
@@ -1795,7 +1986,28 @@
             "Don't use for single date — check if single date picker exists"
           ],
           "example": "<MCFormDateRangePicker name=\"campaignPeriod\" fieldLabel=\"Campaign Period\" required />",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormChipInput",
+            "MCFormColorInput",
+            "MCFormDateTimeRangePicker",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldLabel",
+            "MCFormNumberInput",
+            "MCFormOptionalFrequencyInput",
+            "MCFormPanel",
+            "MCFormSkippableVideoInput",
+            "MCFormSwitchInput",
+            "MCFormTextArea",
+            "MCFormTextInput",
+            "MCFormWeeklyTimeTablePicker"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormDateTimeRangePicker",
@@ -1806,7 +2018,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 17,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/input/MCFormDateTimeRangePicker",
           "importStatement": "import MCFormDateTimeRangePicker from '@msm-portal/common/component/form/v1/input/MCFormDateTimeRangePicker';",
@@ -1955,7 +2168,28 @@
             "Don't use for single datetime — check if single picker exists"
           ],
           "example": "<MCFormDateTimeRangePicker name=\"schedulePeriod\" fieldLabel=\"Schedule Period\" required />",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormChipInput",
+            "MCFormColorInput",
+            "MCFormDateRangePicker",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldLabel",
+            "MCFormNumberInput",
+            "MCFormOptionalFrequencyInput",
+            "MCFormPanel",
+            "MCFormSkippableVideoInput",
+            "MCFormSwitchInput",
+            "MCFormTextArea",
+            "MCFormTextInput",
+            "MCFormWeeklyTimeTablePicker"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormColorInput",
@@ -1966,7 +2200,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/input/MCFormColorInput",
           "importStatement": "import MCFormColorInput from '@msm-portal/common/component/form/v1/input/MCFormColorInput';",
@@ -2100,7 +2335,28 @@
             "Don't use for predefined color selection — use MCFormSingleRichSelect with color swatches"
           ],
           "example": "<MCFormColorInput name=\"brandColor\" fieldLabel=\"Brand Color\" required />",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormChipInput",
+            "MCFormDateRangePicker",
+            "MCFormDateTimeRangePicker",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldLabel",
+            "MCFormNumberInput",
+            "MCFormOptionalFrequencyInput",
+            "MCFormPanel",
+            "MCFormSkippableVideoInput",
+            "MCFormSwitchInput",
+            "MCFormTextArea",
+            "MCFormTextInput",
+            "MCFormWeeklyTimeTablePicker"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormChipInput",
@@ -2112,7 +2368,8 @@
           "adoption": "low",
           "usage_stats": {
             "file_count": 1,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/input/MCFormChipInput",
           "importStatement": "import MCFormChipInput from '@msm-portal/common/component/form/v1/input/MCFormChipInput';",
@@ -2267,7 +2524,29 @@
             "Don't use for single values — use MCFormTextInput"
           ],
           "example": "<MCFormChipInput\n  name=\"keywords\"\n  fieldLabel=\"Keywords\"\n  hint=\"Press Enter or comma to add\"\n  placeholder=\"Type a keyword...\"\n/>",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormColorInput",
+            "MCFormDateRangePicker",
+            "MCFormDateTimeRangePicker",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldLabel",
+            "MCFormHint",
+            "MCFormNumberInput",
+            "MCFormOptionalFrequencyInput",
+            "MCFormPanel",
+            "MCFormSkippableVideoInput",
+            "MCFormSwitchInput",
+            "MCFormTextArea",
+            "MCFormTextInput",
+            "MCFormWeeklyTimeTablePicker"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormWeeklyTimeTablePicker",
@@ -2277,8 +2556,9 @@
           "functional_category": "input",
           "status": "stable",
           "usage_stats": {
-            "file_count": 4,
-            "last_scanned": "2026-04-08"
+            "file_count": 5,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/input/MCFormWeeklyTimeTablePicker",
           "importStatement": "import MCFormWeeklyTimeTablePicker from '@msm-portal/common/component/form/v1/input/MCFormWeeklyTimeTablePicker';",
@@ -2420,7 +2700,27 @@
             "Don't use for date-specific scheduling — use MCFormDateTimeRangePicker"
           ],
           "example": "<MCFormWeeklyTimeTablePicker\n  name=\"adSchedule\"\n  fieldLabel=\"Ad Schedule\"\n  tooltip=\"Select hours when ads should run\"\n/>",
-          "tier": 3
+          "tier": 3,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormChipInput",
+            "MCFormColorInput",
+            "MCFormDateRangePicker",
+            "MCFormDateTimeRangePicker",
+            "MCFormField",
+            "MCFormFieldLabel",
+            "MCFormNumberInput",
+            "MCFormOptionalFrequencyInput",
+            "MCFormPanel",
+            "MCFormSkippableVideoInput",
+            "MCFormSwitchInput",
+            "MCFormTextArea",
+            "MCFormTextInput"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormOptionalFrequencyInput",
@@ -2430,8 +2730,9 @@
           "functional_category": "input",
           "status": "stable",
           "usage_stats": {
-            "file_count": 8,
-            "last_scanned": "2026-04-08"
+            "file_count": 9,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/input/MCFormOptionalFrequencyInput",
           "importStatement": "import MCFormOptionalFrequencyInput from '@msm-portal/common/component/form/v1/input/MCFormOptionalFrequencyInput';",
@@ -2566,7 +2867,27 @@
             "Don't use for required numeric input — use MCFormNumberInput"
           ],
           "example": "<MCFormOptionalFrequencyInput\n  name=\"frequencyCap\"\n  fieldLabel=\"Frequency Cap\"\n  tooltip=\"Limit impressions per user per day\"\n/>",
-          "tier": 3
+          "tier": 3,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormChipInput",
+            "MCFormColorInput",
+            "MCFormDateRangePicker",
+            "MCFormDateTimeRangePicker",
+            "MCFormField",
+            "MCFormFieldLabel",
+            "MCFormNumberInput",
+            "MCFormPanel",
+            "MCFormSkippableVideoInput",
+            "MCFormSwitchInput",
+            "MCFormTextArea",
+            "MCFormTextInput",
+            "MCFormWeeklyTimeTablePicker"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCFormSkippableVideoInput",
@@ -2576,8 +2897,9 @@
           "functional_category": "input",
           "status": "stable",
           "usage_stats": {
-            "file_count": 4,
-            "last_scanned": "2026-04-08"
+            "file_count": 5,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/input/MCFormSkippableVideoInput",
           "importStatement": "import MCFormSkippableVideoInput from '@msm-portal/common/component/form/v1/input/MCFormSkippableVideoInput';",
@@ -2713,7 +3035,28 @@
             "Don't use for non-video URLs — use MCFormTextInput"
           ],
           "example": "<MCFormSkippableVideoInput\n  name=\"videoCreative\"\n  fieldLabel=\"Video Creative URL\"\n  required\n/>",
-          "tier": 3
+          "tier": 3,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormChipInput",
+            "MCFormColorInput",
+            "MCFormDateRangePicker",
+            "MCFormDateTimeRangePicker",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldLabel",
+            "MCFormNumberInput",
+            "MCFormOptionalFrequencyInput",
+            "MCFormPanel",
+            "MCFormSwitchInput",
+            "MCFormTextArea",
+            "MCFormTextInput",
+            "MCFormWeeklyTimeTablePicker"
+          ],
+          "requiredProviders": [
+            "Formik",
+            "ThemeProvider"
+          ]
         }
       ]
     },
@@ -2730,7 +3073,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-10"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/v1/radio/MCRadioGroup",
           "importStatement": "import MCRadioGroup from '@msm-portal/common/component/form/v1/radio/MCRadioGroup';",
@@ -2881,7 +3225,16 @@
             "Don't duplicate this inside Formik wrappers — use MCFormRadioGroup instead"
           ],
           "example": "<MCRadioGroup\n  value={selectedStatus}\n  options={[{ label: 'Active', value: 'active' }, { label: 'Paused', value: 'paused' }]}\n  onChange={setSelectedStatus}\n  label=\"Status\"\n/>",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormField",
+            "MCFormFieldLabel",
+            "MCFormRadioGroup"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCColorPicker",
@@ -2891,8 +3244,9 @@
           "functional_category": "input",
           "status": "stable",
           "usage_stats": {
-            "file_count": 15,
-            "last_scanned": "2026-04-10"
+            "file_count": 14,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/color/MCColorPicker",
           "importStatement": "import MCColorPicker from '@msm-portal/common/component/color/MCColorPicker';",
@@ -3038,7 +3392,15 @@
             "Don't hide the current color value when the color meaning matters"
           ],
           "example": "<MCColorPicker\n  color={brandColor}\n  onChange={setBrandColor}\n  colorPickerTitle=\"Brand color\"\n/>",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCIcon",
+            "MCPopover"
+          ],
+          "requiredProviders": [
+            "I18nextProvider"
+          ]
         },
         {
           "name": "MCI18nWeeklyTimeTablePicker",
@@ -3049,7 +3411,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 6,
-            "last_scanned": "2026-04-10"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/weekly-time-table-picker/MCI18nWeeklyTimeTablePicker",
           "importStatement": "import MCI18nWeeklyTimeTablePicker from '@msm-portal/common/component/weekly-time-table-picker/MCI18nWeeklyTimeTablePicker';",
@@ -3142,7 +3505,16 @@
             "Don't bypass the wrapper and reimplement the same translations inline"
           ],
           "example": "<MCI18nWeeklyTimeTablePicker\n  value={weeklySchedule}\n  onChange={setWeeklySchedule}\n/>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormField",
+            "MCFormFieldLabel"
+          ],
+          "requiredProviders": [
+            "I18nextProvider",
+            "ThemeProvider"
+          ]
         }
       ]
     },
@@ -3158,8 +3530,9 @@
           "functional_category": "form_scaffold",
           "status": "stable",
           "usage_stats": {
-            "file_count": 143,
-            "last_scanned": "2026-04-08"
+            "file_count": 144,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/shared",
           "importStatement": "import { MCFormPanel } from '@msm-portal/common/component/form/shared';",
@@ -3201,6 +3574,31 @@
               "required": true,
               "description": "Panel content (typically MCFormPanelTitle + MCFormPanelBody)"
             }
+          ],
+          "usedInPatterns": [
+            "create-page",
+            "detail-page",
+            "edit-page",
+            "field-layout",
+            "form-basic",
+            "form-full-page",
+            "page-container-component"
+          ],
+          "relatedComponents": [
+            "MCFormActions",
+            "MCFormBody",
+            "MCFormDescription",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldGroup",
+            "MCFormGuideMessage",
+            "MCFormHint",
+            "MCFormPanelBody",
+            "MCFormPanelTitle",
+            "MCFormTitle"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
           ]
         },
         {
@@ -3211,8 +3609,9 @@
           "functional_category": "form_scaffold",
           "status": "stable",
           "usage_stats": {
-            "file_count": 94,
-            "last_scanned": "2026-04-08"
+            "file_count": 95,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/shared",
           "importStatement": "import { MCFormPanelTitle } from '@msm-portal/common/component/form/shared';",
@@ -3242,6 +3641,27 @@
               "required": true,
               "description": "Title text"
             }
+          ],
+          "usedInPatterns": [
+            "detail-page",
+            "form-basic",
+            "form-full-page"
+          ],
+          "relatedComponents": [
+            "MCFormActions",
+            "MCFormBody",
+            "MCFormDescription",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldGroup",
+            "MCFormGuideMessage",
+            "MCFormHint",
+            "MCFormPanel",
+            "MCFormPanelBody",
+            "MCFormTitle"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
           ]
         },
         {
@@ -3252,8 +3672,9 @@
           "functional_category": "form_scaffold",
           "status": "stable",
           "usage_stats": {
-            "file_count": 127,
-            "last_scanned": "2026-04-08"
+            "file_count": 128,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/shared",
           "importStatement": "import { MCFormPanelBody } from '@msm-portal/common/component/form/shared';",
@@ -3286,6 +3707,28 @@
               "required": true,
               "description": "Body content (MCFormFieldGroups)"
             }
+          ],
+          "usedInPatterns": [
+            "detail-page",
+            "field-layout",
+            "form-basic",
+            "form-full-page"
+          ],
+          "relatedComponents": [
+            "MCFormActions",
+            "MCFormBody",
+            "MCFormDescription",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldGroup",
+            "MCFormGuideMessage",
+            "MCFormHint",
+            "MCFormPanel",
+            "MCFormPanelTitle",
+            "MCFormTitle"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
           ]
         },
         {
@@ -3296,8 +3739,9 @@
           "functional_category": "form_scaffold",
           "status": "stable",
           "usage_stats": {
-            "file_count": 147,
-            "last_scanned": "2026-04-08"
+            "file_count": 148,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/shared",
           "importStatement": "import { MCFormFieldGroup } from '@msm-portal/common/component/form/shared';",
@@ -3345,6 +3789,31 @@
               "required": false,
               "description": "Optional group title"
             }
+          ],
+          "usedInPatterns": [
+            "create-page",
+            "edit-page",
+            "field-layout",
+            "form-basic",
+            "form-full-page"
+          ],
+          "relatedComponents": [
+            "MCFormActions",
+            "MCFormBody",
+            "MCFormDescription",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormGuideMessage",
+            "MCFormHint",
+            "MCFormPanel",
+            "MCFormPanelBody",
+            "MCFormPanelTitle",
+            "MCFormSingleRichSelect",
+            "MCFormTextInput",
+            "MCFormTitle"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
           ]
         },
         {
@@ -3355,8 +3824,9 @@
           "functional_category": "form_scaffold",
           "status": "stable",
           "usage_stats": {
-            "file_count": 131,
-            "last_scanned": "2026-04-08"
+            "file_count": 136,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/shared",
           "importStatement": "import { MCFormField } from '@msm-portal/common/component/form/shared';",
@@ -3391,7 +3861,26 @@
               "required": true,
               "description": "Form input component"
             }
-          ]
+          ],
+          "usedInPatterns": [
+            "accessibility",
+            "field-layout"
+          ],
+          "relatedComponents": [
+            "MCFormActions",
+            "MCFormBody",
+            "MCFormDescription",
+            "MCFormFieldError",
+            "MCFormFieldGroup",
+            "MCFormFieldLabel",
+            "MCFormGuideMessage",
+            "MCFormHint",
+            "MCFormPanel",
+            "MCFormPanelBody",
+            "MCFormPanelTitle",
+            "MCFormTitle"
+          ],
+          "requiredProviders": []
         },
         {
           "name": "MCFormTitle",
@@ -3401,8 +3890,9 @@
           "functional_category": "form_scaffold",
           "status": "stable",
           "usage_stats": {
-            "file_count": 121,
-            "last_scanned": "2026-04-08"
+            "file_count": 123,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/shared",
           "importStatement": "import { MCFormTitle } from '@msm-portal/common/component/form/shared';",
@@ -3432,7 +3922,22 @@
               "required": true,
               "description": "Title text"
             }
-          ]
+          ],
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormActions",
+            "MCFormBody",
+            "MCFormDescription",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldGroup",
+            "MCFormGuideMessage",
+            "MCFormHint",
+            "MCFormPanel",
+            "MCFormPanelBody",
+            "MCFormPanelTitle"
+          ],
+          "requiredProviders": []
         },
         {
           "name": "MCFormBody",
@@ -3442,8 +3947,9 @@
           "functional_category": "form_scaffold",
           "status": "stable",
           "usage_stats": {
-            "file_count": 117,
-            "last_scanned": "2026-04-08"
+            "file_count": 119,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/shared",
           "importStatement": "import { MCFormBody } from '@msm-portal/common/component/form/shared';",
@@ -3476,7 +3982,22 @@
               "required": true,
               "description": "MCFormPanel components"
             }
-          ]
+          ],
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormActions",
+            "MCFormDescription",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldGroup",
+            "MCFormGuideMessage",
+            "MCFormHint",
+            "MCFormPanel",
+            "MCFormPanelBody",
+            "MCFormPanelTitle",
+            "MCFormTitle"
+          ],
+          "requiredProviders": []
         },
         {
           "name": "MCFormActions",
@@ -3486,8 +4007,9 @@
           "functional_category": "form_scaffold",
           "status": "stable",
           "usage_stats": {
-            "file_count": 100,
-            "last_scanned": "2026-04-08"
+            "file_count": 101,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/shared",
           "importStatement": "import { MCFormActions } from '@msm-portal/common/component/form/shared';",
@@ -3526,6 +4048,27 @@
               "required": true,
               "description": "Action buttons"
             }
+          ],
+          "usedInPatterns": [
+            "form-basic",
+            "form-full-page"
+          ],
+          "relatedComponents": [
+            "MCButton2",
+            "MCFormBody",
+            "MCFormDescription",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldGroup",
+            "MCFormGuideMessage",
+            "MCFormHint",
+            "MCFormPanel",
+            "MCFormPanelBody",
+            "MCFormPanelTitle",
+            "MCFormTitle"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
           ]
         },
         {
@@ -3536,8 +4079,9 @@
           "functional_category": "form_scaffold",
           "status": "stable",
           "usage_stats": {
-            "file_count": 89,
-            "last_scanned": "2026-04-08"
+            "file_count": 92,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/shared",
           "importStatement": "import { MCFormFieldError } from '@msm-portal/common/component/form/shared';",
@@ -3570,7 +4114,25 @@
               "required": true,
               "description": "Error message text"
             }
-          ]
+          ],
+          "usedInPatterns": [
+            "accessibility"
+          ],
+          "relatedComponents": [
+            "MCFormActions",
+            "MCFormBody",
+            "MCFormDescription",
+            "MCFormField",
+            "MCFormFieldGroup",
+            "MCFormFieldLabel",
+            "MCFormGuideMessage",
+            "MCFormHint",
+            "MCFormPanel",
+            "MCFormPanelBody",
+            "MCFormPanelTitle",
+            "MCFormTitle"
+          ],
+          "requiredProviders": []
         },
         {
           "name": "MCFormHint",
@@ -3580,8 +4142,9 @@
           "functional_category": "form_scaffold",
           "status": "stable",
           "usage_stats": {
-            "file_count": 30,
-            "last_scanned": "2026-04-08"
+            "file_count": 32,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/shared",
           "importStatement": "import { MCFormHint } from '@msm-portal/common/component/form/shared';",
@@ -3611,7 +4174,22 @@
               "required": true,
               "description": "Hint text"
             }
-          ]
+          ],
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormActions",
+            "MCFormBody",
+            "MCFormDescription",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldGroup",
+            "MCFormGuideMessage",
+            "MCFormPanel",
+            "MCFormPanelBody",
+            "MCFormPanelTitle",
+            "MCFormTitle"
+          ],
+          "requiredProviders": []
         },
         {
           "name": "MCFormGuideMessage",
@@ -3621,8 +4199,9 @@
           "functional_category": "form_scaffold",
           "status": "stable",
           "usage_stats": {
-            "file_count": 37,
-            "last_scanned": "2026-04-08"
+            "file_count": 39,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/shared",
           "importStatement": "import { MCFormGuideMessage } from '@msm-portal/common/component/form/shared';",
@@ -3658,7 +4237,22 @@
               "required": true,
               "description": "Guide message content"
             }
-          ]
+          ],
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormActions",
+            "MCFormBody",
+            "MCFormDescription",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldGroup",
+            "MCFormHint",
+            "MCFormPanel",
+            "MCFormPanelBody",
+            "MCFormPanelTitle",
+            "MCFormTitle"
+          ],
+          "requiredProviders": []
         },
         {
           "name": "MCFormDescription",
@@ -3668,8 +4262,9 @@
           "functional_category": "form_scaffold",
           "status": "stable",
           "usage_stats": {
-            "file_count": 13,
-            "last_scanned": "2026-04-08"
+            "file_count": 15,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/shared",
           "importStatement": "import { MCFormDescription } from '@msm-portal/common/component/form/shared';",
@@ -3705,7 +4300,22 @@
               "required": true,
               "description": "Description text"
             }
-          ]
+          ],
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormActions",
+            "MCFormBody",
+            "MCFormField",
+            "MCFormFieldError",
+            "MCFormFieldGroup",
+            "MCFormGuideMessage",
+            "MCFormHint",
+            "MCFormPanel",
+            "MCFormPanelBody",
+            "MCFormPanelTitle",
+            "MCFormTitle"
+          ],
+          "requiredProviders": []
         },
         {
           "name": "MCFormPortal",
@@ -3716,7 +4326,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 2,
-            "last_scanned": "2026-04-10"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/portal/MCFormPortal",
           "importStatement": "import MCFormPortal from '@msm-portal/common/component/form/portal/MCFormPortal';",
@@ -3805,7 +4416,12 @@
           "donts": [
             "Don't treat this as a generic replacement for dialog or page layout components"
           ],
-          "example": "<MCFormPortal fullScreen>\n  <MCFormLayout>{content}</MCFormLayout>\n</MCFormPortal>"
+          "example": "<MCFormPortal fullScreen>\n  <MCFormLayout>{content}</MCFormLayout>\n</MCFormPortal>",
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormLayout"
+          ],
+          "requiredProviders": []
         }
       ]
     },
@@ -3822,7 +4438,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 146,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/form/layout/MCFormLayout",
           "importStatement": "import MCFormLayout from '@msm-portal/common/component/form/layout/MCFormLayout';",
@@ -3970,7 +4587,25 @@
               "spacing(5) = 40px, spacing(2) = 16px"
             ]
           },
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [
+            "create-page",
+            "edit-page",
+            "form-full-page",
+            "page-container-component"
+          ],
+          "relatedComponents": [
+            "Formik",
+            "MCButton2",
+            "MCFormActions",
+            "MCFormBody",
+            "MCFormPanel",
+            "MCFormTitle"
+          ],
+          "requiredProviders": [
+            "BrowserRouter",
+            "ThemeProvider"
+          ]
         }
       ]
     },
@@ -3986,8 +4621,9 @@
           "functional_category": "action",
           "status": "stable",
           "usage_stats": {
-            "file_count": 328,
-            "last_scanned": "2026-04-08"
+            "file_count": 442,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCButton2 } from '@moloco/moloco-cloud-react-ui';",
@@ -4257,7 +4893,28 @@
             ]
           },
           "tier": 1,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-button2--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-button2--docs",
+          "usedInPatterns": [
+            "create-page",
+            "delete-confirm-dialog",
+            "edit-page",
+            "form-basic",
+            "form-full-page",
+            "i18n-usage",
+            "list-page"
+          ],
+          "relatedComponents": [
+            "MCCircularLoader",
+            "MCCommonDialog",
+            "MCConfirmDialog",
+            "MCContentLayout",
+            "MCFormActions",
+            "MCIcon",
+            "MCStepper"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCMoreActionsButton",
@@ -4267,8 +4924,9 @@
           "functional_category": "action",
           "status": "stable",
           "usage_stats": {
-            "file_count": 13,
-            "last_scanned": "2026-04-08"
+            "file_count": 12,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/button/MCMoreActionsButton",
           "importStatement": "import MCMoreActionsButton from '@msm-portal/common/component/button/MCMoreActionsButton';",
@@ -4404,7 +5062,19 @@
               "Item height determined by padding + line-height"
             ]
           },
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [
+            "action-button"
+          ],
+          "relatedComponents": [
+            "MCContentLayout",
+            "MCIcon",
+            "MCMoreActionGroupsButton",
+            "MCReportTable"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCMoreActionGroupsButton",
@@ -4415,7 +5085,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/button/MCMoreActionGroupsButton",
           "importStatement": "import MCMoreActionGroupsButton from '@msm-portal/common/component/button/MCMoreActionGroupsButton';",
@@ -4494,7 +5165,17 @@
               "dialog open"
             ]
           },
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCDivider",
+            "MCIcon",
+            "MCMoreActionsButton",
+            "MCReportTable"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         }
       ]
     },
@@ -4510,8 +5191,9 @@
           "functional_category": "navigation",
           "status": "stable",
           "usage_stats": {
-            "file_count": 1,
-            "last_scanned": "2026-04-08"
+            "file_count": 2,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/navbar/MCCollapsibleNavbar",
           "importStatement": "import MCCollapsibleNavbar from '@msm-portal/common/component/navbar/MCCollapsibleNavbar';",
@@ -4631,7 +5313,15 @@
               "spacing(1) = 8px, spacing(1.5) = 12px, spacing(0.5) = 4px"
             ]
           },
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCNavbarItems"
+          ],
+          "requiredProviders": [
+            "BrowserRouter",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCNavbarItems",
@@ -4641,8 +5331,9 @@
           "functional_category": "navigation",
           "status": "stable",
           "usage_stats": {
-            "file_count": 8,
-            "last_scanned": "2026-04-08"
+            "file_count": 9,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/navbar/MCNavbarItems",
           "importStatement": "import MCNavbarItems from '@msm-portal/common/component/navbar/MCNavbarItems';",
@@ -4740,7 +5431,18 @@
             "Don't add more than 3 sections to avoid scroll"
           ],
           "example": "<MCNavbarItems\n  sections={[\n    {\n      title: 'Campaign Management',\n      items: [\n        { label: 'Campaigns', icon: 'targeting', route: MERouteKey.CAMPAIGN_MAIN },\n        { label: 'Creatives', icon: 'creative', route: MERouteKey.CREATIVE_MAIN },\n      ],\n    },\n    {\n      title: 'Reports',\n      items: [\n        { label: 'Performance', icon: 'chart', route: MERouteKey.REPORT_MAIN },\n      ],\n    },\n  ]}\n/>",
-          "tier": 4
+          "tier": 4,
+          "usedInPatterns": [
+            "app-shell"
+          ],
+          "relatedComponents": [
+            "MCCollapsibleNavbar",
+            "MCIcon"
+          ],
+          "requiredProviders": [
+            "BrowserRouter",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCProfileButton",
@@ -4751,7 +5453,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-10"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/layout/header/user-popover/MCProfileButton",
           "importStatement": "import MCProfileButton from '@msm-portal/common/component/layout/header/user-popover/MCProfileButton';",
@@ -4870,7 +5573,16 @@
             "Don't overload the popover with unrelated navigation"
           ],
           "example": "<MCProfileButton\n  user={user}\n  sections={popoverSections}\n  userEditRouteKey={MERouteKey.MY_PROFILE}\n  onClickRouteItem={handleRoute}\n  onSignOut={handleSignOut}\n/>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCIcon",
+            "MCTextEllipsis"
+          ],
+          "requiredProviders": [
+            "I18nextProvider",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCWorkplaceSelectorPopper",
@@ -4880,8 +5592,9 @@
           "functional_category": "navigation",
           "status": "stable",
           "usage_stats": {
-            "file_count": 9,
-            "last_scanned": "2026-04-10"
+            "file_count": 5,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/layout/header/workplace-selector/MCWorkplaceSelectorPopper",
           "importStatement": "import MCWorkplaceSelectorPopper from '@msm-portal/common/component/layout/header/workplace-selector/MCWorkplaceSelectorPopper';",
@@ -4989,7 +5702,15 @@
             "Don't reuse this for unrelated entity selection"
           ],
           "example": "<MCWorkplaceSelectorPopper\n  isLoading={isLoading}\n  currentWorkplaceId={currentWorkplaceId}\n  workplaces={workplaces}\n  onSelectWorkplace={handleSelectWorkplace}\n/>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCCustomRichSelect",
+            "MCTextEllipsis"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCWorkplaceSelector",
@@ -4999,8 +5720,9 @@
           "functional_category": "navigation",
           "status": "stable",
           "usage_stats": {
-            "file_count": 11,
-            "last_scanned": "2026-04-10"
+            "file_count": 3,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/auth/workplace-selector/MCWorkplaceSelector",
           "importStatement": "import MCWorkplaceSelector from '@msm-portal/common/component/auth/workplace-selector/MCWorkplaceSelector';",
@@ -5108,7 +5830,16 @@
             "Don't reuse workplace-specific empty-state copy for unrelated selectors"
           ],
           "example": "<MCWorkplaceSelector\n  isLoading={isLoading}\n  workplaces={workplaces}\n  onSelectWorkplace={handleSelectWorkplace}\n/>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCCircularLoader",
+            "MCSearchBar"
+          ],
+          "requiredProviders": [
+            "I18nextProvider",
+            "ThemeProvider"
+          ]
         }
       ]
     },
@@ -5125,7 +5856,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 151,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/dialog/common-dialog/MCCommonDialog",
           "importStatement": "import MCCommonDialog from '@msm-portal/common/component/dialog/common-dialog/MCCommonDialog';",
@@ -5298,7 +6030,18 @@
             ]
           },
           "example": "<MCCommonDialog\n  open={isOpen}\n  onClose={() => setIsOpen(false)}\n  title=\"Confirm Delete\"\n  showDivider\n  actions={\n    <>\n      <MCButton2 onClick={() => setIsOpen(false)}>Cancel</MCButton2>\n      <MCButton2 color=\"primary\" onClick={handleConfirm}>Confirm</MCButton2>\n    </>\n  }\n>\n  Are you sure?\n</MCCommonDialog>",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [
+            "delete-confirm-dialog"
+          ],
+          "relatedComponents": [
+            "MCButton2",
+            "MCDivider",
+            "MCFormPanel"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCPopover",
@@ -5308,8 +6051,9 @@
           "functional_category": "feedback",
           "status": "stable",
           "usage_stats": {
-            "file_count": 17,
-            "last_scanned": "2026-04-08"
+            "file_count": 16,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/popover/MCPopover",
           "importStatement": "import MCPopover from '@msm-portal/common/component/popover/MCPopover';",
@@ -5429,7 +6173,15 @@
             "Don't leave popovers open without user interaction to dismiss"
           ],
           "tier": 1,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-popover--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-popover--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCButton2",
+            "MCIcon"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCLoader",
@@ -5440,7 +6192,8 @@
           "status": "deprecated",
           "usage_stats": {
             "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/loader",
           "importStatement": "import MCLoader from '@msm-portal/common/component/loader';",
@@ -5486,7 +6239,15 @@
             "reason": "Superseded by MCCircularLoader",
             "replacement": "MCCircularLoader",
             "since": "3.0.0"
-          }
+          },
+          "usedInPatterns": [
+            "loading-state",
+            "trpc-data-fetching"
+          ],
+          "relatedComponents": [
+            "MCReportTable"
+          ],
+          "requiredProviders": []
         }
       ]
     },
@@ -5503,7 +6264,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 15,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/accordion/MCAccordion",
           "importStatement": "import MCAccordion from '@msm-portal/common/component/accordion/MCAccordion';",
@@ -5622,7 +6384,16 @@
               "Expand/collapse is animated"
             ]
           },
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormFieldGroup",
+            "MCFormPanel",
+            "MCFormPanelTitle"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCBarTabs",
@@ -5632,8 +6403,9 @@
           "functional_category": "display",
           "status": "stable",
           "usage_stats": {
-            "file_count": 43,
-            "last_scanned": "2026-04-08"
+            "file_count": 39,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/tab/bar-tab/MCBarTabs",
           "importStatement": "import MCBarTabs from '@msm-portal/common/component/tab/bar-tab/MCBarTabs';",
@@ -5747,7 +6519,19 @@
             ]
           },
           "example": "<MCBarTabs\n  tabs={[\n    { label: 'Overview', active: activeTab === 'overview', onClick: () => setActiveTab('overview') },\n    { label: 'Settings', active: activeTab === 'settings', onClick: () => setActiveTab('settings') },\n  ]}\n/>",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [
+            "list-page",
+            "page-container-component",
+            "tab-navigation"
+          ],
+          "relatedComponents": [
+            "MCContentLayout",
+            "MCFormPanel"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCDivider",
@@ -5758,7 +6542,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 44,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/divider/MCDivider",
           "importStatement": "import MCDivider from '@msm-portal/common/component/divider/MCDivider';",
@@ -5859,7 +6644,16 @@
               "Override margin via $margin prop (in px)"
             ]
           },
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCContentLayout",
+            "MCFormPanel",
+            "MCMoreActionGroupsButton"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCStatus",
@@ -5870,7 +6664,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 25,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/status/MCStatus",
           "importStatement": "import MCStatus from '@msm-portal/common/component/status/MCStatus';",
@@ -6011,7 +6806,15 @@
               "Dot color matches the status variant color"
             ]
           },
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCContentLayout",
+            "MCReportTable"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCStatusBadge",
@@ -6021,8 +6824,9 @@
           "functional_category": "display",
           "status": "stable",
           "usage_stats": {
-            "file_count": 2,
-            "last_scanned": "2026-04-10"
+            "file_count": 0,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/status-badge/MCStatusBadge",
           "importStatement": "import MCStatusBadge from '@msm-portal/common/component/status-badge/MCStatusBadge';",
@@ -6135,7 +6939,15 @@
             "Don't use this as a generic category chip"
           ],
           "example": "<MCStatusBadge status=\"paused\" label=\"Paused\" $size=\"small\" />",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCContentLayout",
+            "MCReportTable"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCTimer",
@@ -6145,8 +6957,9 @@
           "functional_category": "display",
           "status": "stable",
           "usage_stats": {
-            "file_count": 3,
-            "last_scanned": "2026-04-10"
+            "file_count": 2,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/timer/MCTimer",
           "importStatement": "import MCTimer from '@msm-portal/common/component/timer/MCTimer';",
@@ -6236,7 +7049,13 @@
             "Don't rely on this component for authoritative server time"
           ],
           "example": "<MCTimer\n  initSec={60}\n  decorator={(remainingSec) => <span>Resend in {remainingSec}s</span>}\n/>",
-          "tier": 3
+          "tier": 3,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCButton2",
+            "MCStatusBadge"
+          ],
+          "requiredProviders": []
         },
         {
           "name": "MCStepper",
@@ -6247,7 +7066,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 4,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCStepper } from '@moloco/moloco-cloud-react-ui';",
@@ -6393,7 +7213,15 @@
           ],
           "example": "<MCStepper activeStep={currentStep} onActiveStepChange={setCurrentStep}>\n  <MCStepper.Step title=\"Basic Info\" />\n  <MCStepper.Step title=\"Targeting\" />\n  <MCStepper.Step title=\"Creative\" />\n  <MCStepper.Step title=\"Review\" />\n</MCStepper>",
           "tier": 1,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-stepper--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-stepper--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCButton2",
+            "MCCircularLoader",
+            "MCConfirmDialog",
+            "MCFormLayout"
+          ],
+          "requiredProviders": []
         }
       ]
     },
@@ -6410,8 +7238,9 @@
           "functional_category": "primitive",
           "status": "stable",
           "usage_stats": {
-            "file_count": 24,
-            "last_scanned": "2026-04-08"
+            "file_count": 0,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/styled",
           "importStatement": "import { SCBoldLabel } from '@msm-portal/common/component/styled';",
@@ -6446,7 +7275,10 @@
             "side_effects": []
           },
           "example": "<SCBoldLabel>Bold text</SCBoldLabel>",
-          "tier": 4
+          "tier": 4,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "SCClickableText",
@@ -6456,8 +7288,9 @@
           "functional_category": "primitive",
           "status": "stable",
           "usage_stats": {
-            "file_count": 4,
-            "last_scanned": "2026-04-08"
+            "file_count": 0,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/styled",
           "importStatement": "import { SCClickableText } from '@msm-portal/common/component/styled';",
@@ -6506,7 +7339,10 @@
             ]
           },
           "example": "<SCClickableText onClick={handleClick}>Click here</SCClickableText>",
-          "tier": 4
+          "tier": 4,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         }
       ]
     },
@@ -6521,8 +7357,9 @@
           "functional_category": "primitive",
           "status": "stable",
           "usage_stats": {
-            "file_count": 179,
-            "last_scanned": "2026-04-08"
+            "file_count": 245,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCIcon } from '@moloco/moloco-cloud-react-ui';",
@@ -7035,7 +7872,19 @@
           },
           "tier": 1,
           "shortDescription": "SVG icon from Moloco icon set",
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-icons--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-icons--docs",
+          "usedInPatterns": [
+            "action-button"
+          ],
+          "relatedComponents": [
+            "MCButton2",
+            "MCMoreActionsButton",
+            "MCNavbarItems",
+            "MCStatus"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCStack",
@@ -7043,8 +7892,9 @@
           "functional_category": "primitive",
           "status": "stable",
           "usage_stats": {
-            "file_count": 192,
-            "last_scanned": "2026-04-08"
+            "file_count": 274,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCStack } from '@moloco/moloco-cloud-react-ui';",
@@ -7085,7 +7935,16 @@
           },
           "tier": 4,
           "shortDescription": "Flex-based horizontal/vertical layout",
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-stack--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-stack--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCButton2",
+            "MCIcon",
+            "MCTextEllipsis"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCSingleTextInput",
@@ -7094,7 +7953,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCSingleTextInput } from '@moloco/moloco-cloud-react-ui';",
@@ -7136,7 +7996,12 @@
           },
           "tier": 1,
           "shortDescription": "Raw text input without Formik",
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-input--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-input--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCSingleTextArea",
@@ -7144,8 +8009,9 @@
           "functional_category": "primitive",
           "status": "stable",
           "usage_stats": {
-            "file_count": 5,
-            "last_scanned": "2026-04-08"
+            "file_count": 13,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCSingleTextArea } from '@moloco/moloco-cloud-react-ui';",
@@ -7187,7 +8053,12 @@
           },
           "tier": 1,
           "shortDescription": "Raw textarea without Formik",
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-input--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-input--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCTextEllipsis",
@@ -7195,8 +8066,9 @@
           "functional_category": "primitive",
           "status": "stable",
           "usage_stats": {
-            "file_count": 20,
-            "last_scanned": "2026-04-08"
+            "file_count": 30,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCTextEllipsis } from '@moloco/moloco-cloud-react-ui';",
@@ -7236,7 +8108,15 @@
           },
           "tier": 4,
           "shortDescription": "Text with ellipsis overflow",
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-textellipsis--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-textellipsis--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormTextInput",
+            "MCReportTable"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCMarkdownTooltip",
@@ -7244,8 +8124,9 @@
           "functional_category": "primitive",
           "status": "stable",
           "usage_stats": {
-            "file_count": 1,
-            "last_scanned": "2026-04-08"
+            "file_count": 2,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCMarkdownTooltip } from '@moloco/moloco-cloud-react-ui';",
@@ -7284,7 +8165,12 @@
           },
           "tier": 4,
           "shortDescription": "Tooltip with Markdown content",
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-tooltip--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-tooltip--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCIcon"
+          ],
+          "requiredProviders": []
         },
         {
           "name": "MCBarTab",
@@ -7292,8 +8178,9 @@
           "functional_category": "primitive",
           "status": "candidate-for-removal",
           "usage_stats": {
-            "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "file_count": 1,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCBarTab } from '@moloco/moloco-cloud-react-ui';",
@@ -7336,7 +8223,12 @@
           },
           "tier": 4,
           "shortDescription": "DEPRECATED — internal tab sub-component",
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-tab--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-tab--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCBarTabIndicator"
+          ],
+          "requiredProviders": []
         },
         {
           "name": "MCBarTabIndicator",
@@ -7344,8 +8236,9 @@
           "functional_category": "primitive",
           "status": "candidate-for-removal",
           "usage_stats": {
-            "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "file_count": 1,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCBarTabIndicator } from '@moloco/moloco-cloud-react-ui';",
@@ -7376,7 +8269,12 @@
             "side_effects": []
           },
           "tier": 4,
-          "shortDescription": "DEPRECATED — internal tab indicator"
+          "shortDescription": "DEPRECATED — internal tab indicator",
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCBarTab"
+          ],
+          "requiredProviders": []
         }
       ]
     },
@@ -7392,8 +8290,9 @@
           "functional_category": "display",
           "status": "stable",
           "usage_stats": {
-            "file_count": 11,
-            "last_scanned": "2026-04-08"
+            "file_count": 10,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/report-table",
           "importStatement": "import MCReportTable from '@msm-portal/common/component/report-table';",
@@ -7595,7 +8494,16 @@
             ]
           },
           "example": "import MCReportTable from '@msm-portal/common/component/report-table';\nimport { getActionsCellRenderer, getMoneyCellRenderer, getDateCellRenderer } from '@msm-portal/common/component/table/cell-renderer';\nimport { tableCaseInsensitiveSortHandler } from '@msm-portal/common/component/table/sort-handler';\n\nconst columns = [\n  { field: 'name', header: t('column.name'), sortHandler: tableCaseInsensitiveSortHandler },\n  { field: 'budget', header: t('column.budget'), cellRenderer: getMoneyCellRenderer('USD') },\n  { field: 'createdAt', header: t('column.created'), cellRenderer: getDateCellRenderer('YYYY-MM-DD') },\n  { field: 'actions', header: '', cellRenderer: getActionsCellRenderer(actionItems) },\n];\n\n<MCReportTable\n  data={campaigns}\n  columns={columns}\n  isLoading={isFetching}\n  onRowClick={(row) => navigateToDetail(row.id)}\n  defaultSortField=\"createdAt\"\n  defaultSortDirection=\"desc\"\n/>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCBarTabs",
+            "MCContentLayout",
+            "MCLoader",
+            "MCMoreActionsButton",
+            "MCStatus"
+          ],
+          "requiredProviders": []
         },
         {
           "name": "MCI18nTable",
@@ -7605,8 +8513,9 @@
           "functional_category": "display",
           "status": "stable",
           "usage_stats": {
-            "file_count": 138,
-            "last_scanned": "2026-04-10"
+            "file_count": 137,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/table/i18n/MCI18nTable",
           "importStatement": "import MCI18nTable from '@msm-portal/common/component/table/i18n/MCI18nTable';",
@@ -7703,7 +8612,17 @@
             "Don't duplicate custom pagination vocabulary in every screen"
           ],
           "example": "<MCI18nTable\n  data={rows}\n  columns={columns}\n  isLoading={isLoading}\n/>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [
+            "list-page"
+          ],
+          "relatedComponents": [
+            "MCContentLayout",
+            "MCTableActionBar"
+          ],
+          "requiredProviders": [
+            "I18nextProvider"
+          ]
         },
         {
           "name": "MCTableActionBar",
@@ -7713,8 +8632,9 @@
           "functional_category": "layout",
           "status": "stable",
           "usage_stats": {
-            "file_count": 115,
-            "last_scanned": "2026-04-10"
+            "file_count": 114,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/table/action-bar/MCTableActionBar",
           "importStatement": "import { MCTableActionBar } from '@msm-portal/common/component/table/action-bar/MCTableActionBar';",
@@ -7798,7 +8718,14 @@
             "Don't use it as a substitute for the page header contract"
           ],
           "example": "<MCTableActionBar\n  leftComponent={<div>{totalCount} items</div>}\n  rightComponent={<MCButton2 color=\"primary\">Create</MCButton2>}\n/>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCButton2",
+            "MCI18nTable",
+            "MCReportTable"
+          ],
+          "requiredProviders": []
         }
       ],
       "cellRenderers": {
@@ -7880,8 +8807,9 @@
           "functional_category": "layout",
           "status": "stable",
           "usage_stats": {
-            "file_count": 104,
-            "last_scanned": "2026-04-08"
+            "file_count": 101,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/layout/content/MCContentLayout",
           "importStatement": "import MCContentLayout from '@msm-portal/common/component/layout/content/MCContentLayout';",
@@ -8011,7 +8939,20 @@
             ]
           },
           "example": "import MCContentLayout from '@msm-portal/common/component/layout/content/MCContentLayout';\nimport { MCButton2 } from '@moloco/moloco-cloud-react-ui';\n\n<MCContentLayout\n  title={t('title')}\n  rightAccessory={\n    <MCButton2 color=\"primary\" onClick={handleCreate} leftIcon=\"create\">\n      {t('create')}\n    </MCButton2>\n  }\n  showBreadcrumb\n>\n  <MCBarTabs tabs={tabs} />\n  {content}\n</MCContentLayout>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [
+            "list-page",
+            "page-container-component"
+          ],
+          "relatedComponents": [
+            "MCBarTabs",
+            "MCButton2",
+            "MCCollapsibleNavbar",
+            "MCReportTable"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCCircularLoader",
@@ -8021,8 +8962,9 @@
           "functional_category": "layout",
           "status": "stable",
           "usage_stats": {
-            "file_count": 167,
-            "last_scanned": "2026-04-08"
+            "file_count": 193,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCCircularLoader } from '@moloco/moloco-cloud-react-ui';",
@@ -8076,7 +9018,24 @@
           ],
           "example": "import { MCCircularLoader } from '@moloco/moloco-cloud-react-ui';\n\n// Full page loading\nif (isLoading) return <MCCircularLoader fillParent />;\n\n// Conditional rendering\nreturn isFetching || !data\n  ? <MCCircularLoader fillParent />\n  : <EntityDetail entity={data} />;",
           "tier": 2,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-loader--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-loader--docs",
+          "usedInPatterns": [
+            "create-page",
+            "detail-page",
+            "edit-page",
+            "loading-state",
+            "trpc-data-fetching"
+          ],
+          "relatedComponents": [
+            "MCButton2",
+            "MCConfirmDialog",
+            "MCContentLayout",
+            "MCFormLayout",
+            "MCStepper"
+          ],
+          "requiredProviders": [
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCConfirmDialog",
@@ -8087,7 +9046,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 24,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCConfirmDialog } from '@moloco/moloco-cloud-react-ui';",
@@ -8222,7 +9182,15 @@
           ],
           "example": "<MCConfirmDialog\n  isOpen={confirmOpen}\n  title={t('dialog.title')}\n  cancelButtonOptions={{\n    label: t('dialog.cancel'),\n    leftIcon: <MCIcon icon=\"delete\" inheritColor />,\n    onClick: handleDiscard,\n  }}\n  confirmButtonOptions={{\n    label: t('dialog.confirm'),\n    color: 'primary',\n    leftIcon: <MCIcon icon=\"check\" inheritColor />,\n    onClick: handleConfirm,\n  }}\n  onClose={() => setConfirmOpen(false)}\n>\n  {t('dialog.message')}\n</MCConfirmDialog>",
           "tier": 1,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-dialog--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-dialog--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCButton2",
+            "MCCircularLoader",
+            "MCIcon",
+            "MCStepper"
+          ],
+          "requiredProviders": []
         }
       ]
     },
@@ -8239,7 +9207,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 2,
-            "last_scanned": "2026-04-10"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/auth/form/sign-in/MCSignInForm",
           "importStatement": "import MCSignInForm from '@msm-portal/common/component/auth/form/sign-in/MCSignInForm';",
@@ -8346,7 +9315,17 @@
             "Don't reuse this form for non-auth credential flows"
           ],
           "example": "<MCSignInForm\n  onSubmit={handleSignIn}\n  onClickForgotPassword={goToForgotPassword}\n  autoSignOutType={autoSignOutType}\n/>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormTextInput",
+            "MCTFAForm",
+            "SCAuthForm"
+          ],
+          "requiredProviders": [
+            "I18nextProvider",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCTFAForm",
@@ -8357,7 +9336,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 2,
-            "last_scanned": "2026-04-10"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/auth/form/sign-in/MCTFAForm",
           "importStatement": "import MCTFAForm from '@msm-portal/common/component/auth/form/sign-in/MCTFAForm';",
@@ -8453,7 +9433,17 @@
             "Don't use this form for generic confirmation codes without reviewing copy and validation"
           ],
           "example": "<MCTFAForm onSubmit={handleVerifyCode} onSignOut={handleTryAnotherAccount} />",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormTextInput",
+            "MCSignInForm",
+            "SCAuthForm"
+          ],
+          "requiredProviders": [
+            "I18nextProvider",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCForgotPasswordForm",
@@ -8464,7 +9454,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 2,
-            "last_scanned": "2026-04-10"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/auth/form/forgot-password/MCForgotPasswordForm",
           "importStatement": "import MCForgotPasswordForm from '@msm-portal/common/component/auth/form/forgot-password/MCForgotPasswordForm';",
@@ -8564,7 +9555,17 @@
             "Don't use this as a generic newsletter or invite form"
           ],
           "example": "<MCForgotPasswordForm onSubmit={handleForgotPassword} onClickSignIn={goToSignIn} />",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCFormTextInput",
+            "MCPostForgotPassword",
+            "SCAuthForm"
+          ],
+          "requiredProviders": [
+            "I18nextProvider",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCPostForgotPassword",
@@ -8575,7 +9576,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 3,
-            "last_scanned": "2026-04-10"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/auth/form/forgot-password/MCPostForgotPassword",
           "importStatement": "import MCPostForgotPassword from '@msm-portal/common/component/auth/form/forgot-password/MCPostForgotPassword';",
@@ -8669,7 +9671,16 @@
             "Don't present this as a generic success pattern outside auth recovery"
           ],
           "example": "<MCPostForgotPassword\n  disabled={isSubmitting}\n  onSubmit={handleResend}\n  isExpiredPasswordUpdate={false}\n/>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCForgotPasswordForm",
+            "SCAuthForm"
+          ],
+          "requiredProviders": [
+            "I18nextProvider",
+            "ThemeProvider"
+          ]
         }
       ]
     },
@@ -8686,7 +9697,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-10"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/ad-pacing-dashboard/MCAdPacingDashboardConfigurator",
           "importStatement": "import MCAdPacingDashboardConfigurator from '@msm-portal/common/component/ad-pacing-dashboard/MCAdPacingDashboardConfigurator';",
@@ -8800,7 +9812,18 @@
             "Don't reuse this toolbar for unrelated report pages"
           ],
           "example": "<MCAdPacingDashboardConfigurator\n  configuration={configuration}\n  updateConfiguration={setConfiguration}\n  onClickColumnButton={() => setColumnDialogOpen(true)}\n  updatedAt={updatedAt}\n  timezone={timezone}\n  timerIntervalSec={60}\n/>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCAdPacingDashboardColumnConfigurator",
+            "MCAdPacingDashboardTable",
+            "MCDateRangePicker",
+            "MCTimer"
+          ],
+          "requiredProviders": [
+            "I18nextProvider",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCAdPacingDashboardColumnConfigurator",
@@ -8811,7 +9834,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-10"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/ad-pacing-dashboard/MCAdPacingDashboardColumnConfigurator",
           "importStatement": "import MCAdPacingDashboardColumnConfigurator from '@msm-portal/common/component/ad-pacing-dashboard/MCAdPacingDashboardColumnConfigurator';",
@@ -8912,7 +9936,18 @@
             "Don't auto-apply changes on each checkbox toggle"
           ],
           "example": "<MCAdPacingDashboardColumnConfigurator\n  availableColumnKeys={availableColumnKeys}\n  columnKeys={columnKeys}\n  updateColumnKeys={setColumnKeys}\n  onClose={() => setOpen(false)}\n/>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCAdPacingDashboardConfigurator",
+            "MCAdPacingDashboardTable",
+            "MCButton2",
+            "MCCheckBoxInput"
+          ],
+          "requiredProviders": [
+            "I18nextProvider",
+            "ThemeProvider"
+          ]
         },
         {
           "name": "MCAdPacingDashboardTable",
@@ -8923,7 +9958,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-10"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@msm-portal/common/component/ad-pacing-dashboard/MCAdPacingDashboardTable",
           "importStatement": "import MCAdPacingDashboardTable from '@msm-portal/common/component/ad-pacing-dashboard/MCAdPacingDashboardTable';",
@@ -9075,7 +10111,19 @@
             "Don't reuse this as a generic reporting table"
           ],
           "example": "<MCAdPacingDashboardTable\n  data={rows}\n  columnKeys={columnKeys}\n  columnKeysToExport={columnKeysToExport}\n  timezone={timezone}\n  currency={currency}\n  maximumPriority={maximumPriority}\n  keyLabelMap={keyLabelMap}\n  keyValueLabelMap={keyValueLabelMap}\n  onPriorityChange={handlePriorityChange}\n  onClickOrderTitle={handleOpenOrder}\n  isFetching={isFetching}\n/>",
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCAdPacingDashboardColumnConfigurator",
+            "MCAdPacingDashboardConfigurator",
+            "MCFilter",
+            "MCReportTable",
+            "MCTableActionBar"
+          ],
+          "requiredProviders": [
+            "I18nextProvider",
+            "ThemeProvider"
+          ]
         }
       ]
     },
@@ -9091,7 +10139,8 @@
           "status": "deprecated",
           "usage_stats": {
             "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "N/A (composition pattern — no single import)",
           "importStatement": "// Composition pattern: import MCStack, MCIcon, MCButton2 from '@moloco/moloco-cloud-react-ui'; plus styled-components for wrappers",
@@ -9154,7 +10203,16 @@
             "reason": "Superseded by MCEmptyState",
             "replacement": "MCEmptyState",
             "since": "3.0.0"
-          }
+          },
+          "usedInPatterns": [],
+          "relatedComponents": [
+            "MCButton2",
+            "MCContentLayout",
+            "MCIcon",
+            "MCReportTable",
+            "MCStack"
+          ],
+          "requiredProviders": []
         }
       ]
     },
@@ -9170,8 +10228,9 @@
           "functional_category": "primitive",
           "status": "stable",
           "usage_stats": {
-            "file_count": 52,
-            "last_scanned": "2026-04-08"
+            "file_count": 72,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCButton } from '@moloco/moloco-cloud-react-ui';",
@@ -9256,7 +10315,10 @@
             }
           ],
           "tier": 4,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-button--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-button--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCBanner",
@@ -9265,8 +10327,9 @@
           "functional_category": "primitive",
           "status": "stable",
           "usage_stats": {
-            "file_count": 9,
-            "last_scanned": "2026-04-08"
+            "file_count": 21,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCBanner } from '@moloco/moloco-cloud-react-ui';",
@@ -9342,7 +10405,10 @@
           ],
           "example": "<MCBanner variant=\"warning\" onClose={handleDismiss}>\n  This campaign has limited budget remaining.\n</MCBanner>",
           "tier": 1,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-banner--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-banner--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCSearchBar",
@@ -9351,8 +10417,9 @@
           "functional_category": "primitive",
           "status": "stable",
           "usage_stats": {
-            "file_count": 1,
-            "last_scanned": "2026-04-08"
+            "file_count": 5,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCSearchBar } from '@moloco/moloco-cloud-react-ui';",
@@ -9453,7 +10520,10 @@
           ],
           "example": "const [searchWord, setSearchWord] = useState('');\n\n<MCSearchBar\n  searchWord={searchWord}\n  setSearchWord={setSearchWord}\n  placeholder=\"Search campaigns...\"\n  border\n  debounceTimeout={300}\n/>",
           "tier": 1,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-searchbar--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-searchbar--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCTag",
@@ -9463,7 +10533,8 @@
           "status": "candidate-for-removal",
           "usage_stats": {
             "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCTag } from '@moloco/moloco-cloud-react-ui';",
@@ -9546,7 +10617,10 @@
           ],
           "example": "<MCTag backgroundColor=\"#E3F2FD\" fontColor=\"#1565C0\" fontSize=\"12px\" borderRadius=\"4px\" padding=\"2px 8px\">\n  Beta\n</MCTag>",
           "tier": 1,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-tag--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-tag--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCBoxTab",
@@ -9556,7 +10630,8 @@
           "status": "candidate-for-removal",
           "usage_stats": {
             "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCBoxTabsWrapper, MCBoxTabs, MCBoxTab, MCBoxTabIndicator } from '@moloco/moloco-cloud-react-ui';",
@@ -9620,7 +10695,10 @@
           ],
           "example": "<MCBoxTabsWrapper $underline>\n  <MCBoxTabs>\n    <MCBoxTab $active={activeTab === 0} onClick={() => setActiveTab(0)}>Tab 1</MCBoxTab>\n    <MCBoxTab $active={activeTab === 1} onClick={() => setActiveTab(1)}>Tab 2</MCBoxTab>\n  </MCBoxTabs>\n  <MCBoxTabIndicator />\n</MCBoxTabsWrapper>",
           "tier": 1,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-tab--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-tab--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCCollapse",
@@ -9630,7 +10708,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 6,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCCollapse } from '@moloco/moloco-cloud-react-ui';",
@@ -9683,7 +10762,10 @@
             }
           ],
           "example": "<MCCollapse in={isExpanded} timeout=\"auto\" unmountOnExit>\n  <div>Collapsible content here</div>\n</MCCollapse>",
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCMarkdown",
@@ -9693,7 +10775,8 @@
           "status": "candidate-for-removal",
           "usage_stats": {
             "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCMarkdown } from '@moloco/moloco-cloud-react-ui';",
@@ -9733,7 +10816,10 @@
           ],
           "example": "<MCMarkdown markdownText=\"**Bold** and _italic_ text with [links](https://example.com)\" />",
           "tier": 1,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-markdown--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-markdown--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCChip",
@@ -9742,8 +10828,9 @@
           "functional_category": "primitive",
           "status": "stable",
           "usage_stats": {
-            "file_count": 8,
-            "last_scanned": "2026-04-08"
+            "file_count": 12,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCChip } from '@moloco/moloco-cloud-react-ui';",
@@ -9821,7 +10908,10 @@
           ],
           "example": "<MCChip\n  option={{ value: 'us', label: 'United States', key: 'us' }}\n  onRemove={(opt) => handleRemove(opt)}\n/>",
           "tier": 1,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-chip--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-chip--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCDataTable",
@@ -9831,7 +10921,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 1,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCDataTable } from '@moloco/moloco-cloud-react-ui';",
@@ -9980,7 +11071,10 @@
             }
           ],
           "tier": 2,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-datatable--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-datatable--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCSelect",
@@ -9990,7 +11084,8 @@
           "status": "deprecated",
           "usage_stats": {
             "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCSelect } from '@moloco/moloco-cloud-react-ui';",
@@ -10100,7 +11195,10 @@
             "replacement": "MCFormSingleRichSelect",
             "since": "3.0.0"
           },
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-select--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-select--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCDatePicker",
@@ -10109,8 +11207,9 @@
           "functional_category": "primitive",
           "status": "deprecated",
           "usage_stats": {
-            "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "file_count": 1,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCDatePicker } from '@moloco/moloco-cloud-react-ui';",
@@ -10215,7 +11314,10 @@
             "replacement": "MCFormDateRangePicker",
             "since": "3.0.0"
           },
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-datepicker--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-datepicker--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCTimePicker",
@@ -10224,8 +11326,9 @@
           "functional_category": "primitive",
           "status": "candidate-for-removal",
           "usage_stats": {
-            "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "file_count": 1,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCTimePicker } from '@moloco/moloco-cloud-react-ui';",
@@ -10301,7 +11404,10 @@
           ],
           "example": "<MCTimePicker\n  value={selectedTime}\n  onChange={setSelectedTime}\n  placeholder=\"Select time\"\n/>",
           "tier": 1,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-datepicker--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-datepicker--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCDynamicDropdown",
@@ -10310,8 +11416,9 @@
           "functional_category": "primitive",
           "status": "candidate-for-removal",
           "usage_stats": {
-            "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "file_count": 1,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCDynamicDropdown } from '@moloco/moloco-cloud-react-ui';",
@@ -10425,7 +11532,10 @@
           ],
           "example": "<MCDynamicDropdown<string>\n  loadOptions={async ({ cursor, searchText, limit }) => {\n    const result = await fetchOptions({ cursor, searchText, limit });\n    return { options: result.items, cursor: result.nextCursor, totalCount: result.total };\n  }}\n  value={selectedOptions}\n  onChange={setSelectedOptions}\n  selectPlaceholder=\"Select items...\"\n/>",
           "tier": 2,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-dropdown--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-dropdown--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCFilter",
@@ -10435,7 +11545,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 5,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCFilter } from '@moloco/moloco-cloud-react-ui';",
@@ -10564,7 +11675,10 @@
             "MTFilterOption": "{ displayName: string; value: string }"
           },
           "tier": 2,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-filter--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-filter--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCModal",
@@ -10574,7 +11688,8 @@
           "status": "deprecated",
           "usage_stats": {
             "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCModal } from '@moloco/moloco-cloud-react-ui';",
@@ -10639,7 +11754,10 @@
             "replacement": "MCCommonDialog",
             "since": "3.0.0"
           },
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-modal--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-modal--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCPopper",
@@ -10649,7 +11767,8 @@
           "status": "stable",
           "usage_stats": {
             "file_count": 4,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCPopper } from '@moloco/moloco-cloud-react-ui';",
@@ -10702,7 +11821,10 @@
           "notes": [
             "This is a thin re-export of @material-ui/core Popper. See MUI docs for full API."
           ],
-          "tier": 4
+          "tier": 4,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCStateIcon",
@@ -10711,8 +11833,9 @@
           "functional_category": "primitive",
           "status": "candidate-for-removal",
           "usage_stats": {
-            "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "file_count": 1,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCStateIcon } from '@moloco/moloco-cloud-react-ui';",
@@ -10771,7 +11894,10 @@
           ],
           "example": "<MCStateIcon icon=\"active\" width={16} height={16} />",
           "tier": 3,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-icons--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-icons--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCSingleNumberInput",
@@ -10780,8 +11906,9 @@
           "functional_category": "primitive",
           "status": "stable",
           "usage_stats": {
-            "file_count": 7,
-            "last_scanned": "2026-04-08"
+            "file_count": 11,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCSingleNumberInput } from '@moloco/moloco-cloud-react-ui';",
@@ -10930,7 +12057,10 @@
           ],
           "example": "<MCSingleNumberInput\n  value={budget}\n  onValueChange={({ floatValue }) => setBudget(floatValue)}\n  prefix=\"$\"\n  placeholder=\"Enter budget\"\n/>",
           "tier": 1,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-input--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-input--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCDebounceInput",
@@ -10940,7 +12070,8 @@
           "status": "candidate-for-removal",
           "usage_stats": {
             "file_count": 0,
-            "last_scanned": "2026-04-08"
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
           },
           "importPath": "@moloco/moloco-cloud-react-ui",
           "importStatement": "import { MCDebounceInput } from '@moloco/moloco-cloud-react-ui';",
@@ -10994,7 +12125,10 @@
             "Also accepts all standard input/textarea HTML attributes"
           ],
           "tier": 4,
-          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-input--docs"
+          "storybookPath": "https://main--6564781d9458170b68d0d751.chromatic.com/?path=/docs/designsystem-common-input--docs",
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": []
         },
         {
           "name": "MCDateRangePicker",
@@ -11039,7 +12173,15 @@
               "description": "Callback when dates change"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 18,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCDialog",
@@ -11083,7 +12225,15 @@
               "description": "Custom overlay and content style overrides"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 1,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCFilterWithApplyButton",
@@ -11122,7 +12272,15 @@
               "description": "Allow only one filter per dimension"
             }
           ],
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 0,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCCheckBoxInput",
@@ -11167,7 +12325,15 @@
               "description": "Disabled state"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 20,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCChipInput",
@@ -11199,7 +12365,15 @@
               "description": "Change handler called with updated values array"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 1,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCRadioInput",
@@ -11243,7 +12417,15 @@
               "description": "Input name attribute for grouping radio buttons"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 11,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCCardSelect",
@@ -11287,7 +12469,15 @@
               "description": "Currently selected value"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 1,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCCustomRichSelect",
@@ -11343,7 +12533,15 @@
               "description": "Sort configuration for options"
             }
           ],
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 15,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCInlineChipRichSelect",
@@ -11393,7 +12591,15 @@
               "description": "Show select-all option"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 17,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCMultiRichSelect",
@@ -11450,7 +12656,15 @@
               "description": "Custom content in the left footer slot"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 1,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCSingleRichSelect",
@@ -11494,7 +12708,15 @@
               "description": "Enable search/filter within options"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 18,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCSwitch",
@@ -11526,7 +12748,15 @@
               "description": "Toggle change handler"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 48,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCTable",
@@ -11576,7 +12806,15 @@
               "description": "Function to determine if a row should be disabled/non-selectable"
             }
           ],
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 9,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCBetaTag",
@@ -11608,7 +12846,15 @@
               "description": "Render tag with filled background style"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 0,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCTooltip",
@@ -11647,7 +12893,17 @@
               "description": "Tooltip placement relative to trigger (e.g. top, bottom, left, right)"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [
+            "ThemeProvider"
+          ],
+          "usage_stats": {
+            "file_count": 18,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCActionTitleTooltip",
@@ -11679,7 +12935,15 @@
               "description": "Tooltip title text shown in the overlay"
             }
           ],
-          "tier": 1
+          "tier": 1,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 0,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         },
         {
           "name": "MCWeeklyTimeTablePicker",
@@ -11723,7 +12987,15 @@
               "description": "Clock format: 12-hour or 24-hour display"
             }
           ],
-          "tier": 2
+          "tier": 2,
+          "usedInPatterns": [],
+          "relatedComponents": [],
+          "requiredProviders": [],
+          "usage_stats": {
+            "file_count": 2,
+            "last_scanned": "2026-05-12",
+            "scan_source": "extract-cross-refs (msm-portal-web)"
+          }
         }
       ]
     }

@@ -11,7 +11,8 @@
     "validate:ds": "tsx scripts/validate.ts",
     "generate:css": "node scripts/generate-css-variables.mjs",
     "prop-check": "node scripts/prop-check.mjs",
-    "extract-props": "node scripts/extract-props.mjs"
+    "extract-props": "node scripts/extract-props.mjs",
+    "extract-xrefs": "node scripts/extract-cross-refs.mjs"
   },
   "devDependencies": {
     "ajv": "^8.17.1",
