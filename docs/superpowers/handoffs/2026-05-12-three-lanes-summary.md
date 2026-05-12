@@ -1,8 +1,9 @@
 # Handoff — 2026-05-12 three-lanes summary (Type-1 + DS Ecosystem + Ontology)
 
-**Date:** 2026-05-12
+**Date:** 2026-05-12 (session end)
 **Author:** kyungjae.ha (consolidating output from three parallel Claude sessions)
 **Branch:** main (clean)
+**Total commits today across all lanes:** 32
 
 ---
 
@@ -26,6 +27,13 @@
 **What it does:** before each task's coder adapter fires, the runner dispatches up to 5 read-only Claude Code subprocesses in parallel to gather codebase / DS / API context. The synthesised bundle is prepended to the coder's prompt.
 
 **Status:** shipped, off-by-default, runtime-toggleable from dashboard `Settings → Research enabled`. Defaults grounded in real measurement (P=5, 180s/600s).
+
+**Evening additions (post the morning handoff):**
+- Slice F-lite measurement run + P=5 default decision (commit `2f7b906`).
+- Dashboard `SettingsPage` panel for research knobs (commit `6e9759f`). All four fields (enabled / parallelism / per-query timeout / aggregate timeout) flow through `molly-settings` and persist to `state/molly-settings.json`; changes take effect on the next runJob call (no restart).
+- User personalised the runtime values to `researchParallelism=5`, `researchQueryTimeoutMs=540000` (9 min), `researchAggregateTimeoutMs=3180000` (53 min). Headroom is intentional for 2-person trial. Re-tighten to ~300/1200 before any 5+ person scale-up to keep worst-case hang detection under 5 min.
+
+**Open question (deferred):** naming the dashboard section. Current label is "Research (Type-1)". Sibling Type-2 (concurrent code-writing) is also multi-agent, so "Multi-agent" alone would collide once Type-2 ships. Candidates discussed: `Research agents (Type-1)` (recommended — keeps role specificity + adds "agents"), `Multi-agent research`, `Pre-flight research agents`. Decide before any user-facing announcement of the trial.
 
 **Outstanding:** Slice F-full (coder-side A/B against review-pass-rate) — needs real-job dispatch + $10-20 LLM spend.
 
@@ -110,4 +118,14 @@ Restart with `pnpm dev` in each directory — the 좀비 fix (commit 59d6dec) au
 
 ---
 
-*Last updated: 2026-05-12 session end. Next session: pick from the priority list above, or pivot based on whatever the user found while looking at the dashboard's new Research panel.*
+---
+
+## Decisions deferred to next session
+
+1. **Dashboard label rename** for the research panel (`Research (Type-1)` → `Research agents (Type-1)` or similar). See Lane A "Open question". Should be decided before sharing the dashboard with the 2-person trial group.
+2. **Type-2 Q0** — start the 16-24 h research project for concurrent code writing now (in parallel with Slice F-full) or queue it until Type-1 has measured coder-side numbers? Existing plan doc `docs/superpowers/plans/2026-05-12-concurrent-code-writing-research.md` §Open Question 0.
+3. **Re-tighten Slice F-lite timeouts before scale-up** — current personalised values (per-query 540 s, aggregate 3180 s) are fine for the 2-person trial but mask hang detection. Defaults (180 / 600) or moderate values (300 / 1200) before any 5+ person scale-up.
+
+---
+
+*Last updated: 2026-05-12 session end. Next session: pick from the priority list above, decide the 3 deferred items, or pivot based on what the user found while looking at the dashboard's new Research panel.*
