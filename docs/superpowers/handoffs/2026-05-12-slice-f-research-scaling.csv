@@ -1,0 +1,4 @@
+parallelism,builderQueryCount,subprocessTotal,subprocessOk,subprocessTimeout,subprocessError,bundleTotalMs,scriptTotalMs,builderUsd,estSubprocessUsd,totalUsd,builderInputTokens,builderOutputTokens
+3,5,5,5,0,0,198957,198957,0,0.2175,0.2175,0,0
+4,5,5,5,0,0,131155,131155,0,0.2175,0.2175,0,0
+5,5,5,5,0,0,123851,123851,0,0.2175,0.2175,0,0

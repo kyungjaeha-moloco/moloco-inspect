@@ -42,12 +42,36 @@ const QUERY_BUILDER_DEFAULT_MODEL = 'claude-sonnet-4-20250514';
 // Budgets — tunable via env so ops can dial back if Anthropic ITPM gets
 // tight or if we land on a slower account tier. Values match the plan §
 // Failure handling + Subprocess hygiene.
-const PER_QUERY_TIMEOUT_MS = Number(process.env.RESEARCH_QUERY_TIMEOUT_MS) || 60_000;
-const AGGREGATE_TIMEOUT_MS = Number(process.env.RESEARCH_AGGREGATE_TIMEOUT_MS) || 90_000;
 const KILL_GRACE_MS = 3_000;
 const MAX_QUERIES = 5;
-const DEFAULT_PARALLELISM = Number(process.env.RESEARCH_PARALLELISM) || 2;
 const ALLOWED_TOOLS = 'Glob,Grep,Read,Task';
+
+// Read RESEARCH_* tunables at *call* time (NOT module import time) so a
+// long-running orchestrator process can be reconfigured between
+// experiments without restarting. Slice F's measurement scripts and ops
+// scenarios both rely on this: bumping the budget after a tight first
+// pass shouldn't require an orchestrator bounce.
+//
+// Defaults reflect the Slice F-lite measurement results
+// (docs/superpowers/handoffs/2026-05-12-slice-f-lite-results.md):
+//   - parallelism=5 was 6.6× faster than P=1 at identical cost with
+//     no 429s observed on the developer's Anthropic account.
+//   - 180s per-query timeout was empirically necessary — at 60s every
+//     subprocess timed out before producing a useful answer.
+//   - 600s aggregate was generous enough for P=1 to complete 5 queries
+//     sequentially (sum ~500s) and tight enough to fail fast on stuck
+//     subprocesses.
+// Operators on tighter Anthropic tiers (default-tier ITPM ~50 K) may
+// want to set RESEARCH_PARALLELISM=3 explicitly.
+function resolveDefaultParallelism() {
+  return Number(process.env.RESEARCH_PARALLELISM) || 5;
+}
+function resolvePerQueryTimeoutMs() {
+  return Number(process.env.RESEARCH_QUERY_TIMEOUT_MS) || 180_000;
+}
+function resolveAggregateTimeoutMs() {
+  return Number(process.env.RESEARCH_AGGREGATE_TIMEOUT_MS) || 600_000;
+}
 
 const QUERY_BUILDER_SYSTEM_PROMPT = `You are a research-question planner for an AI coding agent. The coder is about to write code for ONE task; your job is to emit focused retrieval questions the orchestrator will run *before* the coder starts, so the coder begins with context instead of cold.
 
@@ -78,11 +102,12 @@ Return only the JSON, no prose.`;
 /**
  * Generate 0-5 focused research questions for a task.
  *
- * @param {{ title: string, description: string }} task
+ * @param {{ title: string, description: string, id?: string }} task
  * @param {{
  *   fetchFn?: typeof fetch,
  *   apiKey?: string,
  *   model?: string,
+ *   jobId?: string,
  * }} [opts]
  * @returns {Promise<Array<{ question: string, scope: string }>>}
  */
@@ -131,6 +156,8 @@ export async function buildResearchQueries(task, opts = {}) {
   } catch (err) {
     recordEvent('lib_call', {
       lib: 'research_query_builder',
+      jobId: opts.jobId,
+      taskId: task?.id,
       latency_ms: Date.now() - t0,
       error: `fetch failed: ${String(err?.message ?? err).slice(0, 120)}`,
     });
@@ -139,6 +166,8 @@ export async function buildResearchQueries(task, opts = {}) {
   if (!resp.ok) {
     recordEvent('lib_call', {
       lib: 'research_query_builder',
+      jobId: opts.jobId,
+      taskId: task?.id,
       latency_ms: Date.now() - t0,
       error: `http ${resp.status}`,
     });
@@ -153,6 +182,8 @@ export async function buildResearchQueries(task, opts = {}) {
   } catch (err) {
     recordEvent('lib_call', {
       lib: 'research_query_builder',
+      jobId: opts.jobId,
+      taskId: task?.id,
       latency_ms: Date.now() - t0,
       error: `json parse failed: ${String(err?.message ?? err).slice(0, 120)}`,
     });
@@ -164,6 +195,8 @@ export async function buildResearchQueries(task, opts = {}) {
   const u = data?.usage || {};
   recordEvent('lib_call', {
     lib: 'research_query_builder',
+    jobId: opts.jobId,
+    taskId: task?.id,
     model,
     latency_ms: Date.now() - t0,
     queryCount: queries.length,
@@ -241,7 +274,7 @@ function parseQueries(text) {
 export function runResearchQuery(params, opts = {}) {
   const { question, scope, jobId, taskId, queryIndex } = params;
   const spawnFn = opts.spawnFn ?? spawn;
-  const timeoutMs = opts.timeoutMs ?? PER_QUERY_TIMEOUT_MS;
+  const timeoutMs = opts.timeoutMs ?? resolvePerQueryTimeoutMs();
   const cwd = opts.cwd ?? REPO_ROOT;
   const logDir = opts.logDir ?? LOG_DIR;
   const logPath = path.resolve(logDir, `${jobId}-${taskId}-q${queryIndex}.log`);
@@ -415,15 +448,16 @@ export async function runResearch(task, ctx, opts = {}) {
   }
   const parallelism = Math.max(
     1,
-    Math.min(MAX_QUERIES, opts.parallelism ?? DEFAULT_PARALLELISM),
+    Math.min(MAX_QUERIES, opts.parallelism ?? resolveDefaultParallelism()),
   );
-  const aggregateTimeoutMs = opts.aggregateTimeoutMs ?? AGGREGATE_TIMEOUT_MS;
+  const aggregateTimeoutMs = opts.aggregateTimeoutMs ?? resolveAggregateTimeoutMs();
 
   const t0 = Date.now();
   const queries = await buildResearchQueries(task, {
     fetchFn: opts.fetchFn,
     apiKey: opts.apiKey,
     model: opts.model,
+    jobId: ctx.jobId,
   });
   if (queries.length === 0) {
     const bundle = {
@@ -458,6 +492,7 @@ export async function runResearch(task, ctx, opts = {}) {
           cwd: opts.cwd,
           logDir: opts.logDir,
           signal: abortController.signal,
+          timeoutMs: opts.queryTimeoutMs,
         },
       );
       results[idx] = r;
