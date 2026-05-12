@@ -4,29 +4,29 @@ import { getPlaygroundIdForThread } from './slack-thread-map.js';
 import { getMollySettings } from './molly-settings.js';
 import { recordEvent } from './molly-metrics.js';
 
-const SYSTEM_PROMPT = `당신은 molly 의 status reporter 입니다. 사용자가 잡/시스템 상태에 대해 질문하면 아래 raw 데이터를 보고 친근한 한국어로 답변합니다.
+export const SYSTEM_PROMPT = `You are Molly's status reporter. When a user asks about task or system status, read the raw data below and reply in friendly, concise English.
 
-답변 형식:
-- 사용자가 묻는 것 (활성 / 어제 / 특정 작업 등) 만 골라 답
-- 작업이 많으면 5개 이내로 요약
-- id 는 첫 8자만 (백틱)
-- 진행 중인 작업은 reviewed 수 / total 수, 상태, targetRoute / phase
-- "자세한 건 Inspect Console (http://localhost:4174) 의 Jobs / Requests 탭" 안내 한 줄
-- 답변 길이 2-4 문단, 필요하면 1-2 줄
+Reply guide:
+- Answer only what the user is asking about (active tasks, yesterday's tasks, a specific task, etc.)
+- If there are many tasks, summarise up to 5
+- Show IDs as the first 8 characters in backticks
+- For in-progress tasks show reviewed / total subtask count, status, and targetRoute / phase
+- Always include one line pointing to Inspect Console (http://localhost:4174) Jobs / Requests tabs
+- Reply length: 2-4 paragraphs, or 1-2 lines when terse is appropriate
 
-raw 데이터 형식: JSON 배열, 각 작업은:
-- 공통: { id, kind, status, prdText (앞 80자), playgroundId, createdAt }
-- kind='job' (Slack/Chrome ext 가 만든 큰 잡): + { tasks: [{status}], targetRoute }
-- kind='change-request' (Playground 의 plan 카드 승인이 만든 작업): + { phase }
+Raw data format: JSON array, each task has:
+- common: { id, kind, status, prdText (first 80 chars), playgroundId, createdAt }
+- kind='job' (large task created by Slack/Chrome ext): + { tasks: [{status}], targetRoute }
+- kind='change-request' (task created when a Playground plan card is approved): + { phase }
 
-답변 시 사용자에게 "잡" 과 "change-request" 차이 노출하지 말 것 — 둘 다 "작업" 으로 자연스럽게 부르세요. kind 는 LLM 이 정확한 답을 만들기 위한 내부 신호일 뿐.
+Do not expose the "job" vs "change-request" distinction to the user — refer to both naturally as "task". The kind field is an internal signal for the LLM to produce accurate answers only.
 
-중요:
-- 사용자가 "이 thread 의 playground", "playground 가 새로 만들어졌어?" 같이 *현재 thread* 의 playground 매핑 상태를 물으면, raw 데이터의 thisThreadPlayground 필드를 그대로 답에 사용. null 이면 "이 thread 에는 아직 playground 가 없어요. 원하는 작업을 한 줄로 보내주시면 이 thread 에 새 playground 가 만들어집니다." 라고 답.
-- 잡 데이터에 같은 playground 가 보인다고 해서 "그게 이 thread 에 새로 생긴 거" 라고 답하면 안 됨. 다른 thread / 다른 surface 가 만든 playground 일 수 있음.
-- thisThreadPlayground 가 null 인데 사용자가 "playground 만들어졌어?" 류 질문을 하면 명시적으로 "아직 없음" 이라고 답.
+Important:
+- If the user asks about *this thread's* playground mapping (e.g. "did a playground get created for this thread?"), use the thisThreadPlayground field from the raw data directly. If it is null, reply: "This thread doesn't have a playground yet. Send a one-line work request and a new playground will be created for this thread."
+- Do not assume a playground visible in the task data was created for this thread — it may belong to a different thread or surface.
+- If thisThreadPlayground is null and the user asks whether a playground was created, explicitly say it does not exist yet.
 
-(lifecycle 액션 명령 — "cancel 해줘", "다시 시도해", "promote 진행해" 등 — 은 별도 lifecycle handler 가 처리함. 이 status reporter 는 *순수 상태 질의* 만 받음. 만에 하나 lifecycle 명령이 들어오면 안전하게 "직접 액션은 Inspect Console (http://localhost:4174) 에서" 안내.)`;
+(Lifecycle action commands — cancel, retry, promote, etc. — are handled by a separate lifecycle handler. This status reporter handles *pure status queries only*. If a lifecycle command somehow arrives here, safely redirect: "For direct actions, use Inspect Console (http://localhost:4174).")`;
 
 /**
  * @param {string} text — 사용자 질문
@@ -92,17 +92,17 @@ export async function composeStatusReply(text, ctx) {
       : null;
 
   if (jobs.length === 0 && !thisThreadPlayground) {
-    return '🤔 아직 잡이 하나도 없어요. 원하는 작업을 한 줄로 알려주시면 시작할게요.';
+    return "🤔 No tasks yet. Send a one-line work request and I'll get started.";
   }
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
   // #8 surface awareness — Inspect Console / Slack / Chrome ext / Playground
   // 별 안내 메시지 정확도. ctx.surface 받으면 prompt 에 주입.
   const surfaceHint = ctx.surface && ctx.surface !== 'unknown'
-    ? `(현재 surface: ${ctx.surface} — Console 안내는 항상 포함하되, 사용자 surface 의 잡 카드 / 사이드패널 안내도 함께)\n\n`
+    ? `(current surface: ${ctx.surface} — always include Console link, and also mention the job card / side-panel on the user's surface)\n\n`
     : '';
   const userMessage =
-    `${surfaceHint}이 thread 매핑 정보:\nthisThreadPlayground = ${thisThreadPlayground ? `"${thisThreadPlayground}"` : 'null (아직 playground 안 만들어짐)'}\n\n잡 데이터 (active 우선 → createdAt 내림차순, 최대 20개):\n${JSON.stringify(jobs, null, 2)}\n\n사용자 질문: ${text}`;
+    `${surfaceHint}Thread mapping:\nthisThreadPlayground = ${thisThreadPlayground ? `"${thisThreadPlayground}"` : 'null (no playground for this thread yet)'}\n\nTask data (active first → createdAt descending, max 20):\n${JSON.stringify(jobs, null, 2)}\n\nUser question: ${text}`;
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -170,7 +170,7 @@ function templatedFallback(jobs) {
   const recentDone = jobs.filter((j) => TERMINAL.has(j.status)).slice(0, 3);
   const lines = [];
   if (active.length > 0) {
-    lines.push(`🛠️ 진행 중인 잡 ${active.length}개`);
+    lines.push(`🛠️ Active tasks: ${active.length}`);
     for (const j of active) {
       const reviewed = j.tasks.filter((t) => t.status === 'reviewed').length;
       lines.push(`• \`${j.id.slice(0, 8)}\` (${j.status}) — ${reviewed}/${j.tasks.length}${j.targetRoute ? ` · ${j.targetRoute}` : ''}`);
@@ -178,13 +178,13 @@ function templatedFallback(jobs) {
   }
   if (recentDone.length > 0) {
     if (lines.length) lines.push('');
-    lines.push(`📜 최근 완료`);
+    lines.push(`📜 Recently completed`);
     for (const j of recentDone) {
       const verdict = j.status === 'complete' ? '✅' : '❌';
       lines.push(`• \`${j.id.slice(0, 8)}\` ${verdict} ${j.status}`);
     }
   }
   lines.push('');
-  lines.push('자세한 건 Inspect Console (http://localhost:4174) 의 Jobs 탭에서.');
+  lines.push('For details, see the Jobs tab in Inspect Console (http://localhost:4174).');
   return lines.join('\n');
 }
