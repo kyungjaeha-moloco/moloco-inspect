@@ -12,13 +12,17 @@ import {
   type ExecutionState,
   type PlanItem,
   type PlanMeta,
+  type PlanUnresolvedComponent,
   type TargetClient,
 } from '../store/playground-store';
 import {
   postChat,
   postIntake,
+  postMissingChoice,
   type IntakeHistoryTurn,
   type IntakeResult,
+  type MissingChoiceKind,
+  type RawUnresolvedComponent,
   mollyClassifyAndDispatch,
   postChangeRequest,
   subscribeChangeRequest,
@@ -1165,6 +1169,10 @@ export const AIPanel = React.memo(function AIPanel({
                 archivedRun = [];
               };
               let msgIdx = 0;
+              // DS Escalation Slice A — track the most recent user message
+              // content so MessageRow can pass it to MissingComponentCard as
+              // the PRD source for the draft-preview build.
+              let lastUserContent: string | undefined;
               chatStream.forEach((item) => {
                 if (item.kind === 'pin') {
                   flushArchived();
@@ -1186,6 +1194,9 @@ export const AIPanel = React.memo(function AIPanel({
                 }
                 const m = item.data;
                 const idx = msgIdx++;
+                if (m.role === 'user' && m.content) {
+                  lastUserContent = m.content;
+                }
                 if (m.archived) {
                   archivedRun.push(m);
                   return;
@@ -1200,6 +1211,7 @@ export const AIPanel = React.memo(function AIPanel({
                     isSending={isSending}
                     checkpointNumber={checkpointByMessageId[m.id]}
                     dimmed={dimFromIdx >= 0 && idx > dimFromIdx}
+                    priorUserContent={lastUserContent}
                     onTogglePlanItem={(itemId) => togglePlanItem(m.id, itemId)}
                     onAcceptPlan={() => {
                       resolvePlan(m.id, 'accepted');
@@ -2515,6 +2527,7 @@ function MessageRow({
   onRedecomposePlan,
   onCheckoutCommit,
   onRestoreToSha,
+  priorUserContent,
 }: {
   message: ChatMessage;
   activeSha: string | null;
@@ -2528,6 +2541,8 @@ function MessageRow({
   onRedecomposePlan: (feedback: string) => Promise<void>;
   onCheckoutCommit: (sha: string) => void;
   onRestoreToSha: (sha: string, labelHint?: string) => void;
+  /** PRD source for the DS-missing card (most recent prior user message). */
+  priorUserContent?: string;
 }) {
   const isUser = message.role === 'user';
   const parsed = useMemo(
@@ -2579,6 +2594,16 @@ function MessageRow({
           onRedecompose={onRedecomposePlan}
         />
       )}
+
+      {message.plan?.unresolvedComponents?.map((u) => (
+        <MissingComponentCard
+          key={`${message.id}-missing-${u.intent}`}
+          messageId={message.id}
+          unresolved={u}
+          prd={priorUserContent ?? message.plan?.meta.summary ?? ''}
+          playgroundClient={message.plan?.meta.targetClient ?? null}
+        />
+      ))}
 
       {message.execution && (
         <ExecutionCard
@@ -4067,9 +4092,215 @@ function Dot({ delay }: { delay: number }) {
   );
 }
 
+// ── DS Escalation Slice A — MissingComponentCard ─────────────────────
+// Rendered below PlanCard when the planner reports unresolved_components.
+// 4 buttons (closest_match / custom_build / propose_new / extend_existing).
+// Recommended = closest_match when similarity_score >= 0.5; otherwise the
+// kind-aligned escalation option. Posts the user's choice to
+// `/api/missing-choice` and asks the store to remember the resolution so
+// the buttons disable themselves on re-render.
+
+function MissingComponentCard({
+  messageId,
+  unresolved,
+  prd,
+  playgroundClient,
+}: {
+  messageId: string;
+  unresolved: PlanUnresolvedComponent;
+  prd: string;
+  playgroundClient: TargetClient | null;
+}) {
+  const resolveMissingComponent = usePlaygroundStore((s) => s.resolveMissingComponent);
+  const [submitting, setSubmitting] = useState<MissingChoiceKind | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const closest = unresolved.closest_match;
+  const closestUsable = !!closest && (closest.similarity_score ?? 0) >= 0.5;
+  let recommendedKind: MissingChoiceKind;
+  if (closestUsable) recommendedKind = 'closest_match';
+  else if (unresolved.kind === 'extension' && closest) recommendedKind = 'extend_existing';
+  else recommendedKind = 'propose_new';
+
+  const resolved = unresolved.resolution ?? null;
+  const draftPreview = unresolved.draftPreview ?? null;
+
+  const choose = useCallback(
+    async (choice: MissingChoiceKind) => {
+      if (resolved || submitting) return;
+      setSubmitting(choice);
+      setError(null);
+      try {
+        const rawClosest = closest
+          ? {
+              name: closest.name,
+              importStatement: closest.importStatement ?? null,
+              similarity_score: closest.similarity_score,
+              reasoning: closest.reasoning,
+            }
+          : null;
+        const rawUnresolved: RawUnresolvedComponent = {
+          intent: unresolved.intent,
+          reason: unresolved.reason,
+          kind: unresolved.kind,
+          closest_match: rawClosest,
+        };
+        const reply = await postMissingChoice({
+          surface: 'playground',
+          choice,
+          unresolved: rawUnresolved,
+          prd,
+          client: playgroundClient ?? null,
+        });
+        resolveMissingComponent(
+          messageId,
+          unresolved.intent,
+          choice,
+          reply.draftPreview ?? undefined,
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to record DS-missing choice';
+        setError(msg);
+      } finally {
+        setSubmitting(null);
+      }
+    },
+    [resolved, submitting, closest, unresolved, prd, playgroundClient, resolveMissingComponent, messageId],
+  );
+
+  const options: Array<{ kind: MissingChoiceKind; label: string; disabled: boolean; hint: string }> = [
+    {
+      kind: 'closest_match',
+      label: closestUsable && closest ? `Proceed with ${closest.name}` : 'Use closest match',
+      disabled: !closest,
+      hint: closest
+        ? `${closest.name} (${Math.round((closest.similarity_score ?? 0) * 100)}%) — ${closest.reasoning || ''}`.trim()
+        : 'No closest match provided by the planner.',
+    },
+    {
+      kind: 'custom_build',
+      label: 'Build custom (outside DS)',
+      disabled: false,
+      hint: 'Generate locally, auto-labeled "outside DS".',
+    },
+    {
+      kind: 'propose_new',
+      label: 'Propose new DS component',
+      disabled: false,
+      hint: 'Preview a DS-request draft (Slice B will turn approval into a real PR).',
+    },
+    {
+      kind: 'extend_existing',
+      label: 'Extend existing component',
+      disabled: !closest,
+      hint: closest
+        ? `Preview adding a prop/variant to ${closest.name}.`
+        : 'Needs a closest_match to extend.',
+    },
+  ];
+
+  return (
+    <Card
+      style={{
+        padding: 14,
+        background: '#1c1f24',
+        border: '1px solid #3a3f48',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <CardSectionLabel>🔍 DS missing</CardSectionLabel>
+        {resolved && <Chip label={resolved} color="success" />}
+      </div>
+      <div style={{ fontSize: 13, lineHeight: 1.5, color: '#e1e3e8' }}>
+        <strong>Intent:</strong> {unresolved.intent || '(no intent)'}
+        <br />
+        <span style={{ color: '#aab1bb' }}>{unresolved.reason}</span>
+      </div>
+      {closest && (
+        <div style={{ fontSize: 12, color: '#aab1bb', background: '#15171b', borderRadius: 6, padding: 8 }}>
+          <strong>Closest:</strong> <code>{closest.name}</code>{' '}
+          <span>(similarity {Math.round((closest.similarity_score ?? 0) * 100)}%)</span>
+          <br />
+          {closest.reasoning}
+        </div>
+      )}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+          gap: 8,
+        }}
+      >
+        {options.map((opt) => {
+          const isRecommended = !resolved && opt.kind === recommendedKind && !opt.disabled;
+          const isThisResolved = resolved === opt.kind;
+          const isLoading = submitting === opt.kind;
+          return (
+            <button
+              key={opt.kind}
+              type="button"
+              disabled={!!resolved || opt.disabled || !!submitting}
+              onClick={() => void choose(opt.kind)}
+              style={{
+                textAlign: 'left',
+                padding: 10,
+                borderRadius: 6,
+                background: isThisResolved
+                  ? '#2d4a2d'
+                  : isRecommended
+                    ? '#2b2f3a'
+                    : '#23262c',
+                color: opt.disabled ? '#6f747c' : '#e1e3e8',
+                border: isRecommended ? '1px solid #5a8bff' : '1px solid #3a3f48',
+                cursor: resolved || opt.disabled || submitting ? 'default' : 'pointer',
+                opacity: resolved && !isThisResolved ? 0.55 : 1,
+                fontSize: 12,
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                {isRecommended && '⭐ '}
+                {opt.label}
+                {isLoading && ' …'}
+              </div>
+              <div style={{ color: '#9aa1aa', fontSize: 11 }}>{opt.hint}</div>
+            </button>
+          );
+        })}
+      </div>
+      {error && <div style={{ color: '#ff6b6b', fontSize: 11 }}>{error}</div>}
+      {draftPreview && (resolved === 'propose_new' || resolved === 'extend_existing') && (
+        <pre
+          style={{
+            background: '#0e1014',
+            border: '1px solid #2a2d34',
+            borderRadius: 6,
+            padding: 10,
+            fontSize: 11,
+            lineHeight: 1.45,
+            color: '#cfd3da',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            margin: 0,
+            maxHeight: 320,
+            overflow: 'auto',
+          }}
+        >
+          {draftPreview}
+        </pre>
+      )}
+    </Card>
+  );
+}
+
 // ── Helpers ────────────────────────────────────────────
 
-function rawToPlan(raw: RawPlan): { meta: PlanMeta; items: PlanItem[] } {
+function rawToPlan(raw: RawPlan): {
+  meta: PlanMeta;
+  items: PlanItem[];
+  unresolvedComponents?: PlanUnresolvedComponent[];
+} {
   return {
     meta: {
       intent: raw.intent,
@@ -4088,6 +4319,40 @@ function rawToPlan(raw: RawPlan): { meta: PlanMeta; items: PlanItem[] } {
       dependsOn: it.depends_on,
       enabled: true,
     })),
+    unresolvedComponents: (raw.unresolved_components ?? []).map(normalizeUnresolvedComponent),
+  };
+}
+
+// DS Escalation Slice A — normalize the LLM output so the UI doesn't need to
+// branch on legacy string `closest_match`. Mirrors normalizeUnresolved() in
+// orchestrator/lib/ds-escalation.js.
+function normalizeUnresolvedComponent(
+  raw: RawUnresolvedComponent,
+): PlanUnresolvedComponent {
+  const kind: PlanUnresolvedComponent['kind'] =
+    raw.kind === 'extension' || raw.kind === 'composition_miss' ? raw.kind : 'new_component';
+  let closest_match: PlanUnresolvedComponent['closest_match'] = null;
+  if (raw.closest_match && typeof raw.closest_match === 'object' && 'name' in raw.closest_match) {
+    const cm = raw.closest_match;
+    closest_match = {
+      name: cm.name,
+      importStatement: typeof cm.importStatement === 'string' ? cm.importStatement : null,
+      similarity_score: typeof cm.similarity_score === 'number' ? cm.similarity_score : 0,
+      reasoning: typeof cm.reasoning === 'string' ? cm.reasoning : '',
+    };
+  } else if (typeof raw.closest_match === 'string' && raw.closest_match.trim()) {
+    closest_match = {
+      name: raw.closest_match.trim(),
+      importStatement: null,
+      similarity_score: 0,
+      reasoning: '(legacy string closest_match — re-emit plan for full structure)',
+    };
+  }
+  return {
+    intent: raw.intent ?? '',
+    reason: raw.reason ?? '',
+    kind,
+    closest_match,
   };
 }
 

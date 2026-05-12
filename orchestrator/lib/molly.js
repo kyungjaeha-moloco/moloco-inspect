@@ -32,6 +32,12 @@ import {
   setPlaygroundIdForThread,
   clearPlaygroundForThread,
 } from './slack-thread-map.js';
+import {
+  buildMissingComponentCard,
+  normalizeUnresolved,
+  recordMissingChoice,
+  buildDraftPreview,
+} from './ds-escalation.js';
 
 const { App } = bolt;
 
@@ -414,6 +420,20 @@ export function startMolly(options) {
       ctx.logger.error(`[molly] planitems_redecompose_submit crashed: ${err?.stack ?? err}`);
     }
   });
+
+  // DS Escalation Slice A — 4-option "DS missing" card.
+  // action_id mirrors the choice kind so the surface/handler mapping is 1:1.
+  const MISSING_CHOICES = ['closest_match', 'custom_build', 'propose_new', 'extend_existing'];
+  for (const choice of MISSING_CHOICES) {
+    appInstance.action(`molly_missing_${choice}`, async (ctx) => {
+      await ctx.ack();
+      try {
+        await handleMissingChoice({ body: ctx.body, client: ctx.client, choice });
+      } catch (err) {
+        ctx.logger.error(`[molly] missing_${choice} crashed: ${err?.stack ?? err}`);
+      }
+    });
+  }
 
   appInstance.error(async (err) => {
     console.error('[molly] error:', err);
@@ -1440,6 +1460,144 @@ async function postPlanItemsMessage({ client, channel, threadTs, plan, cumulativ
   });
   if (result?.ts) {
     rememberPlanItemsContext(channel, threadTs, result.ts, { plan, cumulativePrd, isFastTrack });
+    await postMissingComponentCards({
+      client,
+      channel,
+      threadTs,
+      planMsgTs: result.ts,
+      plan,
+    });
+  }
+}
+
+// DS Escalation Slice A — when the plan has unresolved_components, follow the
+// plan card with one "🔍 DS missing" card per entry. Each card has 4 buttons
+// (closest_match / custom_build / propose_new / extend_existing). The plan
+// context (planItemsContexts) holds the full plan so the action handlers can
+// look up the unresolved entry by index without storing it twice.
+async function postMissingComponentCards({ client, channel, threadTs, planMsgTs, plan }) {
+  const unresolved = Array.isArray(plan?.unresolved_components) ? plan.unresolved_components : [];
+  if (unresolved.length === 0) return;
+  for (let index = 0; index < unresolved.length; index++) {
+    const card = buildMissingComponentCard(unresolved[index]);
+    const blocks = buildMissingComponentBlocks({ card, planMsgTs, index });
+    try {
+      await client.chat.postMessage({
+        channel,
+        thread_ts: threadTs,
+        text: `🔍 DS missing: ${card.headline}`,
+        blocks,
+      });
+    } catch (err) {
+      console.warn(`[molly] postMissingComponentCards failed at index=${index}: ${err.message?.slice(0, 120)}`);
+    }
+  }
+}
+
+function buildMissingComponentBlocks({ card, planMsgTs, index }) {
+  const valueBase = `${planMsgTs}:${index}`;
+  // Slack only allows 5 action elements per block — we have 4 so 1 block is enough.
+  const buttonElements = card.options.map((opt) => {
+    const elt = {
+      type: 'button',
+      action_id: `molly_missing_${opt.kind}`,
+      text: {
+        type: 'plain_text',
+        text: opt.recommended ? `⭐ ${opt.label}` : opt.label,
+      },
+      value: valueBase,
+    };
+    if (opt.recommended) elt.style = 'primary';
+    if (opt.disabled) elt.style = 'danger';
+    return elt;
+  });
+  return [
+    { type: 'section', text: { type: 'mrkdwn', text: `🔍 *${card.headline}*` } },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: card.hint }] },
+    { type: 'actions', elements: buttonElements },
+  ];
+}
+
+async function handleMissingChoice({ body, client, choice }) {
+  const { channel, message, user } = body;
+  const threadTs = message.thread_ts ?? message.ts;
+  const rawValue = body.actions?.[0]?.value || '';
+  const [planMsgTs, indexStr] = rawValue.split(':');
+  const index = Number.parseInt(indexStr, 10);
+  const planCtx = getPlanItemsContext(channel.id, threadTs, planMsgTs);
+  if (!planCtx || !Number.isFinite(index)) {
+    try {
+      await client.chat.postMessage({
+        channel: channel.id,
+        thread_ts: threadTs,
+        text: '⏱️ The plan card for this DS-missing choice has expired. Mention me again to re-emit.',
+      });
+    } catch {}
+    return;
+  }
+  const unresolved = planCtx.plan?.unresolved_components?.[index];
+  if (!unresolved) return;
+  const normalized = normalizeUnresolved(unresolved);
+
+  // Telemetry — fire-and-forget jsonl append.
+  recordMissingChoice({
+    surface: 'slack',
+    jobId: null,
+    threadId: `${channel.id}:${threadTs}`,
+    client: planCtx.plan?.targetClient || 'msm-default',
+    componentIntent: normalized.intent,
+    closestMatch: normalized.closest_match?.name ?? null,
+    closestSimilarity: normalized.closest_match?.similarity_score ?? null,
+    kind: normalized.kind,
+    choice,
+    user: user?.id || null,
+  });
+
+  // Stamp the card so the user sees their choice locked in.
+  try {
+    const stamped = [
+      ...(message.blocks || []).filter((b) => b.type !== 'actions'),
+      {
+        type: 'context',
+        elements: [{ type: 'mrkdwn', text: `✅ <@${user.id}> chose *${choice}*.` }],
+      },
+    ];
+    await client.chat.update({
+      channel: channel.id,
+      ts: message.ts,
+      text: `DS missing — chose ${choice}`,
+      blocks: stamped,
+    });
+  } catch {
+    /* best-effort */
+  }
+
+  // For ⓒ/ⓓ — show a draft preview as a thread message (2-step "preview before PR").
+  if (choice === 'propose_new' || choice === 'extend_existing') {
+    const preview = buildDraftPreview({
+      choice,
+      unresolved: normalized,
+      prd: planCtx.cumulativePrd,
+      user: user?.username || user?.id || 'unknown',
+      surface: 'slack',
+    });
+    try {
+      await client.chat.postMessage({
+        channel: channel.id,
+        thread_ts: threadTs,
+        text: '📝 DS request draft preview',
+        blocks: [
+          { type: 'header', text: { type: 'plain_text', text: '📝 DS request draft (preview)' } },
+          { type: 'section', text: { type: 'mrkdwn', text: trunc(preview, 2900) } },
+          {
+            type: 'context',
+            elements: [{ type: 'mrkdwn', text: '_Slice B will turn approval into a real PR. For now this is a preview only._' }],
+          },
+        ],
+      });
+    } catch (err) {
+      console.warn(`[molly] missing-choice preview post failed: ${err.message?.slice(0, 120)}`);
+    }
   }
 }
 

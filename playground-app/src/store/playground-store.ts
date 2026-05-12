@@ -45,6 +45,24 @@ export interface PlanMeta {
   visualConstraints: string[];
 }
 
+export interface PlanClosestMatch {
+  name: string;
+  importStatement: string | null;
+  similarity_score: number;
+  reasoning: string;
+}
+
+export interface PlanUnresolvedComponent {
+  intent: string;
+  reason: string;
+  kind: 'new_component' | 'extension' | 'composition_miss';
+  closest_match: PlanClosestMatch | null;
+  /** Tracks which 4-option choice the user clicked, for de-duping the UI card. */
+  resolution?: 'closest_match' | 'custom_build' | 'propose_new' | 'extend_existing';
+  /** Draft preview body returned by /api/missing-choice for ⓒ/ⓓ. */
+  draftPreview?: string;
+}
+
 export interface ExecutionState {
   requestId: string;
   status: 'processing' | 'preview' | 'approved' | 'error' | string;
@@ -85,6 +103,8 @@ export interface ChatMessage {
   plan?: {
     meta: PlanMeta;
     items: PlanItem[];
+    /** DS Escalation Slice A — unresolved DS gaps surfaced by the planner. */
+    unresolvedComponents?: PlanUnresolvedComponent[];
   };
   /** Plan has been accepted / rejected — dimmed or highlighted in UI. */
   planResolved?: 'accepted' | 'rejected';
@@ -212,6 +232,17 @@ interface PlaygroundStoreState {
    * Swaps both meta + items entirely. planResolved is reset (decision required again).
    */
   replacePlan(messageId: string, plan: { meta: PlanMeta; items: PlanItem[] }): void;
+  /**
+   * DS Escalation Slice A — record which of the 4 options the user picked
+   * for a specific unresolved component on a plan message. Optional draft
+   * preview body returned by `/api/missing-choice` for ⓒ/ⓓ.
+   */
+  resolveMissingComponent(
+    messageId: string,
+    componentIntent: string,
+    resolution: 'closest_match' | 'custom_build' | 'propose_new' | 'extend_existing',
+    draftPreview?: string,
+  ): void;
 
   /** Drop all per-playground state — used when leaving /p/:id. */
   reset(): void;
@@ -486,6 +517,24 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
           plan,
           // New plan — invalidates the previous accept/reject decision. User decides again.
           planResolved: undefined,
+        };
+      }),
+    })),
+
+  resolveMissingComponent: (messageId, componentIntent, resolution, draftPreview) =>
+    set((state) => ({
+      messages: state.messages.map((m) => {
+        if (m.id !== messageId || !m.plan?.unresolvedComponents) return m;
+        return {
+          ...m,
+          plan: {
+            ...m.plan,
+            unresolvedComponents: m.plan.unresolvedComponents.map((u) =>
+              u.intent === componentIntent
+                ? { ...u, resolution, ...(draftPreview ? { draftPreview } : {}) }
+                : u,
+            ),
+          },
         };
       }),
     })),

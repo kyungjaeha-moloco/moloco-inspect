@@ -55,8 +55,17 @@ Include the following in an array field "visual_constraints" at the top level. D
 
 ## Component reference tracking (S3 — surface to user)
 - After composing plan_items, list every DS component you referenced under top-level field \`referenced_components\` with the exact { name, importStatement, status } as found in components.json. Deduplicate.
-- If a desired functionality has no exact match in components.json (do NOT invent one), list it under \`unresolved_components\` with: { intent (1 line, in English — what the user wants), closest_match (closest existing component name from components.json, or null if nothing close), reason (1 line, in English — why none of the catalog components fits) }. Empty array is fine.
-- These two fields enable the 3 surfaces (Slack/Playground/Chrome ext) to render component badges and a "DS missing" UX so the user sees what was used and what was not. Be honest and exhaustive — over-listing is better than missing entries.
+- If a desired functionality has no exact match in components.json (do NOT invent one), list it under \`unresolved_components\` with:
+  - \`intent\` (1 line, in English — what the user wants)
+  - \`closest_match\` — object \`{ name, importStatement, similarity_score, reasoning }\` describing the nearest existing DS component (or \`null\` if nothing close).
+    - \`name\` — MC* component name from components.json
+    - \`importStatement\` — verbatim from components.json
+    - \`similarity_score\` — number in [0, 1] (0.0 = unrelated, 0.5 = same family different prop set, 1.0 = nearly equivalent). Be conservative — only output ≥ 0.7 when the closest_match could plausibly fulfill the user intent with at most prop tweaks.
+    - \`reasoning\` — 1 line, in English, why this component is the closest match
+  - \`kind\` — one of \`new_component\` (genuinely missing) | \`extension\` (existing component needs a new prop/variant) | \`composition_miss\` (probably achievable by composing existing components but you are not sure how).
+  - \`reason\` (1 line, in English — why none of the catalog components fits as-is)
+  Empty array is fine.
+- These two fields enable the 3 surfaces (Slack/Playground/Chrome ext) to render component badges and a "DS missing" UX — including the 4-option escalation card (closest_match progress / custom build / propose new / extend existing). Be honest and exhaustive — over-listing is better than missing entries.
 
 Output MUST be valid JSON only (no markdown, no prose). Schema:
 {
@@ -78,7 +87,12 @@ Output MUST be valid JSON only (no markdown, no prose). Schema:
     { "name": "<MC* component name from components.json>", "importStatement": "<verbatim from components.json>", "status": "<status field from components.json>" }
   ],
   "unresolved_components": [
-    { "intent": "<English — what the user wanted>", "closest_match": "<MC* name or null>", "reason": "<English — why nothing fits>" }
+    {
+      "intent": "<English — what the user wanted>",
+      "closest_match": { "name": "<MC* name>", "importStatement": "<verbatim from components.json>", "similarity_score": 0.0, "reasoning": "<English, 1 line>" } /* or null */,
+      "kind": "<new_component|extension|composition_miss>",
+      "reason": "<English — why nothing fits as-is>"
+    }
   ]
 }
 

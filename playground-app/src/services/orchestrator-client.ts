@@ -13,6 +13,23 @@ export interface RawPlanItem {
   depends_on?: string[];
 }
 
+export interface RawClosestMatch {
+  name: string;
+  importStatement?: string | null;
+  similarity_score?: number;
+  reasoning?: string;
+}
+
+export type UnresolvedKind = 'new_component' | 'extension' | 'composition_miss';
+
+export interface RawUnresolvedComponent {
+  intent: string;
+  reason: string;
+  kind?: UnresolvedKind;
+  /** May be null, an object (preferred), or a legacy string. */
+  closest_match?: RawClosestMatch | string | null;
+}
+
 export interface RawPlan {
   intent: string;
   target?: { client?: string; route_or_page?: string };
@@ -20,6 +37,49 @@ export interface RawPlan {
   summary: string;
   visual_constraints?: string[];
   plan_items: RawPlanItem[];
+  unresolved_components?: RawUnresolvedComponent[];
+}
+
+export type MissingChoiceKind = 'closest_match' | 'custom_build' | 'propose_new' | 'extend_existing';
+
+export interface MissingChoiceInput {
+  surface: 'playground' | 'chrome_ext' | 'slack';
+  choice: MissingChoiceKind;
+  unresolved: RawUnresolvedComponent;
+  prd?: string;
+  jobId?: string | null;
+  threadId?: string | null;
+  client?: string | null;
+  user?: string | null;
+}
+
+export interface MissingChoiceReply {
+  ok: boolean;
+  choice: MissingChoiceKind;
+  draftPreview?: string | null;
+  error?: string;
+}
+
+export async function postMissingChoice(input: MissingChoiceInput): Promise<MissingChoiceReply> {
+  const res = await fetch(`${ORCHESTRATOR_URL}/api/missing-choice`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  let body: MissingChoiceReply | null = null;
+  try {
+    body = (await res.json()) as MissingChoiceReply;
+  } catch {
+    /* fall through */
+  }
+  if (!res.ok || !body?.ok) {
+    throw new OrchestratorError(
+      body?.error ?? `missing-choice failed with status ${res.status}`,
+      res.status,
+      body,
+    );
+  }
+  return body;
 }
 
 export type ChatRole = 'user' | 'assistant';

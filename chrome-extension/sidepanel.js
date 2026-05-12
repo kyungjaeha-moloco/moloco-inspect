@@ -2723,6 +2723,16 @@
     actions.appendChild(redecBtn);
     actions.appendChild(approveBtn);
     bubble.appendChild(actions);
+
+    // DS Escalation Slice A — render one "DS missing" sub-card per
+    // unresolved_components entry. Buttons POST to /api/missing-choice.
+    renderMissingComponentSections({
+      container: bubble,
+      plan: currentPlan,
+      cumulativePrd,
+      ctx,
+    });
+
     wrap.appendChild(bubble);
 
     messagesEl.appendChild(wrap);
@@ -2736,6 +2746,202 @@
       getPlan: () => currentPlan,
       getPrd: () => cumulativePrd,
     };
+  }
+
+  // DS Escalation Slice A — normalize one unresolved_components entry to the
+  // same shape orchestrator/lib/ds-escalation.js produces. Tolerates legacy
+  // string `closest_match`.
+  function normalizeUnresolvedEntry(entry) {
+    const intent = typeof entry?.intent === 'string' ? entry.intent : '';
+    const reason = typeof entry?.reason === 'string' ? entry.reason : '';
+    const kind = ['new_component', 'extension', 'composition_miss'].includes(entry?.kind)
+      ? entry.kind
+      : 'new_component';
+    let closest_match = null;
+    const raw = entry?.closest_match;
+    if (raw && typeof raw === 'object' && typeof raw.name === 'string') {
+      closest_match = {
+        name: raw.name,
+        importStatement: typeof raw.importStatement === 'string' ? raw.importStatement : null,
+        similarity_score: typeof raw.similarity_score === 'number' ? raw.similarity_score : 0,
+        reasoning: typeof raw.reasoning === 'string' ? raw.reasoning : '',
+      };
+    } else if (typeof raw === 'string' && raw.trim()) {
+      closest_match = {
+        name: raw.trim(),
+        importStatement: null,
+        similarity_score: 0,
+        reasoning: '(legacy string closest_match — re-emit plan for full structure)',
+      };
+    }
+    return { intent, reason, kind, closest_match };
+  }
+
+  function renderMissingComponentSections({ container, plan, cumulativePrd, ctx }) {
+    const list = Array.isArray(plan?.unresolved_components) ? plan.unresolved_components : [];
+    if (!list.length) return;
+    list.forEach((rawEntry) => {
+      const u = normalizeUnresolvedEntry(rawEntry);
+      const card = document.createElement('div');
+      card.className = 'plan-missing-card';
+      card.style.marginTop = '10px';
+      card.style.padding = '10px';
+      card.style.borderRadius = '6px';
+      card.style.border = '1px solid var(--border, #3a3f48)';
+      card.style.background = 'var(--bg-subtle, #1c1f24)';
+      card.style.fontSize = '12px';
+
+      const header = document.createElement('div');
+      header.style.fontWeight = '600';
+      header.style.marginBottom = '6px';
+      header.textContent = `🔍 DS missing: ${u.intent || '(no intent)'}`;
+      card.appendChild(header);
+
+      if (u.reason) {
+        const reason = document.createElement('div');
+        reason.style.color = 'var(--text-muted, #aab1bb)';
+        reason.style.marginBottom = '6px';
+        reason.textContent = u.reason;
+        card.appendChild(reason);
+      }
+
+      const closestUsable = !!u.closest_match && (u.closest_match.similarity_score ?? 0) >= 0.5;
+      if (u.closest_match) {
+        const c = document.createElement('div');
+        c.style.fontSize = '11px';
+        c.style.color = 'var(--text-muted, #aab1bb)';
+        c.style.background = 'var(--bg-stronger, #15171b)';
+        c.style.padding = '6px 8px';
+        c.style.borderRadius = '4px';
+        c.style.marginBottom = '8px';
+        const pct = Math.round((u.closest_match.similarity_score ?? 0) * 100);
+        c.textContent = `Closest: ${u.closest_match.name} (similarity ${pct}%) — ${u.closest_match.reasoning || ''}`;
+        card.appendChild(c);
+      }
+
+      let recommendedKind;
+      if (closestUsable) recommendedKind = 'closest_match';
+      else if (u.kind === 'extension' && u.closest_match) recommendedKind = 'extend_existing';
+      else recommendedKind = 'propose_new';
+
+      const optionMap = [
+        {
+          kind: 'closest_match',
+          label: closestUsable && u.closest_match ? `Proceed with ${u.closest_match.name}` : 'Use closest match',
+          disabled: !u.closest_match,
+          hint: u.closest_match
+            ? `${u.closest_match.name} — ${u.closest_match.reasoning || ''}`.trim()
+            : 'No closest match provided.',
+        },
+        {
+          kind: 'custom_build',
+          label: 'Build custom (outside DS)',
+          disabled: false,
+          hint: 'Generate locally, auto-labeled "outside DS".',
+        },
+        {
+          kind: 'propose_new',
+          label: 'Propose new DS component',
+          disabled: false,
+          hint: 'Preview DS-request draft (Slice B turns it into a PR).',
+        },
+        {
+          kind: 'extend_existing',
+          label: 'Extend existing component',
+          disabled: !u.closest_match,
+          hint: u.closest_match
+            ? `Preview prop/variant on ${u.closest_match.name}.`
+            : 'Needs a closest_match to extend.',
+        },
+      ];
+
+      const buttonsRow = document.createElement('div');
+      buttonsRow.style.display = 'grid';
+      buttonsRow.style.gridTemplateColumns = '1fr';
+      buttonsRow.style.gap = '6px';
+      buttonsRow.style.marginTop = '4px';
+
+      const draftHost = document.createElement('pre');
+      draftHost.style.display = 'none';
+      draftHost.style.background = 'var(--bg-stronger, #0e1014)';
+      draftHost.style.border = '1px solid var(--border, #2a2d34)';
+      draftHost.style.borderRadius = '4px';
+      draftHost.style.padding = '8px';
+      draftHost.style.marginTop = '8px';
+      draftHost.style.fontSize = '11px';
+      draftHost.style.whiteSpace = 'pre-wrap';
+      draftHost.style.wordBreak = 'break-word';
+      draftHost.style.maxHeight = '320px';
+      draftHost.style.overflow = 'auto';
+
+      const allButtons = [];
+
+      optionMap.forEach((opt) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className =
+          opt.kind === recommendedKind && !opt.disabled
+            ? 'plan-btn plan-btn-primary'
+            : 'plan-btn';
+        btn.disabled = opt.disabled;
+        btn.style.textAlign = 'left';
+        btn.style.justifyContent = 'flex-start';
+        btn.innerHTML = `<strong>${opt.kind === recommendedKind && !opt.disabled ? '⭐ ' : ''}${opt.label}</strong><br/><span style="opacity:0.7;font-size:11px;">${opt.hint}</span>`;
+        btn.addEventListener('click', async () => {
+          if (btn.disabled) return;
+          allButtons.forEach((b) => (b.disabled = true));
+          btn.classList.add('plan-btn-loading');
+          try {
+            const baseUrl = await getServerUrl();
+            const res = await fetch(`${baseUrl}/api/missing-choice`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                surface: 'chrome_ext',
+                choice: opt.kind,
+                unresolved: {
+                  intent: u.intent,
+                  reason: u.reason,
+                  kind: u.kind,
+                  closest_match: u.closest_match,
+                },
+                prd: cumulativePrd,
+                client: ctx?.client || null,
+              }),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok || body.ok === false) {
+              throw new Error(body.error || `HTTP ${res.status}`);
+            }
+            const stamp = document.createElement('div');
+            stamp.style.marginTop = '6px';
+            stamp.style.fontSize = '11px';
+            stamp.style.color = 'var(--text-muted, #888)';
+            stamp.textContent = `✅ Choice recorded: ${opt.kind}`;
+            card.appendChild(stamp);
+            if (body.draftPreview) {
+              draftHost.textContent = body.draftPreview;
+              draftHost.style.display = 'block';
+            }
+          } catch (err) {
+            allButtons.forEach((b, idx) => (b.disabled = optionMap[idx].disabled));
+            btn.classList.remove('plan-btn-loading');
+            const errStamp = document.createElement('div');
+            errStamp.style.marginTop = '6px';
+            errStamp.style.fontSize = '11px';
+            errStamp.style.color = 'var(--text-danger, #c0392b)';
+            errStamp.textContent = `❌ Choice failed: ${err?.message ?? String(err)}`;
+            card.appendChild(errStamp);
+          }
+        });
+        allButtons.push(btn);
+        buttonsRow.appendChild(btn);
+      });
+
+      card.appendChild(buttonsRow);
+      card.appendChild(draftHost);
+      container.appendChild(card);
+    });
   }
 
   // ─── Job Plan Approval Card (read-only progress when job.status=planning) ──

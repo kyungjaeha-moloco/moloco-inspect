@@ -3189,6 +3189,53 @@ ${JSON.stringify(apiContracts, null, 2)}`;
   // PRD analyzer into one lib (molly-intake.js) returning 4 kind values.
   // Phase 2 of unified intake plan. The old /api/molly/respond is kept as an alias
   // (to be deprecated in Phase 3).
+  // DS Escalation Slice A — Playground / Chrome ext call this when the user
+  // clicks one of the 4 "DS missing" buttons. Slack records the choice in
+  // molly.js directly. All three surfaces share the same jsonl sink.
+  if (pathname === '/api/missing-choice' && req.method === 'POST') {
+    try {
+      const payload = await parseBody(req);
+      const { recordMissingChoice, buildDraftPreview, normalizeUnresolved } = await import(
+        './lib/ds-escalation.js'
+      );
+      const choice = String(payload?.choice ?? '');
+      if (!['closest_match', 'custom_build', 'propose_new', 'extend_existing'].includes(choice)) {
+        return json(res, 400, { ok: false, error: 'choice must be one of 4 known kinds' });
+      }
+      const unresolved = payload?.unresolved;
+      if (!unresolved || typeof unresolved !== 'object') {
+        return json(res, 400, { ok: false, error: 'unresolved entry required' });
+      }
+      const normalized = normalizeUnresolved(unresolved);
+      recordMissingChoice({
+        surface: String(payload?.surface ?? 'unknown'),
+        jobId: payload?.jobId ?? null,
+        threadId: payload?.threadId ?? null,
+        client: payload?.client ?? null,
+        componentIntent: normalized.intent,
+        closestMatch: normalized.closest_match?.name ?? null,
+        closestSimilarity: normalized.closest_match?.similarity_score ?? null,
+        kind: normalized.kind,
+        choice,
+        user: payload?.user ?? null,
+      });
+      let draftPreview = null;
+      if (choice === 'propose_new' || choice === 'extend_existing') {
+        draftPreview = buildDraftPreview({
+          choice,
+          unresolved: normalized,
+          prd: payload?.prd ?? '',
+          user: payload?.user ?? null,
+          surface: String(payload?.surface ?? 'unknown'),
+        });
+      }
+      return json(res, 200, { ok: true, choice, draftPreview });
+    } catch (err) {
+      console.error('[/api/missing-choice] error:', err);
+      return json(res, 500, { ok: false, error: 'failed to record choice' });
+    }
+  }
+
   if (pathname === '/api/intake' && req.method === 'POST') {
     try {
       const { processIntake } = await import('./lib/molly-intake.js');
