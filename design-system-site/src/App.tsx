@@ -78,7 +78,7 @@ export function App() {
           <Route path="/patterns" element={<PatternsPage data={patternsData} codeExamples={codeExamplesData} />} />
           <Route path="/blocks" element={<BlocksPage patterns={patternsData} catalog={catalog} />} />
           <Route path="/ux-writing" element={<UxWritingPage data={uxWritingData} />} />
-          <Route path="/governance" element={<GovernancePage data={governanceData} errorPatterns={errorPatternsData} uxCriteria={uxCriteriaData} />} />
+          <Route path="/governance" element={<GovernancePage data={governanceData} errorPatterns={errorPatternsData} uxCriteria={uxCriteriaData} catalog={catalog} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

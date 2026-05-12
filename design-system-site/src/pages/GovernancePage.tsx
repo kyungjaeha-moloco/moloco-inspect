@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import type { GovernanceJson, ErrorPatternsJson, UxCriteriaJson } from '../types';
+import type {
+  ComponentEntry,
+  ComponentsCatalog,
+  GovernanceJson,
+  ErrorPatternsJson,
+  UxCriteriaJson,
+} from '../types';
 
 type Props = {
   data: GovernanceJson;
   errorPatterns: ErrorPatternsJson;
   uxCriteria: UxCriteriaJson;
+  catalog: ComponentsCatalog;
 };
 
 function QueueSection({ title, items, badgeClass }: { title: string; items: Array<{ name: string; reason?: string; migration?: string }>; badgeClass: string }) {
@@ -305,7 +312,131 @@ function UxCriteriaSection({ data }: { data: UxCriteriaJson }) {
   );
 }
 
-export function GovernancePage({ data, errorPatterns, uxCriteria }: Props) {
+// DS Escalation Slice C bootstrap — usage insights derived from
+// usage_stats.file_count (Phase 0+ codebase scan). Renders top-N adoption
+// bars + an anomaly callout for internal components that claim `stable`
+// status but have zero call sites. External-library components (path: null,
+// e.g. @moloco/moloco-cloud-react-ui) are filtered out because the scan only
+// covers msm-portal-web/src.
+function UsageInsightsSection({ catalog }: { catalog: ComponentsCatalog }) {
+  const all: ComponentEntry[] = catalog.categories.flatMap((cat) => cat.components);
+  const internal = all.filter((c) => !!c.path);
+  const ranked = [...all].sort((a, b) => (b.usageFileCount ?? 0) - (a.usageFileCount ?? 0));
+  const topN = ranked.slice(0, 15);
+  const maxCount = topN[0]?.usageFileCount ?? 0;
+
+  const anomalies = internal.filter(
+    (c) => c.status === 'stable' && (c.usageFileCount ?? 0) === 0,
+  );
+  const totalWithUsage = all.filter((c) => (c.usageFileCount ?? 0) > 0).length;
+  const grandTotalFiles = all.reduce((sum, c) => sum + (c.usageFileCount ?? 0), 0);
+
+  return (
+    <div className="section">
+      <div className="section-header">
+        <h2 className="section-title">Usage Insights</h2>
+        <span className="badge badge-neutral">{totalWithUsage} / {all.length} in use</span>
+      </div>
+      <p className="card-desc" style={{ marginBottom: 16 }}>
+        Distinct *.tsx/*.ts files in <code className="mono">msm-portal-web/src</code> that
+        reference each component, refreshed by{' '}
+        <code className="mono">extract-cross-refs.mjs</code>. External-library components
+        (<code className="mono">path: null</code>) are excluded from the anomaly check.
+      </p>
+
+      <div className="stat-row" style={{ marginBottom: 16 }}>
+        <div className="stat-card">
+          <div className="stat-value">{totalWithUsage}</div>
+          <div className="stat-label">Components in use</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{all.length - totalWithUsage}</div>
+          <div className="stat-label">Zero-usage entries</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{anomalies.length}</div>
+          <div className="stat-label">Stable but zero (anomaly)</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{grandTotalFiles.toLocaleString()}</div>
+          <div className="stat-label">Total call-site files</div>
+        </div>
+      </div>
+
+      {anomalies.length > 0 && (
+        <div className="card" style={{ marginBottom: 16, borderLeft: '3px solid var(--color-warning, #d97706)' }}>
+          <div className="card-title">⚠️ Stable but zero-usage (governance review)</div>
+          <p className="card-desc" style={{ marginBottom: 8 }}>
+            These internal components are catalogued as <code className="mono">stable</code> but
+            have no callers in <code className="mono">msm-portal-web</code>. Candidates for
+            deprecation or marketing review (docs may be missing).
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {anomalies.map((c) => (
+              <div
+                key={c.name}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--text-sm)' }}
+              >
+                <code className="mono">{c.name}</code>
+                <span style={{ color: 'var(--text-helper)' }}>{c.shortDescription ?? c.description ?? ''}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="card-title" style={{ marginBottom: 8 }}>Top {topN.length} by adoption</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {topN.map((c) => {
+          const count = c.usageFileCount ?? 0;
+          const width = maxCount > 0 ? Math.max(2, Math.round((count / maxCount) * 100)) : 0;
+          const isAnomaly = c.status === 'stable' && count === 0 && !!c.path;
+          const isDeprecated = c.status === 'deprecated' || c.status === 'candidate-for-removal';
+          const color = isAnomaly
+            ? 'var(--color-warning, #d97706)'
+            : isDeprecated
+              ? 'var(--text-helper, #999)'
+              : 'var(--color-accent, #2563eb)';
+          return (
+            <div
+              key={c.name}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(180px, 220px) 1fr 56px',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <code className="mono" style={{ fontSize: 'var(--text-xs)' }}>{c.name}</code>
+              <div style={{ background: 'var(--surface-2, #f1f1f1)', borderRadius: 4, overflow: 'hidden', height: 18 }}>
+                <div
+                  style={{
+                    width: `${width}%`,
+                    height: '100%',
+                    background: color,
+                    transition: 'width 0.2s ease-out',
+                  }}
+                />
+              </div>
+              <span
+                style={{
+                  textAlign: 'right',
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-helper)',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {count}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function GovernancePage({ data, errorPatterns, uxCriteria, catalog }: Props) {
   return (
     <>
       <div className="page-header">
@@ -364,6 +495,8 @@ export function GovernancePage({ data, errorPatterns, uxCriteria }: Props) {
       {!data.promotion_queue?.length && !data.deprecation_queue?.length && !data.removal_queue?.length && !data.watch_list?.length && (
         <div className="empty-state" style={{ marginBottom: 32 }}>No governance queue items at this time.</div>
       )}
+
+      <UsageInsightsSection catalog={catalog} />
 
       <ErrorPatternsSection data={errorPatterns} />
 
