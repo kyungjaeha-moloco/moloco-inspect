@@ -157,6 +157,21 @@ describe('buildResearchQueries', () => {
     assert.deepEqual(qs, []);
   });
 
+  // Regression for the review-MAJOR: resp.json() can throw on a 200
+  // with non-JSON body. The lib must catch and return [], not propagate.
+  test('returns [] when resp.json() throws (non-JSON body)', async () => {
+    const fetchFn = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => { throw new SyntaxError('Unexpected token < in JSON'); },
+    });
+    const qs = await buildResearchQueries(
+      { title: 't' },
+      { fetchFn, apiKey: 'sk-x' },
+    );
+    assert.deepEqual(qs, []);
+  });
+
   test('hard-caps at 5 queries', async () => {
     const many = Array.from({ length: 9 }, (_, i) => ({ question: `q${i}`, scope: 'repo' }));
     const fetchFn = makeFetchOk({ content: [{ text: JSON.stringify({ queries: many }) }] });
@@ -261,6 +276,28 @@ describe('runResearchQuery', () => {
       );
       assert.equal(r.outcome, 'error');
       assert.match(r.stderr, /ENOENT/);
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  // Regression for the review-MAJOR: child emits 'error' with no
+  // follow-up 'exit'. The lib must still resolve via the microtask
+  // fallback so promises don't leak.
+  test('resolves with outcome=error when child emits error without exit', async () => {
+    const tmp = await mkdtemp(path.join(tmpdir(), 'jr-test-'));
+    try {
+      const child = makeFakeChild();
+      const promise = runResearchQuery(
+        { question: 'q', scope: 'repo', jobId: 'j1', taskId: 't1', queryIndex: 4 },
+        { spawnFn: spawnFnReturning(child), logDir: tmp },
+      );
+      // Emit 'error' on the child but never 'exit'. The microtask
+      // fallback inside runResearchQuery should finalize regardless.
+      child.emit('error', new Error('post-spawn EPERM'));
+      const r = await promise;
+      assert.equal(r.outcome, 'error');
+      assert.match(r.stderr, /post-spawn EPERM/);
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }

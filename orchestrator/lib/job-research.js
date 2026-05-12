@@ -144,7 +144,20 @@ export async function buildResearchQueries(task, opts = {}) {
     });
     return [];
   }
-  const data = await resp.json();
+  // resp.json() can throw when the server returns a 200 with a non-JSON
+  // body. Guard the parse so runResearch's "always resolves" contract
+  // (no thrown rejection from this lib) holds end-to-end (review MAJOR).
+  let data;
+  try {
+    data = await resp.json();
+  } catch (err) {
+    recordEvent('lib_call', {
+      lib: 'research_query_builder',
+      latency_ms: Date.now() - t0,
+      error: `json parse failed: ${String(err?.message ?? err).slice(0, 120)}`,
+    });
+    return [];
+  }
   const text = data?.content?.[0]?.text ?? '';
   const queries = parseQueries(text);
 
@@ -257,7 +270,7 @@ export function runResearchQuery(params, opts = {}) {
           await writeFile(logPath, `[spawn-error] ${outcome.stderr}\n`);
         } catch { /* logging best-effort */ }
       })();
-      recordResearchSubprocessEvent(outcome);
+      recordResearchSubprocessEvent(outcome, { jobId, taskId, queryIndex });
       resolve(outcome);
       return;
     }
@@ -266,6 +279,7 @@ export function runResearchQuery(params, opts = {}) {
     let stderr = '';
     let killedByTimeout = false;
     let killGraceTimer = null;
+    let resolved = false; // guard so 'error' + 'exit' double-fire is safe
     child.stdout?.on('data', (d) => { stdout += String(d); });
     child.stderr?.on('data', (d) => { stderr += String(d); });
 
@@ -297,23 +311,27 @@ export function runResearchQuery(params, opts = {}) {
       if (opts.signal) opts.signal.removeEventListener('abort', onAbort);
     };
 
-    child.on('error', (err) => {
-      stderr += `[child-error] ${err?.message ?? err}\n`;
-    });
-
-    child.on('exit', async (code, signal) => {
+    // Single resolution path. Handles both happy `exit` and stuck-error
+    // cases where `exit` may not fire (post-spawn EPERM on some
+    // platforms — review MAJOR). `resolved` guard makes double-fire
+    // safe; both 'error' and 'exit' funnel through here.
+    const finalize = async (kind, code, signal) => {
+      if (resolved) return;
+      resolved = true;
       cleanup();
       const ms = Date.now() - t0;
       const outcome = killedByTimeout
         ? 'timeout'
-        : (code === 0 ? 'ok' : 'error');
+        : (kind === 'exit'
+            ? (code === 0 ? 'ok' : 'error')
+            : 'error');
       const answer = stdout.trim();
       try {
         await mkdir(logDir, { recursive: true });
         await writeFile(
           logPath,
           [
-            `[exit] code=${code} signal=${signal} outcome=${outcome} ms=${ms}`,
+            `[${kind}] code=${code} signal=${signal} outcome=${outcome} ms=${ms}`,
             '--- stdout ---',
             stdout,
             '--- stderr ---',
@@ -324,19 +342,36 @@ export function runResearchQuery(params, opts = {}) {
         // Logging failure must not break the research flow.
       }
       const result = { question, scope, outcome, answer, stderr, ms, logPath };
-      recordResearchSubprocessEvent(result);
+      recordResearchSubprocessEvent(result, { jobId, taskId, queryIndex });
       resolve(result);
+    };
+
+    child.on('error', (err) => {
+      stderr += `[child-error] ${err?.message ?? err}\n`;
+      // On most platforms libuv emits 'exit' right after 'error'. If
+      // it doesn't (e.g. post-spawn EPERM), still resolve via the
+      // microtask fallback so we don't leak listeners or the per-query
+      // timer (review MAJOR).
+      queueMicrotask(() => { if (!resolved) finalize('error', null, null); });
+    });
+
+    child.on('exit', (code, signal) => {
+      finalize('exit', code, signal);
     });
   });
 }
 
-function recordResearchSubprocessEvent(result) {
+function recordResearchSubprocessEvent(result, ctx = {}) {
   recordEvent('lib_call', {
     lib: 'research_query',
+    jobId: ctx.jobId,
+    taskId: ctx.taskId,
+    queryIndex: ctx.queryIndex,
     scope: result.scope,
     outcome: result.outcome,
     latency_ms: result.ms,
     answer_chars: result.answer.length,
+    stderr_chars: (result.stderr || '').length,
   });
 }
 
@@ -460,6 +495,10 @@ export async function runResearch(task, ctx, opts = {}) {
       scope: r.scope,
       outcome: r.outcome,
       answer: r.answer,
+      // stderr surfaced so callers can debug error / timeout outcomes
+      // without grepping log files (review MINOR). Bounded at 1 KB —
+      // anything longer is in the log file at `logPath`.
+      stderr: typeof r.stderr === 'string' ? r.stderr.slice(0, 1024) : '',
       ms: r.ms,
       logPath: r.logPath,
     })),
