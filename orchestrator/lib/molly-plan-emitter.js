@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import { getMollySettings, buildThinkingConfig } from './molly-settings.js';
 import { recordEvent } from './molly-metrics.js';
 
-const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal.
+export const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal.
 
 You have access to a structured design system:
 - patterns.json: composition patterns (app-shell, list-page, detail-page, form-basic, etc.)
@@ -53,20 +53,20 @@ Include the following in an array field "visual_constraints" at the top level. D
 
 ## Component reference tracking (S3 — surface to user)
 - After composing plan_items, list every DS component you referenced under top-level field \`referenced_components\` with the exact { name, importStatement, status } as found in components.json. Deduplicate.
-- If a desired functionality has no exact match in components.json (do NOT invent one), list it under \`unresolved_components\` with: { intent (1 line, in Korean — what the user wants), closest_match (closest existing component name from components.json, or null if nothing close), reason (1 line, in Korean — why none of the catalog components fits) }. Empty array is fine.
+- If a desired functionality has no exact match in components.json (do NOT invent one), list it under \`unresolved_components\` with: { intent (1 line, in English — what the user wants), closest_match (closest existing component name from components.json, or null if nothing close), reason (1 line, in English — why none of the catalog components fits) }. Empty array is fine.
 - These two fields enable the 3 surfaces (Slack/Playground/Chrome ext) to render component badges and a "DS missing" UX so the user sees what was used and what was not. Be honest and exhaustive — over-listing is better than missing entries.
 
 Output MUST be valid JSON only (no markdown, no prose). Schema:
 {
   "intent": "<one of: copy_update|spacing_adjustment|token_alignment|component_swap|layout_adjustment|state_handling|accessibility_improvement|new_page|new_feature|data_display_change|form_field_addition|bulk_operation>",
   "target_entity": "<Creative|Order|Advertiser|Product|AuctionOrder|PublisherTarget|null>",
-  "summary": "<1-2 sentence summary of what will change, in Korean>",
+  "summary": "<1-2 sentence summary of what will change, in English>",
   "visual_constraints": ["<string>", "..."],
   "plan_items": [
     {
       "id": "<unique kebab-case id>",
-      "title": "<Short action description in Korean>",
-      "description": "<1-2 sentence technical detail in Korean>",
+      "title": "<Short action description in English>",
+      "description": "<1-2 sentence technical detail in English>",
       "pattern_id": "<pattern id from patterns.json or null>",
       "target_file": "<relative file path or template form from patterns.json, or null>",
       "depends_on": []
@@ -76,7 +76,7 @@ Output MUST be valid JSON only (no markdown, no prose). Schema:
     { "name": "<MC* component name from components.json>", "importStatement": "<verbatim from components.json>", "status": "<status field from components.json>" }
   ],
   "unresolved_components": [
-    { "intent": "<Korean — what the user wanted>", "closest_match": "<MC* name or null>", "reason": "<Korean — why nothing fits>" }
+    { "intent": "<English — what the user wanted>", "closest_match": "<MC* name or null>", "reason": "<English — why nothing fits>" }
   ]
 }
 
