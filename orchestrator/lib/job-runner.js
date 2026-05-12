@@ -71,24 +71,35 @@ export function topoOrder(tasks) {
 }
 
 /**
- * Pick the next task to run: earliest-in-topo-order whose status is
- * `pending` and all of whose deps are `reviewed` (or `skipped`, though
- * that case is usually already reflected as `blocked`).
+ * Pick the next task to run.
  *
- * Also accepts `failed` tasks whose `attempt < maxAttempts` — callers
- * decide if retries auto-fire or wait for a user action; the runner
- * itself uses `maxAttempts` to gate auto-retry.
+ * The runner is serial-only ("Serial only. One task in flight at a time
+ * per job." — see top-of-file invariants), so we iterate tasks in
+ * **input order** (the order the decomposer emitted, which is also the
+ * order the UI shows as `1, 2, 3, …`) and return the first one whose
+ * `dependsOn` are all satisfied. This matches user mental model:
+ * a numbered plan runs in numbered order.
+ *
+ * Why not topo order: Kahn's BFS interleaves chains when multiple
+ * tasks share zero in-degree (e.g. independent feature A and feature
+ * B both having no deps). For a serial runner that interleaving has
+ * no throughput benefit and only makes execution order surprising
+ * relative to the displayed numbering. Topo is still invoked once
+ * here purely for its cycle-detection side effect.
+ *
+ * Selection rules:
+ *   - `pending` with all deps in `reviewed`/`skipped` → return.
+ *   - `failed` with `attempt < maxAttempts` (retry budget) → return.
+ *   - Anything else → continue.
  *
  * @param {import('./job.js').Job} job
  * @param {number} maxAttempts
  * @returns {import('./job.js').Task | null}
  */
 export function pickNextTask(job, maxAttempts) {
-  const order = topoOrder(job.tasks);
+  topoOrder(job.tasks); // cycle-check side effect; throws on cycle
   const byId = new Map(job.tasks.map((t) => [t.id, t]));
-  for (const id of order) {
-    const t = byId.get(id);
-    if (!t) continue;
+  for (const t of job.tasks) {
     const depsSatisfied = t.dependsOn.every((depId) => {
       const d = byId.get(depId);
       return d && (d.status === 'reviewed' || d.status === 'skipped');

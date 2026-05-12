@@ -102,6 +102,39 @@ describe('pickNextTask', () => {
     };
     assert.strictEqual(pickNextTask(/** @type {any} */ (job), 2), null);
   });
+
+  // Regression: when two chains share zero in-degree roots, the runner
+  // used to interleave them via Kahn's BFS (picking the second-chain
+  // root right after the first-chain root completed), which surfaced
+  // to users as "task 1 done, why is task 9 running before task 2?".
+  // Fix: iterate input order (the order tasks appear in the plan / UI),
+  // not topo order — the serial runner gets no benefit from interleaving.
+  test('picks input order when two chains share zero-indegree roots', () => {
+    const job = {
+      tasks: [
+        { id: 't1', dependsOn: [], status: 'reviewed', attempt: 0 },
+        { id: 't2', dependsOn: ['t1'], status: 'pending', attempt: 0 },
+        { id: 't3', dependsOn: ['t2'], status: 'pending', attempt: 0 },
+        { id: 't9', dependsOn: [], status: 'pending', attempt: 0 },
+        { id: 't10', dependsOn: ['t9'], status: 'pending', attempt: 0 },
+      ],
+    };
+    // After t1 reviewed, t2 should be next (input order) — not t9.
+    assert.strictEqual(pickNextTask(/** @type {any} */ (job), 2)?.id, 't2');
+  });
+
+  test('still picks an independent root if it comes first in input order', () => {
+    // Sanity: the fix doesn't hard-prefer the first chain. If the
+    // independent task is listed BEFORE the chain, it should still
+    // win — input order is the only criterion.
+    const job = {
+      tasks: [
+        { id: 'indep', dependsOn: [], status: 'pending', attempt: 0 },
+        { id: 'chainRoot', dependsOn: [], status: 'pending', attempt: 0 },
+      ],
+    };
+    assert.strictEqual(pickNextTask(/** @type {any} */ (job), 2)?.id, 'indep');
+  });
 });
 
 // ── runJob — happy path ─────────────────────────────────────────────
