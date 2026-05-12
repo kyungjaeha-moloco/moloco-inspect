@@ -57,7 +57,7 @@ export interface ExecutionState {
   error?: string | null;
   /**
    * Playground HEAD sha captured right after this execution's commit landed.
-   * Drives the inline "이 시점으로 돌아가기" button on ExecutionCard.
+   * Drives the inline "Go back to this point" button on ExecutionCard.
    */
   commitSha?: string;
 }
@@ -69,7 +69,7 @@ export interface ChatMessage {
   /**
    * Element the user picked and attached at send time — rendered as a
    * chip inside the bubble so the visual reference survives in the chat
-   * log (instead of collapsing into the raw "[선택된 요소: ...]" prefix).
+   * log (instead of collapsing into the raw "[selected element: ...]" prefix).
    */
   attachedElement?: BridgeElementContext;
   /**
@@ -89,14 +89,14 @@ export interface ChatMessage {
   /** Plan has been accepted / rejected — dimmed or highlighted in UI. */
   planResolved?: 'accepted' | 'rejected';
   /**
-   * assistant 만 — 직전 IntakeResult.kind. history-aware intake (sub-phase C)
-   * 가 multi-turn dispatch 결정에 사용. 옛 메시지엔 없으니 reader 는
-   * `m.kind ?? heuristic` 폴백 (m.plan 보유 → 'plan_emit' 추정).
+   * assistant only — the previous IntakeResult.kind. Used by history-aware intake
+   * (sub-phase C) for multi-turn dispatch decisions. Not present on old messages,
+   * so readers should fall back with `m.kind ?? heuristic` (has m.plan → infer 'plan_emit').
    */
   kind?: IntakeKind;
   /**
-   * code_change_ambiguous 시 IntakeResult.clarifyingQuestion. UI 렌더 +
-   * 후속 turn 의 dispatcher 가 컨텍스트로 활용.
+   * IntakeResult.clarifyingQuestion for code_change_ambiguous. Used for UI rendering
+   * and as context by the dispatcher on the following turn.
    */
   clarifyingQuestion?: string;
   /** Present when this message is showing an execution. */
@@ -157,7 +157,7 @@ interface PlaygroundStoreState {
    * forwards `path` to the iframe runtime via the bridge so the SPA
    * navigates without a full reload. The token is incremented every
    * call so re-requesting the same path still fires (e.g. user
-   * clicks "결과 페이지 열기" twice in a row).
+   * clicks "Open result page" twice in a row).
    */
   requestedIframeNav: { path: string; token: number } | null;
 
@@ -208,8 +208,8 @@ interface PlaygroundStoreState {
   resolvePlan(messageId: string, outcome: 'accepted' | 'rejected'): void;
   togglePlanItem(messageId: string, itemId: string): void;
   /**
-   * "다시 계획" — 같은 message 의 plan 자체를 새 plan 으로 교체.
-   * meta + items 통째로 swap. planResolved 는 reset (다시 결정 필요).
+   * "Re-plan" — replace the plan on the same message with a new plan.
+   * Swaps both meta + items entirely. planResolved is reset (decision required again).
    */
   replacePlan(messageId: string, plan: { meta: PlanMeta; items: PlanItem[] }): void;
 
@@ -484,7 +484,7 @@ export const usePlaygroundStore = create<PlaygroundStoreState>((set) => ({
         return {
           ...m,
           plan,
-          // 새 plan — 이전 accept/reject 결정 무효화. 사용자가 다시 결정.
+          // New plan — invalidates the previous accept/reject decision. User decides again.
           planResolved: undefined,
         };
       }),

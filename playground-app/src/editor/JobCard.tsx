@@ -271,7 +271,7 @@ export function JobCard({ jobId }: { jobId: string }) {
           // Map task ID → user-visible 1-based index for friendly
           // dependsOn rendering. The decomposer emits ids like t1/t2,
           // but the user only sees the row's numeric leading indicator,
-          // so "← t3,t5" is jargon. We translate to "3, 5번 작업 후".
+          // so "← t3,t5" is jargon. We translate to "after tasks 3, 5".
           const idToIndex = new Map<string, number>();
           job.tasks.forEach((t, i) => idToIndex.set(t.id, i + 1));
           return job.tasks.map((task, idx) => {
@@ -338,7 +338,7 @@ export function JobCard({ jobId }: { jobId: string }) {
           alignItems: 'center',
         }}
       >
-        {/* LEFT: Inspect Console icon link (작게, 아이콘만) */}
+        {/* LEFT: Inspect Console icon link (small, icon only) */}
         <a
           href={`http://127.0.0.1:4174/jobs/${encodeURIComponent(job.id)}`}
           target="_blank"
@@ -354,7 +354,7 @@ export function JobCard({ jobId }: { jobId: string }) {
             display: 'inline-flex',
             alignItems: 'center',
             gap: 2,
-            // marginRight:auto 로 이후 모든 버튼을 오른쪽으로 밀어냄
+            // marginRight:auto pushes all subsequent buttons to the right
             marginRight: 'auto',
           }}
         >
@@ -362,9 +362,9 @@ export function JobCard({ jobId }: { jobId: string }) {
           <span aria-hidden="true" style={{ fontSize: 10, opacity: 0.6 }}>↗</span>
         </a>
 
-        {/* RIGHT 그룹 — 액션 순서: 취소 → 다시 계획 세우기 → 승인하고 시작 (또는 동등 primary).
-            QA 통과 / promote / 재개 / 결과 페이지 열기 같은 conditional 도 같은 그룹.
-            DOM 순서는 위치 순서. flex 라 줄바꿈 시 자연스럽게 wrap. */}
+        {/* RIGHT group — action order: cancel → re-plan → approve and start (or equivalent primary).
+            Conditionals like QA pass / promote / resume / open result page belong to the same group.
+            DOM order matches visual order. flex wraps naturally on overflow. */}
         {canCancel && (
           <button
             disabled={acting}
@@ -788,7 +788,7 @@ function TaskRow({
 // ── Time-travel dimming ──────────────────────────────────────────────
 //
 // When the playground is checked out at an older sha (user clicked a
-// checkpoint via \"보기\"), every task whose commit came *after* that
+// checkpoint via \"view\"), every task whose commit came *after* that
 // sha is no longer reflected in the working tree. We can't run a full
 // git-ancestry check from the browser, but we have a better signal
 // for free: the runner executes tasks serially, so \`job.tasks\` is
@@ -1376,8 +1376,8 @@ function leadingFor(status: string) {
 // Free-form natural-language editor that re-runs the decomposer with
 // the user's note appended (server: `userFeedback` ctx). Companion to
 // the per-task ✎ button — that one is for surgical edits, this one
-// is for structural changes the LLM should reorganize ("3번을 둘로
-// 쪼개고 권한 가드 task 빼줘").
+// is for structural changes the LLM should reorganize ("split step 3 in two
+// and remove the auth-guard task").
 
 function PlanFeedbackInput({
   disabled,
@@ -1489,12 +1489,12 @@ const QA_STRATEGY_LABELS: Record<
  *
  * Renders nothing unless the job has reached `qa`/`complete`. Three
  * states:
- *   1. status === 'qa' but no `qaAutoResult` yet → 실행 중 banner.
- *   2. qaAutoResult.passed === true  → 통과 banner (green).
- *   3. qaAutoResult.passed === false → 실패 banner (red) + 재실행 btn.
+ *   1. status === 'qa' but no `qaAutoResult` yet → running banner.
+ *   2. qaAutoResult.passed === true  → passed banner (green).
+ *   3. qaAutoResult.passed === false → failed banner (red) + re-run btn.
  *
- * The manual "QA 통과 ✓" button stays — this banner is informational
- * only; it does not gate completion. The `재실행` button calls the
+ * The manual "QA passed ✓" button stays — this banner is informational
+ * only; it does not gate completion. The "re-run" button calls the
  * orchestrator's `rerun-qa` action which re-fires the same picked
  * strategy adapter from scratch (useful when the run hit a transient
  * playground restart, etc).

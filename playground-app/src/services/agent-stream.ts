@@ -2,7 +2,7 @@
  * Live agent stream — subscribes to the orchestrator's SSE channel for
  * a change-request and translates each `latestLog` line into a compact
  * snapshot the JobCard renders under the running task ("Read ×4 ·
- * Edit ×2 · 💬 컬럼 정의 중…").
+ * Edit ×2 · 💬 defining columns…").
  *
  * The orchestrator already tags agent events with leading emoji in
  * `appendLog`:

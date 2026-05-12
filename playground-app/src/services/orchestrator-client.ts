@@ -64,17 +64,18 @@ export interface ChangeRequestInput {
    *  commits to the playground sandbox instead of the stateless path. */
   playgroundId?: string;
   /**
-   * Playground 에서 plan 카드 승인 후 실행 — fast-track flags.
+   * After approving a plan card in Playground, runs with fast-track flags.
    *
-   * NOTE: /api/change-request 흐름 (Playground) 은 본래 decomposer / approval
-   * gate 가 없어 이 두 옵션은 payload 에 보존만 되고 실제 backend 동작에는
-   * 영향을 주지 않음. Slack / Chrome ext 의 /api/playground/:id/job 흐름은
-   * 두 옵션을 createJob 에 정상 전달 (decomposer 우회 + 자동 advance).
-   * Playground 의 ⚡ 배지는 사용자에게 fast-track intent 임을 알리는 visual UX
-   * 역할이며, 동작 자체는 변경 없음.
+   * NOTE: The /api/change-request flow (Playground) has no decomposer / approval
+   * gate by design, so these two options are preserved in the payload but have no
+   * effect on actual backend behaviour. The /api/playground/:id/job flow used by
+   * Slack / Chrome ext passes both options to createJob normally
+   * (decomposer bypass + auto-advance).
+   * The ⚡ badge in Playground is purely a visual UX signal to the user that
+   * fast-track intent is set; the behaviour itself is unchanged.
    */
   autoApprove?: boolean;
-  /** Source of truth: orchestrator/lib/plan-intent.js 의 FAST_TRACK_INTENTS. */
+  /** Source of truth: FAST_TRACK_INTENTS in orchestrator/lib/plan-intent.js. */
   skipDecomposer?: boolean;
 }
 
@@ -231,22 +232,22 @@ export interface MollyDispatchResult {
 }
 
 /**
- * 첫 사용자 메시지를 molly classifier 로 분류. code_change 면 호출자가
- * 기존 Wizard 흐름 (postChat) 으로 진행. chat / status_query 면 response
- * 를 사용자에게 surface 하고 Wizard 진입 안 함.
+ * Classifies the first user message via the molly classifier. If code_change,
+ * the caller proceeds with the existing Wizard flow (postChat). If chat /
+ * status_query, surfaces the response to the user and skips Wizard entry.
  */
 export async function mollyClassifyAndDispatch(
   text: string,
   isFirstMessage: boolean,
 ): Promise<MollyDispatchResult | null> {
-  if (!isFirstMessage) return null; // multi-turn 보호 — 후속 turn 은 Wizard 로
+  if (!isFirstMessage) return null; // multi-turn guard — subsequent turns go to Wizard
   try {
     const resp = await fetch(`${ORCHESTRATOR_URL}/api/molly/respond`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, surface: 'playground' }),
     });
-    if (!resp.ok) return null; // 실패 시 호출자가 기존 흐름 진행
+    if (!resp.ok) return null; // on failure, caller falls back to existing flow
     const data = await resp.json();
     return {
       kind: data?.kind ?? 'code_change',
@@ -260,9 +261,9 @@ export async function mollyClassifyAndDispatch(
 
 /**
  * @deprecated Use postIntake (Phase 3 Task 3.1, sub-phase C). postChat
- * 은 single-turn 그리고 분류 게이트 따로 호출 (mollyClassifyAndDispatch).
- * postIntake 는 history-aware multi-turn + classifier + analyzer + plan
- * emitter 통합. /api/chat 은 deprecation 사이클 후 삭제 예정.
+ * is single-turn and calls the classification gate separately (mollyClassifyAndDispatch).
+ * postIntake integrates history-aware multi-turn + classifier + analyzer + plan
+ * emitter. /api/chat will be deleted after the deprecation cycle.
  */
 export async function postChat(
   messages: ChatApiMessage[],
@@ -308,7 +309,7 @@ export type IntakeKind =
 export interface IntakeHistoryTurn {
   role: ChatRole;
   content: string;
-  /** assistant turn 만 — 직전 IntakeResult.kind. dispatcher 가 routing 결정에 사용. */
+  /** assistant turns only — the previous IntakeResult.kind. Used by the dispatcher for routing decisions. */
   kind?: IntakeKind;
   clarifyingQuestion?: string;
   planItems?: RawPlanItem[];
@@ -318,15 +319,15 @@ export interface IntakeRequest {
   text: string;
   surface?: string;
   history?: IntakeHistoryTurn[];
-  /** Optional — handleClarificationAnswer / handlePlanEdit 가 emitPlan 호출 시 활용. */
+  /** Optional — used by handleClarificationAnswer / handlePlanEdit when calling emitPlan. */
   client?: string;
   routeOrPage?: string;
   channel?: string;
   threadTs?: string;
   /**
-   * plan_feedback 활성화 — plan 카드가 떠있고 사용자가 채팅으로 수정 요청
-   * 보낼 수 있는 상태일 때 true. classifier 가 plan_feedback kind 후보로
-   * 검토. summary 도 같이 보내면 정확도 ↑.
+   * Enable plan_feedback — true when a plan card is visible and the user
+   * can send revision requests via chat. The classifier considers plan_feedback
+   * as a candidate kind. Sending summary alongside improves accuracy.
    */
   hasPendingPlan?: boolean;
   pendingPlanSummary?: string;
@@ -336,25 +337,25 @@ export interface IntakeResult {
   ok: true;
   kind: IntakeKind;
   reason: string;
-  /** chat / status_query 의 답변 본문. */
+  /** Response body for chat / status_query. */
   response?: string;
-  /** code_change_ambiguous 의 다음 질문. */
+  /** Next clarifying question for code_change_ambiguous. */
   clarifyingQuestion?: string;
   missingInfo?: string[];
-  /** plan_emit 의 plan items. */
+  /** Plan items for plan_emit. */
   planItems?: RawPlanItem[];
-  /** plan_emit 의 full plan (intent, summary, visual_constraints, plan_items). */
+  /** Full plan for plan_emit (intent, summary, visual_constraints, plan_items). */
   plan?: RawPlan;
-  /** plan_emit / job_dispatched 시 history 합친 PRD. */
+  /** PRD assembled from history at plan_emit / job_dispatched time. */
   cumulativePrd?: string;
-  /** plan_feedback kind 일 때 사용자 자연어 피드백 (원본 text 그대로). */
+  /** Raw natural-language feedback from the user when kind is plan_feedback. */
   feedback?: string;
 }
 
 /**
- * Unified intake — surface 무관 entry point. classifier + chat/status +
- * PRD analyzer + plan emitter 의 통합 dispatch. ctx.history 보내면
- * multi-turn (clarification + plan ceremony) 처리.
+ * Unified intake — surface-agnostic entry point. Unified dispatch for
+ * classifier + chat/status + PRD analyzer + plan emitter. Sending ctx.history
+ * enables multi-turn handling (clarification + plan ceremony).
  */
 export async function postIntake(args: IntakeRequest): Promise<IntakeResult> {
   const resp = await fetch(`${ORCHESTRATOR_URL}/api/intake`, {
@@ -818,8 +819,7 @@ export const unblockJobTask = (id: string, taskId: string) =>
  * Cancel a running job.
  * @param rewind If true, also revert the playground's HEAD to the sha
  *   snapshotted at job creation — undoes every commit this job landed
- *   (`baselineHeadSha`). Equivalent to clicking "이 작업을 취소하고 변경
- *   내역도 되돌리기".
+ *   (`baselineHeadSha`). Equivalent to clicking "Cancel this job and revert changes".
  */
 export const cancelJob = (id: string, rewind = false) =>
   jobAction(id, 'cancel', rewind ? { rewind: true } : undefined);
@@ -827,8 +827,8 @@ export const resumeJob = (id: string, target: JobStatus = 'delegating') =>
   jobAction(id, 'resume', { target });
 /**
  * @param feedback Optional free-form natural-language note steering the
- *   LLM toward specific structural changes ("3번을 둘로 쪼개고 권한 가드
- *   task 빼줘"). When omitted, behaves as the plain "다시 계획 세우기".
+ *   LLM toward specific structural changes ("split step 3 in two and remove the auth-guard task").
+ *   When omitted, behaves as a plain "re-plan".
  */
 export const redecomposeJob = (id: string, feedback?: string) =>
   jobAction(id, 'decompose', feedback ? { feedback } : undefined);

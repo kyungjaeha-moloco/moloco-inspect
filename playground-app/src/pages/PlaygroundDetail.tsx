@@ -3,8 +3,8 @@
  *
  * Layout (v3 plan §6, revised for inline timeline):
  *   ┌───────────────┬────────────────────────────────┐
- *   │ 대화 (320px)   │   Live iframe + 모드 토글      │
- *   │ (타임라인 내장)│                                │
+ *   │ Chat (320px)   │   Live iframe + mode toggle    │
+ *   │ (timeline embedded)│                            │
  *   └───────────────┴────────────────────────────────┘
  *
  * The separate bottom Timeline bar from the original v3 sketch was
@@ -109,7 +109,7 @@ export function PlaygroundDetail() {
       // `setCurrent` (full replace) rather than `mergeCurrent`: the
       // orchestrator drops `checkedOutSha` from its response when it
       // clears it, and JSON.stringify strips undefined keys — so a
-      // merge would leave the stale sha in place and the 현재 tab
+      // merge would leave the stale sha in place and the current tab
       // would never light up.
       setCurrent(pg);
       // Force iframe reload — the sandboxed app may have drifted to
@@ -127,7 +127,7 @@ export function PlaygroundDetail() {
     try {
       // Checking out the working-branch tip is a no-op except for the
       // `checkedOutSha` flag it sets — call restore-head instead so
-      // the UI stays in its normal "작업중" state.
+      // the UI stays in its normal "in-progress" state.
       const pg =
         current?.headCommitSha && sha === current.headCommitSha
           ? await restorePlaygroundHead(id)
@@ -173,7 +173,7 @@ export function PlaygroundDetail() {
       // Coalesce pointer moves into a single rAF-scheduled state update.
       // Without this, pulling the handle quickly fires dozens of
       // setState calls per frame and the whole 2-pane layout re-renders
-      // on every one — which is what looked like "버벅임".
+      // on every one — which is what looked like "stuttering".
       let pendingX = 0;
       let rafId: number | null = null;
       const flush = () => {
@@ -992,14 +992,14 @@ function CommitTabBar({
   onSelectLatest,
 }: CommitTabBarProps) {
   // A checkout whose sha matches HEAD is functionally the working
-  // branch — light up 작업중 instead of the mid-history tab that
+  // branch — light up "in-progress" instead of the mid-history tab that
   // happens to share the same sha.
   const activeIsLatest = !checkedOutSha || checkedOutSha === headSha;
   const activeSha = activeIsLatest ? null : checkedOutSha ?? null;
   // Hide Baseline only when it's identical to HEAD (no commits yet).
   // Intermediate checkpoints now live inline in the chat (see
   // ExecutionCard → Checkpoint footer), so the tab bar stays a compact
-  // "원본 ↔ 현재" toggle rather than a growing strip.
+  // "baseline ↔ current" toggle rather than a growing strip.
   const showBaseline = !!baselineSha && baselineSha !== headSha;
 
   return (

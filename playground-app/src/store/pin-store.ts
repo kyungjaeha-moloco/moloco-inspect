@@ -126,19 +126,19 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
   selectedPinId: null,
 
   loadForPlayground: (playgroundId) => {
-    // localStorage 먼저 (즉시 표시)
+    // localStorage first (immediate display)
     const stored = readPins(playgroundId);
     set({ pins: stored, editingPinId: null, selectedPinId: null });
-    // 그 다음 server sync (latency 후 reconcile)
+    // then server sync (reconcile after latency)
     void pinClient.list(playgroundId).then((serverPins) => {
       if (serverPins.length === 0 && stored.length > 0) {
-        // server 가 empty 인데 local 에 있음 — 첫 서버 진입 migration → backfill
+        // server is empty but local has data — first-time server entry migration → backfill
         for (const p of stored) {
           void pinClient.create(playgroundId, p);
         }
-        return; // local 유지
+        return; // keep local
       }
-      // server 에 데이터 있으면 server 가 source of truth
+      // server has data → server is source of truth
       set({ pins: serverPins });
       writePins(playgroundId, serverPins);
     }).catch((err) =>
@@ -280,9 +280,9 @@ export const usePinStore = create<PinStoreState>((set, get) => ({
 export const STALE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Stale: sha가 현재 HEAD와 다르고 createdAt이 7일 이상 지났음.
- * 또는 resolved + resolvedAt이 7일 이상 지났음.
- * Active list에서 빼고 Archive 섹션으로.
+ * Stale: sha differs from the current HEAD and createdAt is more than 7 days ago.
+ * Or resolved + resolvedAt is more than 7 days ago.
+ * Remove from the active list and move to the Archive section.
  */
 export function isPinStale(pin: PinComment, headSha: string | null): boolean {
   const now = Date.now();

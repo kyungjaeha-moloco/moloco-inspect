@@ -188,7 +188,7 @@ export async function migrateV2ToV3(): Promise<MigrationSummary> {
 
 /**
  * Returns the legacy comments stashed for a project, or null when none.
- * The UI uses this to drive the per-project "다운로드" button.
+ * The UI uses this to drive the per-project "Download" button.
  */
 export function readLegacyComments(projectId: string): LegacyComment[] | null {
   const raw = localStorage.getItem(`${V3_LEGACY_PREFIX}${projectId}`);

@@ -46,9 +46,10 @@ import type { BridgeElementContext } from '../services/playground-bridge';
 import { JobCard } from './JobCard';
 
 // **Source of truth: orchestrator/lib/plan-intent.js**
-// 여기는 TS surface 라 별도 정의가 필요해 미러링. 5종 intent 는 decomposer
-// 우회 (skipDecomposer:true). 추가/변경 시 반드시 plan-intent.js (backend) +
-// chrome-extension/sidepanel.js 까지 3 곳 모두 함께 갱신.
+// Mirrored here because a separate definition is needed on the TS surface.
+// The 5 intents bypass the decomposer (skipDecomposer:true). When adding or
+// changing entries, update all 3 places: plan-intent.js (backend) +
+// chrome-extension/sidepanel.js.
 const FAST_TRACK_INTENTS = new Set<string>([
   'copy_update',
   'spacing_adjustment',
@@ -135,10 +136,10 @@ export const AIPanel = React.memo(function AIPanel({
 
   const selectPin = usePinStore((s) => s.selectPin);
   const requestIframeNav = usePlaygroundStore((s) => s.requestIframeNav);
-  // useShallow — `.filter()` 가 매 렌더마다 새 배열 반환 → zustand 의 Object.is
-  // 기본 비교 실패 → useSyncExternalStore 가 매번 "snapshot 변경" 으로 인식 →
-  // 무한 re-render (Maximum update depth exceeded). useShallow 가 element-wise
-  // 비교라 핀 내용 안 바뀌면 같은 결과로 판정.
+  // useShallow — `.filter()` returns a new array on every render → zustand's Object.is
+  // default comparison fails → useSyncExternalStore treats it as a "snapshot changed"
+  // every time → infinite re-render (Maximum update depth exceeded). useShallow does
+  // element-wise comparison, so unchanged pin contents yield the same result.
   const pinsForPlayground = usePinStore(
     useShallow((s) =>
       playgroundId ? s.pins.filter((p) => p.playgroundId === playgroundId) : [],
@@ -146,8 +147,8 @@ export const AIPanel = React.memo(function AIPanel({
   );
 
   /** Sha the sandbox is actually sitting on now — either a time-travel
-   *  checkout or HEAD when there is no checkout. Drives the "현재 이 시점"
-   *  / "이 시점으로 돌아가기" split on ExecutionCard. */
+   *  checkout or HEAD when there is no checkout. Drives the "current point in time"
+   *  / "go back to this point" split on ExecutionCard. */
   const activeSha = checkedOutSha ?? headCommitSha ?? null;
 
   const [input, setInput] = useState('');
@@ -169,17 +170,19 @@ export const AIPanel = React.memo(function AIPanel({
     stickToBottomRef.current = true;
   }, [messages, isSending]);
 
-  // SELECTED ELEMENT 해제 — Escape 키. picker 로 element 선택 후 사용자가
-  // "이 선택 그만" 하고 싶을 때 직관적인 키. input 안에서의 Escape (textarea
-  // blur 등) 는 그 핸들러가 stopPropagation 으로 처리하므로 충돌 X. 글로벌
-  // listener 는 lastPickedElement 가 있을 때만 활성화.
+  // SELECTED ELEMENT deselect — Escape key. Intuitive key for users who want to
+  // "stop this selection" after picking an element via the picker. Escape inside
+  // an input (textarea blur etc.) is handled by that handler via stopPropagation,
+  // so there is no conflict. The global listener is only registered when
+  // lastPickedElement is set.
   useEffect(() => {
     if (!lastPickedElement) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      // 입력 필드 (textarea / input / contenteditable) 안에서 Escape 누른
-      // 경우 — 그쪽 동작 (blur 등) 우선이라 element 해제는 skip. 단 그
-      // 입력이 비어있으면 ESC 의 의도가 "선택 해제" 일 가능성이 높아 처리.
+      // Escape pressed inside an input field (textarea / input / contenteditable)
+      // — that field's own behaviour (blur etc.) takes priority, so skip element
+      // deselect. Exception: if the input is empty, ESC is likely intended as
+      // "deselect", so handle it.
       const target = e.target as HTMLElement | null;
       const isInput =
         target?.tagName === 'TEXTAREA' ||
@@ -268,9 +271,10 @@ export const AIPanel = React.memo(function AIPanel({
       const priorUser = [...history.slice(0, idx)]
         .reverse()
         .find((x) => x.role === 'user');
-      // history-aware 흐름에서 priorUser 가 "이대로" 같은 짧은 승인 텍스트일 수 있음.
-      // override 가 명시적으로 지정됐으면 (빈 문자열 포함) 그걸 사용 — server 가
-      // 의도적으로 비울 수 있음. 미지정 (undefined) 시에만 priorUser/summary 폴백.
+      // In the history-aware flow, priorUser may be a short approval text like "looks good".
+      // If override is explicitly set (including empty string), use it — the server may
+      // intentionally send an empty value. Fall back to priorUser/summary only when
+      // override is undefined.
       const userPrompt =
         opts?.userPromptOverride !== undefined
           ? opts.userPromptOverride
@@ -388,11 +392,12 @@ export const AIPanel = React.memo(function AIPanel({
   );
 
   /**
-   * "다시 계획" — 이전 plan + 사용자 피드백을 /api/plan 에 보내 새 plan 으로 교체.
-   * executePlan 과 같은 priorUser 폴백 로직으로 원래 goal 추출.
+   * "Re-plan" — sends the previous plan + user feedback to /api/plan and swaps
+   * in the new plan. Uses the same priorUser fallback logic as executePlan to
+   * extract the original goal.
    *
-   * 성공: replacePlan 으로 in-place swap, planResolved 도 reset (다시 결정 필요).
-   * 실패: throw — PlanCard 가 내부 상태로 에러 표시.
+   * Success: in-place swap via replacePlan, planResolved also reset (decision needed again).
+   * Failure: throws — PlanCard displays the error via its internal state.
    */
   const redecomposePlan = useCallback(
     async (m: ChatMessage, feedback: string): Promise<void> => {
@@ -415,11 +420,11 @@ export const AIPanel = React.memo(function AIPanel({
           'msm-default') as TargetClient;
       const routeOrPage = m.plan.meta.targetRoute ?? '/';
 
-      // Backend (emitPlan) 의 previousPlan 입력은 원본 emit 결과 shape
+      // Backend (emitPlan) previousPlan input expects the original emit result shape
       // (intent, target_entity, summary, visual_constraints, plan_items[]).
-      // store 의 plan.items 는 {id,title,description,...,enabled} 형태 →
-      // backend 가 기대하는 plan_items shape 으로 변환 (enabled 도 보내서
-      // 비활성 항목을 LLM 이 인지하도록).
+      // store plan.items are {id,title,description,...,enabled} →
+      // convert to the plan_items shape the backend expects (include enabled so
+      // the LLM is aware of disabled items).
       const previousPlan = {
         intent: m.plan.meta.intent,
         target_entity: m.plan.meta.targetEntity ?? null,
@@ -452,7 +457,7 @@ export const AIPanel = React.memo(function AIPanel({
       }
       const newPlan = body.plan;
 
-      // /api/plan 응답 → store 의 plan shape 으로 변환 (executePlan 흐름 참고)
+      // /api/plan response → convert to store plan shape (see executePlan flow)
       const items = (newPlan.plan_items || []).map((it: any) => ({
         id: String(it.id),
         title: String(it.title ?? ''),
@@ -535,8 +540,8 @@ export const AIPanel = React.memo(function AIPanel({
     return out;
   }, [messages]);
 
-  // Chat 탭 스트림: messages + pinsForPlayground 를 createdAt 기준 시간순 mix.
-  // ChatMessage 에 createdAt 필드가 없으므로 배열 index 를 fallback 으로 사용.
+  // Chat tab stream: mix messages + pinsForPlayground in chronological order by createdAt.
+  // ChatMessage has no createdAt field, so array index is used as a fallback.
   type StreamItem =
     | { kind: 'message'; createdAt: number; data: ChatMessage }
     | { kind: 'pin'; createdAt: number; data: PinComment };
@@ -610,8 +615,8 @@ export const AIPanel = React.memo(function AIPanel({
     const current = usePlaygroundStore.getState().messages;
     // Prepend an implicit context message so the chat model knows which
     // client and route the user is looking at without having to ask.
-    // Keeps follow-up planning terse ("바꿔줘" → actionable) instead of
-    // triggering a "어느 페이지인가요?" clarification round-trip.
+    // Keeps follow-up planning terse ("change it" → actionable) instead of
+    // triggering a "which page?" clarification round-trip.
     const contextLines: string[] = [];
     if (playgroundClient) contextLines.push(`client: ${playgroundClient}`);
     if (currentRoute) contextLines.push(`route: ${currentRoute}`);
@@ -644,13 +649,13 @@ export const AIPanel = React.memo(function AIPanel({
 
     setSending(true);
     try {
-      // Phase 3 Task 3.1 sub-phase C 마무리 (2026-05-06) — history-aware intake
-      // default ON. 우선순위:
-      //   1. build-time `VITE_MOLLY_HISTORY_AWARE='0'` → 전체 강제 OFF (회귀 시 hot-fix)
-      //   2. 사용자별 `localStorage.MOLLY_HISTORY_AWARE='0'` → opt-out (개별 폴백)
-      //   3. 기본 ON
-      // 1-2주 운영 후 legacy path (mollyClassifyAndDispatch + postChat) 삭제 예정.
-      // 회귀 신고 backout: console 에서 `localStorage.setItem('MOLLY_HISTORY_AWARE','0')`.
+      // Phase 3 Task 3.1 sub-phase C wrap-up (2026-05-06) — history-aware intake
+      // is ON by default. Priority order:
+      //   1. build-time `VITE_MOLLY_HISTORY_AWARE='0'` → force OFF globally (hot-fix for regressions)
+      //   2. per-user `localStorage.MOLLY_HISTORY_AWARE='0'` → opt-out (individual fallback)
+      //   3. ON by default
+      // After 1-2 weeks in production, delete the legacy path (mollyClassifyAndDispatch + postChat).
+      // Regression backout: run `localStorage.setItem('MOLLY_HISTORY_AWARE','0')` in console.
       const buildEnvForceOff =
         import.meta.env.VITE_MOLLY_HISTORY_AWARE === '0';
       const userOptOut =
@@ -659,9 +664,9 @@ export const AIPanel = React.memo(function AIPanel({
       const historyAware = !buildEnvForceOff && !userOptOut;
 
       if (historyAware) {
-        // 새 user msg 는 current 의 마지막. history 는 그 이전 turn 들.
-        // sub-phase C 마무리 (2026-05-06) — assistant.kind 는 store 에
-        // 기록된 m.kind 우선, 옛 메시지는 plan 유무로 폴백 추정.
+        // The new user message is the last item in current. History is the preceding turns.
+        // sub-phase C wrap-up (2026-05-06) — assistant.kind prefers the m.kind stored in
+        // the store; for old messages without kind, fall back to inferring from plan presence.
         const prevMessages = current.slice(0, -1);
         const history: IntakeHistoryTurn[] = prevMessages.map((m) => ({
           role: m.role,
@@ -678,9 +683,10 @@ export const AIPanel = React.memo(function AIPanel({
           ? `${formatElementContext(lastPickedElement)}\n\n`
           : '';
         const intakeText = `${elementCtx}${trimmed}`;
-        // plan_feedback (2026-05-11) — 가장 최근 assistant message 중에서
-        // plan 있고 planResolved 가 아직 없는 것 → "pending plan" 으로 classifier 에 알림.
-        // 그러면 사용자가 채팅으로 자연어 수정 요청 보낼 때 plan_feedback 으로 분류됨.
+        // plan_feedback (2026-05-11) — among the most recent assistant messages,
+        // find one that has a plan and no planResolved yet → notify the classifier as a
+        // "pending plan". This causes user natural-language revision requests sent via
+        // chat to be classified as plan_feedback.
         const pendingPlanMsg = [...prevMessages]
           .reverse()
           .find((m) => m.role === 'assistant' && !!m.plan && !m.planResolved && !m.archived);
@@ -749,9 +755,9 @@ export const AIPanel = React.memo(function AIPanel({
             }
             break;
           case 'job_dispatched': {
-            // Sub-phase C 마무리 (2026-05-06) — 직전 plan_emit 메시지
-            // 자동 lookup → executePlan 으로 잡 시작. archived /
-            // planResolved=accepted 가드로 중복 dispatch 차단.
+            // Sub-phase C wrap-up (2026-05-06) — auto-lookup the most recent
+            // plan_emit message → start the job via executePlan. The archived /
+            // planResolved=accepted guard prevents duplicate dispatches.
             const planMsg = [...current].reverse().find(
               (x) =>
                 x.role === 'assistant' &&
@@ -772,14 +778,14 @@ export const AIPanel = React.memo(function AIPanel({
               content: '✅ Plan approved — starting job.',
               kind: 'job_dispatched',
             });
-            // cumulativePrd 가 있으면 priorUser ("이대로") 대신 사용 —
-            // clarification 거친 경우 누적 PRD 가 정답.
+            // If cumulativePrd is present, use it instead of priorUser ("looks good") —
+            // when clarification rounds happened, the accumulated PRD is the right input.
             void executePlan(planMsg, { userPromptOverride: result.cumulativePrd });
             break;
           }
           case 'code_change_clear':
-            // 첫 턴에 plan_emit 으로 묶이지 않은 fallback 케이스 (서버
-            // emitPlan 실패 등). plan 카드 없으니 사용자에게 그렇게 안내.
+            // Fallback case where the first turn was not bundled into plan_emit
+            // (e.g. server emitPlan failed). No plan card available — inform the user.
             addAssistantMessage({
               content:
                 'The PRD is clear, but a plan card cannot be created right now. Please try the same request again shortly (or describe it more specifically to get a plan right away).',
@@ -787,8 +793,8 @@ export const AIPanel = React.memo(function AIPanel({
             });
             break;
           case 'plan_feedback':
-            // 사용자 채팅이 "plan 수정 요청" 으로 분류됨 — pending plan 메시지를
-            // 찾아서 redecomposePlan(feedback) 호출. button "다시 계획" 흐름과 동등.
+            // User chat classified as a "plan revision request" — find the pending plan
+            // message and call redecomposePlan(feedback). Equivalent to the "Re-plan" button flow.
             if (pendingPlanMsg) {
               addAssistantMessage({
                 content: '✏️ Incorporating feedback and rebuilding plan...',
@@ -802,8 +808,8 @@ export const AIPanel = React.memo(function AIPanel({
                 });
               });
             } else {
-              // hasPendingPlan 이 false 였으면 backend classifier 가 chat 으로
-              // downgrade 했을 텐데, 혹시 race 로 여기 도달하면 chat 폴백.
+              // If hasPendingPlan was false the backend classifier would have downgraded
+              // to chat, but if a race condition lands us here anyway, fall back to chat.
               addAssistantMessage({
                 content: '⚠️ The plan card to revise has gone. Please start a new PRD request.',
                 kind: 'chat',
@@ -815,10 +821,10 @@ export const AIPanel = React.memo(function AIPanel({
       }
 
       // LEGACY path (default) — mollyClassifyAndDispatch + postChat.
-      // molly 분류 게이트 — 매 turn 거침. 사용자가 mid-Wizard 에 status
-      // 질의 / chat 던질 수 있어야 함 ("지금 서버상태 어때?" 같은). 단점:
-      // Wizard 의 clarifying 답변 ("TVING") 이 chat 으로 misclassify 가능.
-      // 그 trade-off 는 phase 2 (/api/intake 통합) 에서 진정 해결.
+      // molly classification gate — runs on every turn. Users must be able to send
+      // status queries / chat mid-Wizard (e.g. "what's the server status right now?").
+      // Downside: Wizard clarifying answers (e.g. "TVING") can be misclassified as chat.
+      // That trade-off is properly resolved in phase 2 (/api/intake integration).
       const dispatch = await mollyClassifyAndDispatch(trimmed, true);
       if (dispatch && (dispatch.kind === 'chat' || dispatch.kind === 'status_query')) {
         if (!isStillActive()) return;
@@ -1128,7 +1134,7 @@ export const AIPanel = React.memo(function AIPanel({
               // one `<ArchivedGroup>` node; non-archived messages
               // render individually with optional dim.
               // Time-travel anchor: either a live checkout (user
-              // clicked 보기) or a restored sha (user clicked Restore
+              // clicked "view") or a restored sha (user clicked Restore
               // and the forward-work clock hasn't ticked yet). Either
               // way, everything below this message is conceptually
               // superseded and should dim.
@@ -2530,7 +2536,7 @@ function MessageRow({
   );
 
   // When an ExecutionCard is attached the placeholder content
-  // ("샌드박스에서 실행 시작…") becomes stale the moment the run
+  // ("Starting execution in sandbox…") becomes stale the moment the run
   // advances past that phase — the card itself shows live status, so
   // rendering both makes finished runs look hung. Skip the text bubble
   // whenever the message carries an execution.
@@ -3009,7 +3015,7 @@ function PlanCard({
   onToggleItem: (id: string) => void;
   onAccept: () => void;
   onReject: () => void;
-  /** "다시 계획" — feedback 받아 plan-emitter 재호출. 성공 시 plan 자동 swap. */
+  /** "Re-plan" — takes feedback and re-calls plan-emitter. On success, plan is swapped automatically. */
   onRedecompose?: (feedback: string) => Promise<void>;
 }) {
   const enabledCount = useMemo(
@@ -3018,7 +3024,7 @@ function PlanCard({
   );
   const dim = resolved === 'rejected';
 
-  // "다시 계획" inline editor state
+  // "Re-plan" inline editor state
   const [redecomposeOpen, setRedecomposeOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -3030,7 +3036,7 @@ function PlanCard({
     setSubmitError(null);
     try {
       await onRedecompose(feedbackText);
-      // 성공 — 인라인 영역 접고 텍스트 초기화 (새 plan 이 swap 됨)
+      // Success — collapse the inline area and reset text (new plan has been swapped in)
       setRedecomposeOpen(false);
       setFeedbackText('');
     } catch (err) {
@@ -3101,9 +3107,9 @@ function PlanCard({
             >
               {item.enabled ? '✓' : '○'}
             </span>
-            {/* flex 자식은 minWidth:0 가 없으면 콘텐츠 폭으로 커져 부모를 밀어냄.
-                긴 파일 경로가 description / title 에 inline 으로 들어가는 경우
-                좌측 클리핑 발생 → minWidth:0 으로 자연스럽게 wrap. */}
+            {/* Without minWidth:0 a flex child expands to its content width and pushes the parent.
+                When long file paths appear inline in description / title, left clipping occurs
+                — minWidth:0 lets them wrap naturally. */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div
                 style={{
@@ -3140,10 +3146,10 @@ function PlanCard({
                     background: 'var(--bg-secondary)',
                     padding: '3px 6px',
                     borderRadius: 4,
-                    // 파일 경로 줄바꿈 정책:
-                    // - 가능한 한 `/` 경계에서 줄바꿈 (wbr 삽입)
-                    // - 단일 segment 가 컨테이너 폭 초과 시에만 단어 중간 끊기
-                    //   (overflow-wrap:anywhere). 둘 다 폭 초과 누락 안 됨.
+                    // File path line-break policy:
+                    // - Break at `/` boundaries whenever possible (insert wbr)
+                    // - Mid-word breaking (overflow-wrap:anywhere) only when a single segment
+                    //   exceeds the container width. Both cases ensure no overflow is clipped.
                     overflowWrap: 'anywhere',
                     wordBreak: 'normal',
                     lineHeight: 1.4,
@@ -3191,7 +3197,7 @@ function PlanCard({
 
       {!resolved ? (
         <>
-          {/* "다시 계획" inline editor — onRedecompose 가 있고 사용자가 button 눌렀을 때만 */}
+          {/* "Re-plan" inline editor — only when onRedecompose is provided and the user has clicked the button */}
           {redecomposeOpen && onRedecompose && (
             <div
               style={{
@@ -3625,7 +3631,7 @@ function ExecutionCard({
           <div style={{ flex: 1 }} />
           {isRestoreAnchor ? (
             // Once restored, collapse the action row into a single
-            // green "Restored" indicator — showing 보기 / Restore
+            // green "Restored" indicator — showing "view" / Restore
             // alongside would be redundant (already there) and
             // clickable Restore would be confusing (already done).
             <span
@@ -3995,12 +4001,12 @@ const timelineLogStyle: React.CSSProperties = {
   wordBreak: 'break-word',
 };
 
-// Phase-based progress messages — UX 피드백 (2026-04-30): 입력이
-// PRD/chat/status 무엇인지 클라가 모르므로 일반적 wording.
-//   0s    "molly 가 살펴보고 있어요"     classifier (모든 입력 거침)
-//   2s    "맥락 분석 중..."              chat/status/analyzer (~3-10s)
-//   8s    "응답 정리 중... (10-20초)"    plan emit OR 긴 응답 단계
-//   20s   "조금만 더 기다려 주세요..."   timeout 가까워졌을 때
+// Phase-based progress messages — UX feedback (2026-04-30): the client
+// doesn't know whether the input is PRD/chat/status, so wording is generic.
+//   0s    "Molly is looking into it"        classifier (all inputs pass through)
+//   2s    "Analyzing context..."            chat/status/analyzer (~3-10s)
+//   8s    "Preparing response... (10-20s)"  plan emit OR long response phase
+//   20s   "Just a moment longer..."         approaching timeout
 const TYPING_PHASES = [
   { atMs: 0, label: 'Molly is looking into it' },
   { atMs: 2000, label: 'Analyzing context...' },

@@ -23,7 +23,7 @@ export interface InputAreaProps {
   aboveInput?: React.ReactNode;
   /** Optional footer row under the textarea (e.g. "inspect agent · sandbox"). */
   footer?: React.ReactNode;
-  /** Hint shown to the left of the send button (e.g. "Enter 전송"). */
+  /** Hint shown to the left of the send button (e.g. "Enter to send"). */
   hint?: string;
   sendLabel?: string;
 }

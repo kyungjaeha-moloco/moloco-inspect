@@ -55,7 +55,7 @@ interface LivePreviewProps {
    */
   reloadNonce?: number;
   /**
-   * Called when the user clicks the "재개" button on the hibernated
+   * Called when the user clicks the "Resume" button on the hibernated
    * placeholder. Parent should call `resumePlayground(id)` and update
    * the playground in the store; LivePreview will rerender as `active`
    * once the new playground prop arrives.
@@ -175,7 +175,7 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
               route: msg.route,
               element: msg.element,
             });
-            // 핀 작성 완료 → 자동으로 interactive 복귀
+            // Pin created — automatically return to interactive mode
             setMode('interactive');
           } else if (m === 'pick') {
             setMode('interactive');
@@ -253,7 +253,7 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
     // outer key-bound remount which already discards this bridge.
   }, [bridge, bridgeReady, trackedSelectorKey, trackedSelectorList]);
 
-  // External nav request — JobCard's "결과 페이지 열기" button (and
+  // External nav request — JobCard's "Open result page" button (and
   // potentially other consumers) ask the runtime to SPA-navigate via
   // the store. Fire when the token changes, including same-path repeats.
   useEffect(() => {
@@ -266,17 +266,17 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
     // path, the token bumps and this effect re-fires.
   }, [bridge, bridgeReady, requestedIframeNav]);
 
-  // 'C' 단축키 — comment mode 토글 (interactive ↔ comment).
-  // ESC 도 comment mode 종료에 사용. 입력 필드 (textarea / input /
-  // contenteditable) 안에서는 skip — 텍스트 입력 흐름을 가로채지 않음.
-  // Cmd+C / Ctrl+C 같은 조합 무시 (복사 안 가로챔).
-  // AIPanel 의 ESC 핸들러 (lastPickedElement 해제) 와는 독립적:
-  //   - 그쪽은 lastPickedElement 가 있을 때만 등록됨
-  //   - 이쪽은 mode === 'comment' 일 때 ESC 처리
-  //   - 두 상태가 동시에 활성화되는 시나리오 없음
+  // 'C' shortcut — toggles comment mode (interactive ↔ comment).
+  // ESC also exits comment mode. Skip inside input fields (textarea / input /
+  // contenteditable) — do not intercept the text input flow.
+  // Ignore combinations like Cmd+C / Ctrl+C (do not hijack copy).
+  // Independent from AIPanel's ESC handler (clears lastPickedElement):
+  //   - that one is only registered when lastPickedElement is set
+  //   - this one handles ESC when mode === 'comment'
+  //   - no scenario where both states are active simultaneously
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // ESC → comment mode 종료
+      // ESC → exit comment mode
       if (e.key === 'Escape') {
         if (mode !== 'comment') return;
         const t = e.target as HTMLElement | null;
@@ -291,7 +291,7 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
         setMode('interactive');
         return;
       }
-      // 'C' / 'c' / 'ㅊ' (한글 IME 인접 키) → comment mode 토글
+      // 'C' / 'c' / 'ㅊ' (adjacent key on Korean IME) → toggle comment mode
       if (e.key !== 'c' && e.key !== 'C' && e.key !== 'ㅊ') return;
       const t = e.target as HTMLElement | null;
       if (
@@ -380,7 +380,7 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
       commitSha: headCommitSha,
       route,
     });
-    // 핀 작성 완료 → 자동으로 interactive 복귀
+    // Pin created — automatically return to interactive mode
     setMode('interactive');
   };
 
