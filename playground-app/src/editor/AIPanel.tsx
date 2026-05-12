@@ -135,8 +135,14 @@ export const AIPanel = React.memo(function AIPanel({
 
   const selectPin = usePinStore((s) => s.selectPin);
   const requestIframeNav = usePlaygroundStore((s) => s.requestIframeNav);
-  const pinsForPlayground = usePinStore((s) =>
-    playgroundId ? s.pins.filter((p) => p.playgroundId === playgroundId) : [],
+  // useShallow — `.filter()` 가 매 렌더마다 새 배열 반환 → zustand 의 Object.is
+  // 기본 비교 실패 → useSyncExternalStore 가 매번 "snapshot 변경" 으로 인식 →
+  // 무한 re-render (Maximum update depth exceeded). useShallow 가 element-wise
+  // 비교라 핀 내용 안 바뀌면 같은 결과로 판정.
+  const pinsForPlayground = usePinStore(
+    useShallow((s) =>
+      playgroundId ? s.pins.filter((p) => p.playgroundId === playgroundId) : [],
+    ),
   );
 
   /** Sha the sandbox is actually sitting on now — either a time-travel
