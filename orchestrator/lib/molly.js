@@ -156,12 +156,12 @@ async function buildSlackHistory(client, channel, threadTs, excludeTs) {
  * Mirrors the catalog in `lib/job-qa-strategist.js#QA_STRATEGIES`.
  */
 const QA_STRATEGY_LABELS_KO = {
-  agent_review: '에이전트 종합 리뷰 — 스크린샷 + 콘솔 + diff 종합 판정',
-  inline_per_task: '각 작업 직후 검증',
-  final_route_smoke: '라우트 스모크만 (가벼움)',
-  visual_diff: '시각 회귀 비교',
-  lint_only: '타입/린트만',
-  human_only: '사람이 직접 확인',
+  agent_review: 'Agent review — screenshot + console + diff',
+  inline_per_task: 'Verify after each task',
+  final_route_smoke: 'Route smoke only (lightweight)',
+  visual_diff: 'Visual regression diff',
+  lint_only: 'Type-check / lint only',
+  human_only: 'Manual verification',
 };
 
 /**
@@ -251,7 +251,7 @@ export function startMolly(options) {
       try {
         await ctx.say({
           thread_ts: ctx.event.thread_ts ?? ctx.event.ts,
-          text: `⚠️ 에러: ${err?.message ?? err}`,
+          text: `⚠️ Error: ${err?.message ?? err}`,
         });
       } catch {
         /* swallow */
@@ -496,7 +496,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
   if (!text) {
     await say({
       thread_ts: threadTs,
-      text: '👋 무엇을 도와드릴까요? 멘션과 함께 요청 내용을 적어주세요.',
+      text: '👋 How can I help? Mention me with your request.',
     });
     return;
   }
@@ -505,7 +505,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
   // thread reply 로 "🤔 잠깐만요…" 보내고 chat/status 응답 후 delete.
   let thinkingTs = null;
   try {
-    const r = await say({ thread_ts: threadTs, text: '🤔 잠깐만요…' });
+    const r = await say({ thread_ts: threadTs, text: '🤔 One moment…' });
     thinkingTs = r?.ts ?? null;
   } catch { /* swallow — indicator 실패해도 본 흐름 이어감 */ }
 
@@ -546,7 +546,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     result = {
       kind: 'chat',
       reason: 'intake failed',
-      response: `⚠️ 잠시 문제가 있어요. 다시 시도해 주세요. (${err.message?.slice(0, 100) ?? ''})`,
+      response: `⚠️ Something went wrong. Please try again. (${err.message?.slice(0, 100) ?? ''})`,
     };
   }
 
@@ -556,7 +556,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     }
     await say({
       thread_ts: threadTs,
-      text: toSlackMrkdwn(result.response) || '(빈 응답)',
+      text: toSlackMrkdwn(result.response) || '(empty response)',
     });
     return;
   }
@@ -605,7 +605,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     try {
       const ack = await say({
         thread_ts: threadTs,
-        text: '✏️ 피드백 반영해서 plan 다시 만드는 중...',
+        text: '✏️ Applying feedback and rebuilding the plan...',
       });
       const { emitPlan } = await import('./molly-plan-emitter.js');
       const newPlan = await emitPlan(
@@ -643,7 +643,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
       try {
         await say({
           thread_ts: threadTs,
-          text: `❌ 다시 계획 실패: ${err.message?.slice(0, 200) ?? err}`,
+          text: `❌ Re-plan failed: ${err.message?.slice(0, 200) ?? err}`,
         });
       } catch {}
     }
@@ -678,13 +678,13 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     if (!opts?.createPlayground) {
       await say({
         thread_ts: threadTs,
-        text: '⚠️ Playground 생성 hook 이 없습니다. 서버 설정을 확인해주세요.',
+        text: '⚠️ No Playground creation hook configured. Please check the server settings.',
       });
       return;
     }
     await say({
       thread_ts: threadTs,
-      text: '🐣 새 Playground 부팅 중… (~30초 소요)',
+      text: '🐣 Booting a new Playground… (~30 seconds)',
     });
     try {
       pg = await opts.createPlayground({
@@ -696,7 +696,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     } catch (err) {
       await say({
         thread_ts: threadTs,
-        text: `❌ Playground 생성 실패: ${err.message?.slice(0, 200) ?? err}`,
+        text: `❌ Failed to create Playground: ${err.message?.slice(0, 200) ?? err}`,
       });
       return;
     }
@@ -713,7 +713,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
   } catch (err) {
     await say({
       thread_ts: threadTs,
-      text: `❌ Job 생성 실패: ${err.message}`,
+      text: `❌ Failed to create job: ${err.message}`,
     });
     return;
   }
@@ -747,7 +747,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
       {
         id: generateMessageId(),
         role: 'assistant',
-        content: `Slack 멘션으로 받은 요청입니다. 작업 진행 상황은 아래 카드에서 확인하세요.`,
+        content: `Request received via Slack mention. Check the card below for progress.`,
         jobId: job.id,
         timestamp: now + 1,
       },
@@ -760,9 +760,9 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
   await say({
     thread_ts: threadTs,
     text: [
-      `🛠️ 받았습니다. 작업 계획을 세우는 중… (job: \`${job.id}\`)`,
+      `🛠️ Got it. Building the work plan… (job: \`${job.id}\`)`,
       `📺 Playground: ${playgroundUrl}`,
-      `_Playground 채팅에도 동일한 내용이 기록됩니다._`,
+      `_This is also recorded in the Playground chat._`,
     ].join('\n'),
   });
 
@@ -775,7 +775,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
   if (!ready) {
     await say({
       thread_ts: threadTs,
-      text: '⏱️ 계획 세우기 시간 초과 (90s). Playground 에서 확인해주세요.',
+      text: '⏱️ Plan building timed out (90s). Check in the Playground.',
     });
     return;
   }
@@ -784,7 +784,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
   if (job.status === 'paused') {
     await say({
       thread_ts: threadTs,
-      text: `❌ 계획 세우기 실패: ${job.pausedReason ?? '(원인 없음)'}`,
+      text: `❌ Plan building failed: ${job.pausedReason ?? '(no reason given)'}`,
     });
     return;
   }
@@ -827,7 +827,7 @@ async function handleApprove({ ack: _ack, body, action, client, logger }) {
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `❌ 승인 실패: ${err.message}`,
+      text: `❌ Approval failed: ${err.message}`,
     });
     return;
   }
@@ -839,7 +839,7 @@ async function handleApprove({ ack: _ack, body, action, client, logger }) {
     await client.chat.update({
       channel,
       ts: body.message.ts,
-      text: body.message.text ?? '계획 승인됨',
+      text: body.message.text ?? 'Plan approved',
       blocks: stampApprovedBlocks(body.message.blocks, userId),
     });
   } catch (err) {
@@ -851,7 +851,7 @@ async function handleApprove({ ack: _ack, body, action, client, logger }) {
   await client.chat.postMessage({
     channel,
     thread_ts: threadTs,
-    text: `🛠️ <@${userId}> 님이 승인했습니다. 작업 시작합니다…`,
+    text: `🛠️ <@${userId}> approved and started the job…`,
   });
 
   // Poll for completion. Fire-and-forget — the handler returned ack
@@ -880,7 +880,7 @@ async function handleCancel({ ack: _ack, body, action, client, logger }) {
     await client.chat.update({
       channel,
       ts: body.message.ts,
-      text: body.message.text ?? '취소됨',
+      text: body.message.text ?? 'Cancelled',
       blocks: stampCancelledBlocks(body.message.blocks, userId),
     });
   } catch (err) {
@@ -890,7 +890,7 @@ async function handleCancel({ ack: _ack, body, action, client, logger }) {
   await client.chat.postMessage({
     channel,
     thread_ts: threadTs,
-    text: `❌ <@${userId}> 님이 취소했습니다.`,
+    text: `❌ <@${userId}> cancelled.`,
   });
 }
 
@@ -908,23 +908,23 @@ async function handleRedecomposeOpen({ body, action, client }) {
       // private_metadata is the round-trip channel — Slack mirrors it
       // back on submission so we know which thread/job to update.
       private_metadata: JSON.stringify({ jobId, channel, threadTs, planMsgTs }),
-      title: { type: 'plain_text', text: '계획 다시 세우기' },
-      submit: { type: 'plain_text', text: '제출' },
-      close: { type: 'plain_text', text: '닫기' },
+      title: { type: 'plain_text', text: 'Re-plan' },
+      submit: { type: 'plain_text', text: 'Submit' },
+      close: { type: 'plain_text', text: 'Close' },
       blocks: [
         {
           type: 'section',
           text: {
             type: 'mrkdwn',
             text:
-              '구체적인 피드백을 남기면 새 계획이 그쪽으로 더 맞춰집니다.\n비워두고 제출해도 됩니다 — 그럼 LLM 이 자유롭게 다시 나눕니다.',
+              'Specific feedback will help shape the new plan. Leave it blank to let the LLM re-split freely.',
           },
         },
         {
           type: 'input',
           block_id: 'feedback_input',
           optional: true,
-          label: { type: 'plain_text', text: '피드백 (선택)' },
+          label: { type: 'plain_text', text: 'Feedback (optional)' },
           element: {
             type: 'plain_text_input',
             action_id: 'feedback',
@@ -932,7 +932,7 @@ async function handleRedecomposeOpen({ body, action, client }) {
             placeholder: {
               type: 'plain_text',
               text:
-                "예: 1번을 둘로 쪼개고 권한 가드 task 빼줘. 'BETA' 라벨 색은 빨강 말고 주황으로.",
+                "e.g. Split item 1 into two, remove the auth-guard task. Use orange instead of red for the 'BETA' label.",
             },
             max_length: 1500,
           },
@@ -960,7 +960,7 @@ async function handleRedecomposeSubmit({ body, view, client, logger }) {
     await client.chat.update({
       channel,
       ts: planMsgTs,
-      text: '계획을 다시 세우는 중…',
+      text: 'Re-planning…',
       blocks: stampPendingRedecomposeBlocks(undefined, userId, feedback),
     });
   } catch (err) {
@@ -971,8 +971,8 @@ async function handleRedecomposeSubmit({ body, view, client, logger }) {
     channel,
     thread_ts: threadTs,
     text: feedback
-      ? `🔁 <@${userId}> 님 요청으로 계획을 다시 세우는 중…\n_피드백: ${trunc(feedback, 200)}_`
-      : `🔁 <@${userId}> 님 요청으로 계획을 다시 세우는 중…`,
+      ? `🔁 Re-planning at <@${userId}>'s request…\n_Feedback: ${trunc(feedback, 200)}_`
+      : `🔁 Re-planning at <@${userId}>'s request…`,
   });
 
   try {
@@ -985,7 +985,7 @@ async function handleRedecomposeSubmit({ body, view, client, logger }) {
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `❌ 재계획 시작 실패: ${err.message?.slice(0, 200) ?? String(err)}`,
+      text: `❌ Failed to start re-plan: ${err.message?.slice(0, 200) ?? String(err)}`,
     });
     return;
   }
@@ -1003,7 +1003,7 @@ async function handleRedecomposeSubmit({ body, view, client, logger }) {
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `⏱️ 재계획 시간 초과 (90s). 현재 상태: \`${cur?.status ?? 'unknown'}\``,
+      text: `⏱️ Re-plan timed out (90s). Current status: \`${cur?.status ?? 'unknown'}\``,
     });
     return;
   }
@@ -1015,7 +1015,7 @@ async function handleRedecomposeSubmit({ body, view, client, logger }) {
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `❌ 재계획 실패: ${job.pausedReason ?? '(원인 없음)'}`,
+      text: `❌ Re-plan failed: ${job.pausedReason ?? '(no reason given)'}`,
     });
     return;
   }
@@ -1032,7 +1032,7 @@ async function handleRedecomposeSubmit({ body, view, client, logger }) {
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `⚠️ 새 계획을 Slack 에 표시하지 못했습니다 (\`${err.message?.slice(0, 100) ?? '?'}\`). Playground 에서 확인해주세요.`,
+      text: `⚠️ Could not post the new plan to Slack (\`${err.message?.slice(0, 100) ?? '?'}\`). Check in the Playground.`,
     });
   }
 }
@@ -1050,7 +1050,7 @@ async function handleQaPass({ body, action, client, logger }) {
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `❌ QA 통과 실패: ${err.message?.slice(0, 200) ?? String(err)}`,
+      text: `❌ QA pass failed: ${err.message?.slice(0, 200) ?? String(err)}`,
     });
     return;
   }
@@ -1061,7 +1061,7 @@ async function handleQaPass({ body, action, client, logger }) {
     await client.chat.update({
       channel,
       ts: body.message.ts,
-      text: body.message.text ?? 'QA 통과됨',
+      text: body.message.text ?? 'QA passed',
       blocks: stampQaPassedBlocks(body.message.blocks, userId),
     });
   } catch (err) {
@@ -1082,7 +1082,7 @@ async function handleQaRerun({ body, action, client, logger }) {
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `❌ QA 재실행 실패: ${err.message?.slice(0, 200) ?? String(err)}`,
+      text: `❌ QA re-run failed: ${err.message?.slice(0, 200) ?? String(err)}`,
     });
     return;
   }
@@ -1094,7 +1094,7 @@ async function handleQaRerun({ body, action, client, logger }) {
   await client.chat.postMessage({
     channel,
     thread_ts: threadTs,
-    text: `🔁 <@${userId}> 님이 자동 QA 재실행을 요청했습니다…`,
+    text: `🔁 <@${userId}> requested an auto QA re-run…`,
   });
 }
 
@@ -1110,7 +1110,7 @@ async function handlePromote({ body, action, client, logger }) {
     await client.chat.update({
       channel,
       ts: body.message.ts,
-      text: body.message.text ?? 'Promote 진행 중',
+      text: body.message.text ?? 'Promote in progress',
       blocks: stampPromotePendingBlocks(body.message.blocks, userId),
     });
   } catch (err) {
@@ -1120,7 +1120,7 @@ async function handlePromote({ body, action, client, logger }) {
   await client.chat.postMessage({
     channel,
     thread_ts: threadTs,
-    text: `🚀 <@${userId}> 님이 Promote 를 요청했습니다. PR 생성 중…`,
+    text: `🚀 <@${userId}> requested a Promote. Creating PR…`,
   });
 
   /** @type {{prUrl?: string, branch?: string} | undefined} */
@@ -1133,7 +1133,7 @@ async function handlePromote({ body, action, client, logger }) {
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `❌ Promote 실패: ${err.message?.slice(0, 240) ?? String(err)}`,
+      text: `❌ Promote failed: ${err.message?.slice(0, 240) ?? String(err)}`,
     });
     return;
   }
@@ -1142,26 +1142,26 @@ async function handlePromote({ body, action, client, logger }) {
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `✅ Promote 완료!\n🔗 PR: ${result.prUrl}\n_GitHub 에서 머지하면 끝._`,
+      text: `✅ Promote done!\n🔗 PR: ${result.prUrl}\n_Merge it on GitHub and you're done._`,
     });
   } else {
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `✅ Promote 완료 (PR URL 못 받음 — Playground 헤더에서 확인하세요).`,
+      text: `✅ Promote done (no PR URL returned — check the Playground header).`,
     });
   }
 }
 
 /** Reason picker options — mirrors Chrome ext Slice 3 ACTION_REASONS enum. */
 const TASK_ACTION_REASON_OPTIONS = [
-  { text: { type: 'plain_text', text: '문법/타입 에러' }, value: 'syntax_error' },
-  { text: { type: 'plain_text', text: '논리/구현 오류' }, value: 'logic_error' },
-  { text: { type: 'plain_text', text: '범위 벗어남' }, value: 'scope_creep' },
-  { text: { type: 'plain_text', text: '부분 구현' }, value: 'partial' },
-  { text: { type: 'plain_text', text: '잘못된 파일' }, value: 'wrong_target' },
-  { text: { type: 'plain_text', text: '오버 딜리버' }, value: 'over_delivered' },
-  { text: { type: 'plain_text', text: '기타' }, value: 'other' },
+  { text: { type: 'plain_text', text: 'Syntax / type error' }, value: 'syntax_error' },
+  { text: { type: 'plain_text', text: 'Logic / implementation error' }, value: 'logic_error' },
+  { text: { type: 'plain_text', text: 'Scope creep' }, value: 'scope_creep' },
+  { text: { type: 'plain_text', text: 'Partial implementation' }, value: 'partial' },
+  { text: { type: 'plain_text', text: 'Wrong file' }, value: 'wrong_target' },
+  { text: { type: 'plain_text', text: 'Over-delivered' }, value: 'over_delivered' },
+  { text: { type: 'plain_text', text: 'Other' }, value: 'other' },
 ];
 
 /**
@@ -1189,7 +1189,7 @@ async function handleTaskAction({ body, action, client, logger }, mode) {
   const threadTs = body.message.thread_ts ?? body.message.ts;
   const msgTs = body.message.ts;
 
-  const verbMap = { retry: '재시도', accept: '그대로 통과', skip: '건너뛰기' };
+  const verbMap = { retry: 'Retry', accept: 'Accept as-is', skip: 'Skip' };
   const verb = verbMap[mode];
   if (!verb) {
     logger.warn(`[molly] task action: unknown mode=${mode}`);
@@ -1203,18 +1203,18 @@ async function handleTaskAction({ body, action, client, logger }, mode) {
       callback_id: 'molly_task_action_submit',
       private_metadata: JSON.stringify({ jobId, taskId, mode, channel, threadTs, msgTs }),
       title: { type: 'plain_text', text: verb },
-      submit: { type: 'plain_text', text: '확인' },
-      close: { type: 'plain_text', text: '취소' },
+      submit: { type: 'plain_text', text: 'Confirm' },
+      close: { type: 'plain_text', text: 'Cancel' },
       blocks: [
         {
           type: 'input',
           block_id: 'reason_block',
           optional: true,
-          label: { type: 'plain_text', text: '사유 (선택)' },
+          label: { type: 'plain_text', text: 'Reason (optional)' },
           element: {
             type: 'static_select',
             action_id: 'reason',
-            placeholder: { type: 'plain_text', text: '사유 선택…' },
+            placeholder: { type: 'plain_text', text: 'Select a reason…' },
             options: TASK_ACTION_REASON_OPTIONS,
           },
         },
@@ -1222,13 +1222,13 @@ async function handleTaskAction({ body, action, client, logger }, mode) {
           type: 'input',
           block_id: 'reason_text_block',
           optional: true,
-          label: { type: 'plain_text', text: '추가 설명 (선택)' },
+          label: { type: 'plain_text', text: 'Additional notes (optional)' },
           element: {
             type: 'plain_text_input',
             action_id: 'reason_text',
             multiline: true,
             max_length: 500,
-            placeholder: { type: 'plain_text', text: '예: 3번 페이지에서 i18n 키가 충돌해서 …' },
+            placeholder: { type: 'plain_text', text: 'e.g. i18n key collision on page 3…' },
           },
         },
       ],
@@ -1254,7 +1254,7 @@ async function handleTaskActionSubmit({ body, view, client, logger }) {
     view.state?.values?.reason_text_block?.reason_text?.value?.trim() || null;
   const actionMeta = { reason, reasonText };
 
-  const verbMap = { retry: '재시도', accept: '그대로 통과', skip: '건너뛰기' };
+  const verbMap = { retry: 'Retry', accept: 'Accept as-is', skip: 'Skip' };
   const verb = verbMap[mode] ?? mode;
 
   const hookMap = {
@@ -1277,7 +1277,7 @@ async function handleTaskActionSubmit({ body, view, client, logger }) {
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      text: `❌ Task ${verb} 실패: ${err.message?.slice(0, 200) ?? String(err)}`,
+      text: `❌ Task ${verb} failed: ${err.message?.slice(0, 200) ?? String(err)}`,
     });
     return;
   }
@@ -1302,8 +1302,8 @@ async function handleTaskActionSubmit({ body, view, client, logger }) {
       ? TASK_ACTION_REASON_OPTIONS.find((o) => o.value === reason)?.text?.text ?? reason
       : null;
     const stampText = reasonLabel
-      ? `↳ <@${userId}> 님이 *${verb}* 처리했습니다 — _${reasonLabel}${reasonText ? ': ' + reasonText.slice(0, 100) : ''}_`
-      : `↳ <@${userId}> 님이 *${verb}* 처리했습니다`;
+      ? `↳ <@${userId}> marked *${verb}* — _${reasonLabel}${reasonText ? ': ' + reasonText.slice(0, 100) : ''}_`
+      : `↳ <@${userId}> marked *${verb}*`;
     filtered.push({
       type: 'context',
       elements: [{ type: 'mrkdwn', text: stampText }],
@@ -1311,7 +1311,7 @@ async function handleTaskActionSubmit({ body, view, client, logger }) {
     await client.chat.update({
       channel,
       ts: msgTs,
-      text: `${verb} 처리됨`,
+      text: `${verb} done`,
       blocks: filtered,
     });
   } catch (err) {
@@ -1326,7 +1326,7 @@ function stampQaPassedBlocks(originalBlocks, userId) {
     elements: [
       {
         type: 'mrkdwn',
-        text: `✅ <@${userId}> 님이 QA 통과 처리했습니다`,
+        text: `✅ <@${userId}> marked QA passed`,
       },
     ],
   });
@@ -1340,7 +1340,7 @@ function stampPromotePendingBlocks(originalBlocks, userId) {
     elements: [
       {
         type: 'mrkdwn',
-        text: `🚀 <@${userId}> 님이 Promote 진행 중…`,
+        text: `🚀 <@${userId}> is promoting…`,
       },
     ],
   });
@@ -1355,8 +1355,8 @@ function stampPendingRedecomposeBlocks(_originalBlocks, userId, feedback) {
       text: {
         type: 'mrkdwn',
         text: feedback
-          ? `🔁 <@${userId}> 님이 다시 계획 세우기를 요청했습니다.\n_피드백: ${trunc(feedback, 300)}_`
-          : `🔁 <@${userId}> 님이 다시 계획 세우기를 요청했습니다.`,
+          ? `🔁 <@${userId}> requested a re-plan.\n_Feedback: ${trunc(feedback, 300)}_`
+          : `🔁 <@${userId}> requested a re-plan.`,
       },
     },
   ];
@@ -1441,7 +1441,7 @@ async function postPlanItemsMessage({ client, channel, threadTs, plan, cumulativ
 function buildPlanItemsBlocks(plan, isFastTrack) {
   const items = plan.plan_items || [];
   const headerText = isFastTrack
-    ? `📋 Plan (${items.length} items) — ⚡ 빠른 실행`
+    ? `📋 Plan (${items.length} items) — ⚡ Fast track`
     : `📋 Plan (${items.length} items)`;
   const blocks = [
     { type: 'header', text: { type: 'plain_text', text: headerText } },
@@ -1464,9 +1464,9 @@ function buildPlanItemsBlocks(plan, isFastTrack) {
   blocks.push({
     type: 'actions',
     elements: [
-      { type: 'button', action_id: 'molly_planitems_cancel', text: { type: 'plain_text', text: '취소' }, style: 'danger' },
-      { type: 'button', action_id: 'molly_planitems_redecompose', text: { type: 'plain_text', text: '✏️ 다시 계획' } },
-      { type: 'button', action_id: 'molly_planitems_approve', text: { type: 'plain_text', text: '실행하기 →' }, style: 'primary' },
+      { type: 'button', action_id: 'molly_planitems_cancel', text: { type: 'plain_text', text: 'Cancel' }, style: 'danger' },
+      { type: 'button', action_id: 'molly_planitems_redecompose', text: { type: 'plain_text', text: '✏️ Re-plan' } },
+      { type: 'button', action_id: 'molly_planitems_approve', text: { type: 'plain_text', text: 'Run →' }, style: 'primary' },
     ],
   });
   return blocks;
@@ -1478,7 +1478,7 @@ function stampPlanItemsApproved(blocks, userId) {
     ...stripped,
     {
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: `✅ <@${userId}> 님이 실행 시작했습니다.` }],
+      elements: [{ type: 'mrkdwn', text: `✅ <@${userId}> approved and started.` }],
     },
   ];
 }
@@ -1489,7 +1489,7 @@ function stampPlanItemsCancelled(blocks, userId) {
     ...stripped,
     {
       type: 'context',
-      elements: [{ type: 'mrkdwn', text: `❌ <@${userId}> 님이 취소했습니다.` }],
+      elements: [{ type: 'mrkdwn', text: `❌ <@${userId}> cancelled.` }],
     },
   ];
 }
@@ -1503,7 +1503,7 @@ async function handlePlanItemsApprove({ body, client }) {
       await client.chat.postMessage({
         channel: channel.id,
         thread_ts: threadTs,
-        text: '⏱️ 플랜 컨텍스트가 만료되었습니다. 다시 멘션해 주세요.',
+        text: '⏱️ Plan context has expired. Please mention me again.',
       });
     } catch {}
     return;
@@ -1515,7 +1515,7 @@ async function handlePlanItemsApprove({ body, client }) {
     await client.chat.update({
       channel: channel.id,
       ts: message.ts,
-      text: '계획 승인 — 실행 중…',
+      text: 'Plan approved — running…',
       blocks: newBlocks,
     });
   } catch (err) {
@@ -1535,7 +1535,7 @@ async function handlePlanItemsApprove({ body, client }) {
       await client.chat.postMessage({
         channel: channel.id,
         thread_ts: threadTs,
-        text: '⚠️ Playground 생성 hook 이 없습니다.',
+        text: '⚠️ No Playground creation hook configured.',
       });
       return;
     }
@@ -1554,7 +1554,7 @@ async function handlePlanItemsApprove({ body, client }) {
       await client.chat.postMessage({
         channel: channel.id,
         thread_ts: threadTs,
-        text: `❌ Playground 생성 실패: ${err.message?.slice(0, 200) ?? err}`,
+        text: `❌ Failed to create Playground: ${err.message?.slice(0, 200) ?? err}`,
       });
       return;
     }
@@ -1564,7 +1564,7 @@ async function handlePlanItemsApprove({ body, client }) {
     await client.chat.postMessage({
       channel: channel.id,
       thread_ts: threadTs,
-      text: '⚠️ Job 생성 hook 이 없습니다.',
+      text: '⚠️ No job creation hook configured.',
     });
     return;
   }
@@ -1583,7 +1583,7 @@ async function handlePlanItemsApprove({ body, client }) {
     await client.chat.postMessage({
       channel: channel.id,
       thread_ts: threadTs,
-      text: `❌ Job 생성 실패: ${err.message?.slice(0, 200) ?? err}`,
+      text: `❌ Failed to create job: ${err.message?.slice(0, 200) ?? err}`,
     });
   }
 }
@@ -1604,15 +1604,15 @@ async function handlePlanItemsRedecomposeOpen({ body, client }) {
         threadTs,
         msgTs: message.ts,
       }),
-      title: { type: 'plain_text', text: '계획 다시 만들기' },
-      submit: { type: 'plain_text', text: '제출' },
-      close: { type: 'plain_text', text: '닫기' },
+      title: { type: 'plain_text', text: 'Revise plan' },
+      submit: { type: 'plain_text', text: 'Submit' },
+      close: { type: 'plain_text', text: 'Close' },
       blocks: [
         {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: '어떻게 수정할까요? 예: "3번째 항목은 X 대신 Y 로"',
+            text: 'How should it be changed? e.g. "Replace item 3 with Y instead of X"',
           },
         },
         {
@@ -1622,9 +1622,9 @@ async function handlePlanItemsRedecomposeOpen({ body, client }) {
             type: 'plain_text_input',
             action_id: 'feedback',
             multiline: true,
-            placeholder: { type: 'plain_text', text: '피드백을 자유롭게 입력하세요' },
+            placeholder: { type: 'plain_text', text: 'Enter your feedback freely' },
           },
-          label: { type: 'plain_text', text: '피드백' },
+          label: { type: 'plain_text', text: 'Feedback' },
         },
       ],
     },
@@ -1661,7 +1661,7 @@ async function handlePlanItemsRedecomposeSubmit({ body, view, client, logger }) 
       await client.chat.postMessage({
         channel: meta.channel,
         thread_ts: meta.threadTs,
-        text: `❌ 다시 계획 실패: ${err.message?.slice(0, 200) ?? err}`,
+        text: `❌ Re-plan failed: ${err.message?.slice(0, 200) ?? err}`,
       });
     } catch {}
     return;
@@ -1695,7 +1695,7 @@ async function handlePlanItemsCancel({ body, client }) {
     await client.chat.update({
       channel: channel.id,
       ts: message.ts,
-      text: '계획 취소됨',
+      text: 'Plan cancelled',
       blocks: newBlocks,
     });
   } catch (err) {
@@ -1710,7 +1710,7 @@ async function postPlanMessage({ client, channel, threadTs, job }) {
   const result = await client.chat.postMessage({
     channel,
     thread_ts: threadTs,
-    text: `📋 작업 계획 (${job.tasks.length} tasks)`, // fallback for clients that don't render blocks
+    text: `📋 Work plan (${job.tasks.length} tasks)`, // fallback for clients that don't render blocks
     blocks,
   });
   // Persist plan card ts so polling can chat.update it on external
@@ -1734,7 +1734,7 @@ function buildPlanBlocks(job) {
       type: 'header',
       text: {
         type: 'plain_text',
-        text: `📋 작업 계획 (${job.tasks.length} tasks)`,
+        text: `📋 Work plan (${job.tasks.length} tasks)`,
       },
     },
   ];
@@ -1742,7 +1742,7 @@ function buildPlanBlocks(job) {
   if (job.tasks.length === 0) {
     blocks.push({
       type: 'section',
-      text: { type: 'mrkdwn', text: '_(태스크 없음)_' },
+      text: { type: 'mrkdwn', text: '_(no tasks)_' },
     });
   } else {
     // One section per task so the full description (including the
@@ -1768,7 +1768,7 @@ function buildPlanBlocks(job) {
       elements: [
         {
           type: 'mrkdwn',
-          text: `📍 결과 페이지: \`${job.targetRoute}\``,
+          text: `📍 Target page: \`${job.targetRoute}\``,
         },
       ],
     });
@@ -1786,7 +1786,7 @@ function buildPlanBlocks(job) {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `⚠️ *주의사항 (이 작업 특화)*\n${risksLines}`,
+        text: `⚠️ *Risks (specific to this job)*\n${risksLines}`,
       },
     });
   }
@@ -1805,7 +1805,7 @@ function buildPlanBlocks(job) {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `🧪 *검증 단계*: ${label}${rationale}`,
+        text: `🧪 *Verification*: ${label}${rationale}`,
       },
     });
   } else {
@@ -1814,7 +1814,7 @@ function buildPlanBlocks(job) {
       elements: [
         {
           type: 'mrkdwn',
-          text: `🧪 검증 전략 자동 선택 중… (post-approve 결정)`,
+          text: `🧪 Auto-selecting verification strategy… (decided post-approve)`,
         },
       ],
     });
@@ -1837,20 +1837,20 @@ function buildPlanBlocks(job) {
       {
         type: 'button',
         style: 'primary',
-        text: { type: 'plain_text', text: '✅ 승인하고 시작' },
+        text: { type: 'plain_text', text: '✅ Approve and start' },
         action_id: 'molly_approve',
         value: job.id,
       },
       {
         type: 'button',
-        text: { type: 'plain_text', text: '✏️ 다시 계획' },
+        text: { type: 'plain_text', text: '✏️ Re-plan' },
         action_id: 'molly_redecompose',
         value: job.id,
       },
       {
         type: 'button',
         style: 'danger',
-        text: { type: 'plain_text', text: '❌ 취소' },
+        text: { type: 'plain_text', text: '❌ Cancel' },
         action_id: 'molly_cancel',
         value: job.id,
       },
@@ -1869,7 +1869,7 @@ function stampApprovedBlocks(originalBlocks, userId) {
     elements: [
       {
         type: 'mrkdwn',
-        text: `✅ <@${userId}> 님이 승인했습니다`,
+        text: `✅ <@${userId}> approved`,
       },
     ],
   });
@@ -1885,7 +1885,7 @@ function stampCancelledBlocks(originalBlocks, userId) {
     elements: [
       {
         type: 'mrkdwn',
-        text: `❌ <@${userId}> 님이 취소했습니다`,
+        text: `❌ <@${userId}> cancelled`,
       },
     ],
   });
@@ -1906,7 +1906,7 @@ function stampExternallyApprovedBlocks(originalBlocks) {
     elements: [
       {
         type: 'mrkdwn',
-        text: `✅ Playground 또는 외부에서 승인됐습니다`,
+        text: `✅ Approved from Playground or external source`,
       },
     ],
   });
@@ -1922,7 +1922,7 @@ function stampExternallyCancelledBlocks(originalBlocks) {
     elements: [
       {
         type: 'mrkdwn',
-        text: `❌ Playground 또는 외부에서 취소됐습니다`,
+        text: `❌ Cancelled from Playground or external source`,
       },
     ],
   });
@@ -1984,17 +1984,17 @@ function taskTransitionMessage(task, idx, total) {
   const title = task.title || '(no title)';
   switch (task.status) {
     case 'running':
-      return `🔧 *${num} ${title}* — 작업 중…`;
+      return `🔧 *${num} ${title}* — working…`;
     case 'committed':
-      return `🔍 *${num} ${title}* — 검토 중…`;
+      return `🔍 *${num} ${title}* — reviewing…`;
     case 'reviewed':
-      return `✅ *${num} ${title}* — 통과`;
+      return `✅ *${num} ${title}* — passed`;
     case 'failed': {
-      const notes = task.review?.notes?.slice(0, 240) || '(원인 없음)';
-      return `❌ *${num} ${title}* — 검토 실패\n_${notes}_`;
+      const notes = task.review?.notes?.slice(0, 240) || '(no reason given)';
+      return `❌ *${num} ${title}* — review failed\n_${notes}_`;
     }
     case 'skipped':
-      return `⏭ *${num} ${title}* — 건너뜀`;
+      return `⏭ *${num} ${title}* — skipped`;
     default:
       return null;
   }
@@ -2029,20 +2029,20 @@ function taskTransitionPayload(task, idx, total, jobId) {
           {
             type: 'button',
             style: 'primary',
-            text: { type: 'plain_text', text: '🔁 재시도' },
+            text: { type: 'plain_text', text: '🔁 Retry' },
             action_id: 'molly_task_retry',
             value,
           },
           {
             type: 'button',
-            text: { type: 'plain_text', text: '✅ 그대로 통과' },
+            text: { type: 'plain_text', text: '✅ Accept as-is' },
             action_id: 'molly_task_accept',
             value,
           },
           {
             type: 'button',
             style: 'danger',
-            text: { type: 'plain_text', text: '⏭ 건너뛰기' },
+            text: { type: 'plain_text', text: '⏭ Skip' },
             action_id: 'molly_task_skip',
             value,
           },
@@ -2109,7 +2109,7 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
       await client.chat.postMessage({
         channel,
         thread_ts: threadTs,
-        text: '⚠️ Job 이 사라졌습니다. (상태 추적 중단)',
+        text: '⚠️ Job no longer exists. (Stopped tracking)',
       });
       return;
     }
@@ -2148,7 +2148,7 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
               await client.chat.update({
                 channel,
                 ts: planTs,
-                text: '계획이 외부에서 승인됐습니다',
+                text: 'Plan approved externally',
                 blocks: stampExternallyApprovedBlocks(blocks),
               });
             } catch (err) {
@@ -2160,13 +2160,13 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
           await client.chat.postMessage({
             channel,
             thread_ts: threadTs,
-            text: '🔁 Playground 또는 외부에서 계획을 다시 세우는 중입니다…',
+            text: '🔁 Re-planning from Playground or external source…',
           });
         } else {
           await client.chat.postMessage({
             channel,
             thread_ts: threadTs,
-            text: '✅ Playground 또는 외부에서 계획이 승인됐습니다. 작업을 시작합니다…',
+            text: '✅ Plan approved from Playground or external source. Starting work…',
           });
         }
       }
@@ -2267,7 +2267,7 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
         channel,
         thread_ts: threadTs,
         text: [
-          '❌ 작업이 취소되었습니다 (Playground 또는 외부에서)',
+          '❌ Job cancelled (from Playground or external source)',
           ``,
           `Playground: ${PLAYGROUND_BASE_URL}/${job.playgroundId}`,
         ].join('\n'),
@@ -2282,7 +2282,7 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
             await client.chat.update({
               channel,
               ts: planTsCancel,
-              text: '계획 외부에서 취소됨',
+              text: 'Plan cancelled externally',
               blocks: stampExternallyCancelledBlocks(blocks),
             });
           } catch {
@@ -2300,9 +2300,9 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
             channel,
             thread_ts: threadTs,
             text: [
-              `⏸️ 작업 일시정지: ${job.pausedReason ?? '(원인 없음)'}`,
+              `⏸️ Job paused: ${job.pausedReason ?? '(no reason given)'}`,
               ``,
-              `Playground 에서 확인 필요: ${PLAYGROUND_BASE_URL}/${job.playgroundId}`,
+              `Check in the Playground: ${PLAYGROUND_BASE_URL}/${job.playgroundId}`,
             ].join('\n'),
           });
         }
@@ -2368,7 +2368,7 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
   await client.chat.postMessage({
     channel,
     thread_ts: threadTs,
-    text: `⏱️ molly 의 watcher 가 30분 후 만료됐습니다. (Job ${jobId} 의 상태 추적 종료) — Playground 에서 직접 확인하세요: ${pgUrl}`,
+    text: `⏱️ Molly's watcher expired after 30 minutes. (Stopped tracking job ${jobId}) — Check directly in the Playground: ${pgUrl}`,
   });
 }
 
@@ -2387,21 +2387,21 @@ async function postCompletionMessage({ client, channel, threadTs, job }) {
 
   /** @type {string[]} */
   const summaryLines = [];
-  summaryLines.push(`🎉 작업 완료! (job: \`${job.id}\`)`);
+  summaryLines.push(`🎉 Job complete! (job: \`${job.id}\`)`);
   summaryLines.push(
-    `• 완료 task: ${reviewedCount}/${job.tasks.length}` +
-      (skippedCount > 0 ? ` (스킵 ${skippedCount})` : ''),
+    `• Tasks done: ${reviewedCount}/${job.tasks.length}` +
+      (skippedCount > 0 ? ` (skipped ${skippedCount})` : ''),
   );
   if (qaResult) {
     const emoji = qaPassed ? '✅' : '⚠️';
-    const verdict = qaPassed ? '통과' : '실패';
+    const verdict = qaPassed ? 'passed' : 'failed';
     summaryLines.push(
-      `• 자동 QA: ${emoji} ${verdict} — ${trunc(qaResult.notes ?? '', 120)}`,
+      `• Auto QA: ${emoji} ${verdict} — ${trunc(qaResult.notes ?? '', 120)}`,
     );
   } else if (job.qaStrategy) {
-    summaryLines.push(`• 자동 QA: ${job.qaStrategy} (실행 대기 중)`);
+    summaryLines.push(`• Auto QA: ${job.qaStrategy} (pending)`);
   }
-  if (job.targetRoute) summaryLines.push(`• 결과 페이지: \`${job.targetRoute}\``);
+  if (job.targetRoute) summaryLines.push(`• Target page: \`${job.targetRoute}\``);
   summaryLines.push(`• Playground: ${playgroundUrl}`);
 
   /** @type {Array<object>} */
@@ -2409,7 +2409,7 @@ async function postCompletionMessage({ client, channel, threadTs, job }) {
     {
       type: 'button',
       style: 'primary',
-      text: { type: 'plain_text', text: '✅ QA 통과' },
+      text: { type: 'plain_text', text: '✅ QA pass' },
       action_id: 'molly_qa_pass',
       value: job.id,
     },
@@ -2417,7 +2417,7 @@ async function postCompletionMessage({ client, channel, threadTs, job }) {
   if (qaResult && !qaPassed) {
     buttons.push({
       type: 'button',
-      text: { type: 'plain_text', text: '🔁 자동 QA 재실행' },
+      text: { type: 'plain_text', text: '🔁 Re-run auto QA' },
       action_id: 'molly_qa_rerun',
       value: job.id,
     });
@@ -2429,7 +2429,7 @@ async function postCompletionMessage({ client, channel, threadTs, job }) {
     text: summaryLines.join('\n'),
     blocks: [
       { type: 'section', text: { type: 'mrkdwn', text: summaryLines.join('\n') } },
-      { type: 'context', elements: [{ type: 'mrkdwn', text: '*✅ QA 통과* 를 누르면 작업이 *complete* 으로 넘어가고 Promote 버튼이 보입니다.' }] },
+      { type: 'context', elements: [{ type: 'mrkdwn', text: 'Clicking *✅ QA pass* moves the job to *complete* and shows the Promote button.' }] },
       { type: 'actions', block_id: `molly_qa_actions_${job.id}`, elements: buttons },
     ],
   });
@@ -2442,7 +2442,7 @@ async function postCompletionMessage({ client, channel, threadTs, job }) {
  */
 async function postCompletePromoteMessage({ client, channel, threadTs, job }) {
   const playgroundUrl = `${PLAYGROUND_BASE_URL}/${job.playgroundId}`;
-  const headline = `🎉 *${job.id}* 완료 처리됨 — Promote 하시겠어요?`;
+  const headline = `🎉 *${job.id}* marked complete — ready to Promote?`;
   await client.chat.postMessage({
     channel,
     thread_ts: threadTs,
@@ -2454,7 +2454,7 @@ async function postCompletePromoteMessage({ client, channel, threadTs, job }) {
         elements: [
           {
             type: 'mrkdwn',
-            text: `Promote 하면 Playground (\`${job.playgroundId}\`) 의 모든 commit 이 prod repo 의 새 PR 로 올라갑니다. 머지는 GitHub 에서 직접.`,
+            text: `Promoting will open a new PR in the prod repo with all commits from Playground (\`${job.playgroundId}\`). Merge it on GitHub.`,
           },
         ],
       },
@@ -2465,13 +2465,13 @@ async function postCompletePromoteMessage({ client, channel, threadTs, job }) {
           {
             type: 'button',
             style: 'primary',
-            text: { type: 'plain_text', text: '🚀 Promote (PR 생성)' },
+            text: { type: 'plain_text', text: '🚀 Promote (create PR)' },
             action_id: 'molly_promote',
             value: job.id,
           },
           {
             type: 'button',
-            text: { type: 'plain_text', text: '📺 Playground 보기' },
+            text: { type: 'plain_text', text: '📺 View Playground' },
             action_id: 'molly_open_playground',
             url: playgroundUrl,
             value: job.playgroundId,

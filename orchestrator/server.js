@@ -3237,15 +3237,15 @@ ${JSON.stringify(apiContracts, null, 2)}`;
       const raw = err?.message ?? String(err);
       let userMessage;
       if (/timeout|timed out|aborted/i.test(raw)) {
-        userMessage = '⏱️ 응답이 늦어요. 잠시 후 다시 시도해 주세요.';
+        userMessage = '⏱️ Reply is slow. Please try again in a moment.';
       } else if (/api[\s_-]?key|not configured/i.test(raw)) {
-        userMessage = '🔧 AI 서비스 미설정 — orchestrator 의 ANTHROPIC_API_KEY 확인 후 재시작해 주세요.';
+        userMessage = '🔧 AI service not configured — please check ANTHROPIC_API_KEY in the orchestrator and restart.';
       } else if (/rate.?limit|429/i.test(raw)) {
-        userMessage = '🚦 요청이 몰렸어요. 30초 후 다시 시도해 주세요.';
+        userMessage = '🚦 Rate limited. Please try again in 30 seconds.';
       } else if (/network|ENOTFOUND|ECONNREFUSED|fetch failed/i.test(raw)) {
-        userMessage = '🌐 네트워크 문제로 응답을 못 받았어요. 다시 시도해 주세요.';
+        userMessage = '🌐 Network error. Please try again.';
       } else {
-        userMessage = '⚠️ 잠시 문제가 있어요. 다시 시도해 주세요. 계속 안 되면 orchestrator 로그를 확인해 주세요.';
+        userMessage = '⚠️ Something went wrong. Please try again. If the issue persists, check the orchestrator logs.';
       }
       console.error('[/api/intake] error:', err);
       // 메트릭 — error category 기록.
