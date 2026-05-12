@@ -4,7 +4,7 @@ import { APP_VERSION } from '../constants';
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3847';
 
 /* ------------------------------------------------------------------ */
-/*  Molly settings (런타임 변경)                                         */
+/*  Molly settings (runtime-mutable)                                     */
 /* ------------------------------------------------------------------ */
 
 interface MollySettings {

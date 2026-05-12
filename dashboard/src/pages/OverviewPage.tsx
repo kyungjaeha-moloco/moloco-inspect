@@ -912,7 +912,7 @@ export function OverviewPage() {
             </NavLink>
           </div>
 
-          {/* Section 2.5: LLM Cost — 운영 비용 가시화 */}
+          {/* Section 2.5: LLM Cost — surface operating cost */}
           <CostSection />
 
           {/* Section 3: Daily Trend (full width) */}
