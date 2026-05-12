@@ -189,7 +189,7 @@
       // Selected playground has a Job in flight — orchestrator blocks
       // ad-hoc requests so they can't interleave with the job's
       // serial task stream against the same git tree.
-      [/job_active/i, '선택한 Playground 에 진행 중인 Job 이 있어서 지금은 요청을 받을 수 없습니다. Inspect Console 의 Jobs 탭에서 해당 Job 을 끝내거나 취소한 뒤 다시 시도하세요.'],
+      [/job_active/i, 'The selected Playground has a Job in progress and cannot accept new requests. Please finish or cancel the Job from the Jobs tab in Inspect Console, then try again.'],
     ];
     for (const [pattern, message] of map) {
       if (pattern.test(text)) return message;
@@ -1049,7 +1049,7 @@
       editBtn.disabled = true;
       bubble.classList.add('clarification-complete');
       pendingExecutionPlan = null;
-      inputStatus.textContent = 'Plan 분석 중…';
+      inputStatus.textContent = 'Analyzing plan…';
 
       const prdText = plan.finalPrompt || plan.originalPrompt || '';
       const clientId = plan.payload?.client || null;
@@ -1070,7 +1070,7 @@
         inputStatus.textContent = '';
         if (!planRes.ok || planBody.ok === false) {
           addSystemMessage(
-            `Plan 생성 실패: ${planBody.error || `HTTP ${planRes.status}`}`,
+            `Plan creation failed: ${planBody.error || `HTTP ${planRes.status}`}`,
             'error',
           );
           return;
@@ -1811,7 +1811,7 @@
     playgroundSelect.innerHTML = '';
     const auto = document.createElement('option');
     auto.value = AUTO_PLAYGROUND_SENTINEL;
-    auto.textContent = '🆕 새 작업 (자동 생성)';
+    auto.textContent = '🆕 New task (auto-create)';
     playgroundSelect.appendChild(auto);
 
     if (pgs.length > 0) {
@@ -1861,13 +1861,13 @@
     const id = playgroundSelect.value;
     if (id === AUTO_PLAYGROUND_SENTINEL) {
       playgroundMeta.textContent =
-        '메시지 보낼 때 새 Playground 가 자동으로 만들어집니다 (~30초).';
+        'A new Playground will be created automatically when you send a message (~30s).';
       playgroundOpenBtn.disabled = true;
       return;
     }
     if (!id) {
       playgroundMeta.textContent =
-        'Stateless — change-request 가 격리되지 않은 상태로 실행됩니다.';
+        'Stateless — change-request runs without isolation.';
       playgroundOpenBtn.disabled = true;
       return;
     }
@@ -1908,7 +1908,7 @@
       : `Chrome ext · ${stamp}`;
 
     const prevStatus = inputStatus.textContent;
-    inputStatus.textContent = '🛠️ Playground 부팅 중… (~30초)';
+    inputStatus.textContent = '🛠️ Booting Playground… (~30s)';
 
     let newId = null;
     try {
@@ -1968,9 +1968,9 @@
         chrome.storage.local.set({ selectedPlaygroundId: AUTO_PLAYGROUND_SENTINEL });
         updatePlaygroundMeta();
         if (inputStatus) {
-          inputStatus.textContent = '새 작업 시작 — 다음 메시지가 새 playground 를 부팅합니다.';
+          inputStatus.textContent = 'New task — next message will boot a new playground.';
           setTimeout(() => {
-            if (inputStatus.textContent.startsWith('새 작업 시작')) {
+            if (inputStatus.textContent.startsWith('New task')) {
               inputStatus.textContent = '';
             }
           }, 4000);
@@ -1996,7 +1996,7 @@
 
   if (playgroundNewBtn) {
     playgroundNewBtn.addEventListener('click', async () => {
-      const title = window.prompt('새 Playground 제목');
+      const title = window.prompt('New Playground title');
       if (!title || !title.trim()) return;
       const { userName } = await new Promise((resolve) =>
         chrome.storage.local.get(['userName'], resolve),
@@ -2025,7 +2025,7 @@
         await loadPlaygrounds();
       } catch (err) {
         console.error('[Moloco Inspect] create playground failed', err);
-        window.alert(`Playground 생성 실패: ${err.message}`);
+        window.alert(`Failed to create Playground: ${err.message}`);
       }
     });
   }
@@ -2192,15 +2192,15 @@
     wrap.className = 'msg msg-system molly-thinking';
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble molly-chat-card';
-    bubble.textContent = '🤔 molly 가 살펴보고 있어요';
+    bubble.textContent = '🤔 molly is looking into this';
     wrap.appendChild(bubble);
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
     const timers = [];
-    timers.push(setTimeout(() => { bubble.textContent = '📋 맥락 분석 중...'; }, 2000));
-    timers.push(setTimeout(() => { bubble.textContent = '🛠️ 응답 정리 중... (10-20초)'; }, 8000));
-    timers.push(setTimeout(() => { bubble.textContent = '⌛ 조금만 더 기다려 주세요...'; }, 20000));
+    timers.push(setTimeout(() => { bubble.textContent = '📋 Analyzing context...'; }, 2000));
+    timers.push(setTimeout(() => { bubble.textContent = '🛠️ Preparing response... (10-20s)'; }, 8000));
+    timers.push(setTimeout(() => { bubble.textContent = '⌛ Almost there, hang tight...'; }, 20000));
 
     return {
       dismiss() {
@@ -2281,7 +2281,7 @@
 
     const body = document.createElement('div');
     body.className = 'progress-card-body';
-    body.textContent = '계획을 세우고, 단계별로 작업을 시작합니다…';
+    body.textContent = 'Building a plan and starting tasks step by step…';
 
     const meta = document.createElement('div');
     meta.className = 'progress-card-meta';
@@ -2527,7 +2527,7 @@
     const title = document.createElement('div');
     title.className = 'progress-card-title';
     title.textContent = isFastTrack
-      ? `📋 Plan (${(plan.plan_items || []).length} items) — ⚡ 빠른 실행`
+      ? `📋 Plan (${(plan.plan_items || []).length} items) — ⚡ Fast track`
       : `📋 Plan (${(plan.plan_items || []).length} items)`;
     bubble.appendChild(title);
 
@@ -2580,17 +2580,17 @@
 
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
-    cancelBtn.textContent = '취소';
+    cancelBtn.textContent = 'Cancel';
     cancelBtn.className = 'plan-btn plan-btn-danger';
 
     const redecBtn = document.createElement('button');
     redecBtn.type = 'button';
-    redecBtn.textContent = '✏️ 다시 계획';
+    redecBtn.textContent = '✏️ Replan';
     redecBtn.className = 'plan-btn';
 
     const approveBtn = document.createElement('button');
     approveBtn.type = 'button';
-    approveBtn.textContent = '실행하기 →';
+    approveBtn.textContent = 'Run →';
     approveBtn.className = 'plan-btn plan-btn-primary';
 
     // closure 변수 — 다시 계획 결과 swap 을 위해
@@ -2612,7 +2612,7 @@
     };
 
     approveBtn.addEventListener('click', async () => {
-      lockPlanButtons('실행 시작 중…');
+      lockPlanButtons('Starting execution…');
       try {
         const baseUrl = await getServerUrl();
 
@@ -2621,7 +2621,7 @@
         if (!playgroundId) {
           playgroundId = await ensureEffectivePlayground();
         }
-        if (!playgroundId) throw new Error('playground id 없음');
+        if (!playgroundId) throw new Error('playground id missing');
 
         const jobRes = await fetch(
           `${baseUrl}/api/playground/${encodeURIComponent(playgroundId)}/job`,
@@ -2642,9 +2642,9 @@
         }
 
         const jobId = jobBody.job?.id ?? jobBody.jobId;
-        if (!jobId) throw new Error('서버가 jobId 를 반환하지 않음');
+        if (!jobId) throw new Error('server did not return a jobId');
 
-        lockPlanButtons('✅ 실행 시작됨');
+        lockPlanButtons('✅ Execution started');
         if (activePlanItemsCard?.wrap === wrap) activePlanItemsCard = null;
 
         // 기존 폴링 흐름 진입 — addJobProgressMessage + startHttpJobPolling
@@ -2656,12 +2656,12 @@
           chrome.storage.local.set({ lastPlaygroundId: playgroundId });
         }
       } catch (err) {
-        lockPlanButtons(`❌ 실행 실패: ${err?.message ?? String(err)}`);
+        lockPlanButtons(`❌ Execution failed: ${err?.message ?? String(err)}`);
       }
     });
 
     cancelBtn.addEventListener('click', () => {
-      lockPlanButtons('❌ 취소됨');
+      lockPlanButtons('❌ Cancelled');
       if (activePlanItemsCard?.wrap === wrap) activePlanItemsCard = null;
     });
 
@@ -2707,14 +2707,14 @@
         errStamp.style.marginTop = '6px';
         errStamp.style.fontSize = '11px';
         errStamp.style.color = 'var(--text-danger, #c0392b)';
-        errStamp.textContent = `❌ 다시 계획 실패: ${err?.message ?? String(err)}`;
+        errStamp.textContent = `❌ Replan failed: ${err?.message ?? String(err)}`;
         bubble.appendChild(errStamp);
       }
     }
 
     redecBtn.addEventListener('click', async () => {
-      const feedback = window.prompt('어떻게 수정할까요? 예: "3번째 항목은 X 대신 Y 로"');
-      if (feedback === null) return; // 사용자가 prompt 취소
+      const feedback = window.prompt('How should this be revised? e.g. "Replace step 3 with Y instead of X"');
+      if (feedback === null) return; // user cancelled the prompt
       await doRedecompose(feedback);
     });
 
@@ -2755,7 +2755,7 @@
 
     const title = document.createElement('div');
     title.className = 'progress-card-title';
-    title.textContent = `📋 진행 상황 (${(job.tasks || []).length} tasks)`;
+    title.textContent = `📋 Progress (${(job.tasks || []).length} tasks)`;
     bubble.appendChild(title);
 
     const taskList = document.createElement('ol');
@@ -2788,7 +2788,7 @@
       risksEl.style.fontSize = '11px';
       risksEl.style.color = 'var(--text-warn, #8a5a00)';
       const head = document.createElement('strong');
-      head.textContent = '⚠️ 주의사항';
+      head.textContent = '⚠️ Notes';
       risksEl.appendChild(head);
       const ol = document.createElement('ol');
       ol.style.margin = '4px 0 0';
@@ -2811,7 +2811,7 @@
       qa.style.borderRadius = '4px';
       qa.style.fontSize = '11px';
       qa.style.color = 'var(--text-info, #1453b6)';
-      qa.innerHTML = `<strong>🧪 검증 단계:</strong> ${job.qaStrategy}`;
+      qa.innerHTML = `<strong>🧪 QA strategy:</strong> ${job.qaStrategy}`;
       // Back-compat: old state files may have `qaRationaleKo` instead of `qaRationale`
       const qaRationale = job.qaRationale ?? job.qaRationaleKo;
       if (qaRationale) {
@@ -2832,12 +2832,12 @@
 
     const redecBtn = document.createElement('button');
     redecBtn.type = 'button';
-    redecBtn.textContent = '✏️ 다시 계획';
+    redecBtn.textContent = '✏️ Replan';
     redecBtn.className = 'plan-btn';
 
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
-    cancelBtn.textContent = '❌ 취소';
+    cancelBtn.textContent = '❌ Cancel';
     cancelBtn.className = 'plan-btn plan-btn-danger';
 
     const lockButtons = (note) => {
@@ -2855,11 +2855,11 @@
 
     redecBtn.addEventListener('click', async () => {
       const feedback = window.prompt(
-        '재계획 피드백 (선택). 비워두고 OK 누르면 자유롭게 다시 나눕니다.',
+        'Replan feedback (optional). Leave blank and click OK to replan freely.',
         '',
       );
       if (feedback === null) return; // user cancelled prompt
-      lockButtons('🔁 재계획 진행 중…');
+      lockButtons('🔁 Replanning…');
       try {
         const baseUrl = await baseUrlPromise;
         await fetch(
@@ -2871,13 +2871,13 @@
           },
         );
       } catch (err) {
-        addSystemMessage(`재계획 실패: ${err.message}`, 'error');
+        addSystemMessage(`Replan failed: ${err.message}`, 'error');
       }
     });
 
     cancelBtn.addEventListener('click', async () => {
-      if (!window.confirm('이 작업을 취소할까요?')) return;
-      lockButtons('❌ 취소 처리 중…');
+      if (!window.confirm('Cancel this job?')) return;
+      lockButtons('❌ Cancelling…');
       try {
         const baseUrl = await baseUrlPromise;
         await fetch(
@@ -2885,7 +2885,7 @@
           { method: 'POST' },
         );
       } catch (err) {
-        addSystemMessage(`취소 실패: ${err.message}`, 'error');
+        addSystemMessage(`Cancel failed: ${err.message}`, 'error');
       }
     });
 
@@ -2989,11 +2989,11 @@
     bubble.className = 'msg-bubble task-transition-card';
     const line = document.createElement('div');
     line.className = 'task-transition-line';
-    line.textContent = `⏸️ 작업 일시정지: ${job.pausedReason || '(원인 없음)'}`;
+    line.textContent = `⏸️ Job paused: ${job.pausedReason || '(no reason)'}`;
     bubble.appendChild(line);
     const hint = document.createElement('div');
     hint.className = 'task-transition-stamp';
-    hint.textContent = 'Playground 또는 Inspect Console 에서 확인 후 resume / cancel 가능합니다.';
+    hint.textContent = 'You can resume or cancel from Playground or Inspect Console.';
     bubble.appendChild(hint);
     wrap.appendChild(bubble);
     messagesEl.appendChild(wrap);
@@ -3012,7 +3012,7 @@
     bubble.className = 'msg-bubble task-transition-card';
     const line = document.createElement('div');
     line.className = 'task-transition-line';
-    line.textContent = `❌ 작업이 취소되었습니다 (job: ${job.id?.slice(0, 8) ?? '?'})`;
+    line.textContent = `❌ Job cancelled (job: ${job.id?.slice(0, 8) ?? '?'})`;
     bubble.appendChild(line);
     if (job.cancelMeta?.reasonText) {
       const reason = document.createElement('div');
@@ -3022,7 +3022,7 @@
     }
     const hint = document.createElement('div');
     hint.className = 'task-transition-stamp';
-    hint.textContent = 'Playground 에서 새 작업을 시작하거나 취소 사유를 확인하세요.';
+    hint.textContent = 'Start a new task from Playground or check the cancellation reason.';
     bubble.appendChild(hint);
     wrap.appendChild(bubble);
     messagesEl.appendChild(wrap);
@@ -3084,34 +3084,34 @@
     const total = (job.tasks || []).length;
     const qaResult = job.qaAutoResult;
     const qaPassed = qaResult?.passed === true;
-    const isRerunning = qaResult?.notes === '재실행 중…';
+    const isRerunning = qaResult?.notes === 'Re-running…';
 
     const summary = document.createElement('div');
     summary.className = 'qa-summary';
     const lines = [];
-    lines.push(`🎉 작업 완료! (job: ${job.id?.slice(0, 8) ?? '?'})`);
+    lines.push(`🎉 Job complete! (job: ${job.id?.slice(0, 8) ?? '?'})`);
     lines.push(
-      `• 완료 task: ${reviewedCount}/${total}` +
-        (skippedCount > 0 ? ` (스킵 ${skippedCount})` : ''),
+      `• Completed tasks: ${reviewedCount}/${total}` +
+        (skippedCount > 0 ? ` (skipped ${skippedCount})` : ''),
     );
     if (isRerunning) {
-      lines.push(`• 자동 QA: 🔁 재실행 중…`);
+      lines.push(`• Auto QA: 🔁 Re-running…`);
     } else if (qaResult) {
       const verdictClass = qaPassed ? 'qa-result-pass' : 'qa-result-fail';
       lines.push(
-        `• 자동 QA: ${qaPassed ? '✅ 통과' : '⚠️ 실패'} — ${(qaResult.notes || '').slice(0, 120)}`,
+        `• Auto QA: ${qaPassed ? '✅ Pass' : '⚠️ Fail'} — ${(qaResult.notes || '').slice(0, 120)}`,
       );
       summary.classList.add(verdictClass);
     } else if (job.qaStrategy) {
-      lines.push(`• 자동 QA: ${job.qaStrategy} (실행 대기 중)`);
+      lines.push(`• Auto QA: ${job.qaStrategy} (pending)`);
     }
-    if (job.targetRoute) lines.push(`• 결과 페이지: ${job.targetRoute}`);
+    if (job.targetRoute) lines.push(`• Result page: ${job.targetRoute}`);
     summary.textContent = lines.join('\n');
     bubble.appendChild(summary);
 
     const hint = document.createElement('div');
     hint.className = 'task-transition-stamp';
-    hint.textContent = '✅ QA 통과 를 누르면 작업이 complete 으로 넘어가고 Promote 버튼이 보입니다.';
+    hint.textContent = 'Click ✅ QA Pass to move the job to complete and show the Promote button.';
     bubble.appendChild(hint);
 
     const actions = document.createElement('div');
@@ -3119,14 +3119,14 @@
 
     const passBtn = document.createElement('button');
     passBtn.type = 'button';
-    passBtn.textContent = '✅ QA 통과';
+    passBtn.textContent = '✅ QA Pass';
     passBtn.className = 'plan-btn plan-btn-primary';
 
     const showRerun = qaResult && !qaPassed && !isRerunning;
     const rerunBtn = showRerun ? document.createElement('button') : null;
     if (rerunBtn) {
       rerunBtn.type = 'button';
-      rerunBtn.textContent = '🔁 자동 QA 재실행';
+      rerunBtn.textContent = '🔁 Re-run Auto QA';
       rerunBtn.className = 'plan-btn';
     }
 
@@ -3149,7 +3149,7 @@
     };
 
     passBtn.addEventListener('click', async () => {
-      lock('✅ QA 통과 처리 중…');
+      lock('✅ Processing QA pass…');
       try {
         const baseUrl = await getServerUrl();
         const res = await fetch(
@@ -3158,7 +3158,7 @@
         );
         if (!res.ok) {
           const text = await res.text().catch(() => '');
-          addSystemMessage(`QA 통과 실패: ${res.status} ${text.slice(0, 120)}`, 'error');
+          addSystemMessage(`QA pass failed: ${res.status} ${text.slice(0, 120)}`, 'error');
           unlockOnError();
         } else {
           // status qa→complete 으로 넘어가면 qa-update 분기가 더 안 타서
@@ -3168,14 +3168,14 @@
           }, 15000);
         }
       } catch (err) {
-        addSystemMessage(`QA 통과 실패: ${err.message}`, 'error');
+        addSystemMessage(`QA pass failed: ${err.message}`, 'error');
         unlockOnError();
       }
     });
 
     if (rerunBtn) {
       rerunBtn.addEventListener('click', async () => {
-        lock('🔁 자동 QA 재실행 중…');
+        lock('🔁 Re-running auto QA…');
         try {
           const baseUrl = await getServerUrl();
           const res = await fetch(
@@ -3184,7 +3184,7 @@
           );
           if (!res.ok) {
             const text = await res.text().catch(() => '');
-            addSystemMessage(`QA 재실행 실패: ${res.status} ${text.slice(0, 120)}`, 'error');
+            addSystemMessage(`QA re-run failed: ${res.status} ${text.slice(0, 120)}`, 'error');
             unlockOnError();
           } else {
             // 서버 idempotent no-op / 폴링 stale 시 placeholder 가 안 찍히면
@@ -3196,7 +3196,7 @@
           // 성공 시 폴링이 placeholder 결과를 잡아 updateQaCompletionMessage
           // 가 실행돼 카드 전체가 갈림.
         } catch (err) {
-          addSystemMessage(`QA 재실행 실패: ${err.message}`, 'error');
+          addSystemMessage(`QA re-run failed: ${err.message}`, 'error');
           unlockOnError();
         }
       });
@@ -3221,12 +3221,12 @@
 
     const headline = document.createElement('div');
     headline.className = 'promote-summary';
-    headline.textContent = `🎉 ${job.id?.slice(0, 8) ?? '?'} 완료 처리됨 — Promote 하시겠어요?`;
+    headline.textContent = `🎉 ${job.id?.slice(0, 8) ?? '?'} completed — ready to Promote?`;
     bubble.appendChild(headline);
 
     const note = document.createElement('div');
     note.className = 'task-transition-stamp';
-    note.textContent = `Promote 하면 Playground (${job.playgroundId?.slice(0, 8) ?? '?'}) 의 모든 commit 이 prod repo 의 새 PR 로 올라갑니다. 머지는 GitHub 에서 직접.`;
+    note.textContent = `Promoting will open a new PR in the prod repo with all commits from Playground (${job.playgroundId?.slice(0, 8) ?? '?'}). Merge directly on GitHub.`;
     bubble.appendChild(note);
 
     const actions = document.createElement('div');
@@ -3234,12 +3234,12 @@
 
     const promoteBtn = document.createElement('button');
     promoteBtn.type = 'button';
-    promoteBtn.textContent = '🚀 Promote (PR 생성)';
+    promoteBtn.textContent = '🚀 Promote (Create PR)';
     promoteBtn.className = 'plan-btn plan-btn-primary';
 
     const openBtn = document.createElement('button');
     openBtn.type = 'button';
-    openBtn.textContent = '📺 Playground 보기';
+    openBtn.textContent = '📺 View Playground';
     openBtn.className = 'plan-btn';
 
     let pendingStamp = null;
@@ -3260,10 +3260,10 @@
 
     promoteBtn.addEventListener('click', async () => {
       if (!job.playgroundId) {
-        addSystemMessage('Promote 실패: playground id 없음', 'error');
+        addSystemMessage('Promote failed: playground id missing', 'error');
         return;
       }
-      lock('🚀 Promote 진행 중 — PR 생성 중…');
+      lock('🚀 Promoting — creating PR…');
       try {
         const baseUrl = await getServerUrl();
         const res = await fetch(
@@ -3276,7 +3276,7 @@
         );
         if (!res.ok) {
           const text = await res.text().catch(() => '');
-          addSystemMessage(`Promote 실패: ${res.status} ${text.slice(0, 200)}`, 'error');
+          addSystemMessage(`Promote failed: ${res.status} ${text.slice(0, 200)}`, 'error');
           unlockOnError();
           return;
         }
@@ -3296,19 +3296,19 @@
         const result = document.createElement('div');
         result.className = 'task-transition-stamp';
         if (prUrl) {
-          result.appendChild(document.createTextNode('✅ Promote 완료! 🔗 '));
+          result.appendChild(document.createTextNode('✅ Promote complete! 🔗 '));
           const a = document.createElement('a');
           a.href = prUrl;
           a.textContent = prUrl;
           a.target = '_blank';
           a.rel = 'noreferrer';
           result.appendChild(a);
-          result.appendChild(document.createTextNode(' — GitHub 에서 머지하면 끝.'));
+          result.appendChild(document.createTextNode(' — merge it on GitHub.'));
           bubble.appendChild(result);
           // Task 2: PR URL 있음 → 영구 lock (concurrent click = 다중 PR 방지).
           promoteBtn.disabled = true;
         } else {
-          result.textContent = '✅ Promote 완료 (PR URL 못 받음 — Playground 헤더에서 확인하세요).';
+          result.textContent = '✅ Promote complete (no PR URL received — check the Playground header).';
           bubble.appendChild(result);
           // Task 2: PR URL 못 받음 → 30s safety unlock. idempotent 응답
           // 또는 stale 케이스에서 사용자 복구 경로를 열어 둠.
@@ -3317,13 +3317,13 @@
               promoteBtn.disabled = false;
               const note = document.createElement('div');
               note.className = 'task-transition-stamp';
-              note.textContent = '복구: PR URL 못 받아 다시 시도 가능합니다.';
+              note.textContent = 'Recovery: no PR URL received — you may retry.';
               bubble.appendChild(note);
             }
           }, 30000);
         }
       } catch (err) {
-        addSystemMessage(`Promote 실패: ${err.message}`, 'error');
+        addSystemMessage(`Promote failed: ${err.message}`, 'error');
         unlockOnError();
       }
     });
@@ -3349,22 +3349,22 @@
     line.className = 'task-transition-line';
     switch (task.status) {
       case 'running':
-        line.textContent = `🔧 ${num} ${title} — 작업 중…`;
+        line.textContent = `🔧 ${num} ${title} — in progress…`;
         break;
       case 'committed':
-        line.textContent = `🔍 ${num} ${title} — 검토 중…`;
+        line.textContent = `🔍 ${num} ${title} — reviewing…`;
         break;
       case 'reviewed':
-        line.textContent = `✅ ${num} ${title} — 통과`;
+        line.textContent = `✅ ${num} ${title} — passed`;
         break;
       case 'skipped':
-        line.textContent = `⏭ ${num} ${title} — 건너뜀`;
+        line.textContent = `⏭ ${num} ${title} — skipped`;
         break;
       case 'failed': {
-        line.textContent = `❌ ${num} ${title} — 검토 실패`;
+        line.textContent = `❌ ${num} ${title} — review failed`;
         const notesEl = document.createElement('div');
         notesEl.className = 'task-transition-notes';
-        notesEl.textContent = task.review?.notes?.slice(0, 240) || '(원인 없음)';
+        notesEl.textContent = task.review?.notes?.slice(0, 240) || '(no reason)';
         bubble.appendChild(line);
         bubble.appendChild(notesEl);
         appendTaskFailActions(bubble, task, jobId);
@@ -3384,19 +3384,19 @@
     pickerWrap.className = 'task-fail-reason-picker';
     const pickerLabel = document.createElement('span');
     pickerLabel.className = 'task-fail-reason-label';
-    pickerLabel.textContent = '사유:';
+    pickerLabel.textContent = 'Reason:';
     pickerWrap.appendChild(pickerLabel);
     const picker = document.createElement('select');
     picker.className = 'task-fail-reason-select';
     const reasonOptions = [
-      ['', '(선택 안 함)'],
-      ['syntax_error', '문법/타입 에러'],
-      ['logic_error', '논리/구현 오류'],
-      ['scope_creep', '범위 벗어남'],
-      ['partial', '부분 구현'],
-      ['wrong_target', '잘못된 파일'],
-      ['over_delivered', '오버 딜리버'],
-      ['other', '기타'],
+      ['', '(not selected)'],
+      ['syntax_error', 'Syntax/type error'],
+      ['logic_error', 'Logic/implementation error'],
+      ['scope_creep', 'Out of scope'],
+      ['partial', 'Partial implementation'],
+      ['wrong_target', 'Wrong file'],
+      ['over_delivered', 'Over-delivered'],
+      ['other', 'Other'],
     ];
     for (const [v, label] of reasonOptions) {
       const opt = document.createElement('option');
@@ -3412,17 +3412,17 @@
 
     const retryBtn = document.createElement('button');
     retryBtn.type = 'button';
-    retryBtn.textContent = '🔁 재시도';
+    retryBtn.textContent = '🔁 Retry';
     retryBtn.className = 'plan-btn plan-btn-primary';
 
     const acceptBtn = document.createElement('button');
     acceptBtn.type = 'button';
-    acceptBtn.textContent = '✅ 그대로 통과';
+    acceptBtn.textContent = '✅ Accept as-is';
     acceptBtn.className = 'plan-btn';
 
     const skipBtn = document.createElement('button');
     skipBtn.type = 'button';
-    skipBtn.textContent = '⏭ 건너뛰기';
+    skipBtn.textContent = '⏭ Skip';
     skipBtn.className = 'plan-btn plan-btn-danger';
 
     let pendingStamp = null;
@@ -3446,7 +3446,7 @@
     };
 
     const post = async (path, label) => {
-      lock(`${label} 처리 중…`);
+      lock(`${label} processing…`);
       try {
         const baseUrl = await getServerUrl();
         const reason = picker.value || undefined;
@@ -3460,7 +3460,7 @@
         );
         if (!res.ok) {
           const text = await res.text().catch(() => '');
-          addSystemMessage(`${label} 실패: ${res.status} ${text.slice(0, 120)}`, 'error');
+          addSystemMessage(`${label} failed: ${res.status} ${text.slice(0, 120)}`, 'error');
           unlockOnError();
         }
         // 성공 시 폴링이 새 status 를 잡아 카드를 in-place update 하면
@@ -3474,14 +3474,14 @@
           }
         }, 15000);
       } catch (err) {
-        addSystemMessage(`${label} 실패: ${err.message}`, 'error');
+        addSystemMessage(`${label} failed: ${err.message}`, 'error');
         unlockOnError();
       }
     };
 
-    retryBtn.addEventListener('click', () => void post('retry-task', '🔁 재시도'));
-    acceptBtn.addEventListener('click', () => void post('accept-task', '✅ 그대로 통과'));
-    skipBtn.addEventListener('click', () => void post('skip-task', '⏭ 건너뛰기'));
+    retryBtn.addEventListener('click', () => void post('retry-task', '🔁 Retry'));
+    acceptBtn.addEventListener('click', () => void post('accept-task', '✅ Accept as-is'));
+    skipBtn.addEventListener('click', () => void post('skip-task', '⏭ Skip'));
 
     actions.appendChild(retryBtn);
     actions.appendChild(acceptBtn);
@@ -3492,27 +3492,27 @@
   function jobStatusToCopy(job, currentTask, reviewed, total) {
     switch (job.status) {
       case 'decomposing':
-        return '계획을 세우는 중…';
+        return 'Building plan…';
       case 'planning':
-        return '계획이 도착했어요. 곧 자동 승인됩니다.';
+        return 'Plan received. Auto-approving shortly.';
       case 'delegating':
         return currentTask
-          ? `🔧 ${currentTask.title} (작업 중)`
-          : `${reviewed}/${total} 작업 완료`;
+          ? `🔧 ${currentTask.title} (in progress)`
+          : `${reviewed}/${total} tasks done`;
       case 'reviewing':
         return currentTask
-          ? `🔍 ${currentTask.title} (검토 중)`
-          : '검토 중…';
+          ? `🔍 ${currentTask.title} (reviewing)`
+          : 'Reviewing…';
       case 'qa':
         return job.qaAutoResult
-          ? `🧪 자동 QA: ${job.qaAutoResult.passed ? '✅ 통과' : '⚠️ 실패'} — ${(job.qaAutoResult.notes || '').slice(0, 80)}`
-          : '🧪 자동 QA 실행 중…';
+          ? `🧪 Auto QA: ${job.qaAutoResult.passed ? '✅ Pass' : '⚠️ Fail'} — ${(job.qaAutoResult.notes || '').slice(0, 80)}`
+          : '🧪 Running auto QA…';
       case 'complete':
-        return '🎉 작업 완료';
+        return '🎉 Job complete';
       case 'cancelled':
-        return '❌ 취소됨';
+        return '❌ Cancelled';
       case 'paused':
-        return `⏸️ ${job.pausedReason || '일시정지'}`;
+        return `⏸️ ${job.pausedReason || 'Paused'}`;
       default:
         return job.status;
     }
@@ -4111,7 +4111,7 @@
           const data = await r.json();
           const kind = data?.kind;
           if (kind === 'chat' || kind === 'status_query') {
-            addMollyChatMessage(data.response || '(빈 응답)', kind);
+            addMollyChatMessage(data.response || '(empty response)', kind);
             return; // 잡/change-request 안 만듦
           }
           // code_change_ambiguous → clarifying Q 만 surface, 잡 안 만듦
@@ -4123,9 +4123,9 @@
           // chat 으로 채팅 입력 → 자동으로 카드 swap.
           if (kind === 'plan_feedback' && activePlanItemsCard) {
             const feedback = data?.feedback || userInput;
-            addMollyChatMessage('✏️ 피드백 반영해서 plan 다시 만드는 중...', 'system');
+            addMollyChatMessage('✏️ Applying feedback and rebuilding plan...', 'system');
             activePlanItemsCard.doRedecompose(feedback).catch((err) => {
-              addMollyChatMessage(`⚠️ 다시 계획 실패: ${err?.message ?? String(err)}`, 'error');
+              addMollyChatMessage(`⚠️ Replan failed: ${err?.message ?? String(err)}`, 'error');
             });
             return;
           }
@@ -4151,7 +4151,7 @@
       isSubmitting = false;
       updateSendState();
       addSystemMessage(
-        `Playground 자동 생성 실패: ${err.message?.slice(0, 200) ?? err}`,
+        `Playground auto-create failed: ${err.message?.slice(0, 200) ?? err}`,
         'error',
       );
       return;
@@ -4232,7 +4232,7 @@
     // here keeps the UX clean.
     if (currentJobInProgress) {
       addSystemMessage(
-        '현재 진행 중인 Job 이 있습니다. 끝나거나 취소될 때까지 기다려주세요.',
+        'A Job is currently in progress. Please wait until it finishes or is cancelled.',
         'error',
       );
       return;
@@ -4279,7 +4279,7 @@
           const data = await r.json();
           const kind = data?.kind;
           if (kind === 'chat' || kind === 'status_query') {
-            addMollyChatMessage(data.response || '(빈 응답)', kind);
+            addMollyChatMessage(data.response || '(empty response)', kind);
             updateSendState();
             return;
           }
@@ -4290,9 +4290,9 @@
           }
           if (kind === 'plan_feedback' && activePlanItemsCard) {
             const feedback = data?.feedback || text;
-            addMollyChatMessage('✏️ 피드백 반영해서 plan 다시 만드는 중...', 'system');
+            addMollyChatMessage('✏️ Applying feedback and rebuilding plan...', 'system');
             activePlanItemsCard.doRedecompose(feedback).catch((err) => {
-              addMollyChatMessage(`⚠️ 다시 계획 실패: ${err?.message ?? String(err)}`, 'error');
+              addMollyChatMessage(`⚠️ Replan failed: ${err?.message ?? String(err)}`, 'error');
             });
             updateSendState();
             return;
