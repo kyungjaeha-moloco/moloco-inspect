@@ -18,7 +18,7 @@
 
 import { recordEvent } from './molly-metrics.js';
 
-const ACTION_KEYWORDS = {
+export const ACTION_KEYWORDS = {
   cancel: ['cancel', '취소', '캔슬'],
   promote: ['promote', '프로모트', '머지', 'merge'],
   retry: ['다시 시도', '재시도', 'retry', '리트라이'],
@@ -26,22 +26,22 @@ const ACTION_KEYWORDS = {
   rollback: ['rollback', '롤백'],
 };
 
-const SURFACE_INSTRUCTIONS = {
+export const SURFACE_INSTRUCTIONS = {
   slack: {
-    primary: 'Slack 의 plan 카드 (이 thread 위쪽) 의 [✅ 승인] / [❌ 취소] / [🚀 Promote] 버튼',
-    secondary: 'Inspect Console (http://localhost:4174) 의 Jobs 탭에서 잡 카드 → 액션 버튼',
+    primary: 'Slack plan card (above in this thread) → [✅ Approve] / [❌ Cancel] / [🚀 Promote] button',
+    secondary: 'Inspect Console (http://localhost:4174) → Jobs tab → job card → action button',
   },
   'chrome-ext': {
-    primary: 'Chrome 확장 사이드패널의 잡 카드 → 액션 버튼',
-    secondary: 'Inspect Console (http://localhost:4174) 의 Jobs 탭에서 잡 카드 → 액션 버튼',
+    primary: 'Chrome extension side panel → job card → action button',
+    secondary: 'Inspect Console (http://localhost:4174) → Jobs tab → job card → action button',
   },
   playground: {
-    primary: 'Playground 채팅창의 잡 카드 → 액션 버튼',
-    secondary: 'Inspect Console (http://localhost:4174) 의 Jobs 탭에서 잡 카드 → 액션 버튼',
+    primary: 'Playground chat → job card → action button',
+    secondary: 'Inspect Console (http://localhost:4174) → Jobs tab → job card → action button',
   },
   unknown: {
-    primary: 'Inspect Console (http://localhost:4174) 의 Jobs 탭에서 잡 카드 → 액션 버튼',
-    secondary: 'Slack 의 plan 카드 / Chrome 확장 사이드패널 / Playground 채팅창의 잡 카드',
+    primary: 'Inspect Console (http://localhost:4174) → Jobs tab → job card → action button',
+    secondary: 'Slack plan card / Chrome extension side panel / Playground chat → job card',
   },
 };
 
@@ -79,12 +79,12 @@ export async function composeLifecycleReply(text, ctx = {}) {
       .map((j) => `• \`${j.id.slice(0, 8)}\` ${j.status} — ${(j.prdText || '').slice(0, 60)}`)
       .join('\n');
     return [
-      `🤔 어떤 잡을 ${actionLabel(action)} 하시려는 건가요?`,
+      `🤔 Which job would you like to ${actionLabel(action)}?`,
       '',
-      `현재 활성/최근 잡 ${ambiguousJobs.length}개 중 후보:`,
+      `${ambiguousJobs.length} active/recent job candidates:`,
       list,
       '',
-      `잡 ID 처음 8자 알려주세요. 또는 직접 액션:`,
+      `Please share the first 8 characters of the job ID, or act directly:`,
       `- ${surface.primary}`,
     ].join('\n');
   }
@@ -96,10 +96,10 @@ export async function composeLifecycleReply(text, ctx = {}) {
       return composeReplyForJob(only, action, surface);
     }
     return [
-      `🤔 ${actionLabel(action)} 할 잡이 안 보여요.`,
+      `🤔 No job found to ${actionLabel(action)}.`,
       '',
-      `현재 활성 잡이 없거나 모두 종료된 상태입니다.`,
-      `Inspect Console (http://localhost:4174) 의 Jobs 탭에서 전체 목록 확인 가능.`,
+      `There are no active jobs or all jobs have already finished.`,
+      `You can check the full list at Inspect Console (http://localhost:4174) → Jobs tab.`,
     ].join('\n');
   }
 
@@ -112,11 +112,11 @@ function composeReplyForJob(job, action, surface) {
   const prd = (job.prdText || '').slice(0, 80);
   const target = job.targetRoute || '';
   return [
-    `\`${id}\` 잡 (${prd}${target ? `, ${target}` : ''}) — 현재 *${job.status}* 상태.`,
+    `Job \`${id}\` (${prd}${target ? `, ${target}` : ''}) — currently *${job.status}*.`,
     '',
-    `저는 상태만 확인할 수 있어요. ${actionLabel(action)} 하시려면:`,
+    `I can only check status. To ${actionLabel(action)}:`,
     `- ${surface.primary}`,
-    `- 또는: ${surface.secondary}`,
+    `- Or: ${surface.secondary}`,
   ].join('\n');
 }
 
@@ -130,15 +130,19 @@ function detectAction(text) {
   return 'unknown';
 }
 
-function actionLabel(action) {
+export function _actionLabel(action) {
   return {
-    cancel: '취소',
+    cancel: 'Cancel',
     promote: 'Promote',
-    retry: '재시도',
-    restart: '재시작',
-    rollback: '롤백',
-    unknown: '액션',
-  }[action] || '액션';
+    retry: 'Retry',
+    restart: 'Restart',
+    rollback: 'Rollback',
+    unknown: 'action',
+  }[action] || 'action';
+}
+
+function actionLabel(action) {
+  return _actionLabel(action);
 }
 
 function matchJob(text, jobs) {
