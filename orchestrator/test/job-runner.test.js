@@ -21,6 +21,7 @@ import {
   setJobTasks,
   approvePlan,
   getJob,
+  resumeJob,
 } from '../lib/job.js';
 import { runJob, topoOrder, pickNextTask } from '../lib/job-runner.js';
 
@@ -244,7 +245,35 @@ describe('runJob (research wiring)', () => {
     assert.equal(t1.research.builderQueryCount, 0);
   });
 
-  test('cached research is reused — researchFn called once even after review-fail retry', async () => {
+  test('research is cached across coder-fail auto-retries (Slice E)', async () => {
+    // Coder fails → runner auto-retries within the same runJob call.
+    // The retry should reuse the cached research bundle — the failure
+    // was on the coder, not the reviewer; research is still valid.
+    const jobId = seedJob([
+      { id: 't1', title: 'A', description: 'do a', dependsOn: [] },
+    ]);
+    let researchCallCount = 0;
+    const researchFn = async () => {
+      researchCallCount += 1;
+      return { queries: [], totalMs: 1, builderQueryCount: 0, parallelism: 2 };
+    };
+    let adapterCallCount = 0;
+    const adapter = async () => {
+      adapterCallCount += 1;
+      if (adapterCallCount === 1) throw new Error('coder boom — first attempt fails');
+      return { commitSha: 'sha', baseSha: 'base', diff: 'd' };
+    };
+    await runJob(jobId, { adapter, researchFn, maxAttempts: 3 });
+    assert.equal(adapterCallCount, 2, 'adapter should run twice (1 fail + 1 success)');
+    assert.equal(researchCallCount, 1, `research should only run once across coder-fail retry; got ${researchCallCount}`);
+  });
+
+  test('research is re-run after a review-fail retry (Slice E)', async () => {
+    // Reviewer fails → runJob pauses. After the user resumes, the next
+    // runJob enters with task.review.verdict='fail'. Slice E policy
+    // says: re-run research because the reviewer feedback may have
+    // moved the target; stale research is exactly what put us in
+    // the hole.
     const jobId = seedJob([
       { id: 't1', title: 'A', description: 'do a', dependsOn: [] },
     ]);
@@ -253,20 +282,29 @@ describe('runJob (research wiring)', () => {
       researchCallCount += 1;
       return { queries: [], totalMs: 1, builderQueryCount: 0, parallelism: 2, callId: researchCallCount };
     };
-    let reviewerCallCount = 0;
+    let reviewCount = 0;
     const reviewer = async () => {
-      reviewerCallCount += 1;
-      // First call: fail (forces retry path). Second: pass.
-      return reviewerCallCount === 1
-        ? { verdict: /** @type {'fail'} */ ('fail'), notes: 'try again' }
+      reviewCount += 1;
+      return reviewCount === 1
+        ? { verdict: /** @type {'fail'} */ ('fail'), notes: 'wrong pattern, redo' }
         : { verdict: /** @type {'pass'} */ ('pass'), notes: 'ok' };
     };
     const adapter = async () => ({ commitSha: 'sha', baseSha: 'base', diff: 'd' });
+
+    // First run: reviewer fails → job pauses.
+    const paused = await runJob(jobId, { adapter, reviewer, researchFn });
+    assert.equal(paused.status, 'paused', 'job should be paused after review-fail');
+    assert.equal(researchCallCount, 1, 'research should have run once on first attempt');
+
+    // Resume the job; the task is still status='failed' with review.verdict='fail'.
+    resumeJob(jobId, 'delegating');
     await runJob(jobId, { adapter, reviewer, researchFn, maxAttempts: 3 });
-    // The retry path runs the same task again; research should be cached
-    // from attempt 1 and not re-spent on attempt 2 (Slice B reads
-    // `task.research` before calling researchFn).
-    assert.equal(researchCallCount, 1, `expected researchFn called once, got ${researchCallCount}`);
+
+    // Slice E: research re-ran because review.verdict === 'fail'.
+    assert.equal(researchCallCount, 2, `expected research re-run after review-fail; got ${researchCallCount}`);
+    const t1 = getJob(jobId).tasks.find((t) => t.id === 't1');
+    assert.ok(t1.research, 'fresh research bundle should be on the task');
+    assert.equal(t1.research.callId, 2, 'task.research should be the *new* bundle from the resume run');
   });
 
   test('researchFn throwing is swallowed — adapter still runs with null bundle', async () => {

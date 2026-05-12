@@ -208,12 +208,29 @@ export async function runJob(jobId, { adapter, reviewer, maxAttempts = 2, resear
     // we bake-in via a separate write:
     job.currentTaskId = next.id;
 
-    // Research step (plan 2026-05-12-research-parallelism.md Slice B).
-    // Re-uses any bundle already stamped on the task (set by a previous
-    // attempt that didn't fail review). On research failure we proceed
-    // with `null` — the task pipeline is never blocked by research.
+    // Research step (plan 2026-05-12-research-parallelism.md, slices B + E).
+    //
+    // Reuse policy:
+    //   - First attempt → run research, persist bundle on task.
+    //   - Coder-fail retry → keep cached bundle. Research already
+    //     described the right context; the coder just needs another
+    //     swing at it.
+    //   - Review-fail retry → clear cached bundle and re-run research.
+    //     Reviewer feedback may have moved the target (e.g. "wrong
+    //     pattern matched"); stale research from the first attempt is
+    //     exactly the kind of thing that put us in this hole. Slice E
+    //     in the plan codifies this trade-off.
+    //
+    // Research failure is swallowed end-to-end — the task pipeline is
+    // never blocked by research; adapter receives `null` on failure.
     let researchBundle = next.research ?? null;
-    if (research && !researchBundle) {
+    const isReviewFailRetry = next.review?.verdict === 'fail';
+    if (research && (!researchBundle || isReviewFailRetry)) {
+      if (isReviewFailRetry && researchBundle) {
+        const cleared = setTaskResearch(jobId, next.id, null);
+        if (cleared) job = cleared;
+        researchBundle = null;
+      }
       try {
         researchBundle = await research(
           { id: next.id, title: next.title, description: next.description ?? '' },
