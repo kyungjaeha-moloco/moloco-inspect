@@ -1,19 +1,19 @@
 # Orchestrator Migration Notes
 
-이 디렉토리는 `Moloco Inspect` proposal repo로 가져온 1차 orchestrator 이관본입니다.
+This directory holds the first orchestrator port into the `Moloco Inspect` proposal repo.
 
-## 현재 상태
+## Current state
 
-- server 코드와 smoke script는 이 repo 안에 들어왔습니다.
-- analytics / attachments / screenshots 디렉토리는 비어 있는 상태로 시작합니다.
-- 실제 제품 repo는 아직 원본 workspace를 참조합니다.
-- design system은 기본적으로 이 repo 안의 `../design-system`을 우선 사용합니다.
+- Server code and the smoke script live here.
+- `analytics/`, `attachments/`, `screenshots/` start empty.
+- The actual product repo still references the original workspace.
+- The design system defaults to `../design-system` inside this repo.
 
-기본 source workspace root:
+Default source workspace root:
 
 - `/Users/kyungjae.ha/Documents/Agent-Design-System`
 
-## 현재 구조
+## Layout
 
 - `server.js`
 - `scripts/smoke-test.mjs`
@@ -21,27 +21,39 @@
 - `attachments/`
 - `screenshots/`
 
-## 중요한 동작
+## Environment variables
 
-`server.js`는 아래 환경 변수를 읽습니다.
+`server.js` reads the following:
 
 - `SOURCE_WORKSPACE_ROOT`
-  - 기본값: `/Users/kyungjae.ha/Documents/Agent-Design-System`
+  - Default: `/Users/kyungjae.ha/Documents/Agent-Design-System`
 
-이 값 기준으로:
+This is the root used to locate:
 
 - `msm-portal`
 
-을 찾습니다.
-
-추가로 아래 환경 변수도 사용할 수 있습니다.
+You can also set:
 
 - `DESIGN_SYSTEM_ROOT`
-  - 기본값: `/Users/kyungjae.ha/Documents/moloco-inspect/design-system`
+  - Default: `/Users/kyungjae.ha/Documents/moloco-inspect/design-system`
 
-즉 현재는 proposal repo 안에 orchestrator 코드와 design system이 있고, 실제 제품 실행 대상만 원본 workspace를 참조하는 상태입니다.
+So the proposal repo currently holds the orchestrator code and the design system; only the actual product runtime still references the original workspace.
 
-## 실행
+### Research-parallelism (Type-1, plan 2026-05-12)
+
+Each task can run a read-only research step before its coder adapter fires. See `docs/superpowers/plans/2026-05-12-research-parallelism.md` for the full design.
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `RESEARCH_ENABLED` | `0` (off) | Set to `1` to turn on the research step. When off, the runner passes `null` to the adapter as the third argument and behaves exactly like before. |
+| `RESEARCH_PARALLELISM` | `2` | Maximum number of read-only Claude Code subprocesses dispatched concurrently per task. Clamped to `[1, MAX_QUERIES]`. Lower this on accounts with tight ITPM (input-tokens-per-minute) limits. |
+| `RESEARCH_QUERY_TIMEOUT_MS` | `60000` | Per-query subprocess wall-clock. After SIGTERM + a 3 s grace, the lib sends SIGKILL. |
+| `RESEARCH_AGGREGATE_TIMEOUT_MS` | `90000` | Aggregate cap across all queries for a single task. Any in-flight queries when this fires are aborted via AbortController, killed via SIGTERM, and surfaced in the bundle as synthetic `'timeout'` rows. |
+| `RESEARCH_MODEL` | `claude-sonnet-4-20250514` | Sonnet model used for the query-builder. The per-query subprocesses use whatever model `claude` (the Claude Code CLI in PATH) defaults to. |
+
+Logs land in `orchestrator/logs/research/<jobId>-<taskId>-q<n>.log`. Cost lines surface in `molly-cost` aggregates under `lib: research_query`, `lib: research_query_builder`, and `lib: research_orchestration`.
+
+## Running
 
 ```bash
 cd /Users/kyungjae.ha/Documents/moloco-inspect/orchestrator
@@ -49,17 +61,25 @@ pnpm install
 pnpm start
 ```
 
-필요하면 source workspace를 명시적으로 바꿔서 실행할 수 있습니다.
+You can override the source workspace explicitly:
 
 ```bash
 SOURCE_WORKSPACE_ROOT=/Users/kyungjae.ha/Documents/Agent-Design-System pnpm start
 
-# 필요하면 design-system 경로도 명시적으로 바꿀 수 있습니다.
+# And override the design-system path too if needed:
 DESIGN_SYSTEM_ROOT=/Users/kyungjae.ha/Documents/moloco-inspect/design-system pnpm start
 ```
 
-## 다음 단계
+To try out the new research step while it's off-by-default:
 
-1. analytics API를 proposal repo dashboard와 직접 연결
-2. smoke test를 proposal repo 기준으로 다시 점검
-3. 차후 msm-portal 의존성도 순차적으로 내부화
+```bash
+RESEARCH_ENABLED=1 pnpm start
+# tighten the burst if you hit Anthropic rate limits:
+RESEARCH_ENABLED=1 RESEARCH_PARALLELISM=1 pnpm start
+```
+
+## Next steps
+
+1. Wire the analytics API directly into the proposal repo's dashboard.
+2. Re-verify the smoke test against the proposal repo.
+3. Gradually internalise the `msm-portal` dependency.
