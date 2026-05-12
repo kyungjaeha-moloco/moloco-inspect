@@ -390,7 +390,7 @@
           "emptyState": { "icon": "x-circle", "label": "데이터 없음" },
           "pagination": { "pageSizeOptions": [10, 25, 50], "default": 10 }
         },
-        "note": "Creative review 변형 — 표준 list-page와 달리 tabs/createButton 없음. 대신 bulk selection + review 상태 컬럼 포함."
+        "note": "Creative review variant — unlike the standard list-page, this has no tabs/createButton. It includes bulk selection plus a review-status column instead."
       },
       "tweakable": [
         "title",

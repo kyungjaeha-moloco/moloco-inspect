@@ -59,7 +59,7 @@ design-system/
 
 ## For AI Agents
 
-> **Start here:** [`GUIDE.md`](GUIDE.md) — 전체 구조, 파일 역할, 에이전트 워크플로우 설명
+> **Start here:** [`GUIDE.md`](GUIDE.md) — full structure, file roles, and the agent workflow.
 
 Read `src/*.json` for structured, precise data.
 Read `docs/*.md` for human-friendly explanations with code examples.
