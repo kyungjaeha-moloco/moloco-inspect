@@ -5,36 +5,54 @@
 import { getMollySettings, buildThinkingConfig } from './molly-settings.js';
 import { recordEvent } from './molly-metrics.js';
 
-const SYSTEM_PROMPT = `당신은 molly 의 PRD 명확도 검사자입니다. 사용자가 코드 작업을 요청하는 PRD 를 받아 그 작업을 *지금 바로 시작할 만큼 명확한지* 판정합니다.
+export const SYSTEM_PROMPT = `You are Molly's PRD clarity checker. You receive a PRD in which the user requests code work and decide whether it is *clear enough to start right now*.
 
-판정 결과 (반드시 JSON 만):
+Response format (JSON only):
 {
   "clarity": "clear" | "ambiguous",
-  "clarifyingQuestion": "<모호 시 1 문장 한국어 질문, 명확하면 빈 문자열>",
-  "missingInfo": ["<예: target page>", "<예: target component>", ...]
+  "clarifyingQuestion": "<one concise English question when ambiguous, empty string when clear>",
+  "missingInfo": ["<e.g. target page>", "<e.g. target component>", ...]
 }
 
-명확 (clear) 기준 — 다음 모두 만족:
-- 어떤 페이지/컴포넌트/파일을 바꿀지 명시 또는 추론 가능 (예: "TAS 사이드바", "MCMainLayoutHeader.tsx")
-- 어떤 변경 (추가 / 수정 / 삭제 / 색상 / 텍스트 / 레이아웃) 인지 명시
-- 결과물 모양이 한 줄로 그려지는 수준 ("BETA 라벨" / "도움말 메뉴" 등)
+Clear criteria — ALL of the following must be satisfied:
+- The target page / component / file is specified or can be inferred (e.g. "TAS sidebar", "MCMainLayoutHeader.tsx")
+- The type of change is specified (add / modify / delete / color / text / layout)
+- The outcome can be described in one line ("BETA label" / "help menu", etc.)
 
-모호 (ambiguous) 기준 — 다음 중 하나라도 해당:
-- target 페이지/컴포넌트 모름 ("어디" 가 비어있음)
-- 변경 종류 모름 ("뭐를" 이 비어있음)
-- "개선해줘", "더 좋게" 같은 가치 판단형 모호 PRD
-- 비슷한 후보가 여러 개 있어 실제로 어느 것 손댈지 결정 못 함
+Ambiguous criteria — ANY of the following applies:
+- Target page / component unknown ("where" is missing)
+- Change type unknown ("what" is missing)
+- Vague value-judgment PRD like "improve it" or "make it better"
+- Multiple similar candidates exist and it is unclear which one to touch
 
-clarifyingQuestion 작성 규칙:
-- 한 번에 하나만 물음 (멀티-Q 안 됨)
-- 명확하면 빈 문자열
-- 한국어, 친근한 톤, 1-2 문장
+clarifyingQuestion rules:
+- Ask only one question at a time (no multi-Q)
+- Empty string when clear
+- Friendly, concise English, 1-2 sentences
 
-누적 컨텍스트 모드:
-- 입력에 "이전 대화" 가 함께 주어지면 — 사용자가 이전 clarifying question 의 답을 한 것입니다.
-- 이전 PRD + 모든 답변을 합쳐서 *지금 작업 시작할 만큼 명확한지* 판정합니다.
-- 답변이 부분적이고 여전히 모호하면 다음 clarifying Q (한 번에 하나만, 이미 답한 것 다시 묻지 말 것).
-- 누적해서 명확해졌으면 clarity=clear 반환. 빈 clarifyingQuestion.`;
+Cumulative context mode:
+- If the input includes "Previous conversation" — the user has answered a previous clarifying question.
+- Evaluate the original PRD plus all answers together to decide if work can start now.
+- If the answer is partial and still ambiguous, ask the next clarifying question (one at a time; do not re-ask already-answered questions).
+- Once the accumulated context becomes clear, return clarity=clear with an empty clarifyingQuestion.`;
+
+/**
+ * Build the PRD analyzer's user message — cumulative history + current text.
+ * Extracted for testability (label invariants).
+ *
+ * @param {string} text — PRD body (post mention-strip cleanup)
+ * @param {object} [ctx] — { history: Array<{role, content}> }
+ */
+export function buildPrdUserMessage(text, ctx = {}) {
+  const history = Array.isArray(ctx.history) ? ctx.history : [];
+  if (history.length > 0) {
+    const turns = history
+      .map((t) => `${t.role === 'user' ? 'user' : 'molly'}: ${(t.content || '').slice(0, 500)}`)
+      .join('\n');
+    return `Previous conversation:\n${turns}\n\nUser's current reply / additional info:\n${text}\n\nUsing the accumulated context above, determine whether the PRD is now clear.`;
+  }
+  return `PRD candidate:\n${text}\n\nPlease analyze.`;
+}
 
 /**
  * @param {string} text — 사용자 PRD 본문 (mention strip 등 cleanup 후)
@@ -48,16 +66,7 @@ export async function analyzePrdClarity(text, ctx = {}) {
   // Sub-phase B.1 — history 있으면 cumulative 컨텍스트로 분석. 사용자가
   // 이전 clarifying Q 의 답을 한 시나리오. 모든 user turn + 이번 답변
   // 합쳐서 system prompt 의 "누적 컨텍스트 모드" 가 작동.
-  const history = Array.isArray(ctx.history) ? ctx.history : [];
-  let userMessage;
-  if (history.length > 0) {
-    const turns = history
-      .map((t) => `${t.role === 'user' ? '사용자' : 'molly'}: ${(t.content || '').slice(0, 500)}`)
-      .join('\n');
-    userMessage = `이전 대화:\n${turns}\n\n사용자의 현재 답변/추가 정보:\n${text}\n\n위 누적 컨텍스트로 PRD 가 이제 명확한지 판정해주세요.`;
-  } else {
-    userMessage = `PRD 후보:\n${text}\n\n분석해주세요.`;
-  }
+  const userMessage = buildPrdUserMessage(text, ctx);
   const settings = getMollySettings();
   const thinkingBudget = settings.prdThinkingBudget;
   const useThinking = thinkingBudget > 0;
@@ -127,7 +136,7 @@ export async function analyzePrdClarity(text, ctx = {}) {
     clarity,
     thinking: useThinking,
     thinking_budget: useThinking ? thinkingBudget : 0,
-    has_history: history.length > 0,
+    has_history: Array.isArray(ctx.history) && ctx.history.length > 0,
     input_tokens: u.input_tokens ?? 0,
     output_tokens: u.output_tokens ?? 0,
   });
