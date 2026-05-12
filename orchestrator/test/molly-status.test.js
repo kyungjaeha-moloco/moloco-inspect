@@ -27,6 +27,19 @@ describe('English-migration invariant — SYSTEM_PROMPT is Korean-free', () => {
   });
 });
 
+describe('Strong English-output forcing', () => {
+  // LLMs default to mirroring user input language even when system prompts
+  // softly request English. The prompt must explicitly force English output
+  // regardless of input language.
+  test('SYSTEM_PROMPT explicitly forces English regardless of input', () => {
+    assert.match(
+      SYSTEM_PROMPT,
+      /(ALWAYS reply in English|in English regardless|regardless of the (input|user))/i,
+      'SYSTEM_PROMPT must explicitly force English output regardless of input language',
+    );
+  });
+});
+
 describe('Content invariants — key tokens survive migration', () => {
   test("contains 'kind'", () => {
     assert.ok(SYSTEM_PROMPT.includes('kind'), "SYSTEM_PROMPT must contain 'kind'");

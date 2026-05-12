@@ -49,6 +49,18 @@ describe('English-migration positive assertions — SYSTEM_PROMPT uses English g
   });
 });
 
+describe('Strong English-output forcing', () => {
+  // LLMs default to mirroring user input language. The prompt must explicitly
+  // force English output for all textual fields regardless of input language.
+  test('SYSTEM_PROMPT explicitly forces English for output fields regardless of input', () => {
+    assert.match(
+      SYSTEM_PROMPT,
+      /(in English regardless|regardless of the (input|user))/i,
+      'SYSTEM_PROMPT must explicitly force English output regardless of input language',
+    );
+  });
+});
+
 describe('Regression — grounding rule keywords still present after migration', () => {
   test('SYSTEM_PROMPT contains "patterns.json"', () => {
     assert.ok(
