@@ -49,6 +49,7 @@ import {
   setTargetRoute, setQaAutoResult, setJobSlackContext, setJobRisks,
 } from './lib/job.js';
 import { selectQaStrategy } from './lib/job-qa-strategist.js';
+import { formatBundleForPrompt } from './lib/job-research.js';
 import { runQaStrategyInBackground } from './lib/job-qa-runner.js';
 import { runJob as runJobRunner } from './lib/job-runner.js';
 import { startMolly } from './lib/molly.js';
@@ -744,7 +745,7 @@ function approveAndRunJob(jobId) {
 function runJobInBackground(jobId) {
   if (runningJobs.has(jobId)) return;
   const p = runJobRunner(jobId, {
-    adapter: (task, ctx) => {
+    adapter: (task, ctx, research) => {
       // On retry (attempt > 0) after a review-fail, inject the prior
       // reviewer's notes into the prompt so the agent actually learns
       // from the last miss. Without this the agent reran the exact
@@ -754,23 +755,28 @@ function runJobInBackground(jobId) {
       // We also explicitly remind the agent that the prior attempt's
       // commit is still on the branch and the goal is to produce a
       // diff that satisfies the *entire* original requirement — a
-      // narrow \"just fix the feedback bullet\" interpretation was the
+      // narrow "just fix the feedback bullet" interpretation was the
       // common failure mode before this wording.
       const prevFail = task.attempt > 0 && task.review?.verdict === 'fail';
-      const userPrompt = prevFail
+      const basePrompt = prevFail
         ? [
-            `[이전 시도 리뷰 실패 (attempt ${task.attempt})]`,
-            `리뷰 피드백: ${task.review?.notes ?? ''}`,
+            `[Previous attempt failed review (attempt ${task.attempt})]`,
+            `Reviewer feedback: ${task.review?.notes ?? ''}`,
             '',
-            '중요:',
-            '- 이전 시도의 커밋은 이미 브랜치에 있습니다. 그 결과물에 필요한 변경을 *추가*하세요.',
-            '- 단순히 위 피드백 한 줄만 고치면 안 됩니다. 원래 요구사항 *전체*가 구현되어 있는지 검토하고, 빠진 부분을 모두 채우세요.',
-            '- 최종 diff (baseline..HEAD) 가 원래 요구사항을 모두 만족해야 통과입니다.',
+            'Important:',
+            '- The previous attempt\'s commit is already on the branch. *Add* the changes needed to that result.',
+            '- Do not simply patch the single feedback bullet above. Re-check whether the *entire* original requirement is implemented and fill in anything missing.',
+            '- The final diff (baseline..HEAD) must satisfy the *entire* original requirement to pass.',
             '',
-            '원래 요구사항:',
+            'Original requirement:',
             task.description,
           ].join('\n')
         : task.description;
+      // Research bundle (Slice C of plan 2026-05-12-research-parallelism.md).
+      // When research ran successfully, the formatter returns a ≤3 KB
+      // pre-context block; otherwise '' and the user prompt is unchanged.
+      const researchBlock = formatBundleForPrompt(research, { maxBytes: 3072 });
+      const userPrompt = researchBlock ? researchBlock + basePrompt : basePrompt;
       return runChangeRequestForTask({
         playgroundId: ctx.playgroundId,
         userPrompt,

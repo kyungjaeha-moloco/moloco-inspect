@@ -26,6 +26,7 @@ import {
   buildResearchQueries,
   runResearchQuery,
   runResearch,
+  formatBundleForPrompt,
 } from '../lib/job-research.js';
 
 // ── Fakes ───────────────────────────────────────────────────────────
@@ -398,6 +399,66 @@ describe('runResearch (orchestration)', () => {
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }
+  });
+
+  test('format integration — empty / null / no-ok bundles produce empty string', () => {
+    assert.equal(formatBundleForPrompt(null), '');
+    assert.equal(formatBundleForPrompt(undefined), '');
+    assert.equal(formatBundleForPrompt({}), '');
+    assert.equal(formatBundleForPrompt({ queries: [] }), '');
+    assert.equal(
+      formatBundleForPrompt({ queries: [{ outcome: 'error', answer: '' }] }),
+      '',
+    );
+    assert.equal(
+      formatBundleForPrompt({ queries: [{ outcome: 'ok', answer: '   ' }] }),
+      '',
+    );
+  });
+
+  test('format integration — single ok query renders a complete block', () => {
+    const block = formatBundleForPrompt({
+      queries: [{
+        question: 'where do list pages live?',
+        scope: 'msm-portal',
+        outcome: 'ok',
+        answer: 'src/apps/tving/page/order/OrderListPage.tsx',
+        ms: 850,
+      }],
+    });
+    assert.match(block, /## Research context/);
+    assert.match(block, /Research finding 1: where do list pages live\?/);
+    assert.match(block, /\[scope: msm-portal \| 850ms\]/);
+    assert.match(block, /OrderListPage\.tsx/);
+    assert.match(block, /End of research context/);
+  });
+
+  test('format integration — drops tail findings when block exceeds maxBytes', () => {
+    // Three findings × ~200 bytes each ≈ 600 bytes. Cap at 400 should
+    // drop the last finding (and probably the middle one too).
+    const block = formatBundleForPrompt({
+      queries: [
+        { question: 'q1', scope: 'repo', outcome: 'ok', answer: 'a'.repeat(150), ms: 1 },
+        { question: 'q2', scope: 'repo', outcome: 'ok', answer: 'b'.repeat(150), ms: 1 },
+        { question: 'q3', scope: 'repo', outcome: 'ok', answer: 'c'.repeat(150), ms: 1 },
+      ],
+    }, { maxBytes: 400 });
+    assert.ok(Buffer.byteLength(block, 'utf8') <= 400, `block was ${Buffer.byteLength(block, 'utf8')} bytes`);
+    assert.match(block, /Truncated: .* additional finding/);
+  });
+
+  test('format integration — clips a single huge answer when cap is small', () => {
+    const block = formatBundleForPrompt({
+      queries: [{
+        question: 'huge',
+        scope: 'repo',
+        outcome: 'ok',
+        answer: 'X'.repeat(10_000),
+        ms: 1,
+      }],
+    }, { maxBytes: 500 });
+    assert.ok(Buffer.byteLength(block, 'utf8') <= 500);
+    assert.match(block, /\[truncated\]/);
   });
 
   test('aggregate timeout surfaces synthetic timeout rows', async () => {

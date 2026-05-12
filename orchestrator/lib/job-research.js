@@ -510,6 +510,69 @@ export async function runResearch(task, ctx, opts = {}) {
   return bundle;
 }
 
+// ── Bundle formatter (used by the runner-adapter integration) ──────
+
+/**
+ * Format a research bundle as a Markdown pre-context block to prepend
+ * onto the coder adapter's user prompt. Plan §Slice C requires:
+ *   - bullet-style summary of the research findings
+ *   - ≤3 KB cap by default (env-tunable so ops can dial)
+ *   - returns '' on empty / null / all-non-ok bundles (caller decides)
+ *
+ * Truncation policy when the block exceeds the byte cap:
+ *   1. Drop tail findings one at a time, smallest-impact first, until fits.
+ *   2. If even the first finding is too big, truncate its answer text and
+ *      flag the truncation in the footer.
+ *
+ * @param {{
+ *   queries?: Array<{ question:string, scope:string, outcome:string, answer:string, ms:number }>
+ * } | null | undefined} bundle
+ * @param {{ maxBytes?: number }} [opts]
+ * @returns {string}
+ */
+export function formatBundleForPrompt(bundle, opts = {}) {
+  const maxBytes = opts.maxBytes ?? 3072;
+  if (!bundle || !Array.isArray(bundle.queries)) return '';
+  const ok = bundle.queries.filter(
+    (q) => q && q.outcome === 'ok' && typeof q.answer === 'string' && q.answer.trim().length > 0,
+  );
+  if (ok.length === 0) return '';
+
+  const sections = ok.map(formatBundleSection);
+
+  // 1. Try the full block first.
+  const full = wrapBlock(sections, 0);
+  if (Buffer.byteLength(full, 'utf8') <= maxBytes) return full;
+
+  // 2. Drop tail sections one at a time until it fits.
+  for (let n = sections.length - 1; n >= 1; n--) {
+    const candidate = wrapBlock(sections.slice(0, n), sections.length - n);
+    if (Buffer.byteLength(candidate, 'utf8') <= maxBytes) return candidate;
+  }
+
+  // 3. Single section is too big — truncate its answer text.
+  const first = ok[0];
+  const header = `### Research finding 1: ${first.question}\n[scope: ${first.scope} | ${first.ms}ms]\n`;
+  const wrapHead = `## Research context (gathered before this task)\n\n`;
+  const wrapFoot = `\n\n(Truncated: ${ok.length} finding(s) total; only the first shown, and its answer was clipped.)\n\n`;
+  const overhead = Buffer.byteLength(wrapHead + header + '… [truncated]' + wrapFoot, 'utf8');
+  const answerBudget = Math.max(100, maxBytes - overhead);
+  const truncatedAnswer = first.answer.slice(0, answerBudget) + '… [truncated]';
+  return wrapHead + header + truncatedAnswer + wrapFoot;
+}
+
+function formatBundleSection(q, idx) {
+  return `### Research finding ${idx + 1}: ${q.question}\n[scope: ${q.scope} | ${q.ms}ms]\n${q.answer.trim()}`;
+}
+
+function wrapBlock(sections, omittedCount) {
+  const head = `## Research context (gathered before this task)\n\n`;
+  const foot = omittedCount > 0
+    ? `\n\n(Truncated: ${omittedCount} additional finding(s) omitted. End of research context — proceed with the task description below.)\n\n`
+    : `\n\n(End of research context — proceed with the task description below.)\n\n`;
+  return head + sections.join('\n\n') + foot;
+}
+
 function recordResearchOrchestrationEvent(jobId, taskId, bundle) {
   recordEvent('lib_call', {
     lib: 'research_orchestration',
