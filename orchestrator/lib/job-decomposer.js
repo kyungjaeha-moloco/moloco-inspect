@@ -15,7 +15,7 @@
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
-const SYSTEM_PROMPT = `You break a product request (PRD, bug report, or free-form feature ask) into a small ordered list of implementation tasks. The code will be modified by a separate coding agent per task; your job is only to plan.
+export const SYSTEM_PROMPT = `You break a product request (PRD, bug report, or free-form feature ask) into a small ordered list of implementation tasks. The code will be modified by a separate coding agent per task; your job is only to plan.
 
 Rules:
 1. Output JSON only — one fenced \`\`\`json block, nothing else. No prose before or after.
@@ -27,28 +27,28 @@ Rules:
 6. IDs must be short kebab-case (t1, t2, ...), unique, and referenced correctly in dependsOn.
 
 7. **Audience — CRITICAL**: titles and descriptions are read by a product manager / service architect who does NOT read code. Write in plain product language about what the user sees and can do. The coding agent will translate behavior into code on its own.
-   - Title: 5–15 chars, plain product action. GOOD: "크리에이티브 리뷰 페이지 추가". BAD: "라우트 등록 및 레이아웃 스캐폴딩".
-   - Description opens with the user-visible outcome ("이 작업이 끝나면 …가 보이고, …를 누를 수 있습니다."), then the behavior bullets.
-   - **Forbidden jargon (translate into product behavior instead):** 라우트, 스캐폴딩, placeholder, fetching, mock, in-memory, wrapper, embed, MVP, API, hook, state, props, prop, scope, refactor, z-index, 포커스 트랩, render, component, DOM, ref. Avoid English code/library names too (useQuery, useState, etc.). It's fine to mention the file *area* by its user-facing name ("사이드바 메뉴", "테이블 첫 컬럼") instead of file path.
-   - Avoid "범위 외" / "out of scope" callouts written in technical terms — say "이 단계에서는 …는 아직 동작하지 않습니다" instead.
-   - Numbers, options, copy text the user sees ARE plain language and SHOULD appear (e.g. "Today / Yesterday / 최근 7일", 기본값, 정렬 기준).
+   - Title: 5–15 words, plain product action in English. GOOD: "Add creative review page". BAD: "Register route and scaffold layout".
+   - Description opens with the user-visible outcome ("When this task is done, the user will see … and be able to …"), then the behavior bullets.
+   - **Forbidden jargon (translate into product behavior instead):** route, scaffold, placeholder, fetching, mock, in-memory, wrapper, embed, MVP, API, hook, state, props, prop, scope, refactor, z-index, focus trap, render, component, DOM, ref. Avoid English code/library names too (useQuery, useState, etc.). It's fine to mention the UI area by its user-facing name ("sidebar menu", "first table column") instead of file path.
+   - Avoid "out of scope" callouts in technical terms — say "In this stage, … will not work yet" instead.
+   - Numbers, options, copy text the user sees ARE plain language and SHOULD appear (e.g. "Today / Yesterday / Last 7 days", default value, sort criteria).
 
 8. Sub-requirement formatting:
    - When a task has 2+ distinct sub-requirements, structure the description as enumerated bullets using \`(1) ... (2) ... (3) ...\` markers so the UI can render them as a readable list. A single narrative paragraph is fine for simple tasks.
    - Use \`\\n\\n\` between logically separate paragraphs (outcome / requirements / what's not yet working). Avoid wall-of-text runs.
-9. Language: detect the PRD's language and match it (Korean PRD → Korean tasks).
+9. Language: write all task titles and descriptions in English regardless of the PRD's language.
 10. No task may touch package.json / lockfiles / CI config — those are out of scope for the sandbox pipeline.
 
 11. **Target route** (optional, top-level): if the PRD explicitly creates or modifies a single user-visible URL path, output a top-level \`targetRoute\` string with that path so the UI can auto-open the result page when the job finishes. Examples: "/post-creative-review", "/dashboard". Skip the field entirely (don't emit \`null\`) when the work spans multiple pages, is purely backend, or doesn't have an obvious single landing URL. The path must start with "/". This is a hint for UX, not a hard route registration — getting it wrong only means the user has to click through the sidebar, no functional damage.
 
-12. **Risks** (optional, top-level): output \`risks_ko\` — an array of 0 to 3 short Korean strings (≤80 chars each) that name *concrete, PRD-specific* risks the user should review before approving. Examples: "사이드바 메뉴 추가 시 권한 가드 누락 시 다른 사용자에게 메뉴가 보일 수 있음", "i18n 키 추가 누락 시 한국어 외 언어에서 raw key 노출". Skip generic / always-true risks (예: "타입 에러가 날 수 있다", "테스트가 부족하다", "리팩토링이 필요할 수 있다"). If you can't think of a real PRD-specific risk, return an empty array — better silent than spammy.
+12. **Risks** (optional, top-level): output \`risks\` — an array of 0 to 3 short English strings (≤80 chars each) that name *concrete, PRD-specific* risks the user should review before approving. Examples: "Missing permission guard on sidebar menu could expose it to unauthorized users", "Missing i18n key addition will show raw keys in non-English locales". Skip generic / always-true risks (e.g. "type errors may occur", "tests may be insufficient", "refactoring may be needed"). If you can't think of a real PRD-specific risk, return an empty array — better silent than spammy.
 
 Schema:
 \`\`\`json
 {
   "targetRoute": "/post-creative-review",
-  "risks_ko": [
-    "PRD-specific 위험 한 줄"
+  "risks": [
+    "One-line PRD-specific risk in English"
   ],
   "tasks": [
     {
@@ -234,14 +234,16 @@ export async function decomposePrd(prdText, ctx = {}) {
     targetRoute = parsed.targetRoute.trim();
   }
 
-  // Optional `risks_ko` — surface up to 3 concrete PRD-specific risks
-  // in the plan UI so the user signs off on them along with tasks.
+  // Optional `risks` (back-compat: also accept legacy `risks_ko` from old
+  // state files) — surface up to 3 concrete PRD-specific risks in the
+  // plan UI so the user signs off on them along with tasks.
   // Filter out generic / boilerplate cases the prompt is supposed to
   // suppress; if any slip through, this guard keeps them out.
   /** @type {string[]} */
   let risks = [];
-  if (Array.isArray(parsed.risks_ko)) {
-    risks = parsed.risks_ko
+  const risksRaw = parsed.risks ?? parsed.risks_ko;
+  if (Array.isArray(risksRaw)) {
+    risks = risksRaw
       .filter((r) => typeof r === 'string' && r.trim().length > 0)
       .map((r) => r.trim().slice(0, 200))
       .slice(0, 3);

@@ -503,27 +503,27 @@ export function setQaStrategy(jobId, info) {
   const job = getJob(jobId);
   if (!job) throw new Error(`job not found: ${jobId}`);
   job.qaStrategy = info.strategy;
-  job.qaRationaleKo = info.rationale_ko ?? '';
+  job.qaRationale = info.rationale_ko ?? '';
   job.updatedAt = nowMs();
   persist(job);
   return job;
 }
 
 /**
- * Stamp PRD-specific risk lines (Korean) emitted by the decomposer.
+ * Stamp PRD-specific risk lines emitted by the decomposer.
  * Surfaced in the plan UI alongside the task list so the user signs
  * off on the verification approach + watch-outs together with the
  * task plan instead of after the fact.
  *
  * @param {string} jobId
- * @param {string[]} risksKo
+ * @param {string[]} risks
  * @returns {Job | null}
  */
-export function setJobRisks(jobId, risksKo) {
+export function setJobRisks(jobId, risks) {
   const job = getJob(jobId);
   if (!job) return null;
-  job.risksKo = Array.isArray(risksKo)
-    ? risksKo
+  job.risks = Array.isArray(risks)
+    ? risks
         .filter((r) => typeof r === 'string' && r.trim().length > 0)
         .map((r) => r.trim().slice(0, 200))
         .slice(0, 3)

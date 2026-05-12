@@ -699,6 +699,8 @@ export interface Job {
   currentTaskId?: string;
   pausedReason?: string;
   qaStrategy?: QaStrategyId;
+  qaRationale?: string;
+  /** @deprecated use qaRationale — back-compat for old state files */
   qaRationaleKo?: string;
   /**
    * PRD-specific risk lines emitted by the decomposer. Surfaced in
@@ -706,6 +708,8 @@ export interface Job {
    * the task list. Empty / missing array = no risks worth calling
    * out (the decomposer prompt explicitly suppresses generic ones).
    */
+  risks?: string[];
+  /** @deprecated use risks — back-compat for old state files */
   risksKo?: string[];
   /**
    * Outcome of the auto-QA run picked by `qaStrategy`. Stamped by the

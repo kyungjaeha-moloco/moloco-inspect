@@ -2777,27 +2777,29 @@
     }
     bubble.appendChild(taskList);
 
-    if (Array.isArray(job.risksKo) && job.risksKo.length > 0) {
-      const risks = document.createElement('div');
-      risks.style.padding = '6px 8px';
-      risks.style.background = 'rgba(245, 194, 107, 0.10)';
-      risks.style.border = '1px solid rgba(245, 194, 107, 0.45)';
-      risks.style.borderRadius = '4px';
-      risks.style.fontSize = '11px';
-      risks.style.color = 'var(--text-warn, #8a5a00)';
+    // Back-compat: old state files may have `risksKo` instead of `risks`
+    const jobRisks = job.risks ?? job.risksKo;
+    if (Array.isArray(jobRisks) && jobRisks.length > 0) {
+      const risksEl = document.createElement('div');
+      risksEl.style.padding = '6px 8px';
+      risksEl.style.background = 'rgba(245, 194, 107, 0.10)';
+      risksEl.style.border = '1px solid rgba(245, 194, 107, 0.45)';
+      risksEl.style.borderRadius = '4px';
+      risksEl.style.fontSize = '11px';
+      risksEl.style.color = 'var(--text-warn, #8a5a00)';
       const head = document.createElement('strong');
       head.textContent = '⚠️ 주의사항';
-      risks.appendChild(head);
+      risksEl.appendChild(head);
       const ol = document.createElement('ol');
       ol.style.margin = '4px 0 0';
       ol.style.paddingLeft = '20px';
-      for (const r of job.risksKo) {
+      for (const r of jobRisks) {
         const li = document.createElement('li');
         li.textContent = r;
         ol.appendChild(li);
       }
-      risks.appendChild(ol);
-      bubble.appendChild(risks);
+      risksEl.appendChild(ol);
+      bubble.appendChild(risksEl);
     }
 
     if (job.qaStrategy) {
@@ -2810,11 +2812,13 @@
       qa.style.fontSize = '11px';
       qa.style.color = 'var(--text-info, #1453b6)';
       qa.innerHTML = `<strong>🧪 검증 단계:</strong> ${job.qaStrategy}`;
-      if (job.qaRationaleKo) {
+      // Back-compat: old state files may have `qaRationaleKo` instead of `qaRationale`
+      const qaRationale = job.qaRationale ?? job.qaRationaleKo;
+      if (qaRationale) {
         const r = document.createElement('div');
         r.style.color = 'var(--text-muted, #888)';
         r.style.marginTop = '2px';
-        r.textContent = job.qaRationaleKo;
+        r.textContent = qaRationale;
         qa.appendChild(r);
       }
       bubble.appendChild(qa);

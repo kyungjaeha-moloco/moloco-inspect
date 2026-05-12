@@ -1776,8 +1776,10 @@ function buildPlanBlocks(job) {
 
   // PRD-specific risks the decomposer flagged. Skip the section
   // entirely when empty so plan UI stays compact for boring jobs.
-  if (Array.isArray(job.risksKo) && job.risksKo.length > 0) {
-    const risksLines = job.risksKo
+  // Back-compat: old state files may have `risksKo` instead of `risks`
+  const jobRisks = job.risks ?? job.risksKo;
+  if (Array.isArray(jobRisks) && jobRisks.length > 0) {
+    const risksLines = jobRisks
       .map((r, i) => `${i + 1}. ${trunc(r, 200)}`)
       .join('\n');
     blocks.push({
@@ -1794,8 +1796,10 @@ function buildPlanBlocks(job) {
   // the whole pipeline, not just the code work.
   if (job.qaStrategy) {
     const label = QA_STRATEGY_LABELS_KO[job.qaStrategy] ?? job.qaStrategy;
-    const rationale = job.qaRationaleKo
-      ? `\n   _${trunc(job.qaRationaleKo, 200)}_`
+    // Back-compat: old state files may have `qaRationaleKo` instead of `qaRationale`
+    const qaRationale = job.qaRationale ?? job.qaRationaleKo;
+    const rationale = qaRationale
+      ? `\n   _${trunc(qaRationale, 200)}_`
       : '';
     blocks.push({
       type: 'section',

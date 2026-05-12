@@ -184,7 +184,7 @@ export function JobCard({ jobId }: { jobId: string }) {
           {job.qaStrategy && (
             <QaStrategyChip
               strategy={job.qaStrategy}
-              rationale={job.qaRationaleKo}
+              rationale={job.qaRationale ?? job.qaRationaleKo}
             />
           )}
         </div>
@@ -307,14 +307,14 @@ export function JobCard({ jobId }: { jobId: string }) {
         })()}
       </div>
 
-      {canApprove && job.risksKo && job.risksKo.length > 0 && (
-        <PlanRisksBlock risks={job.risksKo} />
+      {canApprove && (job.risks ?? job.risksKo) && (job.risks ?? job.risksKo)!.length > 0 && (
+        <PlanRisksBlock risks={(job.risks ?? job.risksKo)!} />
       )}
 
       {canApprove && (
         <PlanQaStrategyLine
           strategy={job.qaStrategy}
-          rationale={job.qaRationaleKo}
+          rationale={job.qaRationale ?? job.qaRationaleKo}
         />
       )}
 

@@ -29,6 +29,8 @@ interface Job {
   tasks: JobTask[];
   pausedReason?: string;
   qaStrategy?: string;
+  qaRationale?: string;
+  /** @deprecated use qaRationale — back-compat for old state files */
   qaRationaleKo?: string;
   qaAutoResult?: {
     strategy: string;
@@ -169,7 +171,7 @@ export function JobDetailPage() {
           <StatusPill status={job.status} />
           {job.qaStrategy && (
             <span
-              title={job.qaRationaleKo}
+              title={job.qaRationale ?? job.qaRationaleKo}
               style={{
                 fontSize: 11,
                 padding: '2px 8px',
@@ -177,7 +179,7 @@ export function JobDetailPage() {
                 background: 'rgba(20, 83, 182, 0.08)',
                 color: '#1453b6',
                 border: '1px solid rgba(20, 83, 182, 0.18)',
-                cursor: job.qaRationaleKo ? 'help' : 'default',
+                cursor: (job.qaRationale ?? job.qaRationaleKo) ? 'help' : 'default',
               }}
             >
               🧪 {job.qaStrategy}
