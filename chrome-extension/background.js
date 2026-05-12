@@ -611,12 +611,12 @@ function buildJobPrdText(payload) {
   lines.push(payload?.userPrompt || '(no prompt)');
 
   const ctx = [];
-  if (payload?.pagePath) ctx.push(`- 대상 페이지: ${payload.pagePath}`);
-  if (payload?.client) ctx.push(`- 클라이언트: ${payload.client}`);
-  if (payload?.component) ctx.push(`- 컴포넌트: ${payload.component}`);
+  if (payload?.pagePath) ctx.push(`- Target page: ${payload.pagePath}`);
+  if (payload?.client) ctx.push(`- Client: ${payload.client}`);
+  if (payload?.component) ctx.push(`- Component: ${payload.component}`);
   if (payload?.file) {
     ctx.push(
-      `- 파일: ${payload.file}${payload.line ? ':' + payload.line : ''}`,
+      `- File: ${payload.file}${payload.line ? ':' + payload.line : ''}`,
     );
   }
   if (payload?.testId) ctx.push(`- testId: ${payload.testId}`);
@@ -633,11 +633,11 @@ function buildJobPrdText(payload) {
       .filter(Boolean)
       .slice(0, 5)
       .join(', ');
-    if (labels) ctx.push(`- 선택한 요소: ${labels}`);
+    if (labels) ctx.push(`- Selected element: ${labels}`);
   }
   if (ctx.length) {
     lines.push('');
-    lines.push('컨텍스트:');
+    lines.push('Context:');
     lines.push(...ctx);
   }
   return lines.join('\n');

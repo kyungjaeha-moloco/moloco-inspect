@@ -1554,9 +1554,9 @@ function QaAutoResultBanner({
     );
   }
 
-  // 재실행 placeholder ("재실행 중…") looks like an in-flight failure
+  // Re-running placeholder ("Re-running…") looks like an in-flight failure
   // — surface it as the running state instead.
-  if (result.notes === '재실행 중…') {
+  if (result.notes === 'Re-running…') {
     return (
       <div
         style={{

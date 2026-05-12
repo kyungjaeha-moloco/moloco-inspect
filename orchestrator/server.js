@@ -3889,7 +3889,7 @@ Generate 2 variations (v2, v3).`;
           updated = setQaAutoResult(jobId, {
             strategy: job.qaStrategy ?? 'human_only',
             passed: false,
-            notes: '재실행 중…',
+            notes: 'Re-running…',
             ranAt: Date.now(),
           });
           // Clear the placeholder marker after stamping so the runner's
@@ -4215,7 +4215,7 @@ server.listen(PORT, '0.0.0.0', () => {
       setQaAutoResult(jobId, {
         strategy: j.qaStrategy ?? 'human_only',
         passed: false,
-        notes: '재실행 중…',
+        notes: 'Re-running…',
         ranAt: Date.now(),
       });
       runQaStrategyInBackground(jobId);
