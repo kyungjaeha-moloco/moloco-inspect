@@ -202,7 +202,7 @@ export function JobCard({ jobId }: { jobId: string }) {
             color: 'var(--text-warn, #8a5a00)',
           }}
         >
-          ⏮ 과거 시점으로 돌아간 상태입니다 — 이후 실행된 태스크는 반영되지 않음 (아래에서 딤 처리).
+          ⏮ You are viewing a past point — tasks executed after this are not reflected (dimmed below).
         </div>
       )}
       {job.pausedReason && (
@@ -246,9 +246,9 @@ export function JobCard({ jobId }: { jobId: string }) {
         >
           <PixelAgentSprite />
           <span>
-            <strong>다시 계획 세우는 중…</strong>
+            <strong>Re-planning…</strong>
             <span style={{ display: 'block', marginTop: 2, fontSize: 11, color: 'var(--text-secondary)' }}>
-              AI 가 위 작업을 다른 방식으로 다시 나누고 있어요.
+              AI is breaking the work down in a different way.
             </span>
           </span>
         </div>
@@ -264,7 +264,7 @@ export function JobCard({ jobId }: { jobId: string }) {
       >
         {job.tasks.length === 0 && (
           <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-            {job.status === 'decomposing' ? 'AI 가 작업을 쪼개는 중…' : '(태스크 없음)'}
+            {job.status === 'decomposing' ? 'AI is breaking down the task…' : '(no tasks)'}
           </div>
         )}
         {(() => {
@@ -279,7 +279,7 @@ export function JobCard({ jobId }: { jobId: string }) {
               .map((id) => idToIndex.get(id))
               .filter((n): n is number => typeof n === 'number');
             const dependsOnLabel = depIndices.length
-              ? `${depIndices.join(', ')}번 작업 후`
+              ? `after task ${depIndices.join(', ')}`
               : undefined;
             return (
               <TaskRow
@@ -343,7 +343,7 @@ export function JobCard({ jobId }: { jobId: string }) {
           href={`http://127.0.0.1:4174/jobs/${encodeURIComponent(job.id)}`}
           target="_blank"
           rel="noreferrer"
-          title={`Inspect Console 에서 이 잡(${job.id}) 의 상세 페이지를 엽니다`}
+          title={`Open detail page for job (${job.id}) in Inspect Console`}
           aria-label="Inspect Console"
           style={{
             ...secondaryBtn,
@@ -371,26 +371,26 @@ export function JobCard({ jobId }: { jobId: string }) {
             onClick={() => {
               const hasLanded = job.tasks.some((t) => !!t.commitSha);
               if (!hasLanded) {
-                if (window.confirm('이 작업을 취소할까요?')) {
+                if (window.confirm('Cancel this job?')) {
                   void runAction(() => cancelJob(job.id));
                 }
                 return;
               }
               if (
                 !window.confirm(
-                  '이 작업을 취소할까요?\n\n진행 중에 만들어진 변경 내역이 작업중 화면에 남아있습니다.',
+                  'Cancel this job?\n\nChanges made during execution will remain in the working view.',
                 )
               ) {
                 return;
               }
               const rewind = window.confirm(
-                '작업 결과물도 함께 되돌릴까요?\n\n[확인] 작업 시작 시점으로 되돌리기 (변경 내역 제거)\n[취소] 변경 내역은 그대로 유지',
+                'Also revert the work output?\n\n[OK] Revert to the state before the job started (removes changes)\n[Cancel] Keep changes as-is',
               );
               void runAction(() => cancelJob(job.id, rewind));
             }}
             style={dangerBtn}
           >
-            취소
+            Cancel
           </button>
         )}
         {canRedecompose && (
@@ -398,9 +398,9 @@ export function JobCard({ jobId }: { jobId: string }) {
             disabled={acting}
             onClick={() => runAction(() => redecomposeJob(job.id))}
             style={secondaryBtn}
-            title="현재 분해가 마음에 들지 않을 때, 다른 방식의 작업 분해를 다시 받습니다"
+            title="Re-request a different task breakdown when the current one isn't satisfactory"
           >
-            다시 계획 세우기
+            Re-plan
           </button>
         )}
         {job.targetRoute &&
@@ -409,9 +409,9 @@ export function JobCard({ jobId }: { jobId: string }) {
               disabled={acting}
               onClick={() => requestIframeNav(job.targetRoute!)}
               style={secondaryBtn}
-              title={`작업중 탭을 ${job.targetRoute} 페이지로 이동시킵니다`}
+              title={`Navigate the working tab to the ${job.targetRoute} page`}
             >
-              결과 페이지 열기 ↗
+              Open result page ↗
             </button>
           )}
         {canResume && (
@@ -420,7 +420,7 @@ export function JobCard({ jobId }: { jobId: string }) {
             onClick={() => runAction(() => resumeJob(job.id))}
             style={primaryBtn}
           >
-            재개
+            Resume
           </button>
         )}
         {canQaPass && (
@@ -428,9 +428,9 @@ export function JobCard({ jobId }: { jobId: string }) {
             disabled={acting}
             onClick={() => runAction(() => markQaPass(job.id))}
             style={primaryBtn}
-            title="실제 앱에서 동작 확인 후 눌러주세요"
+            title="Press after verifying the behavior in the actual app"
           >
-            QA 통과 ✓
+            QA pass ✓
           </button>
         )}
         {canPromote && (
@@ -452,7 +452,7 @@ export function JobCard({ jobId }: { jobId: string }) {
             onClick={() => runAction(() => approveJobPlan(job.id))}
             style={primaryBtn}
           >
-            승인하고 시작 ▶
+            Approve and start ▶
           </button>
         )}
       </footer>
@@ -540,7 +540,7 @@ function TaskRow({
             }
           : null),
       }}
-      title={dimmed ? '과거 시점으로 돌아간 상태 — 이 태스크 이후의 커밋은 현재 작업 트리에 반영되지 않습니다.' : undefined}
+      title={dimmed ? 'Viewing a past point — commits after this task are not reflected in the current working tree.' : undefined}
     >
       <div
         style={{
@@ -574,7 +574,7 @@ function TaskRow({
               color: 'var(--text-tertiary)',
               whiteSpace: 'nowrap',
             }}
-            title="이 작업이 시작되려면 위 번호의 작업이 먼저 끝나야 합니다."
+            title="This task cannot start until the numbered tasks above are complete."
           >
             ← {dependsOnLabel}
           </span>
@@ -589,7 +589,7 @@ function TaskRow({
               setEditing((v) => !v);
               if (!editing) setExpanded(true);
             }}
-            title={editing ? '편집 취소' : '제목/설명 편집'}
+            title={editing ? 'Cancel editing' : 'Edit title/description'}
             style={{
               padding: '2px 6px',
               border: '1px solid var(--border-primary)',
@@ -623,7 +623,7 @@ function TaskRow({
           }}
         >
           <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-            제목
+            Title
             <input
               type="text"
               value={editTitle}
@@ -644,7 +644,7 @@ function TaskRow({
             />
           </label>
           <label style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-            설명
+            Description
             <textarea
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
@@ -677,7 +677,7 @@ function TaskRow({
               }}
               style={tinyBtn}
             >
-              취소
+              Cancel
             </button>
             <button
               type="button"
@@ -703,7 +703,7 @@ function TaskRow({
                 borderColor: 'var(--accent, #1453b6)',
               }}
             >
-              저장
+              Save
             </button>
           </div>
         </div>
@@ -757,7 +757,7 @@ function TaskRow({
                 color: 'var(--text-tertiary)',
               }}
             >
-              · 사용자가 그대로 인정
+              · accepted by user
             </span>
           )}
         </div>
@@ -949,7 +949,7 @@ function TaskLeading({
           textTransform: 'uppercase',
         }}
       >
-        취소됨
+        Cancelled
       </span>
     );
   }
@@ -1039,7 +1039,7 @@ function TaskLeading({
 function PixelAgentSprite() {
   return (
     <span
-      aria-label="작업 중인 에이전트"
+      aria-label="Agent working"
       role="img"
       style={{
         display: 'inline-block',
@@ -1062,14 +1062,14 @@ function PixelAgentSprite() {
 // hatch for the "agent overshot scope but result is still useful"
 // case), skip last (most destructive — also blocks downstream tasks).
 const ACTION_REASON_OPTIONS: { value: string; label: string }[] = [
-  { value: '', label: '— 사유 선택 (선택사항) —' },
-  { value: 'syntax_error', label: '문법/타입 에러' },
-  { value: 'logic_error', label: '논리/구현 오류' },
-  { value: 'scope_creep', label: '범위 벗어남 (PRD 외 변경)' },
-  { value: 'partial', label: '부분 구현 (요구사항 일부만)' },
-  { value: 'wrong_target', label: '잘못된 파일/컴포넌트' },
-  { value: 'over_delivered', label: '오버 딜리버 (과한 변경)' },
-  { value: 'other', label: '기타' },
+  { value: '', label: '— Select reason (optional) —' },
+  { value: 'syntax_error', label: 'Syntax / type error' },
+  { value: 'logic_error', label: 'Logic / implementation error' },
+  { value: 'scope_creep', label: 'Out of scope (changes beyond PRD)' },
+  { value: 'partial', label: 'Partial implementation (only some requirements)' },
+  { value: 'wrong_target', label: 'Wrong file / component' },
+  { value: 'over_delivered', label: 'Over-delivered (too many changes)' },
+  { value: 'other', label: 'Other' },
 ];
 
 function ReviewFailActions({
@@ -1102,7 +1102,7 @@ function ReviewFailActions({
           fontStyle: 'italic',
         }}
       >
-        다음 단계
+        Next steps
       </span>
       <select
         value={reason}
@@ -1135,9 +1135,9 @@ function ReviewFailActions({
             onRetry(reason || undefined);
           }}
           style={primaryActionBtn}
-          title="위 피드백을 반영해 다시 작성"
+          title="Retry with the feedback above applied"
         >
-          🔁 다시 시도
+          🔁 Retry
         </button>
         <button
           type="button"
@@ -1147,9 +1147,9 @@ function ReviewFailActions({
             onAccept(reason || undefined);
           }}
           style={secondaryActionBtn}
-          title="결과물을 받아들이고 후속 태스크 진행 (오버딜리버 케이스 등)"
+          title="Accept the result and continue with subsequent tasks (e.g. over-delivered cases)"
         >
-          ✓ 그대로 인정
+          ✓ Accept as-is
         </button>
         <button
           type="button"
@@ -1159,9 +1159,9 @@ function ReviewFailActions({
             onSkip(reason || undefined);
           }}
           style={dangerActionBtn}
-          title="이 태스크를 건너뛰고 진행 (의존하는 후속 태스크들도 차단됩니다)"
+          title="Skip this task and continue (downstream dependent tasks will also be blocked)"
         >
-          ✗ 건너뛰기
+          ✗ Skip
         </button>
       </div>
     </div>
@@ -1251,7 +1251,7 @@ function ActivityPanel({
           }}
         >
           <LivePhaseDot />
-          <span>{phaseLabelKo(phase)}</span>
+          <span>{phaseLabel(phase)}</span>
         </div>
       )}
       {hasTools && (
@@ -1328,26 +1328,26 @@ function LivePhaseDot() {
 }
 
 // Map the change-request pipeline's `phase` strings to user-facing
-// Korean labels. Unknown phases pass through verbatim — better to
+// English labels. Unknown phases pass through verbatim — better to
 // surface a raw token than swallow a new pipeline state silently.
-function phaseLabelKo(phase: string): string {
+function phaseLabel(phase: string): string {
   switch (phase) {
-    case 'queued': return '대기 중';
-    case 'creating_sandbox': return '샌드박스 준비 중';
-    case 'syncing_source': return '소스 동기화 중';
-    case 'starting_agent': return '에이전트 시작 중';
-    case 'running_agent': return '코드 작성 중';
-    case 'collecting_diff': return '변경사항 수집 중';
-    case 'preview_ready': return '미리보기 준비 완료';
-    case 'validating': return '타입 검증 중';
-    case 'verifying': return '타입 검증 중';
-    case 'verification_retry': return '재시도 중 (검증 실패)';
-    case 'verification_failed': return '검증 실패';
-    case 'capturing_screenshot': return '스크린샷 촬영 중';
-    case 'creating_pr': return 'PR 생성 중';
-    case 'queued_for_retry': return '재시도 대기 중';
-    case 'pipeline_error': return '파이프라인 에러';
-    case 'no_change_needed': return '변경 없음';
+    case 'queued': return 'Queued';
+    case 'creating_sandbox': return 'Preparing sandbox';
+    case 'syncing_source': return 'Syncing source';
+    case 'starting_agent': return 'Starting agent';
+    case 'running_agent': return 'Writing code';
+    case 'collecting_diff': return 'Collecting changes';
+    case 'preview_ready': return 'Preview ready';
+    case 'validating': return 'Validating types';
+    case 'verifying': return 'Verifying types';
+    case 'verification_retry': return 'Retrying (verification failed)';
+    case 'verification_failed': return 'Verification failed';
+    case 'capturing_screenshot': return 'Capturing screenshot';
+    case 'creating_pr': return 'Creating PR';
+    case 'queued_for_retry': return 'Queued for retry';
+    case 'pipeline_error': return 'Pipeline error';
+    case 'no_change_needed': return 'No change needed';
     default: return phase;
   }
 }
@@ -1413,7 +1413,7 @@ function PlanFeedbackInput({
           fontWeight: 500,
         }}
       >
-        이 계획에 수정 요청
+        Request changes to this plan
       </span>
       <textarea
         value={text}
@@ -1425,7 +1425,7 @@ function PlanFeedbackInput({
             send();
           }
         }}
-        placeholder="예: 3번을 검색과 필터 둘로 쪼개주세요. 권한 가드 task는 빼주세요. (⌘/Ctrl + Enter 보내기)"
+        placeholder="e.g. Split task 3 into search and filter. Remove the permission guard task. (⌘/Ctrl + Enter to send)"
         disabled={disabled}
         rows={2}
         style={{
@@ -1457,7 +1457,7 @@ function PlanFeedbackInput({
             cursor: text.trim() ? 'pointer' : 'not-allowed',
           }}
         >
-          반영해서 다시 계획
+          Re-plan with feedback
         </button>
       </div>
     </div>
@@ -1476,12 +1476,12 @@ const QA_STRATEGY_LABELS: Record<
   QaStrategyId,
   { label: string; short: string }
 > = {
-  agent_review: { label: '에이전트 종합 리뷰', short: '🧪 종합' },
-  inline_per_task: { label: '각 작업 직후 검증', short: '🧪 단계별' },
-  final_route_smoke: { label: '라우트 스모크만', short: '🧪 스모크' },
-  visual_diff: { label: '시각 회귀 비교', short: '🧪 시각' },
-  lint_only: { label: '타입/린트만', short: '🧪 린트' },
-  human_only: { label: '사람 직접 확인', short: '🧪 수동' },
+  agent_review: { label: 'Agent comprehensive review', short: '🧪 Full' },
+  inline_per_task: { label: 'Verify after each task', short: '🧪 Step' },
+  final_route_smoke: { label: 'Route smoke only', short: '🧪 Smoke' },
+  visual_diff: { label: 'Visual regression comparison', short: '🧪 Visual' },
+  lint_only: { label: 'Type / lint only', short: '🧪 Lint' },
+  human_only: { label: 'Manual human check', short: '🧪 Manual' },
 };
 
 /**
@@ -1538,7 +1538,7 @@ function QaAutoResultBanner({
       >
         <PixelAgentSprite />
         <span>
-          <strong>자동 QA 실행 중…</strong>
+          <strong>Auto QA running…</strong>
           <span
             style={{
               display: 'block',
@@ -1547,7 +1547,7 @@ function QaAutoResultBanner({
               color: 'var(--text-secondary)',
             }}
           >
-            결과 페이지가 잘 뜨는지 확인하고 있어요.
+            Checking that the result page loads correctly.
           </span>
         </span>
       </div>
@@ -1575,7 +1575,7 @@ function QaAutoResultBanner({
       >
         <PixelAgentSprite />
         <span>
-          <strong>자동 QA 재실행 중…</strong>
+          <strong>Auto QA re-running…</strong>
         </span>
       </div>
     );
@@ -1594,7 +1594,7 @@ function QaAutoResultBanner({
           color: 'var(--text-success, #1b7a43)',
         }}
       >
-        🧪 자동 QA 통과 — {result.notes}
+        🧪 Auto QA passed — {result.notes}
       </div>
     );
   }
@@ -1615,7 +1615,7 @@ function QaAutoResultBanner({
       }}
     >
       <span style={{ flex: 1 }}>
-        <strong>🧪 자동 QA 실패</strong>
+        <strong>🧪 Auto QA failed</strong>
         <span
           style={{
             display: 'block',
@@ -1642,9 +1642,9 @@ function QaAutoResultBanner({
           fontWeight: 600,
           whiteSpace: 'nowrap',
         }}
-        title="자동 QA를 다시 실행합니다 (작업은 그대로 두고 검증만 재시도)"
+        title="Re-run auto QA (keeps the work as-is, retries verification only)"
       >
-        🔁 재실행
+        🔁 Re-run
       </button>
     </div>
   );
@@ -1670,7 +1670,7 @@ function PlanRisksBlock({ risks }: { risks: string[] }) {
         color: 'var(--text-warn, #8a5a00)',
       }}
     >
-      <strong>⚠️ 주의사항</strong>
+      <strong>⚠️ Cautions</strong>
       <ol
         style={{
           margin: '4px 0 0',
@@ -1717,7 +1717,7 @@ function PlanQaStrategyLine({
           color: 'var(--text-secondary)',
         }}
       >
-        🧪 검증 전략 자동 선택 중…
+        🧪 Auto-selecting verification strategy…
       </div>
     );
   }
@@ -1737,7 +1737,7 @@ function PlanQaStrategyLine({
         color: 'var(--text-info, #1453b6)',
       }}
     >
-      <strong>🧪 검증 단계:</strong> {meta.label}
+      <strong>🧪 Verification:</strong> {meta.label}
       {rationale && (
         <span
           style={{

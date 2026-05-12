@@ -138,7 +138,7 @@ export async function postChangeRequest(
     data = await resp.json();
   } catch {
     throw new OrchestratorError(
-      `change-request 응답 파싱 실패 (HTTP ${resp.status})`,
+      `Failed to parse change-request response (HTTP ${resp.status})`,
       resp.status,
     );
   }
@@ -212,7 +212,7 @@ export async function postGenerateVariations(input: {
     data = await resp.json();
   } catch {
     throw new OrchestratorError(
-      `generate-variations 응답 파싱 실패 (HTTP ${resp.status})`,
+      `Failed to parse generate-variations response (HTTP ${resp.status})`,
       resp.status,
     );
   }
@@ -278,7 +278,7 @@ export async function postChat(
     data = await resp.json();
   } catch {
     throw new OrchestratorError(
-      `Orchestrator 응답 파싱 실패 (HTTP ${resp.status})`,
+      `Failed to parse Orchestrator response (HTTP ${resp.status})`,
       resp.status,
     );
   }

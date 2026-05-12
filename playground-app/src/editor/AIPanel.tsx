@@ -256,7 +256,7 @@ export const AIPanel = React.memo(function AIPanel({
     async (m: ChatMessage, opts?: { userPromptOverride?: string }) => {
       if (!m.plan) return;
       if (!playgroundId) {
-        setError('Playground가 선택되지 않았습니다.');
+        setError('No Playground selected.');
         return;
       }
       const plan = m.plan;
@@ -290,7 +290,7 @@ export const AIPanel = React.memo(function AIPanel({
         usePlaygroundStore.getState().current?.id === sentPlaygroundId;
 
       const execMsg = addAssistantMessage({
-        content: '샌드박스에서 실행 시작…',
+        content: 'Starting execution in sandbox…',
         execution: {
           requestId: '',
           status: 'processing',
@@ -366,10 +366,10 @@ export const AIPanel = React.memo(function AIPanel({
       } catch (err) {
         const msg =
           err instanceof OrchestratorError
-            ? `실행 요청 실패: ${err.message}`
+            ? `Execution request failed: ${err.message}`
             : err instanceof Error
               ? err.message
-              : '실행 요청 실패';
+              : 'Execution request failed';
         updateExecution(execMsg.id, {
           status: 'error',
           phase: 'error',
@@ -398,7 +398,7 @@ export const AIPanel = React.memo(function AIPanel({
     async (m: ChatMessage, feedback: string): Promise<void> => {
       if (!m.plan) return;
       const trimmed = feedback.trim();
-      if (!trimmed) throw new Error('피드백을 입력하세요');
+      if (!trimmed) throw new Error('Please enter feedback');
 
       const history = usePlaygroundStore.getState().messages;
       const idx = history.findIndex((x) => x.id === m.id);
@@ -407,7 +407,7 @@ export const AIPanel = React.memo(function AIPanel({
         .find((x) => x.role === 'user');
       const goal =
         priorUser?.content ?? m.plan.meta.summary ?? m.content ?? '';
-      if (!goal.trim()) throw new Error('원래 PRD 를 찾을 수 없습니다');
+      if (!goal.trim()) throw new Error('Could not find the original PRD');
 
       const targetClient: TargetClient =
         ((playgroundClient as TargetClient | null) ??
@@ -495,7 +495,7 @@ export const AIPanel = React.memo(function AIPanel({
         setCurrent(pg);
       } catch (err) {
         console.error('[AIPanel] checkout failed', err);
-        setError(err instanceof Error ? err.message : '시점 복원 실패');
+        setError(err instanceof Error ? err.message : 'Failed to restore checkpoint');
       }
     },
     [playgroundId, setCurrent, setError],
@@ -504,9 +504,9 @@ export const AIPanel = React.memo(function AIPanel({
   const handleRestoreToSha = useCallback(
     async (sha: string, labelHint?: string) => {
       if (!playgroundId) return;
-      const label = labelHint ?? `체크포인트 ${sha.slice(0, 7)}`;
+      const label = labelHint ?? `Checkpoint ${sha.slice(0, 7)}`;
       const ok = window.confirm(
-        `"${label}" 로 되돌릴까요?\n\n이 체크포인트 이후의 변경은 Restore 커밋으로 되돌려집니다 (히스토리는 유지됩니다).`,
+        `Restore to "${label}"?\n\nChanges after this checkpoint will be reverted via a Restore commit (history is preserved).`,
       );
       if (!ok) return;
       try {
@@ -514,7 +514,7 @@ export const AIPanel = React.memo(function AIPanel({
         setCurrent(pg);
       } catch (err) {
         console.error('[AIPanel] restore-to-sha failed', err);
-        setError(err instanceof Error ? err.message : 'Restore 실패');
+        setError(err instanceof Error ? err.message : 'Restore failed');
       }
     },
     [playgroundId, setCurrent, setError],
@@ -700,11 +700,11 @@ export const AIPanel = React.memo(function AIPanel({
           const msg =
             err instanceof OrchestratorError
               ? err.status === 503
-                ? 'AI 서비스 미설정 — ANTHROPIC_API_KEY 설정 후 orchestrator 재시작.'
-                : `Intake 실패: ${err.message}`
+                ? 'AI service not configured — set ANTHROPIC_API_KEY and restart the orchestrator.'
+                : `Intake failed: ${err.message}`
               : err instanceof Error
                 ? err.message
-                : 'Intake 실패';
+                : 'Intake failed';
           console.error('[AIPanel] postIntake failed:', err);
           addAssistantMessage({ content: `⚠️ ${msg}` });
           setError(msg);
@@ -714,25 +714,25 @@ export const AIPanel = React.memo(function AIPanel({
         switch (result.kind) {
           case 'chat':
             addAssistantMessage({
-              content: result.response ?? '(빈 응답)',
+              content: result.response ?? '(empty response)',
               kind: 'chat',
             });
             break;
           case 'status_query':
             addAssistantMessage({
-              content: result.response ?? '(빈 응답)',
+              content: result.response ?? '(empty response)',
               kind: 'status_query',
             });
             break;
           case 'lifecycle_action':
             addAssistantMessage({
-              content: result.response ?? '(빈 응답)',
+              content: result.response ?? '(empty response)',
               kind: 'lifecycle_action',
             });
             break;
           case 'code_change_ambiguous':
             addAssistantMessage({
-              content: `🤔 ${result.clarifyingQuestion ?? '추가 정보를 알려주세요.'}`,
+              content: `🤔 ${result.clarifyingQuestion ?? 'Could you provide more details?'}`,
               kind: 'code_change_ambiguous',
               clarifyingQuestion: result.clarifyingQuestion,
             });
@@ -740,12 +740,12 @@ export const AIPanel = React.memo(function AIPanel({
           case 'plan_emit':
             if (result.plan) {
               addAssistantMessage({
-                content: result.plan.summary || '아래 계획으로 진행 가능합니다:',
+                content: result.plan.summary || 'Here is a plan we can proceed with:',
                 plan: rawToPlan(result.plan),
                 kind: 'plan_emit',
               });
             } else {
-              addAssistantMessage({ content: '계획이 준비됐어요.', kind: 'plan_emit' });
+              addAssistantMessage({ content: 'Plan is ready.', kind: 'plan_emit' });
             }
             break;
           case 'job_dispatched': {
@@ -762,14 +762,14 @@ export const AIPanel = React.memo(function AIPanel({
             if (!planMsg?.plan) {
               addAssistantMessage({
                 content:
-                  '⚠️ 승인된 계획을 찾지 못했어요. plan 카드의 승인 버튼을 사용해주세요.',
+                  '⚠️ Could not find an approved plan. Please use the Approve button on the plan card.',
                 kind: 'job_dispatched',
               });
               break;
             }
             updateMessage(planMsg.id, { planResolved: 'accepted' });
             addAssistantMessage({
-              content: '✅ 계획 승인 — 잡을 시작합니다.',
+              content: '✅ Plan approved — starting job.',
               kind: 'job_dispatched',
             });
             // cumulativePrd 가 있으면 priorUser ("이대로") 대신 사용 —
@@ -782,7 +782,7 @@ export const AIPanel = React.memo(function AIPanel({
             // emitPlan 실패 등). plan 카드 없으니 사용자에게 그렇게 안내.
             addAssistantMessage({
               content:
-                'PRD 가 명확합니다. 다만 지금은 plan 카드를 만들 수 없어요. 잠시 후 다시 같은 요청을 보내주세요 (또는 좀 더 구체적으로 적어주시면 plan 이 바로 떠요).',
+                'The PRD is clear, but a plan card cannot be created right now. Please try the same request again shortly (or describe it more specifically to get a plan right away).',
               kind: 'code_change_clear',
             });
             break;
@@ -791,21 +791,21 @@ export const AIPanel = React.memo(function AIPanel({
             // 찾아서 redecomposePlan(feedback) 호출. button "다시 계획" 흐름과 동등.
             if (pendingPlanMsg) {
               addAssistantMessage({
-                content: '✏️ 피드백 반영해서 plan 다시 만드는 중...',
+                content: '✏️ Incorporating feedback and rebuilding plan...',
                 kind: 'plan_feedback',
               });
               const feedback = result.feedback ?? trimmed;
               redecomposePlan(pendingPlanMsg, feedback).catch((err) => {
                 console.error('[AIPanel] plan_feedback redecomposePlan failed:', err);
                 addAssistantMessage({
-                  content: `⚠️ 다시 계획 실패: ${err instanceof Error ? err.message : String(err)}`,
+                  content: `⚠️ Re-plan failed: ${err instanceof Error ? err.message : String(err)}`,
                 });
               });
             } else {
               // hasPendingPlan 이 false 였으면 backend classifier 가 chat 으로
               // downgrade 했을 텐데, 혹시 race 로 여기 도달하면 chat 폴백.
               addAssistantMessage({
-                content: '⚠️ 수정할 plan 카드가 사라졌어요. 새 PRD 로 다시 요청해 주세요.',
+                content: '⚠️ The plan card to revise has gone. Please start a new PRD request.',
                 kind: 'chat',
               });
             }
@@ -822,7 +822,7 @@ export const AIPanel = React.memo(function AIPanel({
       const dispatch = await mollyClassifyAndDispatch(trimmed, true);
       if (dispatch && (dispatch.kind === 'chat' || dispatch.kind === 'status_query')) {
         if (!isStillActive()) return;
-        addAssistantMessage({ content: dispatch.response ?? '(빈 응답)' });
+        addAssistantMessage({ content: dispatch.response ?? '(empty response)' });
         return;
       }
 
@@ -832,7 +832,7 @@ export const AIPanel = React.memo(function AIPanel({
         addAssistantMessage({ content: reply.content });
       } else {
         addAssistantMessage({
-          content: reply.content || '아래 계획으로 진행 가능합니다:',
+          content: reply.content || 'Here is a plan we can proceed with:',
           plan: rawToPlan(reply.plan),
         });
       }
@@ -841,11 +841,11 @@ export const AIPanel = React.memo(function AIPanel({
       const msg =
         err instanceof OrchestratorError
           ? err.status === 503
-            ? 'AI 서비스 미설정 — ANTHROPIC_API_KEY 설정 후 orchestrator 재시작.'
-            : `AI 응답 실패: ${err.message}`
+            ? 'AI service not configured — set ANTHROPIC_API_KEY and restart the orchestrator.'
+            : `AI response failed: ${err.message}`
           : err instanceof Error
             ? err.message
-            : 'AI 응답 실패';
+            : 'AI response failed';
       console.error('[AIPanel] chat failed:', err);
       addAssistantMessage({ content: `⚠️ ${msg}` });
       setError(msg);
@@ -867,15 +867,15 @@ export const AIPanel = React.memo(function AIPanel({
 
   const handleSendCommentToMolly = useCallback(
     (pin: PinComment) => {
-      const parts: string[] = ['[코멘트 기반 요청]', pin.text?.trim() || ''];
+      const parts: string[] = ['[Comment-based request]', pin.text?.trim() || ''];
       const target =
         pin.element?.label ??
         pin.element?.testId ??
         pin.element?.displayName ??
         pin.route ??
         `(${pin.x}, ${pin.y})`;
-      parts.push('', `대상: ${target}`);
-      if (pin.element?.sourceFile) parts.push(`파일: ${pin.element.sourceFile}`);
+      parts.push('', `Target: ${target}`);
+      if (pin.element?.sourceFile) parts.push(`File: ${pin.element.sourceFile}`);
       if (pin.route && pin.route !== target) parts.push(`Route: ${pin.route}`);
       const prd = parts.join('\n');
       setActiveTab('chat');
@@ -906,8 +906,8 @@ export const AIPanel = React.memo(function AIPanel({
       {
         id: 'pick',
         title: pickActive
-          ? '요소 선택 모드 끄기'
-          : '요소 선택 — 화면 위 요소를 클릭해서 컨텍스트 첨부',
+          ? 'Turn off element selection mode'
+          : 'Element selection — click an element on the screen to attach context',
         active: pickActive,
         onClick: () => setIframeMode(pickActive ? 'interactive' : 'pick'),
         // Crosshair — matches the Chrome extension's inspect toggle icon
@@ -934,7 +934,7 @@ export const AIPanel = React.memo(function AIPanel({
       },
       {
         id: 'attach',
-        title: 'PRD 첨부 — 텍스트 / Google Docs / Jira 링크로 job 시작',
+        title: 'Attach PRD — start a job from text / Google Docs / Jira link',
         disabled: !playgroundId,
         onClick: () => setPrdModalOpen(true),
         icon: (
@@ -1019,7 +1019,7 @@ export const AIPanel = React.memo(function AIPanel({
             <button
               type="button"
               onClick={onShowHistory}
-              title="이 플레이그라운드의 변경 히스토리를 봅니다"
+              title="View change history for this Playground"
               style={{
                 padding: '4px 9px',
                 fontSize: 12,
@@ -1031,7 +1031,7 @@ export const AIPanel = React.memo(function AIPanel({
                 whiteSpace: 'nowrap',
               }}
             >
-              📜 히스토리
+              📜 History
             </button>
           )}
         </div>
@@ -1078,8 +1078,8 @@ export const AIPanel = React.memo(function AIPanel({
             <button
               type="button"
               onClick={reset}
-              title="새 대화"
-              aria-label="새 대화"
+              title="New conversation"
+              aria-label="New conversation"
               style={{
                 border: 'none',
                 background: 'transparent',
@@ -1216,16 +1216,16 @@ export const AIPanel = React.memo(function AIPanel({
             value={input}
             placeholder={
               isEmpty
-                ? '무엇을 만들고 싶으세요? (예: TVING nav에 Moloco Ads 섹션 추가)'
-                : '메시지 보내기...'
+                ? 'What would you like to build? (e.g. Add a Moloco Ads section to TVING nav)'
+                : 'Send a message...'
             }
             onChange={setInput}
             onSubmit={handleSend}
             canSubmit={canSubmit}
             disabled={isSending || !playgroundId}
             toolbarButtons={toolbarButtons}
-            hint="Enter 전송 · Shift+Enter 줄바꿈"
-            sendLabel={isSending ? '⋯' : '전송'}
+            hint="Enter to send · Shift+Enter for new line"
+            sendLabel={isSending ? '⋯' : 'Send'}
             aboveInput={
               <>
                 {isTimeTravel && (
@@ -1245,11 +1245,11 @@ export const AIPanel = React.memo(function AIPanel({
                   >
                     <span aria-hidden>🕐</span>
                     <span style={{ flex: 1, minWidth: 0 }}>
-                      과거 시점 미리보기 중 — 새 요청은{' '}
+                      Viewing a past checkpoint — new requests are available in the{' '}
                       <strong style={{ color: 'var(--text-primary)' }}>
-                        작업중
+                        Working
                       </strong>{' '}
-                      탭에서 가능합니다
+                      tab
                     </span>
                   </div>
                 )}
@@ -1322,7 +1322,7 @@ export const AIPanel = React.memo(function AIPanel({
             // into additional chat messages afterwards. The content
             // acts as a brief one-liner above the card.
             addAssistantMessage({
-              content: 'PRD 를 받았어요. 작업을 나눠서 진행할게요.',
+              content: 'PRD received. Breaking it into tasks.',
               jobId: job.id,
             });
           }}
@@ -1414,17 +1414,17 @@ function PrdModal({
         }}
       >
         <h2 id="prd-modal-title" style={{ margin: 0, fontSize: 15 }}>
-          PRD 로 job 시작
+          Start a job from PRD
         </h2>
         <p style={{ margin: 0, fontSize: 12, color: 'var(--text-tertiary)' }}>
-          큰 요구사항을 붙여 넣으면 AI 가 작은 태스크로 쪼갭니다. 각 태스크는
-          샌드박스에서 순차 실행되고, 커밋 diff 는 LLM 이 검토합니다.
+          Paste a large requirement and the AI will break it into smaller tasks. Each task
+          runs sequentially in the sandbox and commit diffs are reviewed by the LLM.
         </p>
         <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border-primary)' }}>
           {([
-            ['text', '텍스트'],
+            ['text', 'Text'],
             ['gdoc', 'Google Docs'],
-            ['jira', 'Jira 티켓'],
+            ['jira', 'Jira ticket'],
           ] as const).map(([key, label]) => (
             <button
               key={key}
@@ -1452,7 +1452,7 @@ function PrdModal({
             autoFocus
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="PRD 전문을 붙여넣으세요..."
+            placeholder="Paste the full PRD here..."
             rows={10}
             style={textareaStyle}
           />
@@ -1479,14 +1479,13 @@ function PrdModal({
               }}
             />
             <p style={{ margin: 0, fontSize: 10, color: 'var(--text-tertiary)' }}>
-              v0은 링크를 자동으로 열지 못합니다 (Google/Atlassian OAuth 미지원). URL
-              과 아래 메모만 AI 에 전달됩니다. 필요하면 문서 내용을 복붙해서 메모에
-              넣어주세요.
+              v0 cannot open links automatically (Google/Atlassian OAuth not supported). Only the URL
+              and notes below are sent to the AI. If needed, paste the document content into the notes.
             </p>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="선택: 문서 요약이나 핵심 발췌"
+              placeholder="Optional: document summary or key excerpts"
               rows={6}
               style={textareaStyle}
             />
@@ -1511,7 +1510,7 @@ function PrdModal({
               fontFamily: 'inherit',
             }}
           >
-            취소
+            Cancel
           </button>
           <button
             type="button"
@@ -1539,7 +1538,7 @@ function PrdModal({
               fontFamily: 'inherit',
             }}
           >
-            {submitting ? '생성 중…' : '시작'}
+            {submitting ? 'Creating…' : 'Start'}
           </button>
         </div>
       </div>
@@ -1569,7 +1568,7 @@ function formatElementContext(el: BridgeElementContext): string {
     el.selector ??
     '?';
   const suffix = el.sourceFile ? ` @ ${el.sourceFile}` : '';
-  return `[선택된 요소: ${name}${suffix}]`;
+  return `[Selected element: ${name}${suffix}]`;
 }
 
 // ── Sub-components ─────────────────────────────────────────
@@ -1586,7 +1585,7 @@ function PickedElementChip({
     element.displayName ??
     (element.testId ? `[${element.testId}]` : undefined) ??
     element.selector ??
-    '선택된 요소';
+    'Selected element';
   // Shorten source file to last two path segments for a chip-scale hint.
   const shortSource = element.sourceFile
     ? (() => {
@@ -1630,8 +1629,8 @@ function PickedElementChip({
         <button
           type="button"
           onClick={onClear}
-          aria-label="선택 해제"
-          title="선택 해제"
+          aria-label="Clear selection"
+          title="Clear selection"
           style={{
             background: 'none',
             border: 'none',
@@ -1734,7 +1733,7 @@ function CommentsList({
 
   if (!playgroundId) {
     return (
-      <div style={commentsEmptyStyle}>Playground가 선택되지 않았습니다.</div>
+      <div style={commentsEmptyStyle}>No Playground selected.</div>
     );
   }
 
@@ -1742,13 +1741,13 @@ function CommentsList({
     return (
       <div style={commentsEmptyStyle}>
         <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-          아직 댓글이 없습니다.
+          No comments yet.
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 6, lineHeight: 1.5 }}>
-          우측 iframe에서 <strong style={{ color: 'var(--text-primary)' }}>📍 Pin</strong> 모드로 전환 후
-          원하는 위치를 클릭해 댓글을 남겨보세요.
+          Switch to <strong style={{ color: 'var(--text-primary)' }}>📍 Pin</strong> mode in the iframe on the right,
+          then click anywhere to leave a comment.
           <br />
-          컴포넌트 단위 타겟팅은 M3 Vite 플러그인 picker에서 연결될 예정입니다.
+          Component-level targeting will be connected via the M3 Vite plugin picker.
         </div>
       </div>
     );
@@ -1905,7 +1904,7 @@ function CommentRow({
         <textarea
           autoFocus
           defaultValue={pin.text}
-          placeholder="메모"
+          placeholder="Note"
           onKeyDown={(e) => {
             if (e.key === 'Escape') (e.target as HTMLTextAreaElement).blur();
           }}
@@ -1928,7 +1927,7 @@ function CommentRow({
             minHeight: 18,
           }}
         >
-          {pin.text || '메모 추가…'}
+          {pin.text || 'Add a note…'}
         </div>
       )}
 
@@ -1990,7 +1989,7 @@ function CommentRow({
             onClick={() => setComposeOpen((v) => !v)}
             style={linkButtonStyle}
           >
-            💬 댓글{replyCount > 0 ? ` ${replyCount}` : ''}
+            💬 Reply{replyCount > 0 ? ` ${replyCount}` : ''}
           </button>
         )}
         <button
@@ -1998,7 +1997,7 @@ function CommentRow({
           onClick={onToggleResolved}
           style={linkButtonStyle}
         >
-          {resolved ? '↺ 다시 열기' : '✓ 해결'}
+          {resolved ? '↺ Reopen' : '✓ Resolve'}
         </button>
         <span style={{ flex: 1 }} />
         <button
@@ -2016,17 +2015,17 @@ function CommentRow({
             cursor: 'pointer',
             color: 'var(--text-secondary)',
           }}
-          title="이 코멘트를 PRD 로 변환해 Molly 에 작업 요청"
+          title="Convert this comment to a PRD and send a request to Molly"
           disabled={!pin.text?.trim()}
         >
-          🤖 Molly 에 작업 요청
+          🤖 Ask Molly
         </button>
         <button
           type="button"
           onClick={onDelete}
           style={{ ...linkButtonStyle, color: 'var(--error)' }}
         >
-          삭제
+          Delete
         </button>
       </div>
     </div>
@@ -2065,7 +2064,7 @@ function ReplyRow({
             fontSize: 10,
             padding: 0,
           }}
-          title="댓글 삭제"
+          title="Delete reply"
         >
           ✕
         </button>
@@ -2122,7 +2121,7 @@ function ReplyCompose({
         autoFocus
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="댓글 입력…"
+        placeholder="Add a reply…"
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -2136,7 +2135,7 @@ function ReplyCompose({
       />
       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
         <button type="button" onClick={onCancel} style={linkButtonStyle}>
-          취소
+          Cancel
         </button>
         <button
           type="button"
@@ -2154,7 +2153,7 @@ function ReplyCompose({
             fontFamily: 'inherit',
           }}
         >
-          전송
+          Send
         </button>
       </div>
     </div>
@@ -2189,11 +2188,11 @@ const linkButtonStyle: React.CSSProperties = {
 function formatWhen(ts: number) {
   const diffMs = Date.now() - ts;
   const min = Math.floor(diffMs / 60_000);
-  if (min < 1) return '방금';
-  if (min < 60) return `${min}분 전`;
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}시간 전`;
-  return new Date(ts).toLocaleDateString();
+  if (hr < 24) return `${hr}h ago`;
+  return new Date(ts).toLocaleDateString('en-US');
 }
 
 const commentsEmptyStyle: React.CSSProperties = {
@@ -2258,12 +2257,12 @@ function ArchivedGroup({ messages }: { messages: ChatMessage[] }) {
       >
         <span aria-hidden>📦</span>
         <span style={{ fontWeight: 600 }}>
-          보관된 이전 작업 · {messages.length}개 메시지
+          Archived work · {messages.length} messages
         </span>
         {durationMs > 0 && (
           <span>({formatDurationLabel(durationMs)})</span>
         )}
-        <span style={{ marginLeft: 'auto', fontSize: 10 }}>{open ? '▾ 접기' : '▸ 펼치기'}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 10 }}>{open ? '▾ Collapse' : '▸ Expand'}</span>
       </button>
       {open && (
         <div
@@ -2278,7 +2277,7 @@ function ArchivedGroup({ messages }: { messages: ChatMessage[] }) {
             <div
               key={m.id}
               style={{ opacity: 0.6 }}
-              title="보관된 이전 작업 — 현재 작업 트리에는 반영되지 않음"
+              title="Archived work — not reflected in the current working tree"
             >
               {/* Shallow render — just content text, no actions. Users
                   who need to dig in can copy the prompt into a fresh
@@ -2300,18 +2299,18 @@ function ArchivedGroup({ messages }: { messages: ChatMessage[] }) {
 
 function formatDurationLabel(ms: number): string {
   const mins = Math.round(ms / 60_000);
-  if (mins < 1) return '<1분';
-  if (mins < 60) return `${mins}분`;
+  if (mins < 1) return '<1m';
+  if (mins < 60) return `${mins}m`;
   const hours = Math.floor(mins / 60);
   const remMins = mins % 60;
-  return remMins ? `${hours}시간 ${remMins}분` : `${hours}시간`;
+  return remMins ? `${hours}h ${remMins}m` : `${hours}h`;
 }
 
 function EmptyState() {
   const suggestions = [
-    'TVING Ad System nav에 Moloco Ads 섹션 추가',
-    '경매형 주문 페이지에 대량 상태 변경 기능 추가',
-    '광고 소재 리뷰 페이지 컬럼 정리',
+    'Add Moloco Ads section to TVING Ad System nav',
+    'Add bulk status change to auction order page',
+    'Clean up columns on ad creative review page',
   ];
 
   const pickSuggestion = (s: string) => {
@@ -2370,12 +2369,12 @@ function EmptyState() {
             marginBottom: 6,
           }}
         >
-          무엇을 만들어 볼까요?
+          What would you like to build?
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-          Jira 티켓·PRD 링크를 붙이거나, 바꾸고 싶은 것을 자연어로 설명해 주세요.
+          Paste a Jira ticket or PRD link, or describe what you want to change in plain language.
           <br />
-          AI가 DS 패턴 기반으로 계획을 세워드립니다.
+          AI will create a plan based on DS patterns.
         </div>
       </div>
 
@@ -2391,7 +2390,7 @@ function EmptyState() {
             textAlign: 'left',
           }}
         >
-          예시
+          Examples
         </div>
         {suggestions.map((s) => (
           <button
@@ -2461,12 +2460,12 @@ function CommentInlineCard({
         alignItems: 'flex-start',
         cursor: 'pointer',
       }}
-      title="클릭해서 iframe 에서 위치 확인"
+      title="Click to locate in iframe"
     >
       <span style={{ fontSize: 14, flex: '0 0 auto' }}>💬</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 500, overflowWrap: 'anywhere', lineHeight: 1.4 }}>
-          {pin.text || '(내용 없음)'}
+          {pin.text || '(no content)'}
         </div>
         <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>
           {target} · {when}
@@ -2489,7 +2488,7 @@ function CommentInlineCard({
           opacity: pin.text?.trim() ? 1 : 0.4,
           flex: '0 0 auto',
         }}
-        title="이 코멘트를 PRD 로 변환해 Molly 에 작업 요청"
+        title="Convert this comment to a PRD and send to Molly"
       >
         🤖
       </button>
@@ -2546,7 +2545,7 @@ function MessageRow({
         opacity: dimmed ? 0.45 : 1,
         transition: 'opacity 120ms ease-out',
       }}
-      title={dimmed ? '과거 시점으로 돌아간 뒤에 생성된 항목 — 현재 작업 트리에는 없음' : undefined}
+      title={dimmed ? 'Created after rewinding to a past point — not in the current working tree' : undefined}
     >
       {showContent && (
         isUser ? (
@@ -2794,7 +2793,7 @@ function UserBubbleAttachmentChip({ element }: { element: BridgeElementContext }
     element.displayName ??
     (element.testId ? `[${element.testId}]` : undefined) ??
     element.selector ??
-    '선택된 요소';
+    'Selected element';
   const shortSource = element.sourceFile
     ? element.sourceFile.split('/').slice(-2).join('/')
     : null;
@@ -2905,7 +2904,7 @@ function AssistantBubble({
                 marginBottom: 2,
               }}
             >
-              옵션 선택
+              Select an option
             </div>
             {choices.map((c) => (
               <button
@@ -3046,7 +3045,7 @@ function PlanCard({
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         <Chip label={plan.meta.intent} color="accent" />
         {isFastTrackIntent(plan.meta.intent) && (
-          <Chip label="⚡ 빠른 실행" color="accent" />
+          <Chip label="⚡ Fast track" color="accent" />
         )}
         {plan.meta.targetClient && <Chip label={plan.meta.targetClient} />}
         {plan.meta.targetRoute && <Chip label={plan.meta.targetRoute} />}
@@ -3071,7 +3070,7 @@ function PlanCard({
       )}
 
       <CardSectionLabel>
-        계획 ({enabledCount}/{plan.items.length})
+        Plan ({enabledCount}/{plan.items.length})
       </CardSectionLabel>
       <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {plan.items.map((item) => (
@@ -3207,13 +3206,13 @@ function PlanCard({
               }}
             >
               <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                어떻게 수정할까요? (예: "3번째 항목은 X 대신 Y 로 해줘")
+                How would you like to revise? (e.g. "Use Y instead of X for item 3")
               </div>
               <textarea
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
                 disabled={submitting}
-                placeholder="피드백을 자유롭게 입력하세요..."
+                placeholder="Enter your feedback freely..."
                 rows={3}
                 style={{
                   fontSize: 12,
@@ -3248,7 +3247,7 @@ function PlanCard({
                     color: 'var(--text-secondary)',
                   }}
                 >
-                  닫기
+                  Close
                 </button>
                 <button
                   onClick={submitRedecompose}
@@ -3271,7 +3270,7 @@ function PlanCard({
                     fontWeight: 600,
                   }}
                 >
-                  {submitting ? '재생성 중…' : '다시 만들기'}
+                  {submitting ? 'Regenerating…' : 'Regenerate'}
                 </button>
               </div>
             </div>
@@ -3290,7 +3289,7 @@ function PlanCard({
                 color: 'var(--text-secondary)',
               }}
             >
-              취소
+              Cancel
             </button>
             {onRedecompose && (
               <button
@@ -3310,9 +3309,9 @@ function PlanCard({
                   fontSize: 12,
                   color: 'var(--text-secondary)',
                 }}
-                title="피드백을 주고 plan 을 다시 만듭니다"
+                title="Provide feedback and regenerate the plan"
               >
-                ✏️ 다시 계획
+                ✏️ Re-plan
               </button>
             )}
             <button
@@ -3336,7 +3335,7 @@ function PlanCard({
                 fontWeight: 600,
               }}
             >
-              실행하기 →
+              Run →
             </button>
           </div>
         </>
@@ -3349,7 +3348,7 @@ function PlanCard({
             fontWeight: 500,
           }}
         >
-          {resolved === 'accepted' ? '✓ 승인됨' : '✕ 거부됨'}
+          {resolved === 'accepted' ? '✓ Accepted' : '✕ Rejected'}
         </div>
       )}
     </Card>
@@ -3357,20 +3356,20 @@ function PlanCard({
 }
 
 const PHASE_LABELS: Record<string, string> = {
-  queued: '대기',
-  starting_agent: '에이전트 시작',
-  syncing_source: '소스 동기화',
-  running_agent: 'AI 실행',
-  collecting_diff: '변경 수집',
-  capturing_screenshot: '스크린샷 캡처',
-  applying_local_patch: '패치 적용',
-  verifying: '타입 검증 중',
-  verification_retry: '재시도 중 (검증 실패)',
-  verification_failed: '검증 실패',
-  preview_ready: '완료',
-  no_change_needed: '변경 불필요',
-  pipeline_error: '파이프라인 오류',
-  error: '오류',
+  queued: 'Queued',
+  starting_agent: 'Starting agent',
+  syncing_source: 'Syncing source',
+  running_agent: 'Running AI',
+  collecting_diff: 'Collecting diff',
+  capturing_screenshot: 'Capturing screenshot',
+  applying_local_patch: 'Applying patch',
+  verifying: 'Verifying types',
+  verification_retry: 'Retrying (verification failed)',
+  verification_failed: 'Verification failed',
+  preview_ready: 'Done',
+  no_change_needed: 'No change needed',
+  pipeline_error: 'Pipeline error',
+  error: 'Error',
 };
 function ExecutionCard({
   execution,
@@ -3413,12 +3412,12 @@ function ExecutionCard({
   const [historyOpen, setHistoryOpen] = useState(!done && !errored);
 
   const phaseLabel = errored
-    ? '실행 실패'
+    ? 'Run failed'
     : done
-      ? '실행 완료'
+      ? 'Run complete'
       : execution.phase
         ? (PHASE_LABELS[execution.phase] ?? execution.phase)
-        : '대기';
+        : 'Queued';
 
   const accent = errored
     ? 'var(--error)'
@@ -3477,7 +3476,7 @@ function ExecutionCard({
         >
           {phaseLabel}
           {execution.changedFiles && execution.changedFiles.length > 0
-            ? ` · ${execution.changedFiles.length}개 파일`
+            ? ` · ${execution.changedFiles.length} files`
             : ''}
         </span>
         {execution.requestId && (
@@ -3602,7 +3601,7 @@ function ExecutionCard({
                     textDecoration: 'none',
                   }}
                 >
-                  diff 보기 →
+                  View diff →
                 </a>
               )}
             </div>
@@ -3617,7 +3616,7 @@ function ExecutionCard({
               ⚑
             </span>
             {checkpointNumber != null
-              ? `체크포인트 ${checkpointNumber}`
+              ? `Checkpoint ${checkpointNumber}`
               : 'Checkpoint'}
           </span>
           <code style={checkpointShaStyle}>
@@ -3643,22 +3642,22 @@ function ExecutionCard({
                 textTransform: 'uppercase',
                 letterSpacing: 0.5,
               }}
-              title="이 체크포인트로 복원된 상태 — 이후 메시지는 현재 작업 트리에 반영되지 않습니다."
+              title="Restored to this checkpoint — subsequent messages are not reflected in the current working tree."
             >
               ↺ Restored
             </span>
           ) : (
             <>
               {isCurrent ? (
-                <span style={checkpointCurrentBadgeStyle}>작업중</span>
+                <span style={checkpointCurrentBadgeStyle}>Working</span>
               ) : canRewind ? (
                 <button
                   type="button"
                   onClick={() => onCheckoutCommit(execution.commitSha!)}
                   style={checkpointGhostButtonStyle}
-                  title="이 체크포인트를 미리 봅니다 (복원 아님)"
+                  title="Preview this checkpoint (not a restore)"
                 >
-                  보기
+                  View
                 </button>
               ) : null}
               {execution.requestId && (
@@ -3667,7 +3666,7 @@ function ExecutionCard({
                   target="_blank"
                   rel="noreferrer"
                   style={checkpointGhostLinkStyle}
-                  title="대시보드에서 이 요청의 변경 내역 상세"
+                  title="View change details for this request in the dashboard"
                   onClick={(e) => e.stopPropagation()}
                 >
                   View changes ↗
@@ -3680,12 +3679,12 @@ function ExecutionCard({
                     onRestoreToSha(
                       execution.commitSha!,
                       checkpointNumber != null
-                        ? `체크포인트 ${checkpointNumber}`
+                        ? `Checkpoint ${checkpointNumber}`
                         : undefined,
                     )
                   }
                   style={checkpointRestoreButtonStyle}
-                  title="이 체크포인트 이후의 변경을 되돌립니다 (히스토리는 유지됨)"
+                  title="Revert changes after this checkpoint (history is preserved)"
                 >
                   ↺ Restore
                 </button>
@@ -3887,7 +3886,7 @@ function PhaseMarker({ state }: { state: 'done' | 'current' | 'pending' | 'error
           fontWeight: 700,
           flex: '0 0 auto',
         }}
-        aria-label="완료"
+        aria-label="Done"
       >
         ✓
       </div>
@@ -3905,7 +3904,7 @@ function PhaseMarker({ state }: { state: 'done' | 'current' | 'pending' | 'error
           animation: 'spin 1s linear infinite',
           flex: '0 0 auto',
         }}
-        aria-label="진행 중"
+        aria-label="In progress"
       />
     );
   }
@@ -3925,7 +3924,7 @@ function PhaseMarker({ state }: { state: 'done' | 'current' | 'pending' | 'error
           fontWeight: 700,
           flex: '0 0 auto',
         }}
-        aria-label="실패"
+        aria-label="Failed"
       >
         ×
       </div>
@@ -3941,7 +3940,7 @@ function PhaseMarker({ state }: { state: 'done' | 'current' | 'pending' | 'error
         background: 'var(--bg-primary)',
         flex: '0 0 auto',
       }}
-      aria-label="대기"
+      aria-label="Queued"
     />
   );
 }
@@ -4003,10 +4002,10 @@ const timelineLogStyle: React.CSSProperties = {
 //   8s    "응답 정리 중... (10-20초)"    plan emit OR 긴 응답 단계
 //   20s   "조금만 더 기다려 주세요..."   timeout 가까워졌을 때
 const TYPING_PHASES = [
-  { atMs: 0, label: 'molly 가 살펴보고 있어요' },
-  { atMs: 2000, label: '맥락 분석 중...' },
-  { atMs: 8000, label: '응답 정리 중... (10-20초)' },
-  { atMs: 20000, label: '조금만 더 기다려 주세요...' },
+  { atMs: 0, label: 'Molly is looking into it' },
+  { atMs: 2000, label: 'Analyzing context...' },
+  { atMs: 8000, label: 'Preparing response... (10-20s)' },
+  { atMs: 20000, label: 'Almost there...' },
 ] as const;
 
 function TypingIndicator() {

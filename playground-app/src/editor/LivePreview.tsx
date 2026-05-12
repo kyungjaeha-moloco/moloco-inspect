@@ -400,7 +400,7 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
     return (
       <div style={placeholderStyle}>
         <div>
-          <strong>Vite 포트 미할당</strong>
+          <strong>Vite port not assigned</strong>
           <div
             style={{
               color: 'var(--text-tertiary)',
@@ -408,7 +408,7 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
               marginTop: 4,
             }}
           >
-            Resume 또는 재기동이 필요합니다.
+            Resume or restart required.
           </div>
         </div>
       </div>
@@ -490,7 +490,7 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
             zIndex: 10,
           }}
         >
-          📍 Comment mode — C / ESC 키로 종료
+          📍 Comment mode — press C / ESC to exit
         </div>
       )}
       {mode === 'comment' && (
@@ -543,7 +543,7 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
             boxShadow: 'var(--shadow-sm)',
             pointerEvents: 'none',
           }}
-          title="Pin 모드로 전환하면 보입니다"
+          title="Switch to Comment mode to see pins"
         >
           📍 {pins.length}
         </div>
@@ -607,7 +607,7 @@ function PinMarker({
         // to feel anchored without lagging visibly behind the element.
         transition: 'left 80ms linear, top 80ms linear, opacity 120ms ease-out',
       }}
-      title={orphaned ? '연결된 요소를 찾을 수 없어요 — 화면에서 사라졌거나 다른 페이지로 이동했을 수 있습니다.' : undefined}
+      title={orphaned ? 'Anchor element not found — it may have unmounted or navigated away.' : undefined}
       onClick={(e) => e.stopPropagation()}
     >
       {isActive && (
@@ -636,7 +636,7 @@ function PinMarker({
           e.stopPropagation();
           onFocus();
         }}
-        aria-label={`핀 ${index}`}
+        aria-label={`Pin ${index}`}
         title={identityLabel}
         style={{
           width: 26,
@@ -690,7 +690,7 @@ function PinMarker({
             ref={textareaRef}
             autoFocus
             defaultValue={pin.text}
-            placeholder="이 지점에 대한 메모 (⌘/Ctrl + Enter 저장, Esc 취소)"
+            placeholder="Note for this point (⌘/Ctrl + Enter to save, Esc to cancel)"
             onKeyDown={(e) => {
               const isMod = e.metaKey || e.ctrlKey;
               if (isMod && e.key === 'Enter') {
@@ -730,9 +730,9 @@ function PinMarker({
               type="button"
               onClick={onDelete}
               style={{ ...pinActionButtonStyle, color: 'var(--error)' }}
-              title="핀 삭제"
+              title="Delete pin"
             >
-              삭제
+              Delete
             </button>
             <button
               type="button"
@@ -745,9 +745,9 @@ function PinMarker({
                 color: 'var(--text-inverse)',
                 borderColor: 'var(--accent)',
               }}
-              title="메모 저장"
+              title="Save note"
             >
-              저장
+              Save
             </button>
           </div>
         </div>
@@ -838,7 +838,7 @@ function HibernatedPlaceholder({
 
   return (
     <div style={{ textAlign: 'center', padding: 24 }}>
-      <div style={{ fontSize: 14, fontWeight: 600 }}>상태: {status}</div>
+      <div style={{ fontSize: 14, fontWeight: 600 }}>Status: {status}</div>
       <div
         style={{
           color: 'var(--text-tertiary)',
@@ -867,7 +867,7 @@ function HibernatedPlaceholder({
             fontFamily: 'inherit',
           }}
         >
-          {resuming ? '재개 중…' : '재개'}
+          {resuming ? 'Resuming…' : 'Resume'}
         </button>
       )}
       {error && (
@@ -890,16 +890,16 @@ function describeStatus(
   archivedReason: Playground['archivedReason'],
 ): string {
   if (status === 'hibernated') {
-    return '컨테이너가 정지된 상태입니다. 재개하면 다시 부팅합니다.';
+    return 'Container is paused. It will reboot when resumed.';
   }
   if (status === 'archived') {
     if (archivedReason === 'reattach-missing') {
-      return '컨테이너 인식 실패로 자동 보관됨. 다음 orchestrator 재시작 시 자동 복구를 시도합니다.';
+      return 'Auto-archived due to container attach failure. Recovery will be attempted on the next orchestrator restart.';
     }
-    return '보관된 Playground 입니다. 변경사항은 patch 로 export 되어 있습니다.';
+    return 'This Playground is archived. Changes have been exported as patches.';
   }
   if (status === 'crashed') {
-    return '크래시 상태 — orchestrator 로그를 확인하세요.';
+    return 'Crashed — check the orchestrator logs.';
   }
   return '';
 }

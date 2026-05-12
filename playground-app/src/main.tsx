@@ -19,5 +19,5 @@ async function bootstrap() {
 
 bootstrap().catch((err) => {
   console.error('[bootstrap] Failed to start app:', err);
-  document.getElementById('root')!.textContent = '앱을 시작할 수 없습니다. 콘솔을 확인하세요.';
+  document.getElementById('root')!.textContent = 'Failed to start the app. Check the console.';
 });

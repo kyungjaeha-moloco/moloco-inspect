@@ -157,7 +157,7 @@ describe('migrate v1 → v2', () => {
     const storage = createLocalStorageAdapter();
     const projects = await storage.listProjects();
     expect(projects).toHaveLength(1);
-    expect(projects[0].name).toContain('이전 작업');
+    expect(projects[0].name).toContain('migrated');
 
     const canvases = await storage.listCanvases(projects[0].id);
     expect(canvases).toHaveLength(1);

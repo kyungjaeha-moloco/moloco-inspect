@@ -42,8 +42,8 @@ export async function migrateV1ToV2(): Promise<
     const projectsBefore = localStorage.getItem(PROJECTS_KEY);
 
     const { project, firstCanvas } = await projectStorage.createProject({
-      name: 'Project 1 (이전 작업)',
-      description: '이전 단일 캔버스에서 자동 이관된 작업',
+      name: 'Project 1 (migrated)',
+      description: 'Auto-migrated from the previous single-canvas workspace',
       status: 'active',
       defaultClient: 'tving',
       ownerId: LOCAL_USER_ID,
@@ -73,7 +73,7 @@ export async function migrateV1ToV2(): Promise<
     }
 
     localStorage.setItem(MIGRATED_FLAG_KEY, '1');
-    console.log('[migrate] v1 → v2: Project 1 (이전 작업) 생성 완료');
+    console.log('[migrate] v1 → v2: Project 1 (migrated) created successfully');
     return 'migrated';
   } catch (err) {
     console.warn('[migrate] v1 → v2 failed — starting clean:', err);

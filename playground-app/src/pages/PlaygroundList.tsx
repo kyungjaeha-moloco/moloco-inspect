@@ -20,10 +20,10 @@ import {
 } from '../services/migrate-v2-to-v3';
 
 const STATUS_LABEL: Record<PlaygroundStatus, string> = {
-  active: '활성',
-  hibernated: '대기',
-  archived: '보관',
-  crashed: '오류',
+  active: 'Active',
+  hibernated: 'Idle',
+  archived: 'Archived',
+  crashed: 'Error',
 };
 
 const STATUS_COLOR: Record<PlaygroundStatus, string> = {
@@ -91,12 +91,12 @@ export function PlaygroundList() {
                   <code style={inlineCodeStyle}>
                     {projects.length === 1
                       ? projects[0].id
-                      : `${projects.length}개 프로젝트`}
+                      : `${projects.length} projects`}
                   </code>
                   {' · '}
                 </>
               ) : null}
-              활성 {active.length} · 대기 {hibernated.length} · 보관 {archived.length}
+              Active {active.length} · Idle {hibernated.length} · Archived {archived.length}
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -104,7 +104,7 @@ export function PlaygroundList() {
               href="http://127.0.0.1:4174/"
               target="_blank"
               rel="noreferrer"
-              title="Ops Dashboard 열기 (포트 4174)"
+              title="Open Ops Dashboard (port 4174)"
               style={ghostLinkStyle}
             >
               Dashboard ↗
@@ -117,7 +117,7 @@ export function PlaygroundList() {
               <span aria-hidden style={{ fontSize: 14, marginRight: 6 }}>
                 +
               </span>
-              새 Playground
+              New Playground
             </button>
           </div>
         </header>
@@ -132,18 +132,18 @@ export function PlaygroundList() {
 
         {error && (
           <div style={errorBannerStyle}>
-            오케스트레이터에서 플레이그라운드를 불러오지 못했습니다: {error}
+            Failed to load playgrounds from the orchestrator: {error}
           </div>
         )}
 
         {crashed.length > 0 && (
-          <Section label="오류" count={crashed.length} tone="error">
+          <Section label="Error" count={crashed.length} tone="error">
             <CardGrid items={crashed} />
           </Section>
         )}
 
         {active.length > 0 ? (
-          <Section label="활성" count={active.length} tone="accent">
+          <Section label="Active" count={active.length} tone="accent">
             <CardGrid items={active} />
           </Section>
         ) : !error && playgrounds.length === 0 ? (
@@ -151,13 +151,13 @@ export function PlaygroundList() {
         ) : null}
 
         {hibernated.length > 0 && (
-          <Section label="대기" count={hibernated.length} tone="muted">
+          <Section label="Idle" count={hibernated.length} tone="muted">
             <CardGrid items={hibernated} muted />
           </Section>
         )}
 
         {archived.length > 0 && (
-          <CollapsibleSection label="보관" count={archived.length}>
+          <CollapsibleSection label="Archived" count={archived.length}>
             <ArchiveList items={archived} />
           </CollapsibleSection>
         )}
@@ -299,7 +299,7 @@ function PlaygroundCard({
             </span>
           </span>
         ) : (
-          <span style={{ color: 'var(--text-tertiary)' }}>작성자 미기록</span>
+          <span style={{ color: 'var(--text-tertiary)' }}>No author recorded</span>
         )}
         <span style={{ color: 'var(--text-tertiary)' }}>
           {formatRelativeTime(pg.lastActivityAt ?? pg.createdAt)}
@@ -385,15 +385,15 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <div style={emptyIconStyle} aria-hidden>
         🧪
       </div>
-      <div style={emptyTitleStyle}>아직 Playground가 없습니다</div>
+      <div style={emptyTitleStyle}>No Playgrounds yet</div>
       <p style={emptyBodyStyle}>
-        UI 변경을 실험하고 PR까지 보내는 격리된 샌드박스를 만들 수 있습니다.
-        아래 버튼은 준비 중 — 당장은 Chrome 확장의 <strong>+ New</strong> 또는
-        API로 생성하세요.
+        Create an isolated sandbox to experiment with UI changes and send PRs.
+        The button below is coming soon — for now, use the Chrome extension&apos;s <strong>+ New</strong> or
+        the API to create one.
       </p>
       <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'center' }}>
         <button type="button" onClick={onCreate} style={primaryCtaStyle}>
-          + 새 Playground
+          + New Playground
         </button>
         <a
           href="http://localhost:3847/api/playground"
@@ -401,7 +401,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
           rel="noreferrer"
           style={ghostLinkStyle}
         >
-          API 열기 ↗
+          Open API ↗
         </a>
       </div>
     </div>
@@ -422,11 +422,10 @@ function LegacyMigrationBanner({
   return (
     <div style={legacyBannerStyle}>
       <div style={{ fontWeight: 600, fontSize: 13 }}>
-        이전 Canvas 버전의 댓글 {projectIds.length}건 발견
+        {projectIds.length} comment(s) found from previous Canvas version
       </div>
       <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)' }}>
-        v3 Playground는 캔버스 개념이 없어 자동 이관이 불가능합니다. 필요하면 아래에서
-        JSON으로 내려받으세요.
+        v3 Playground has no canvas concept, so automatic migration is not possible. Download as JSON below if needed.
       </p>
       <ul style={legacyListStyle}>
         {projectIds.map((pid) => {
@@ -434,22 +433,22 @@ function LegacyMigrationBanner({
           return (
             <li key={pid} style={legacyRowStyle}>
               <code style={{ ...inlineCodeStyle, flex: 1 }}>
-                {pid} · {count}건
+                {pid} · {count} item(s)
               </code>
               <button
                 type="button"
                 onClick={() => onDownload(pid)}
                 style={legacySecondaryStyle}
               >
-                ⬇ 다운로드
+                ⬇ Download
               </button>
               <button
                 type="button"
                 onClick={() => onDismiss(pid)}
                 style={legacyGhostStyle}
-                title="저장소에서 제거 (되돌릴 수 없음)"
+                title="Remove from storage (cannot be undone)"
               >
-                제거
+                Remove
               </button>
             </li>
           );
@@ -522,7 +521,7 @@ function CreatePlaygroundDialog({
         jiraUrl: jiraUrl.trim() || undefined,
       });
     } catch (e) {
-      const message = e instanceof Error ? e.message : '생성에 실패했습니다';
+      const message = e instanceof Error ? e.message : 'Failed to create playground';
       setErr(message);
       setSubmitting(false);
     }
@@ -540,7 +539,7 @@ function CreatePlaygroundDialog({
       <form onSubmit={handleSubmit} style={createPanelStyle}>
         <div style={{ marginBottom: 16 }}>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-            새 Playground
+            New Playground
           </h2>
           <p
             style={{
@@ -552,28 +551,28 @@ function CreatePlaygroundDialog({
             <code style={{ ...inlineCodeStyle, padding: '0 4px' }}>
               {defaultProjectId}
             </code>{' '}
-            프로젝트에 샌드박스를 띄웁니다. 부팅에 10~60초 걸릴 수 있습니다.
+            Launches a sandbox for this project. Boot may take 10–60 seconds.
           </p>
         </div>
 
-        <Field label="제목" required>
+        <Field label="Title" required>
           <input
             ref={titleRef}
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="예: TVING 홈 개편 draft"
+            placeholder="e.g. TVING homepage redesign draft"
             disabled={submitting}
             style={inputStyle}
           />
         </Field>
 
-        <Field label="내 이름 (기록용)">
+        <Field label="Your name (for records)">
           <input
             type="text"
             value={createdBy}
             onChange={(e) => setCreatedBy(e.target.value)}
-            placeholder="예: kyungjae"
+            placeholder="e.g. kyungjae"
             disabled={submitting}
             style={inputStyle}
           />
@@ -585,7 +584,7 @@ function CreatePlaygroundDialog({
             onClick={() => setAdvanced(true)}
             style={linkButtonStyle}
           >
-            고급 설정 (PRD / Jira 링크) ▸
+            Advanced settings (PRD / Jira link) ▸
           </button>
         ) : (
           <>
@@ -628,7 +627,7 @@ function CreatePlaygroundDialog({
             disabled={submitting}
             style={dialogCancelStyle}
           >
-            취소
+            Cancel
           </button>
           <button
             type="submit"
@@ -639,7 +638,7 @@ function CreatePlaygroundDialog({
               cursor: canSubmit ? 'pointer' : 'not-allowed',
             }}
           >
-            {submitting ? '생성 중…' : 'Playground 만들기'}
+            {submitting ? 'Creating…' : 'Create Playground'}
           </button>
         </div>
       </form>
@@ -684,14 +683,14 @@ function groupByStatus(items: Playground[]): Partial<Record<PlaygroundStatus, Pl
 
 function formatRelativeTime(ts: number): string {
   const diff = Date.now() - ts;
-  if (diff < 45_000) return '방금 전';
+  if (diff < 45_000) return 'just now';
   const min = Math.round(diff / 60_000);
-  if (min < 60) return `${min}분 전`;
+  if (min < 60) return `${min}m ago`;
   const hr = Math.round(diff / 3_600_000);
-  if (hr < 24) return `${hr}시간 전`;
+  if (hr < 24) return `${hr}h ago`;
   const day = Math.round(diff / 86_400_000);
-  if (day < 30) return `${day}일 전`;
-  return new Date(ts).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+  if (day < 30) return `${day}d ago`;
+  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 // ── Styles ───────────────────────────────────────────────────────────

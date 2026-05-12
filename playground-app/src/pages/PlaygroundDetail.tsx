@@ -241,17 +241,17 @@ export function PlaygroundDetail() {
     } catch (err) {
       console.error('[PlaygroundDetail] promote failed', err);
       const message =
-        err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다';
+        err instanceof Error ? err.message : 'An unknown error occurred';
       setPromote({ kind: 'error', message, dryRun });
     }
   };
 
   if (!id) {
-    return <div style={{ padding: 24 }}>playground id가 없습니다.</div>;
+    return <div style={{ padding: 24 }}>No playground id provided.</div>;
   }
 
   if (!current || current.id !== id) {
-    return <div style={{ padding: 24 }}>로딩 중… ({id})</div>;
+    return <div style={{ padding: 24 }}>Loading… ({id})</div>;
   }
 
   return (
@@ -270,7 +270,7 @@ export function PlaygroundDetail() {
         <div
           role="separator"
           aria-orientation="vertical"
-          aria-label="AIPanel 너비 조절"
+          aria-label="Resize AIPanel width"
           onPointerDown={handleResizeStart}
           style={resizerStyle}
         >
@@ -344,7 +344,7 @@ function Header({
     <header style={headerStyle}>
       <Link
         to="/"
-        aria-label="Playground 목록으로"
+        aria-label="Back to Playground list"
         style={{
           width: 28,
           height: 28,
@@ -414,8 +414,8 @@ function Header({
           disabled={promoteDisabled}
           title={
             promoteDisabled
-              ? '시간 여행 중에는 Promote 할 수 없습니다 (최신으로 복귀 먼저)'
-              : 'Playground 의 모든 변경을 msm-portal 에 PR로 올립니다'
+              ? 'Cannot Promote while time-travelling (return to latest first)'
+              : 'Promote all Playground changes to msm-portal as a PR'
           }
           style={{
             ...promoteButtonStyle,
@@ -466,7 +466,7 @@ function HistoryDialog({
         if (!cancelled) setCommits(log.commits);
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message ?? '히스토리를 불러오지 못했어요');
+        if (!cancelled) setError(err.message ?? 'Failed to load history');
       });
     return () => {
       cancelled = true;
@@ -484,7 +484,7 @@ function HistoryDialog({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={dialogTitleStyle}>📜 변경 히스토리</h2>
+        <h2 style={dialogTitleStyle}>📜 Change History</h2>
         <div
           style={{
             ...dialogBodyStyle,
@@ -496,11 +496,11 @@ function HistoryDialog({
             <div style={{ color: 'var(--text-danger, #d33)' }}>{error}</div>
           )}
           {!commits && !error && (
-            <div style={{ color: 'var(--text-tertiary)' }}>불러오는 중…</div>
+            <div style={{ color: 'var(--text-tertiary)' }}>Loading…</div>
           )}
           {commits && commits.length === 0 && (
             <div style={{ color: 'var(--text-tertiary)' }}>
-              아직 변경 내역이 없어요. 첫 작업을 진행하면 여기에 쌓입니다.
+              No changes yet. Run your first task and they will appear here.
             </div>
           )}
           {commits && commits.length > 0 && (
@@ -595,7 +595,7 @@ function HistoryDialog({
                             fontWeight: 600,
                           }}
                         >
-                          현재 보고 있는 시점
+                          Viewing now
                         </span>
                       )}
                       <span
@@ -634,9 +634,9 @@ function HistoryDialog({
                             color: 'var(--text-secondary)',
                             cursor: 'pointer',
                           }}
-                          title="이 시점의 작업중 화면으로 이동합니다 (체크아웃)"
+                          title="Switch the working view to this point (checkout)"
                         >
-                          이 시점 보기
+                          View this point
                         </button>
                       </div>
                     )}
@@ -648,7 +648,7 @@ function HistoryDialog({
         </div>
         <div style={dialogActionsStyle}>
           <button type="button" onClick={onClose} style={dialogCancelStyle}>
-            닫기
+            Close
           </button>
         </div>
       </div>
@@ -658,10 +658,10 @@ function HistoryDialog({
 
 function relativeTimeShort(ts: number): string {
   const diff = Date.now() - ts;
-  if (diff < 60_000) return '방금';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}분 전`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
-  return `${Math.floor(diff / 86_400_000)}일 전`;
+  if (diff < 60_000) return 'just now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
 }
 
 function PromoteDialog({ stage, onCancel, onRun }: PromoteDialogProps) {
@@ -701,14 +701,13 @@ function PromoteConfirm({
     <>
       <h2 style={dialogTitleStyle}>🚀 Promote to msm-portal</h2>
       <p style={dialogBodyStyle}>
-        이 Playground 의 모든 변경(baseline → HEAD)을{' '}
-        <code>moloco/msm-portal</code> 에{' '}
+        All changes in this Playground (baseline → HEAD) will be{' '}
         {dryRun ? (
-          <strong>로컬에서만 시뮬레이션</strong>
+          <strong>simulated locally only</strong>
         ) : (
-          <strong>실제로 push + PR 생성</strong>
-        )}
-        합니다.
+          <strong>pushed and submitted as a PR</strong>
+        )}{' '}
+        to <code>moloco/msm-portal</code>.
       </p>
       <label style={dryRunLabelStyle}>
         <input
@@ -717,26 +716,24 @@ function PromoteConfirm({
           onChange={(e) => setDryRun(e.target.checked)}
         />
         <span>
-          <strong>Dry-run</strong> — 호스트 clone 에서 <code>git am</code> 까지만
-          시도 (push 안 함)
+          <strong>Dry-run</strong> — only attempt <code>git am</code> on the host clone (no push)
         </span>
       </label>
       {!dryRun && (
         <div style={warningBoxStyle}>
-          ⚠️ 이 옵션은 <code>origin</code> 에 새 브랜치를 push 하고 GitHub 에 PR을
-          만듭니다. 되돌리려면 수동으로 브랜치를 지워야 합니다.
+          ⚠️ This will push a new branch to <code>origin</code> and create a PR on GitHub. To undo, delete the branch manually.
         </div>
       )}
       <div style={dialogActionsStyle}>
         <button type="button" onClick={onCancel} style={dialogCancelStyle}>
-          취소
+          Cancel
         </button>
         <button
           type="button"
           onClick={() => onRun(dryRun)}
           style={dialogPrimaryStyle}
         >
-          {dryRun ? '시뮬레이션 실행' : '실제 Promote 실행'}
+          {dryRun ? 'Run simulation' : 'Run Promote'}
         </button>
       </div>
     </>
@@ -747,11 +744,11 @@ function PromoteRunning({ dryRun }: { dryRun: boolean }) {
   return (
     <>
       <h2 style={dialogTitleStyle}>
-        {dryRun ? '시뮬레이션 중…' : 'Promote 중…'}
+        {dryRun ? 'Simulating…' : 'Promoting…'}
       </h2>
       <p style={dialogBodyStyle}>
-        샌드박스에서 patch 추출 → 호스트 clone 에서 <code>git am</code>
-        {dryRun ? '' : ' → push → PR 생성'} 중입니다. 보통 10~60초 걸립니다.
+        Extracting patches from sandbox → running <code>git am</code> on the host clone
+        {dryRun ? '' : ' → push → create PR'}. Usually takes 10–60 seconds.
       </p>
       <div style={spinnerStyle} aria-hidden />
     </>
@@ -768,11 +765,11 @@ function PromoteDone({
   return (
     <>
       <h2 style={dialogTitleStyle}>
-        {result.dryRun ? '✅ 시뮬레이션 완료' : '✅ Promote 완료'}
+        {result.dryRun ? '✅ Simulation complete' : '✅ Promote complete'}
       </h2>
       <div style={dialogBodyStyle}>
         <div>
-          Patches: <strong>{result.patches.length}</strong>개 추출 ·{' '}
+          Patches: <strong>{result.patches.length}</strong> extracted ·{' '}
           <span style={{ color: 'var(--success)' }}>
             applied {result.applied.length}
           </span>{' '}
@@ -801,7 +798,7 @@ function PromoteDone({
               rel="noreferrer"
               style={{ color: 'var(--accent)', fontWeight: 600 }}
             >
-              PR 열기 ↗
+              Open PR ↗
             </a>
           </div>
         )}
@@ -813,8 +810,8 @@ function PromoteDone({
               color: 'var(--text-tertiary)',
             }}
           >
-            dry-run 이었으므로 <code>origin</code> 에는 push 되지 않았습니다.
-            로컬 브랜치만 남아있습니다.
+            This was a dry-run — nothing was pushed to <code>origin</code>.
+            Only the local branch remains.
           </div>
         )}
       </div>
@@ -852,7 +849,7 @@ function PromoteDone({
       )}
       <div style={dialogActionsStyle}>
         <button type="button" onClick={onClose} style={dialogPrimaryStyle}>
-          닫기
+          Close
         </button>
       </div>
     </>
@@ -871,7 +868,7 @@ function PromoteError({
   return (
     <>
       <h2 style={dialogTitleStyle}>
-        ❌ {dryRun ? '시뮬레이션' : 'Promote'} 실패
+        ❌ {dryRun ? 'Simulation' : 'Promote'} failed
       </h2>
       <div style={{ ...dialogBodyStyle, color: 'var(--error)' }}>
         {message}
@@ -883,7 +880,7 @@ function PromoteError({
           color: 'var(--text-tertiary)',
         }}
       >
-        호스트 msm-portal 상태를 확인하세요. 로컬 브랜치가 남았을 수 있습니다 —
+        Check the host msm-portal state. A local branch may remain —
         <code>
           {' cd '}
           $SOURCE_WORKSPACE_ROOT/msm-portal && git branch
@@ -891,7 +888,7 @@ function PromoteError({
       </div>
       <div style={dialogActionsStyle}>
         <button type="button" onClick={onClose} style={dialogPrimaryStyle}>
-          닫기
+          Close
         </button>
       </div>
     </>
@@ -939,8 +936,8 @@ function ModeToolbar({ mode, onChange, onReload }: ModeToolbarProps) {
         onClick={toggleComment}
         title={
           commentActive
-            ? '코멘트 모드 끄기 (앱 상호작용으로 복귀)'
-            : '코멘트 모드 — 화면을 클릭해 핀 메모를 남깁니다'
+            ? 'Turn off comment mode (return to app interaction)'
+            : 'Comment mode — click on the screen to leave a pin note'
         }
         style={{
           ...modeButtonStyle,
@@ -963,7 +960,7 @@ function ModeToolbar({ mode, onChange, onReload }: ModeToolbarProps) {
       <button
         type="button"
         onClick={onReload}
-        title="iframe 강제 새로고침 (HMR 놓친 경우)"
+        title="Force reload iframe (if HMR missed a patch)"
         style={{
           ...modeButtonStyle,
           marginLeft: 'auto',
@@ -1009,14 +1006,14 @@ function CommitTabBar({
     <div style={tabBarStyle} className="ui-scroll">
       {showBaseline && (
         <TabPill
-          label="원본"
+          label="Baseline"
           icon="●"
           active={activeSha === baselineSha}
           onClick={() => onSelectSha(baselineSha!)}
         />
       )}
       <TabPill
-        label="작업중"
+        label="Working"
         icon="●"
         iconColor="var(--success)"
         active={activeIsLatest}
@@ -1107,8 +1104,8 @@ function TabPill({
             e.stopPropagation();
             onClose();
           }}
-          title="탭 닫기 (커밋은 남음)"
-          aria-label={`"${label}" 탭 닫기`}
+          title="Close tab (commit is preserved)"
+          aria-label={`Close "${label}" tab`}
           className="pg-tab-close"
           style={tabCloseStyle}
         >

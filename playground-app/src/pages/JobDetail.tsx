@@ -78,7 +78,7 @@ export default function JobDetail() {
     return (
       <div style={pageStyle}>
         <p style={{ color: 'var(--text-danger, #d33)' }}>{error}</p>
-        <Link to="/">← 목록</Link>
+        <Link to="/">← list</Link>
       </div>
     );
   }
@@ -147,7 +147,7 @@ export default function JobDetail() {
         <h2 style={h2Style}>Tasks</h2>
         {job.tasks.length === 0 && (
           <p style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>
-            {job.status === 'decomposing' ? 'LLM 이 작업을 쪼개는 중…' : '아직 없음.'}
+            {job.status === 'decomposing' ? 'LLM is breaking down the task…' : 'None yet.'}
           </p>
         )}
         {job.tasks.map((t) => (
@@ -169,7 +169,7 @@ export default function JobDetail() {
             onClick={() => runAction(() => approveJobPlan(job.id))}
             style={primaryBtn}
           >
-            승인하고 시작 ▶
+            Approve and start ▶
           </button>
         )}
         {canResume && (
@@ -178,7 +178,7 @@ export default function JobDetail() {
             onClick={() => runAction(() => resumeJob(job.id))}
             style={primaryBtn}
           >
-            재개
+            Resume
           </button>
         )}
         {canRedecompose && (
@@ -187,7 +187,7 @@ export default function JobDetail() {
             onClick={() => runAction(() => redecomposeJob(job.id))}
             style={secondaryBtn}
           >
-            재분해
+            Re-decompose
           </button>
         )}
         {canPromote && (
@@ -207,13 +207,13 @@ export default function JobDetail() {
           <button
             disabled={acting}
             onClick={() => {
-              if (window.confirm('job 을 취소할까요?')) {
+              if (window.confirm('Cancel this job?')) {
                 void runAction(() => cancelJob(job.id));
               }
             }}
             style={dangerBtn}
           >
-            취소
+            Cancel
           </button>
         )}
       </section>

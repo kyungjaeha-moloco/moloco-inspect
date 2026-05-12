@@ -161,7 +161,7 @@ export const InputArea = React.memo(function InputArea({
               transition: 'background 0.12s',
             }}
           >
-            {sendLabel ?? '전송'}
+            {sendLabel ?? 'Send'}
           </button>
         </div>
       </div>
