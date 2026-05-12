@@ -25,9 +25,10 @@ import {
 } from './job-state.js';
 
 /**
- * 사용자가 task action 또는 job cancel 시 선택할 사유.
- * 5 framework 의 "shipped 직전 데이터 capture 못 하면 영영 손실"
- * 원칙. v0 enum 은 작게 — 향후 데이터 분포 보고 추가/통합.
+ * Reasons a user can select when acting on a task or cancelling a job.
+ * Follows the "data captured just before shipping is never lost" principle
+ * from the 5-framework. v0 enum is kept small — expand/merge based on
+ * observed data distribution.
  */
 export const ACTION_REASONS = Object.freeze({
   syntax_error: '문법/타입 에러',
@@ -469,7 +470,7 @@ export function unblockTask(jobId, taskId) {
 
 /**
  * Stamp the LLM-picked target route on the job. The UI surfaces it on
- * the completion screen ("결과 페이지 열기 ↗") so the user doesn't have
+ * the completion screen ("Open result page ↗") so the user doesn't have
  * to hunt for the newly-added menu entry. Optional — many PRDs don't
  * map to a single landing URL.
  *
@@ -576,7 +577,7 @@ export function setJobSlackContext(jobId, context) {
  * `job-qa-runner.js` after the picked strategy's adapter returns.
  * Pure metadata write — no FSM transition. The manual `markQaPass`
  * button remains the gate that flips qa → complete; this just
- * surfaces the auto-run's verdict in the UI ("🧪 자동 QA 통과/실패").
+ * surfaces the auto-run's verdict in the UI ("🧪 Auto QA pass/fail").
  *
  * @param {string} jobId
  * @param {{ strategy: string, passed: boolean, notes: string, ranAt: number, evidence?: object }} result
@@ -606,8 +607,8 @@ export function cancelJob(jobId, actionMeta = {}) {
   // The in-flight task may still be mid-pipeline (no abort signal
   // crosses the docker boundary). Clear `currentPhase` on any running
   // / committed task so the JobCard's live phase line disappears
-  // immediately on cancel, instead of ticking through "코드 작성 중 →
-  // 변경사항 수집 중" for another minute on a job the user already gave
+  // immediately on cancel, instead of ticking through "Writing code →
+  // Collecting changes" for another minute on a job the user already gave
   // up on. Status itself is left intact so the FSM can still walk the
   // task to its natural terminal state in the background.
   const job = getJob(jobId);
@@ -617,7 +618,7 @@ export function cancelJob(jobId, actionMeta = {}) {
         t.currentPhase = undefined;
       }
     }
-    // Cancel 사유 capture — lifecycle 한 번만이라 단일 객체.
+    // Capture cancel reason — lifecycle fires once so a single object suffices.
     const reason = normalizeReason(actionMeta.reason);
     const reasonText = typeof actionMeta.reasonText === 'string' ? actionMeta.reasonText.slice(0, 500) : null;
     if (reason || reasonText) {

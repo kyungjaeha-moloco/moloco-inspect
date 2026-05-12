@@ -5,13 +5,13 @@
  *   1. Strip mention text → use as PRD.
  *   2. Create a Job against the molly default playground (env-pinned).
  *   3. Trigger decomposeJobInBackground; poll until the plan lands.
- *   4. Post the plan to the thread with [✅ 승인] / [❌ 취소] buttons.
+ *   4. Post the plan to the thread with [✅ Approve] / [❌ Cancel] buttons.
  *   5. On approve → kick the job runner + poll for completion → post a
  *      result message with the playground URL the user should open.
  *   6. On cancel → cancelJob; post acknowledgement.
  *
  * Phase 2.1 (next slice) will stream task progress + add free-form
- * "다시 계획 세우기" feedback.
+ * "Re-plan" feedback.
  *
  * Disabled-by-default: any missing token → log + return. Orchestrator
  * boot is unaffected; molly is a feature, not a hard dependency.
@@ -107,18 +107,18 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const trunc = (str, n) => (str.length > n ? `${str.slice(0, n)}…` : str);
 
 /**
- * Phase 3 Task 3.1 sub-phase D — Slack thread reply 를 IntakeHistoryTurn[]
- * 으로 변환. dispatcher 가 prev kind 보고 multi-turn (clarification +
- * plan) 라우팅. Slack 은 message metadata 가 plain text 라 kind 는 휴리
- * 스틱:
- *  - assistant message ("🤔 " 접두사) → code_change_ambiguous
- *  - 그 외 bot 메시지 → chat
- *  - 사용자 메시지 → user (no kind)
+ * Phase 3 Task 3.1 sub-phase D — converts Slack thread replies into
+ * IntakeHistoryTurn[]. The dispatcher reads prev kind to route multi-turn
+ * (clarification + plan) flows. Slack message metadata is plain text so
+ * kind is inferred heuristically:
+ *  - assistant message (prefix "🤔 ") → code_change_ambiguous
+ *  - other bot messages → chat
+ *  - user messages → user (no kind)
  *
  * @param {object} client — Slack bolt App.client
  * @param {string} channel
  * @param {string} threadTs — Slack thread ts (event.thread_ts ?? event.ts)
- * @param {string} excludeTs — 현재 처리 중인 mention 의 ts (history 에서 제외)
+ * @param {string} excludeTs — ts of the mention currently being processed (excluded from history)
  * @returns {Promise<Array<{role:'user'|'assistant', content:string, kind?:string}>>}
  */
 async function buildSlackHistory(client, channel, threadTs, excludeTs) {
@@ -135,7 +135,7 @@ async function buildSlackHistory(client, channel, threadTs, excludeTs) {
       if (!m || m.ts === excludeTs) continue; // skip current trigger
       const text = String(m.text || '').replace(/<@[A-Z0-9]+>\s*/g, '').trim();
       if (!text) continue;
-      // bot 메시지 (Slack app 응답) — bot_id 또는 bot_profile 있으면 assistant.
+      // Bot message (Slack app response) — treat as assistant if bot_id or bot_profile is present.
       const isBot = !!m.bot_id || !!m.bot_profile || m.subtype === 'bot_message';
       if (isBot) {
         const kind = text.startsWith('🤔') ? 'code_change_ambiguous' : 'chat';
@@ -144,7 +144,7 @@ async function buildSlackHistory(client, channel, threadTs, excludeTs) {
         history.push({ role: 'user', content: text.slice(0, 1000) });
       }
     }
-    return history.slice(-10); // last 10 turns 만 — 토큰 비용
+    return history.slice(-10); // last 10 turns only — to keep token cost down
   } catch (err) {
     console.warn(`[molly] buildSlackHistory failed: ${err.message?.slice(0, 80)}`);
     return [];
@@ -165,48 +165,49 @@ const QA_STRATEGY_LABELS_KO = {
 };
 
 /**
- * CommonMark → Slack mrkdwn 변환.
+ * CommonMark → Slack mrkdwn conversion.
  *
- * LLM (Anthropic) 은 CommonMark 로 출력하지만 Slack 은 mrkdwn 사용:
- *  - 굵게:   `**텍스트**`        → `*텍스트*`
- *  - 기울임: `*텍스트*` (단일)   → `_텍스트_`
- *  - 취소:   `~~텍스트~~`        → `~텍스트~`
- *  - 링크:   `[label](url)`      → `<url|label>`
+ * LLM (Anthropic) outputs CommonMark but Slack uses mrkdwn:
+ *  - Bold:        `**text**`       → `*text*`
+ *  - Italic:      `*text*` (single) → `_text_`
+ *  - Strikethrough: `~~text~~`     → `~text~`
+ *  - Link:        `[label](url)`   → `<url|label>`
  *
- * 인라인 코드 `` `x` `` / 코드블록 ```...``` / 인용 `>` / 리스트 `-` `*` 은
- * 양쪽 동일. 헤더 `#` 는 Slack 에 미지원 — 그대로 두면 plain text 로 보임.
+ * Inline code `` `x` `` / code blocks ```...``` / blockquote `>` /
+ * lists `-` `*` are identical on both sides. Headers `#` are unsupported
+ * in Slack — left as-is, they render as plain text.
  *
- * 정책: 굵게/기울임 충돌을 피하려 placeholder 단계 거침.
- *   1) `**...**` → 임시 토큰 (단일 `*` 가 italic 이라 헷갈리지 않게 격리)
- *   2) 단일 `*...*` → `_..._`
- *   3) 임시 토큰 → `*...*` 복원
+ * Policy: use a placeholder stage to avoid bold/italic conflicts.
+ *   1) `**...**` → temporary token (isolates from single `*` italic)
+ *   2) single `*...*` → `_..._`
+ *   3) temporary token → restore `*...*`
  *
- * Slack 외 surface (Playground / Chrome ext) 는 CommonMark 그대로 원하니
- * 이 변환은 Slack 출력 직전에만 적용.
+ * Non-Slack surfaces (Playground / Chrome ext) want raw CommonMark,
+ * so this conversion is applied only immediately before Slack output.
  */
 function toSlackMrkdwn(text) {
   if (!text || typeof text !== 'string') return text;
   return (
     text
-      // 1) 마크다운 링크: [label](url) → <url|label>
+      // 1) Markdown link: [label](url) → <url|label>
       .replace(
         /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
         '<$2|$1>',
       )
-      // 2) 굵게 보호 (단일 * italic 변환에서 격리)
+      // 2) Protect bold (isolate from single * italic conversion)
       .replace(/\*\*([^*\n]+)\*\*/g, 'BOLD$1/BOLD')
-      // 3) 단일 * italic → _italic_ (앞뒤 공백 / 줄바꿈 / 문장부호 경계에서만)
+      // 3) Single * italic → _italic_ (only at whitespace / newline / punctuation boundaries)
       .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/g, '$1_$2_')
-      // 4) 굵게 복원: *bold*
+      // 4) Restore bold: *bold*
       .replace(/BOLD([^]+)\/BOLD/g, '*$1*')
-      // 5) 취소선: ~~text~~ → ~text~
+      // 5) Strikethrough: ~~text~~ → ~text~
       .replace(/~~([^~\n]+)~~/g, '~$1~')
   );
 }
 
 /**
  * The decomposer sometimes emits sub-bullets on the same line as the
- * prose — e.g. "...페이지가 보입니다. (1) 제목... (2) 안내문구...".
+ * prose — e.g. "...the page is shown. (1) Title... (2) Description...".
  * Slack mrkdwn doesn't auto-wrap before parenthesised numbers, so the
  * whole thing renders as a run-on paragraph. Insert a newline before
  * each `(N)` when it follows whitespace mid-text. Also handles the
@@ -280,7 +281,7 @@ export function startMolly(options) {
     }
   });
 
-  // "✏️ 다시 계획" — opens a modal where the user can (optionally)
+  // "✏️ Re-plan" — opens a modal where the user can (optionally)
   // add free-form feedback before re-decomposing.
   appInstance.action('molly_redecompose', async (ctx) => {
     await ctx.ack();
@@ -303,7 +304,7 @@ export function startMolly(options) {
     }
   });
 
-  // "✅ QA 통과" — flips status qa → complete. The poll loop catches
+  // "✅ QA Pass" — flips status qa → complete. The poll loop catches
   // the transition and posts the Promote message.
   appInstance.action('molly_qa_pass', async (ctx) => {
     await ctx.ack();
@@ -314,7 +315,7 @@ export function startMolly(options) {
     }
   });
 
-  // "🔁 자동 QA 재실행" — re-fires the picked QA strategy.
+  // "🔁 Re-run auto QA" — re-fires the picked QA strategy.
   appInstance.action('molly_qa_rerun', async (ctx) => {
     await ctx.ack();
     try {
@@ -334,7 +335,7 @@ export function startMolly(options) {
     }
   });
 
-  // "📺 Playground 보기" — pure URL button; just ack so Slack
+  // "📺 View Playground" — pure URL button; just ack so Slack
   // doesn't show a "didn't respond" warning.
   appInstance.action('molly_open_playground', async (ctx) => {
     await ctx.ack();
@@ -501,24 +502,26 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     return;
   }
 
-  // Typing indicator — classifier + LLM 합산 1-1.5s 지연 동안 UX 신호.
-  // thread reply 로 "🤔 잠깐만요…" 보내고 chat/status 응답 후 delete.
+  // Typing indicator — UX signal during the combined classifier + LLM 1-1.5s delay.
+  // Posts "🤔 One moment…" as a thread reply, then deletes it after the chat/status reply.
   let thinkingTs = null;
   try {
     const r = await say({ thread_ts: threadTs, text: '🤔 One moment…' });
     thinkingTs = r?.ts ?? null;
-  } catch { /* swallow — indicator 실패해도 본 흐름 이어감 */ }
+  } catch { /* swallow — indicator failure does not interrupt the main flow */ }
 
-  // Phase 3 Task 3.3 — Phase 1 의 인라인 분기 (classifier + analyzer 별개)
-  // 를 processIntake 단일 호출로 정리. /api/molly/respond 가 하던 4 종
-  // kind 분기를 라이브러리 호출로 흡수 — surface 별 중복 제거.
-  // Sub-phase D — thread reply 를 history 로 변환해 동봉 → multi-turn
-  // (clarification + plan) 가 dispatcher 에서 작동.
-  // 폴백: intake 자체 throw (network / API key 없음 등) 시 안전하게 chat
-  // 응답으로 (잡 안 만드는 게 부작용 0).
-  // plan_feedback (2026-05-11) 활성화 — thread 에 pending plan_items 카드 있는지
-  // lookup. planItemsContexts 의 channel:threadTs:* 형태 중 살아있는 entry 1개라도
-  // 있으면 hasPendingPlan=true. summary 는 분류 정확도 위해.
+  // Phase 3 Task 3.3 — consolidates Phase 1's inline branching (separate
+  // classifier + analyzer) into a single processIntake call. Absorbs the 4
+  // kind branches that /api/molly/respond used to handle — removes per-surface
+  // duplication.
+  // Sub-phase D — thread replies are converted to history and included →
+  // multi-turn (clarification + plan) works in the dispatcher.
+  // Fallback: if intake itself throws (network / missing API key etc.), fall
+  // back safely to a chat response (not creating a job has zero side effects).
+  // plan_feedback (2026-05-11) activation — look up whether there is a pending
+  // plan_items card in this thread. hasPendingPlan=true if planItemsContexts
+  // has at least one live entry for channel:threadTs:*. summary improves
+  // classification accuracy.
   const pendingPlanForThread = findPendingPlanForThread(event.channel, threadTs);
 
   let result;
@@ -537,7 +540,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
       // code_change_clear (cumulativePrd-only response without a plan).
       designSystemRoot: opts.designSystemRoot,
       requestSchemaPath: opts.requestSchemaPath,
-      // plan_feedback 활성화 신호
+      // plan_feedback activation signal
       hasPendingPlan: !!pendingPlanForThread,
       pendingPlanSummary: pendingPlanForThread?.plan?.summary ?? null,
     });
@@ -577,7 +580,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
       try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
     }
     if (!result.plan || !Array.isArray(result.plan.plan_items)) {
-      // 안전 fallback — plan 없으면 기존 code_change_clear 흐름으로 떨어뜨림
+      // Safe fallback — if no plan, fall through to the existing code_change_clear flow
     } else {
       const { isFastTrackIntent } = await import('./plan-intent.js');
       const isFastTrack = isFastTrackIntent(result.plan.intent);
@@ -593,11 +596,11 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     }
   }
 
-  // plan_feedback (2026-05-11) — 사용자가 채팅으로 자연어 plan 수정 요청.
-  // hasPendingPlan 컨텍스트로 classifier 가 분류 → 여기서 직접 emitPlan
-  // (previousPlan + feedback) 재호출 후 카드 swap. 버튼 클릭으로 모달 띄우는
-  // 흐름과 동등한 결과. button 흐름은 그대로 유지 (mutex 안 필요 — Slack
-  // chat.update 가 idempotent).
+  // plan_feedback (2026-05-11) — user requests a natural-language plan revision
+  // via chat. Classified by the classifier using the hasPendingPlan context →
+  // directly re-invokes emitPlan (previousPlan + feedback) here and swaps the
+  // card. Equivalent outcome to the button-click modal flow. The button flow
+  // is kept intact (no mutex needed — Slack chat.update is idempotent).
   if (result.kind === 'plan_feedback' && pendingPlanForThread) {
     if (thinkingTs) {
       try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
@@ -634,7 +637,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
         text: `📋 Plan (${(newPlan.plan_items || []).length} items)`,
         blocks: buildPlanItemsBlocks(newPlan, isFastTrack),
       });
-      // ack 메시지 정리
+      // Clean up the ack message
       if (ack?.ts) {
         try { await client.chat.delete({ channel: event.channel, ts: ack.ts }); } catch {}
       }
@@ -650,29 +653,30 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
     return;
   }
 
-  // result.kind === 'code_change_clear' — 기존 흐름 (createJob ...).
-  // thinking indicator 는 잡 plan post 후 자연스럽게 사라지게 둠
-  // (사용자가 "🛠️ 받았습니다" 메시지 보고 indicator 사라지면 OK).
+  // result.kind === 'code_change_clear' — normal flow (createJob ...).
+  // The thinking indicator fades naturally after the job plan is posted
+  // (user sees the "🛠️ 받았습니다" message and the indicator disappears — OK).
   if (thinkingTs) {
     try { await client.chat.delete({ channel: event.channel, ts: thinkingTs }); } catch {}
   }
 
-  // code_change — Slack thread → playground 1:1 매핑.
-  // 같은 thread 의 후속 멘션은 같은 playground 를 reuse, 다른 thread
-  // 는 다른 playground. 매핑 없거나 가리키는 playground 가 inactive
-  // 면 새 playground 부팅.
+  // code_change — Slack thread → playground 1:1 mapping.
+  // Subsequent mentions in the same thread reuse the same playground;
+  // different threads get different playgrounds. If no mapping exists
+  // or the mapped playground is inactive, boot a new playground.
   let playgroundId = getPlaygroundIdForThread(event.channel, threadTs);
   let pg = playgroundId ? opts.getPlayground(playgroundId) : null;
   if (!pg || pg.status !== 'active') {
     if (playgroundId) {
-      // Stale 매핑 (archived/hibernated/삭제) — clear 후 새로 만듦.
+      // Stale mapping (archived/hibernated/deleted) — clear and create a new one.
       clearPlaygroundForThread(event.channel, threadTs);
       playgroundId = null;
       pg = null;
     }
-    // 매핑 없는 첫 멘션 = 새 thread = 새 playground. MOLLY_PLAYGROUND_ID
-    // legacy fallback 은 의도적으로 제거 — "Slack thread = playground 1:1"
-    // 정책의 핵심. 새 thread 면 무조건 새 playground (createPlayground 분기).
+    // First mention with no mapping = new thread = new playground. The
+    // MOLLY_PLAYGROUND_ID legacy fallback is intentionally removed — this
+    // is the core of the "Slack thread = playground 1:1" policy. A new
+    // thread always gets a new playground (createPlayground branch).
   }
   if (!pg) {
     if (!opts?.createPlayground) {
@@ -953,8 +957,8 @@ async function handleRedecomposeSubmit({ body, view, client, logger }) {
     `[molly] redecompose submit: job=${jobId} user=${userId} feedback="${feedback.slice(0, 80)}"`,
   );
 
-  // Replace the old plan message's buttons with a "이 계획은 다시
-  // 세우는 중" badge so the user can't double-click while the
+  // Replace the old plan message's buttons with a "re-planning in
+  // progress" badge so the user can't double-click while the
   // re-decompose is in flight.
   try {
     await client.chat.update({
@@ -1365,9 +1369,9 @@ function stampPendingRedecomposeBlocks(_originalBlocks, userId, feedback) {
 
 // ── Plan items card (pre-decomposer fast-track) ────────────────────
 
-// Plan items 카드 컨텍스트 캐시 — action handler 에서 lookup 용.
+// Plan items card context cache — used for lookup in action handlers.
 // key = `${channel}:${threadTs}:${msgTs}` → { plan, cumulativePrd, isFastTrack, expireAt }
-// TTL 30분 + capacity 500 LRU-ish (size 초과 시 expired 정리, 그래도 가득이면 oldest drop)
+// TTL 30 min + capacity 500 LRU-ish (on overflow: purge expired first, then drop oldest)
 const PLAN_ITEMS_CTX_TTL_MS = 30 * 60 * 1000;
 const PLAN_ITEMS_CTX_MAX = 500;
 const planItemsContexts = new Map();
@@ -1394,10 +1398,10 @@ function rememberPlanItemsContext(channel, threadTs, msgTs, ctx) {
 }
 
 /**
- * thread 단위로 살아있는 (만료 X) plan_items 컨텍스트 1개 찾음.
- * 채팅으로 plan_feedback 들어왔을 때 어떤 plan 카드를 update 할지 결정.
- * 여러 plan 카드가 같은 thread 에 있을 경우 expireAt 이 가장 늦은 (= 가장
- * 최근 만들어진) 것 선택.
+ * Finds one non-expired plan_items context for the given thread.
+ * Used to determine which plan card to update when a plan_feedback
+ * message arrives via chat. If multiple plan cards exist in the same
+ * thread, selects the one with the latest expireAt (= most recently created).
  */
 function findPendingPlanForThread(channel, threadTs) {
   const prefix = `${channel}:${threadTs}:`;
@@ -1509,7 +1513,7 @@ async function handlePlanItemsApprove({ body, client }) {
     return;
   }
 
-  // 카드 disable — actions 블록 제거 후 승인 stamp context 블록 추가
+  // Disable the card — remove the actions block and add an approval stamp context block
   try {
     const newBlocks = stampPlanItemsApproved(message.blocks, user.id);
     await client.chat.update({
@@ -1522,7 +1526,7 @@ async function handlePlanItemsApprove({ body, client }) {
     /* best-effort */
   }
 
-  // playground 보장 후 createJob(autoApprove:true, skipDecomposer:isFastTrack)
+  // Ensure a playground exists, then createJob(autoApprove:true, skipDecomposer:isFastTrack)
   let playgroundId = getPlaygroundIdForThread(channel.id, threadTs);
   let pg = playgroundId ? opts.getPlayground(playgroundId) : null;
   if (!pg || pg.status !== 'active') {
@@ -1751,7 +1755,7 @@ function buildPlanBlocks(job) {
     // line, which dropped the bulk of the user-visible plan.
     // Slack section blocks cap at 3000 chars; trunc to 2500 for safety.
     job.tasks.forEach((t, i) => {
-      // LLM (decomposer) 이 CommonMark 로 출력 — Slack mrkdwn 으로 변환.
+      // LLM (decomposer) outputs CommonMark — convert to Slack mrkdwn.
       const desc = toSlackMrkdwn(normalizeBullets((t.description || '').trim()));
       const title = toSlackMrkdwn((t.title || '').trim());
       const md = [`*${i + 1}. ${title}*`, '', trunc(desc, 2500)].join('\n');
@@ -1893,9 +1897,9 @@ function stampCancelledBlocks(originalBlocks, userId) {
 }
 
 /**
- * External-source variants — Playground UI / curl / Chrome ext 가
- * status 를 바꾼 케이스. userId 가 없어 source 라벨 ("Playground 등
- * 외부") 만 표시. plan card buttons 같이 제거.
+ * External-source variants — cases where the Playground UI / curl / Chrome ext
+ * changed the status. No userId is available, so only the source label
+ * ("Playground or external") is shown. Also removes the plan card buttons.
  */
 function stampExternallyApprovedBlocks(originalBlocks) {
   const filtered = (originalBlocks ?? []).filter(
@@ -2003,7 +2007,7 @@ function taskTransitionMessage(task, idx, total) {
 /**
  * For task transitions: returns the slack `text` and (when relevant)
  * `blocks` payload. Non-failed states just send text. Failed states
- * attach a row of [🔁 재시도] [✅ 그대로 통과] [⏭ 건너뛰기] buttons so
+ * attach a row of [🔁 Retry] [✅ Pass as-is] [⏭ Skip] buttons so
  * the user can resolve from Slack instead of switching to the
  * Playground.
  *
@@ -2079,7 +2083,7 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
   // Slack message ts of the live "current state" line per task. The
   // first announcement creates a message; subsequent transitions
   // *edit* the same message in-place. Result: one line per task in
-  // the thread that evolves "🔧 작업 중 → 🔍 검토 중 → ✅ 통과"
+  // the thread that evolves "🔧 In progress → 🔍 Reviewing → ✅ Passed"
   // instead of three separate messages. Cuts thread noise ~3x.
   /** @type {Map<string, string>} */
   const taskMessageTs = new Map();
@@ -2119,11 +2123,11 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
       lastStatus = job.status;
     }
 
-    // External approve detection — `planning` 에서 다른 상태로 빠진
-    // 트랜지션이 molly 자체 ✅ 버튼 (selfApprovedJobs) 가 아니면
-    // Playground/Chrome ext/curl 가 트리거. Slack thread 에 알림 +
-    // plan card 의 버튼 비활성화. 첫 iteration 은 historical resume
-    // 일 수 있어 skip.
+    // External approve detection — if a transition out of `planning`
+    // was not triggered by molly's own ✅ button (selfApprovedJobs),
+    // it was triggered by Playground/Chrome ext/curl. Notify the Slack
+    // thread and disable the plan card buttons. Skip the first iteration
+    // since it may be a historical resume.
     if (
       prevStatus === 'planning' &&
       job.status !== 'planning' &&
@@ -2272,8 +2276,8 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
           `Playground: ${PLAYGROUND_BASE_URL}/${job.playgroundId}`,
         ].join('\n'),
       });
-      // Plan card stamp — buttons 가 여전히 활성이면 사용자가 잘못
-      // 승인할 수 있으니 같이 무력화.
+      // Plan card stamp — if buttons are still active the user could
+      // accidentally approve, so disable them together.
       const planTsCancel = job.slackContext?.planMessageTs;
       if (planTsCancel) {
         const blocks = await fetchSlackMessageBlocks(client, channel, planTsCancel);
@@ -2327,8 +2331,8 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
         }
         announcedJobStates.add('qa-landed');
       }
-      // Keep polling: user may click ✅ QA 통과 (→ complete), 🔁
-      // 재실행 (qaAutoResult resets), or ❌ 취소 (→ cancelled).
+      // Keep polling: user may click ✅ QA Pass (→ complete), 🔁
+      // Re-run (qaAutoResult resets), or ❌ Cancel (→ cancelled).
       continue;
     }
 
@@ -2353,11 +2357,12 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
   // to broken `/p/<jobId>` links.)
   const finalJob = opts.getJob(jobId);
   // Skip expiration message for "user-waiting" statuses — qa / complete
-  // / paused 는 사용자 액션 대기 상태라 30분 만료 알림이 행동 유발하지
-  // 못하고 노이즈만 된다. 특히 orchestrator restart 시 resumeWatchersFromDisk
-  // 가 매번 새 30분 watcher 를 붙여서, 이 메시지가 N번 반복 발사되는
-  // spam 의 원인이었다. 활성 처리 중인 (decomposing/delegating/reviewing)
-  // 잡만 expiration 알림 가치가 있음.
+  // / paused are states awaiting user action, so a 30-min expiry notice
+  // triggers no useful action and is just noise. In particular, on
+  // orchestrator restart resumeWatchersFromDisk attaches a fresh 30-min
+  // watcher every time, which was the cause of this message firing N times
+  // as spam. Only jobs actively being processed (decomposing/delegating/
+  // reviewing) benefit from an expiration notice.
   const SILENT_TIMEOUT_STATUSES = new Set(['qa', 'complete', 'paused']);
   if (finalJob && SILENT_TIMEOUT_STATUSES.has(finalJob.status)) {
     return;
@@ -2375,7 +2380,7 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
 /**
  * Posted when the job lands at status=qa — the auto-runner has finished
  * (or human_only just no-op'd) and we're waiting for the user's
- * confirmation. Includes [✅ QA 통과] (always) + [🔁 자동 QA 재실행]
+ * confirmation. Includes [✅ QA Pass] (always) + [🔁 Re-run auto QA]
  * (when the auto run failed). Manual cancel button stays as well.
  */
 async function postCompletionMessage({ client, channel, threadTs, job }) {

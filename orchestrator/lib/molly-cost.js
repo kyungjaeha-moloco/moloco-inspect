@@ -1,12 +1,13 @@
 // orchestrator/lib/molly-cost.js
 //
-// LLM 비용 집계. molly-metrics 의 lib_call 이벤트 + sandbox agent 의 cost
-// 정보를 합쳐 USD 로 환산. molly-pricing.js 의 단가 테이블 사용.
+// LLM cost aggregation. Combines lib_call events from molly-metrics with cost
+// data from the sandbox agent and converts to USD using the price table in
+// molly-pricing.js.
 //
-// 출력: { window, total_usd, by_model, by_source, hourly_series,
-//         unknown_model_calls }
+// Output: { window, total_usd, by_model, by_source, hourly_series,
+//           unknown_model_calls }
 //
-// 의존: molly-metrics.loadEvents (events stream), molly-pricing.getPricing /
+// Depends on: molly-metrics.loadEvents (events stream), molly-pricing.getPricing /
 // computeEventUsd.
 
 import { loadEvents } from './molly-metrics.js';
@@ -32,7 +33,7 @@ const WINDOW_MS = {
 export function getCostMetrics(window = '24h') {
   const windowMs = WINDOW_MS[window] ?? WINDOW_MS['24h'];
   const cutoff = Date.now() - windowMs;
-  // 30d window 까지 NDJSON 읽기
+  // Read NDJSON files up to the 30d window
   const maxDays = Math.ceil(windowMs / (24 * 60 * 60 * 1000)) + 1;
   const events = loadEvents(cutoff, { maxDays });
 
@@ -51,8 +52,9 @@ export function getCostMetrics(window = '24h') {
     let source = null;
 
     if (evt.type === 'lib_call') {
-      // model 필드 없는 이벤트 = LLM 호출 안 한 fast-path / lifecycle 등.
-      // unknown 으로 카운트하지 않고 cost 계산에서 제외.
+      // Events without a model field are fast-path / lifecycle calls that
+      // didn't invoke an LLM. Exclude from cost calculation rather than
+      // counting as unknown.
       if (!evt.model) continue;
       const r = computeEventUsd(evt);
       usd = r.usd;
@@ -60,7 +62,7 @@ export function getCostMetrics(window = '24h') {
       modelId = evt.model;
       source = evt.lib || 'unknown';
     } else if (evt.type === 'agent_done') {
-      // Sandbox agent — opencode 가 USD 직접 제공
+      // Sandbox agent — opencode provides the USD cost directly
       usd = Number(evt.cost) || 0;
       modelId = evt.agentModel || evt.model || 'sandbox-agent';
       source = 'agent';
@@ -93,8 +95,9 @@ export function getCostMetrics(window = '24h') {
     hourBucket.set(hourMs, (hourBucket.get(hourMs) || 0) + usd);
   }
 
-  // hourly_series 변환 + 정렬 (24h window 만 시간별 의미. 7d/30d 도 시간 buckets
-  // 으로 그대로 — UI 가 일별 묶을지 결정)
+  // Convert and sort hourly_series (hourly granularity is most meaningful for
+  // the 24h window; 7d/30d are also returned as hour buckets — the UI decides
+  // whether to group them by day)
   const hourly_series = Array.from(hourBucket.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([hourMs, usd]) => ({

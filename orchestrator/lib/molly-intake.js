@@ -1,17 +1,18 @@
 // orchestrator/lib/molly-intake.js
 //
-// Unified intake — surface 무관 entry point. classifier → kind 별 분기.
-// code_change 면 PRD analyzer 도 거쳐 clarity 까지 결정. 모든 surface
-// (Slack / Chrome ext / Playground / curl) 가 같은 결과 shape 받음.
+// Unified intake — surface-agnostic entry point. Routes by classifier kind.
+// For code_change, also runs the PRD analyzer to determine clarity. All
+// surfaces (Slack / Chrome ext / Playground / curl) receive the same result shape.
 //
 // Phase 2 of unified intake (docs/superpowers/plans/2026-04-30-unified-intake.md).
-// 새 로직 추가 없이 기존 4 lib (classifier / chat / status / prd-analyzer) wrap.
+// Wraps the existing 4 libs (classifier / chat / status / prd-analyzer) without
+// adding new logic.
 //
 // Phase 3 Task 3.1 sub-phase A (2026-04-30): history-aware dispatcher
-// skeleton. ctx.history 가 있으면 직전 assistant.kind 별 routing —
-// prev=code_change_ambiguous / plan_emit 은 sub-phase B 에서 구현
-// (TODO throw). 첫 턴 흐름은 handleFirstTurn 으로 추출, recentMessages
-// 에 history 압축 주입해서 chat/status/classifier 가 컨텍스트 활용.
+// skeleton. When ctx.history is present, routes based on the previous
+// assistant.kind — prev=code_change_ambiguous / plan_emit implemented in
+// sub-phase B (TODO throw). First-turn flow extracted into handleFirstTurn;
+// compresses history into recentMessages so chat/status/classifier can use context.
 
 import { classifyMollyText } from './molly-classifier.js';
 import { composeChatReply } from './molly-chat.js';
@@ -22,17 +23,17 @@ import { analyzePrdClarity } from './molly-prd-analyzer.js';
 /**
  * @typedef {'chat'|'status_query'|'lifecycle_action'|'code_change_clear'|'code_change_ambiguous'|'plan_emit'|'job_dispatched'|'plan_feedback'} IntakeKind
  *
- * - chat / status_query / code_change_clear / code_change_ambiguous: 첫 턴 흐름
- * - lifecycle_action: cancel/retry 등 잡 lifecycle 명령. deterministic template 응답 (LLM X)
- * - plan_emit: clarification 끝나고 plan items 반환 (sub-phase B)
- * - job_dispatched: 사용자가 plan 승인 → caller 가 createJob 부르는 시그널 (sub-phase B)
+ * - chat / status_query / code_change_clear / code_change_ambiguous: first-turn flow
+ * - lifecycle_action: job lifecycle command (cancel/retry/etc.). Deterministic template response (no LLM)
+ * - plan_emit: plan items returned after clarification completes (sub-phase B)
+ * - job_dispatched: user approved the plan → signal for caller to invoke createJob (sub-phase B)
  */
 
 /**
  * @typedef {object} HistoryTurn
  * @property {'user'|'assistant'} role
  * @property {string} content
- * @property {IntakeKind} [kind]                 // assistant turn 만 — 마지막 IntakeResult.kind
+ * @property {IntakeKind} [kind]                 // assistant turns only — the last IntakeResult.kind
  * @property {string} [clarifyingQuestion]       // assistant.kind=code_change_ambiguous
  * @property {Array<object>} [planItems]         // assistant.kind=plan_emit
  */
@@ -40,27 +41,28 @@ import { analyzePrdClarity } from './molly-prd-analyzer.js';
 /**
  * @typedef {object} IntakeResult
  * @property {IntakeKind} kind
- * @property {string} reason  // classifier 또는 dispatcher 가 준 한 줄 이유
- * @property {string} [response]  // chat / status_query 의 답변 본문
- * @property {string} [clarifyingQuestion]  // code_change_ambiguous 시 다음 질문
- * @property {string[]} [missingInfo]  // code_change_ambiguous 시 빠진 정보
- * @property {Array<object>} [planItems]  // plan_emit 시 plan 항목
- * @property {string} [cumulativePrd]  // plan_emit / job_dispatched 시 history 합친 PRD
- * @property {string} [jobId]  // job_dispatched 시 (caller 가 채워서 응답)
- * @property {object} [meta]  // 향후 size/scope 분석 등 확장 슬롯
+ * @property {string} reason  // one-line reason from the classifier or dispatcher
+ * @property {string} [response]  // reply body for chat / status_query
+ * @property {string} [clarifyingQuestion]  // next question when code_change_ambiguous
+ * @property {string[]} [missingInfo]  // missing information when code_change_ambiguous
+ * @property {Array<object>} [planItems]  // plan items when plan_emit
+ * @property {string} [cumulativePrd]  // PRD assembled from history when plan_emit / job_dispatched
+ * @property {string} [jobId]  // when job_dispatched (filled in by caller before responding)
+ * @property {object} [meta]  // extension slot for future size/scope analysis etc.
  */
 
 /**
- * 단일 entry point. history 가 없거나 prev kind 가 chat/status 같은
- * "open-ended" 면 첫 턴 흐름. prev=code_change_ambiguous/plan_emit 같은
- * "in-flight" 상태면 그에 맞는 핸들러로 dispatch.
+ * Single entry point. If there is no history or the previous kind is
+ * "open-ended" (chat/status), takes the first-turn flow. If the previous
+ * kind is "in-flight" (code_change_ambiguous/plan_emit), dispatches to the
+ * appropriate handler.
  *
- * 분석 실패 폴백 정책:
- * - classifier 실패 → 'chat' (잡 안 만드는 게 부작용 0). lib 내부에서 처리.
- * - prd-analyzer 실패 → 'clear' (clarify 가 잘못 fail 하면 무한 루프).
- *   lib 내부에서 처리.
+ * Fallback policy on analysis failure:
+ * - classifier failure → 'chat' (not creating a job has zero side effects). Handled inside the lib.
+ * - prd-analyzer failure → 'clear' (a bad clarify failure would cause an infinite loop).
+ *   Handled inside the lib.
  *
- * @param {string} text — 사용자 입력 (mention strip 등 cleanup 후)
+ * @param {string} text — user input (after mention strip and other cleanup)
  * @param {object} [ctx] — { surface, recentMessages, channel, threadTs, listJobs, getJob, history }
  * @returns {Promise<IntakeResult>}
  */
@@ -68,8 +70,8 @@ export async function processIntake(text, ctx = {}) {
   const history = Array.isArray(ctx.history) ? ctx.history : [];
   const prev = lastAssistantTurn(history);
 
-  // 첫 턴이거나 prev 가 open-ended kind (chat/status) — 새 dispatcher 사이클.
-  // history 자체는 컨텍스트로 재사용 (recentMessages 에 압축 주입).
+  // First turn or prev is an open-ended kind (chat/status) — start a new dispatcher cycle.
+  // History is still reused as context (compressed and injected into recentMessages).
   if (!prev || prev.kind === 'chat' || prev.kind === 'status_query') {
     return await handleFirstTurn(text, ctx, history);
   }
@@ -81,7 +83,7 @@ export async function processIntake(text, ctx = {}) {
       return await handlePlanEdit(text, history, ctx);
     case 'code_change_clear':
     case 'job_dispatched':
-      // 잡 만들어진 후 — 자유 chat 처럼 처리 (사용자가 새 PRD 던질 수도, 잡 상태 물을 수도).
+      // After a job was created — treat as free chat (user may submit a new PRD or ask for job status).
       return await handleFirstTurn(text, ctx, history);
     default:
       return await handleFirstTurn(text, ctx, history);
@@ -89,9 +91,9 @@ export async function processIntake(text, ctx = {}) {
 }
 
 /**
- * 첫 턴 흐름 — classifier → kind 별 분기. history 가 있으면 recentMessages
- * 에 압축 주입해서 chat/status/classifier 가 컨텍스트 활용 (예: chat
- * 응답이 직전 대화 기억하게).
+ * First-turn flow — routes by classifier kind. When history is present,
+ * compresses it into recentMessages so chat/status/classifier can use
+ * context (e.g. chat replies remember the previous conversation).
  *
  * @param {string} text
  * @param {object} ctx
@@ -99,8 +101,8 @@ export async function processIntake(text, ctx = {}) {
  * @returns {Promise<IntakeResult>}
  */
 async function handleFirstTurn(text, ctx, history) {
-  // history 마지막 3 turn 만 압축 — 토큰 비용 절약. 이미 ctx.recentMessages 가
-  // 명시 주어졌으면 그걸 우선.
+  // Compress only the last 3 turns of history — saves token cost. If
+  // ctx.recentMessages is already provided explicitly, prefer that.
   const recentMessages = ctx.recentMessages?.length
     ? ctx.recentMessages
     : history.slice(-3).map((t) => `${t.role === 'user' ? '사용자' : 'molly'}: ${(t.content || '').slice(0, 200)}`);
@@ -118,17 +120,19 @@ async function handleFirstTurn(text, ctx, history) {
     return { kind: 'status_query', reason: cls.reason, response };
   }
 
-  // #4 (2026-05-06) — lifecycle_action 분기. 새 카테고리. lifecycle lib
-  // 은 deterministic template (LLM 호출 X) — 잡 식별 + surface UI 안내.
+  // #4 (2026-05-06) — lifecycle_action branch. New category. The lifecycle lib
+  // uses a deterministic template (no LLM call) — identifies the job and
+  // provides surface-specific UI guidance.
   if (cls.kind === 'lifecycle_action') {
     const response = await composeLifecycleReply(text, enrichedCtx);
     return { kind: 'lifecycle_action', reason: cls.reason, response };
   }
 
-  // plan_feedback (2026-05-11) — 사용자가 plan 카드 떠있는 동안 자연어로
-  // 수정 요청. 여기선 LLM 호출 X — caller (Slack / Playground / Chrome ext)
-  // 가 자체 컨텍스트에서 emitPlan(previousPlan, feedback) 재호출 후 카드
-  // swap. intake 는 kind 만 전달하고 사용자 텍스트를 feedback 으로 반환.
+  // plan_feedback (2026-05-11) — user requests a natural-language revision
+  // while a plan card is up. No LLM call here — the caller (Slack / Playground
+  // / Chrome ext) re-invokes emitPlan(previousPlan, feedback) in its own
+  // context and swaps the card. intake only passes the kind and returns the
+  // user text as feedback.
   if (cls.kind === 'plan_feedback') {
     return {
       kind: 'plan_feedback',
@@ -148,11 +152,12 @@ async function handleFirstTurn(text, ctx, history) {
     };
   }
 
-  // PRD 가 첫 턴에 단번에 명확 → emitPlan 도 같은 응답에 묶어서 반환.
-  // 클라이언트가 plan_emit 받으면 plan 카드 뜸. emitPlan 실패 시 안전한
-  // code_change_clear + cumulativePrd 폴백 (caller 가 직접 createJob 가능).
-  // 이전 동작은 emitPlan 호출 안 하고 code_change_clear 만 반환 — 클라이언트
-  // 가 "plan 단계가 곧 emit 됩니다" 안내하지만 실제 plan 안 옴 (dead-end).
+  // PRD is clear on the first turn — bundle emitPlan into the same response.
+  // When the client receives plan_emit, it shows the plan card. If emitPlan
+  // fails, fall back safely to code_change_clear + cumulativePrd (caller can
+  // call createJob directly). The old behaviour returned only code_change_clear
+  // without calling emitPlan — the client would say "plan will be emitted
+  // shortly" but the plan never arrived (dead-end).
   const cumulativePrd = text;
   let plan;
   try {
@@ -178,15 +183,16 @@ async function handleFirstTurn(text, ctx, history) {
 }
 
 /**
- * Sub-phase B.3 (2026-04-30) — prev=code_change_ambiguous 시 처리.
- * cumulative PRD 만들어 prd-analyzer 가 history 와 함께 다시 판정.
- * - 여전히 ambiguous → 다음 clarifying Q
- * - clear → code_change_clear + cumulativePrd 반환 (caller 가 createJob
- *   할 때 cumulativePrd 사용)
+ * Sub-phase B.3 (2026-04-30) — handles prev=code_change_ambiguous.
+ * Builds a cumulative PRD and re-evaluates with prd-analyzer + history.
+ * - still ambiguous → next clarifying question
+ * - clear → returns code_change_clear + cumulativePrd (caller uses
+ *   cumulativePrd when calling createJob)
  *
- * Sub-phase B.2 (plan-emitter 추출) 가 다음 세션. 그 전엔 plan_emit
- * 안 거치고 직접 code_change_clear 로 — 사용자가 즉시 잡 만들 수 있음.
- * Wizard 의 plan ceremony 통합은 sub-phase B.2+B.4+C 끝나야 완성.
+ * Sub-phase B.2 (plan-emitter extraction) is next session. Until then,
+ * skips plan_emit and returns code_change_clear directly — user can create
+ * the job immediately. Wizard plan ceremony integration requires
+ * sub-phase B.2+B.4+C to be complete.
  *
  * @param {string} text
  * @param {HistoryTurn[]} history
@@ -204,8 +210,9 @@ async function handleClarificationAnswer(text, history, ctx) {
       missingInfo: analysis.missingInfo,
     };
   }
-  // Clear — cumulative PRD + plan emit (sub-phase B.2). emitPlan 실패
-  // 시 code_change_clear 폴백 (caller 가 cumulativePrd 로 직접 createJob).
+  // Clear — cumulative PRD + plan emit (sub-phase B.2). Falls back to
+  // code_change_clear if emitPlan fails (caller can call createJob directly
+  // with cumulativePrd).
   const cumulativePrd = compactCumulativePrd(history, text);
   let plan;
   try {
@@ -229,10 +236,10 @@ async function handleClarificationAnswer(text, history, ctx) {
 }
 
 /**
- * History 의 모든 user turn + 최신 텍스트를 하나의 PRD 로 합침.
- * caller (Slack/Chrome ext/Playground) 가 createJob 할 때 cumulativePrd
- * 우선 사용. assistant turn 의 clarifying Q 들은 컨텍스트로만 PRD 에는
- * 포함 X (PRD 는 사용자 의도만 담는 게 깨끗).
+ * Combines all user turns in history with the latest text into a single PRD.
+ * The caller (Slack/Chrome ext/Playground) should prefer cumulativePrd when
+ * calling createJob. Clarifying questions from assistant turns are used only
+ * as context and are NOT included in the PRD (keeping it to user intent only).
  *
  * @param {HistoryTurn[]} history
  * @param {string} latestText
@@ -247,14 +254,14 @@ function compactCumulativePrd(history, latestText) {
 }
 
 /**
- * Sub-phase B.4 (2026-04-30) — prev=plan_emit 일 때 사용자가 plan 을 보고
- * "이대로 진행" / 자유 피드백 한 것 처리.
+ * Sub-phase B.4 (2026-04-30) — handles prev=plan_emit when the user has
+ * seen the plan and either approves it or provides free-form feedback.
  *
- * - APPROVE 휴리스틱 매칭 → kind=job_dispatched. caller (서버/surface) 가
- *   cumulativePrd + planItems 로 createJob 부름. lib 은 stateless — 잡
- *   생성 안 함.
- * - 자유 피드백 → cumulativePrd + "[추가 피드백]" + 사용자 텍스트로
- *   emitPlan 재호출 → kind=plan_emit (재출력).
+ * - APPROVE heuristic match → kind=job_dispatched. The caller (server/surface)
+ *   calls createJob with cumulativePrd + planItems. This lib is stateless —
+ *   it does not create the job.
+ * - Free-form feedback → re-invokes emitPlan with cumulativePrd +
+ *   "[추가 피드백]" (additional feedback marker) + user text → kind=plan_emit (re-emit).
  *
  * @param {string} text
  * @param {HistoryTurn[]} history
@@ -264,7 +271,7 @@ function compactCumulativePrd(history, latestText) {
 async function handlePlanEdit(text, history, ctx) {
   const trimmed = text.trim();
   if (APPROVE_RE.test(trimmed)) {
-    // 승인 — caller 가 createJob. lib 은 시그널 + 누적 PRD/planItems 만.
+    // Approved — caller calls createJob. lib only provides the signal + cumulative PRD/planItems.
     const prev = lastAssistantTurn(history);
     const cumulativePrd = compactCumulativePrd(history, '');
     console.log(`[molly-intake] plan_emit → job_dispatched (approve match: "${trimmed.slice(0, 40)}")`);
@@ -275,7 +282,7 @@ async function handlePlanEdit(text, history, ctx) {
       planItems: prev?.planItems ?? [],
     };
   }
-  // 자유 피드백 → plan re-emit. 이전 PRD + "[추가 피드백]" + 사용자 텍스트.
+  // Free-form feedback → plan re-emit. Previous PRD + "[추가 피드백]" marker + user text.
   const baseCumulative = compactCumulativePrd(history, '');
   const cumulativePrd = baseCumulative
     ? `${baseCumulative}\n\n[추가 피드백]\n${trimmed}`
@@ -302,13 +309,13 @@ async function handlePlanEdit(text, history, ctx) {
   };
 }
 
-// "이대로 / 진행 / 승인 / approve / ok / 네 / 예 / yes" 류 일반적 승인
-// 표현. plan 카드 보고 사용자가 짧게 답할 때만 매칭. 길거나 다른 단어
-// 섞이면 자유 피드백으로.
+// General approval expressions ("proceed as-is / go ahead / approve / ok / yes" etc.).
+// Matches only when the user gives a short reply after seeing the plan card.
+// Longer responses or mixed words are treated as free-form feedback.
 const APPROVE_RE = /^(이대로( 진행)?|진행( 해줘|해)?|승인|approve|ok|okay|네|네\.|예|예\.|yes)\.?$/i;
 
 /**
- * History 의 마지막 assistant turn. 없으면 null.
+ * The last assistant turn in history. Returns null if none exists.
  *
  * @param {HistoryTurn[]} history
  * @returns {HistoryTurn | null}

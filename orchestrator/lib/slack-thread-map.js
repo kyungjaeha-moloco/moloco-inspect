@@ -1,15 +1,16 @@
 /**
- * Slack thread ↔ Playground 매핑 persist.
+ * Persists Slack thread ↔ Playground mappings.
  *
- * 사용자 결정 (2026-04-30): Slack 멘션마다 잡을 만들 때, 같은 thread
- * 의 후속 멘션은 같은 playground 를 reuse. 다른 thread 는 다른
- * playground. 옵션 B (Slack thread = playground 1:1) 의 핵심 자료구조.
+ * Design decision (2026-04-30): when creating a job per Slack mention,
+ * subsequent mentions in the same thread reuse the same playground. Different
+ * threads get different playgrounds. Core data structure for Option B
+ * (Slack thread = playground 1:1).
  *
  * Storage: <STATE_DIR>/slack-thread-playgrounds.json
  *   { "<channel>:<threadTs>": "<playgroundId>", ... }
  *
- * Read-modify-write 가 race-y 하지만 v0 에서는 멘션이 thread 별 직렬
- * 이라 충돌 가능성 매우 낮음 — 필요하면 lock 도입.
+ * Read-modify-write is racy but in v0 mentions are serialised per thread
+ * so collisions are very unlikely — introduce a lock if needed.
  */
 
 import fs from 'node:fs';
@@ -66,8 +67,8 @@ export function setPlaygroundIdForThread(channel, threadTs, playgroundId) {
 }
 
 /**
- * 매핑이 가리키는 playground 가 더 이상 활성이 아니면 (archived /
- * hibernated / 삭제됨) 매핑 제거. 다음 멘션이 새 playground 를 만듦.
+ * Removes the mapping when the playground it points to is no longer active
+ * (archived / hibernated / deleted). The next mention will create a new playground.
  *
  * @param {string} channel
  * @param {string} threadTs

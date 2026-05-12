@@ -610,8 +610,8 @@ function decomposeJobInBackground(jobId, opts = {}) {
       const { tasks, targetRoute, risks } = result;
       setJobTasks(jobId, tasks); // auto-transitions decomposing → planning
       // Stamp the target route hint when the LLM picked one. The UI
-      // uses this on the QA / complete screens to show "결과 페이지
-      // 열기 ↗" so the user doesn't have to hunt for the new menu
+      // uses this on the QA / complete screens to show "Open result page
+      // ↗" so the user doesn't have to hunt for the new menu
       // entry.
       if (targetRoute) {
         try {
@@ -1340,13 +1340,13 @@ async function runPipeline(id) {
     }
 
     // M1b: for playground-attached requests, persist change as a real commit
-    // so timeline ("이 시점으로 돌아가기") and revert semantics can land on a
+    // so timeline ("Go back to this point") and revert semantics can land on a
     // sha. `--no-verify` skips husky+lint-staged (spike A1: saves 3-5s/req).
     if (state.playgroundId) {
       try {
-        // D+ (2026-05-11): commit 직전의 HEAD 를 parentSha 로 기록.
-        // verification_failed 자동 재시도 시 restoreToSha(parentSha) 로
-        // 깨끗한 상태 복원 가능. race 안전 — 같은 await 시퀀스 안에서 캡처.
+        // D+ (2026-05-11): record HEAD immediately before the commit as parentSha.
+        // On verification_failed auto-retry, restoreToSha(parentSha) restores a
+        // clean state. Race-safe — captured within the same await sequence.
         try {
           const parentRes = await execInContainer({
             containerId: sandbox.containerId,
@@ -1413,14 +1413,14 @@ async function runPipeline(id) {
       // to resolve the module. Catching that here turns silent failure into
       // an explicit `verification_failed` state the UI can surface.
       //
-      // D+ (2026-05-11): runTypecheckWithRetry — type 에러 시 자동으로 최대
-      // 2회 agent 자기수정 재실행. verifyMaxRetries 설정 토글 가능 (=0 이면
-      // 기존 D 동작 그대로). 상세는 helper docstring 참고.
+      // D+ (2026-05-11): runTypecheckWithRetry — on type errors, automatically
+      // re-runs the agent up to 2 times for self-correction. verifyMaxRetries
+      // setting is toggleable (=0 keeps the original D behaviour). See helper docstring.
       const verifyOk = await runTypecheckWithRetry(id, sandbox, state, {
         originalPrompt: state.payload?.userPrompt || '',
         client,
       });
-      if (!verifyOk) return; // 호출자가 error state 작성 (writeVerificationFailed)
+      if (!verifyOk) return; // caller writes error state (writeVerificationFailed)
 
       updateRequest(id, { status: 'preview', phase: 'preview_ready' });
       appendAnalyticsEvent(state, 'preview_ready', { summary: 'Playground change applied', previewUrl: diffViewUrl });
@@ -1451,9 +1451,9 @@ async function runPipeline(id) {
       // hallucinated imports surfaced as silent runtime failures during
       // preview rather than as an explicit error the user can act on.
       //
-      // D+ (2026-05-11): runTypecheck 가 이제 {pass, feedback} 반환. legacy
-      // one-shot 은 retry 대상 아님 (별 sandbox, parentSha 추적 없음) — 실패
-      // 시 호출자가 writeVerificationFailed 호출 후 return.
+      // D+ (2026-05-11): runTypecheck now returns {pass, feedback}. The legacy
+      // one-shot path is not a retry candidate (separate sandbox, no parentSha
+      // tracking) — on failure the caller calls writeVerificationFailed then returns.
       const verifyResult = await runTypecheck(id, sandbox.containerId, state);
       if (!verifyResult.pass) {
         writeVerificationFailed(id, state, verifyResult.execError ? verifyResult : verifyResult.feedback, 0);
@@ -1836,10 +1836,10 @@ async function handleReject(id, feedback) {
 /**
  * Run tsc on the change-set and return a structured result.
  *
- * D+ (2026-05-11): caller 가 retry 분기 가능하도록 boolean → `{pass, feedback}`
- * 로 리팩토. 실패 시 즉시 status='error' 쓰지 않고 호출자가 결정.
- * 호출자는 retry 가능 시 `runTypecheckWithRetry` 사용, 단순 검증만 필요하면
- * pass 만 보고 분기.
+ * D+ (2026-05-11): refactored from boolean → `{pass, feedback}` so the caller
+ * can branch on retry. On failure the caller decides — status='error' is not
+ * written immediately. Callers that support retry use `runTypecheckWithRetry`;
+ * callers that only need a pass/fail check branch on `pass` alone.
  *
  * @returns {Promise<{
  *   pass: boolean,
@@ -1897,8 +1897,8 @@ async function runTypecheck(id, containerId, state) {
     return { pass: true };
   }
 
-  // 구조화 — buildVerifyFeedback 가 ±3줄 코드 컨텍스트 첨부할 때 file/line/col
-  // 사용. 형식 예시: "src/foo.tsx(12,5): error TS2741: Property 'variant' is..."
+  // Structure errors — buildVerifyFeedback uses file/line/col to attach ±3-line
+  // code context. Format example: "src/foo.tsx(12,5): error TS2741: Property 'variant' is..."
   const structured = [];
   for (const line of regressionLines.slice(0, 10)) {
     const m = line.match(/^([^(]+)\((\d+),(\d+)\): error (TS\d+): (.+)$/);
@@ -1929,8 +1929,8 @@ async function runTypecheck(id, containerId, state) {
 }
 
 /**
- * Write verification_failed state — 호출자 (runTypecheckWithRetry 의 final
- * exhausted 분기, 또는 simple caller) 가 사용.
+ * Write verification_failed state — used by the caller (the final-exhausted
+ * branch of runTypecheckWithRetry, or a simple one-shot caller).
  */
 function writeVerificationFailed(id, state, feedback, attemptsUsed = 0) {
   if (feedback?.execError) {
@@ -1967,25 +1967,25 @@ function writeVerificationFailed(id, state, feedback, attemptsUsed = 0) {
  * filesystem (post-commit state — bad code still in place at this point).
  *
  * Format (sent to agent in retry prompt):
- *   "이전 시도가 TypeScript 타입 검증에 실패했습니다.
+ *   "The previous attempt failed TypeScript type verification.
  *
- *    발생한 에러:
+ *    Errors found:
  *    1. src/foo.tsx (12, 5)
  *       error TS2741: Property 'variant' is missing...
- *       해당 코드:
+ *       Relevant code:
  *       10 | export function Bar() {
  *       11 |   return (
- *       12 |     <Button>저장</Button>
+ *       12 |     <Button>Save</Button>
  *       13 |   );
  *       14 | }
  *    ...
  *
- *    지시:
- *    - 이전 접근법을 그대로 반복하지 말고 재검토하세요.
- *    - components.json 의 prop 시그니처를 다시 확인하세요."
+ *    Instructions:
+ *    - Do not repeat the previous approach — review it instead.
+ *    - Re-check the prop signatures in components.json."
  *
  * @param {string} containerId
- * @param {object} feedback — runTypecheck 의 feedback 필드 ({ structured, ... })
+ * @param {object} feedback — feedback field from runTypecheck ({ structured, ... })
  * @returns {Promise<string>}
  */
 async function buildVerifyFeedback(containerId, feedback) {
@@ -2004,8 +2004,8 @@ async function buildVerifyFeedback(containerId, feedback) {
   const blocks = [];
   let idx = 1;
   for (const err of feedback.structured.slice(0, 5)) {
-    // sed 로 ±3줄 추출 (line 1-3 부터 line+3 까지). 컨테이너 안에서 실행.
-    // 워크스페이스 prefix 자동 보정 — structured.file 은 cwd-relative (js/...).
+    // Extract ±3 lines via sed (lines line-3 to line+3). Runs inside the container.
+    // Workspace prefix auto-corrected — structured.file is cwd-relative (js/...).
     const startLine = Math.max(1, err.line - 3);
     const endLine = err.line + 3;
     const filePath = `/workspace/msm-portal/js/msm-portal-web/${err.file}`;
@@ -2048,19 +2048,19 @@ async function buildVerifyFeedback(containerId, feedback) {
 }
 
 /**
- * D+ (2026-05-11): typecheck + 실패 시 자동 재시도 orchestrator.
+ * D+ (2026-05-11): typecheck + auto-retry orchestrator on failure.
  *
- * 1차 typecheck → pass 면 즉시 true.
- * fail 이면 최대 N 회 (기본 settings.verifyMaxRetries=2):
- *   - restoreToSha(parentSha) — 깨끗한 상태 복원
- *   - phase='verification_retry' + 로그
- *   - buildVerifyFeedback — 에러 블록 + 코드 컨텍스트
- *   - runAgentPrompt — 원래 prompt + feedback 으로 agent 재실행
- *   - diff 수집 + git commit (새 SHA 추적)
- *   - typecheck 재시도
- * 모두 실패 → writeVerificationFailed (호출자가 return 하면 기존 D 흐름과 동일)
+ * First typecheck → returns true immediately on pass.
+ * On fail, retries up to N times (default settings.verifyMaxRetries=2):
+ *   - restoreToSha(parentSha) — restore clean state
+ *   - phase='verification_retry' + log
+ *   - buildVerifyFeedback — error block + code context
+ *   - runAgentPrompt — re-run agent with original prompt + feedback
+ *   - collect diff + git commit (track new SHA)
+ *   - re-typecheck
+ * All retries exhausted → writeVerificationFailed (caller returns, matching original D flow)
  *
- * Playground 전용 — legacy one-shot 흐름은 별도 sandbox 라 retry 안 함.
+ * Playground-only — the legacy one-shot flow uses a separate sandbox so retry is not applicable.
  *
  * @param {string} id
  * @param {{containerId: string}} sandbox
@@ -2077,7 +2077,7 @@ async function runTypecheckWithRetry(id, sandbox, state, opts) {
   let result = await runTypecheck(id, sandbox.containerId, state);
   if (result.pass) return true;
 
-  // exec error 는 retry 무의미 — 즉시 fail
+  // exec error makes retry pointless — fail immediately
   if (result.execError) {
     writeVerificationFailed(id, state, result, 0);
     return false;
@@ -2156,7 +2156,7 @@ async function runTypecheckWithRetry(id, sandbox, state, opts) {
     });
     appendLog(id, `재시도 agent 완료 (cost: $${(agentResult.cost || 0).toFixed(4)})`);
 
-    // 5) diff 수집
+    // 5) collect diff
     const diff = await extractDiff({ containerId: sandbox.containerId });
     updateRequest(id, { diff: diff.diffText, changedFiles: diff.changedFiles });
     if (!diff.changedFiles.length) {
@@ -2168,7 +2168,7 @@ async function runTypecheckWithRetry(id, sandbox, state, opts) {
       return false;
     }
 
-    // 6) commit (parentSha 갱신 안 함 — 다음 retry 도 같은 fresh state 에서)
+    // 6) commit (do not update parentSha — next retry also starts from the same fresh state)
     try {
       const msg = `retry ${attempt}: typecheck fix`.replace(/"/g, '\\"');
       await execInContainer({
@@ -2220,10 +2220,10 @@ async function runTypecheckWithRetry(id, sandbox, state, opts) {
       writeVerificationFailed(id, state, result, attempt);
       return false;
     }
-    // 실패 → 루프 다음 회차 (또는 exhausted)
+    // failure → next loop iteration (or exhausted)
   }
 
-  // 모든 retry 소진
+  // all retries exhausted
   appendAnalyticsEvent(state, 'verification_retry_exhausted', {
     attempts: MAX_RETRIES,
     finalError: (result.feedback?.firstError ?? '').slice(0, 200),
@@ -2583,10 +2583,10 @@ const server = http.createServer(async (req, res) => {
           proxyRes.on('data', c => chunks.push(c));
           proxyRes.on('end', () => {
             let html = Buffer.concat(chunks).toString('utf-8');
-            // Vite EPIPE auto-recovery — esbuild 자식 프로세스가 죽으면
-            // vite 가 "The service is no longer running" HTML 을 반환.
-            // 감지 시 supervisorctl restart vite 백그라운드 호출 + 503
-            // refresh 페이지로 사용자 안내 (5초 후 자동 새로고침).
+            // Vite EPIPE auto-recovery — when the esbuild child process dies,
+            // vite returns "The service is no longer running" HTML.
+            // On detection, call supervisorctl restart vite in the background + serve
+            // a 503 refresh page to guide the user (auto-refresh after 5 seconds).
             if (html.includes('The service is no longer running') ||
                 html.includes('plugin:vite:esbuild')) {
               const containerName = state?.sandbox?.containerName || state?.sandbox?.containerId;
@@ -2854,16 +2854,16 @@ Return ONLY valid JSON (no markdown, no explanation). Every value MUST be in Eng
   // a clarifying question or a structured plan.
   //
   // ⚠️ DEPRECATED (Phase 3 Task 3.1 sub-phase E, 2026-04-30) — use /api/intake
-  // with `history` 대신. /api/chat 은 single-turn 분류만 / classifier
-  // 게이트 분리 / plan 흐름 별개. /api/intake 가 6 종 kind (chat /
-  // status_query / code_change_clear / code_change_ambiguous / plan_emit /
-  // job_dispatched) 통합 dispatch + multi-turn history 처리.
-  // 호출자 마이그레이션: Playground postChat → postIntake (sub-phase C).
-  // 삭제 시점: 호출 zero 확인 후 (handoff 의 측정 슬라이스 → 1-2 분기).
+  // with `history` instead. /api/chat only handles single-turn classification /
+  // separate classifier gate / separate plan flow. /api/intake unifies all 6
+  // kind values (chat / status_query / code_change_clear / code_change_ambiguous /
+  // plan_emit / job_dispatched) into one dispatch + multi-turn history handling.
+  // Caller migration: Playground postChat → postIntake (sub-phase C).
+  // Removal: after confirming zero callers (measurement slice in handoff → 1-2 quarters).
   if (pathname === '/api/chat' && req.method === 'POST') {
     try {
-      // Deprecation 헤더 + 로그 — caller (UA / origin) 추적해 마이그레이션
-      // 진행 상황 측정. 헤더는 fetch response 에 보임.
+      // Deprecation header + log — track caller (UA / origin) to measure migration
+      // progress. The header is visible in the fetch response.
       res.setHeader('X-Deprecated', '/api/intake (history-aware) - see docs/superpowers/plans/2026-04-30-history-aware-intake.md');
       res.setHeader('Sunset', 'TBD');
       console.warn(`[/api/chat] DEPRECATED call from ua="${(req.headers['user-agent'] || 'unknown').slice(0, 80)}" origin="${req.headers.origin || 'none'}"`);
@@ -3041,7 +3041,7 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
-  // Molly metrics — 운영 지표 집계. window=1h|24h|7d.
+  // Molly metrics — operational metric aggregation. window=1h|24h|7d.
   if (pathname === '/api/molly/metrics' && req.method === 'GET') {
     try {
       const { getMetrics } = await import('./lib/molly-metrics.js');
@@ -3052,9 +3052,9 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
-  // Molly cost — LLM 비용 집계. window=24h|7d|30d.
-  // lib_call event (input/output/cache 토큰) × molly-pricing 단가 + sandbox
-  // agent 의 USD 직접 합산. 결과: total_usd, by_model, by_source,
+  // Molly cost — LLM cost aggregation. window=24h|7d|30d.
+  // lib_call events (input/output/cache tokens) × molly-pricing rates + direct
+  // USD sum from sandbox agents. Result fields: total_usd, by_model, by_source,
   // hourly_series, unknown_model_calls.
   if (pathname === '/api/molly/cost' && req.method === 'GET') {
     try {
@@ -3066,7 +3066,7 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
-  // Pin (comment) CRUD — Playground 코멘트 영구화 + 다중 사용자 공유.
+  // Pin (comment) CRUD — persistent Playground comments + multi-user sharing.
   // Spec: docs/superpowers/plans/2026-05-11-comment-ux-overhaul.md (P5.2)
   {
     const m = pathname.match(/^\/api\/playground\/([^/]+)\/pins$/);
@@ -3152,9 +3152,9 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
-  // Molly settings — Inspect Console UI 에서 런타임 변경 가능. 모델 /
-  // thinking budget 즉시 반영 (재시작 X). 부팅 시 env defaults +
-  // orchestrator/state/molly-settings.json 영구 저장.
+  // Molly settings — can be changed at runtime from the Inspect Console UI. Model /
+  // thinking budget take effect immediately (no restart). On boot, env defaults +
+  // orchestrator/state/molly-settings.json are loaded for persistence.
   if (pathname === '/api/molly/settings') {
     if (req.method === 'GET') {
       try {
@@ -3179,10 +3179,10 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
-  // Unified intake — surface 무관 entry point. classifier + chat/status +
-  // PRD analyzer 를 한 lib (molly-intake.js) 로 묶어 4 종 kind 반환.
-  // Phase 2 of unified intake plan. 기존 /api/molly/respond 는 alias 로 유지
-  // (Phase 3 에서 deprecate).
+  // Unified intake — surface-agnostic entry point. Bundles classifier + chat/status +
+  // PRD analyzer into one lib (molly-intake.js) returning 4 kind values.
+  // Phase 2 of unified intake plan. The old /api/molly/respond is kept as an alias
+  // (to be deprecated in Phase 3).
   if (pathname === '/api/intake' && req.method === 'POST') {
     try {
       const { processIntake } = await import('./lib/molly-intake.js');
@@ -3194,34 +3194,34 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         recentMessages: Array.isArray(payload?.recentMessages) ? payload.recentMessages : [],
         channel: payload?.channel,
         threadTs: payload?.threadTs,
-        // Phase 3 Task 3.1 sub-phase A — multi-turn 지원. 클라이언트가
-        // 직전 IntakeResult.kind 를 assistant turn 의 kind 로 저장해서
-        // 보내야 dispatcher 가 정확한 routing. 길이 제한 10 (토큰 비용).
+        // Phase 3 Task 3.1 sub-phase A — multi-turn support. The client must store
+        // the previous IntakeResult.kind as the assistant turn's kind and send it
+        // so the dispatcher can route accurately. Length capped at 10 (token cost).
         history: Array.isArray(payload?.history) ? payload.history.slice(-10) : [],
         listJobs,
         getJob,
-        // Playground 의 plan 카드 → executePlan → change-request 흐름이 만든
-        // 작업도 status_query 답변에 포함. 이걸 빼면 사용자가 만든 작업이
-        // /api/job 에 안 잡혀 있을 때 Molly 가 "잡 못 찾음" 답변 (정직하지만
-        // UI 의 잡 카드와 모순).
+        // Jobs created via the Playground plan card → executePlan → change-request
+        // flow are also included in status_query replies. Without this, when a
+        // user-created job is not tracked under /api/job, Molly would reply "job not
+        // found" (honest, but contradicts the job card in the UI).
         listRequests: () => [...requests.values()],
-        // Sub-phase B.2 — molly-intake 의 handleClarificationAnswer / handlePlanEdit
-        // 가 emitPlan 호출 시 DS context 를 알아야 함. caller (Slack/Chrome ext/
-        // Playground) 가 client / routeOrPage 도 보내면 plan emitter 가 활용.
+        // Sub-phase B.2 — molly-intake's handleClarificationAnswer / handlePlanEdit
+        // need DS context when calling emitPlan. If the caller (Slack/Chrome ext/
+        // Playground) also sends client / routeOrPage, the plan emitter will use them.
         designSystemRoot: DESIGN_SYSTEM_ROOT,
         requestSchemaPath: REQUEST_SCHEMA_PATH,
         client: payload?.client,
         routeOrPage: payload?.routeOrPage,
-        // plan_feedback 활성화 (2026-05-11) — classifier 가 채팅 입력을
-        // "현재 plan 수정 요청" 으로 분류 가능. caller (surface) 가 pending
-        // plan 의 존재 여부 + summary 를 보내서 정확도 ↑.
+        // plan_feedback activated (2026-05-11) — the classifier can classify chat
+        // input as "request to modify the current plan". Accuracy improves when the
+        // caller (surface) sends whether a pending plan exists + its summary.
         hasPendingPlan: payload?.hasPendingPlan === true,
         pendingPlanSummary: typeof payload?.pendingPlanSummary === 'string'
           ? payload.pendingPlanSummary
           : null,
       };
       const result = await processIntake(text, ctx);
-      // 메트릭 — intake 의 최종 kind 기록.
+      // metrics — record the final kind from intake.
       try {
         const { recordEvent } = await import('./lib/molly-metrics.js');
         recordEvent('intake_result', {
@@ -3231,9 +3231,10 @@ ${JSON.stringify(apiContracts, null, 2)}`;
       } catch {}
       return json(res, 200, { ok: true, ...result });
     } catch (err) {
-      // #7 fallback 톤 가이드 — raw error 노출 X. timeout / API key /
-      // rate limit 별 사용자 친화 메시지 + 다음 행동 제안. raw 는
-      // detail 필드로 디버깅용 (surface 가 옵션으로 표시 가능).
+      // #7 fallback tone guide — do not expose raw errors. Show user-friendly
+      // messages per error type (timeout / API key / rate limit) with next-action
+      // suggestions. Raw error goes in the detail field for debugging (surface can
+      // optionally display it).
       const raw = err?.message ?? String(err);
       let userMessage;
       if (/timeout|timed out|aborted/i.test(raw)) {
@@ -3248,7 +3249,7 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         userMessage = '⚠️ Something went wrong. Please try again. If the issue persists, check the orchestrator logs.';
       }
       console.error('[/api/intake] error:', err);
-      // 메트릭 — error category 기록.
+      // metrics — record error category.
       try {
         const { recordEvent } = await import('./lib/molly-metrics.js');
         let category = 'other';
@@ -3262,9 +3263,10 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
-  // molly chat mode — classifier 후 분기. 코드 변경 요청이면 잡 생성을
-  // 호출자가 알아서 (jobId 반환은 안 함 — surface 가 createJob/decompose
-  // 직접 부름. 이 엔드포인트는 분류 + chat/status 응답만 책임).
+  // molly chat mode — branch after classifier. If the request is a code change,
+  // the caller is responsible for job creation (jobId is not returned here — the
+  // surface calls createJob/decompose directly). This endpoint only handles
+  // classification + chat/status responses.
   if (pathname === '/api/molly/respond' && req.method === 'POST') {
     try {
       const { classifyMollyText } = await import('./lib/molly-classifier.js');
@@ -3290,7 +3292,7 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         });
         return json(res, 200, { ok: true, kind, reason, response });
       }
-      // code_change — clarity 분석 후 결과에 따라 응답 다름
+      // code_change — response varies based on clarity analysis result
       try {
         const { analyzePrdClarity } = await import('./lib/molly-prd-analyzer.js');
         const analysis = await analyzePrdClarity(text, ctx);
@@ -3303,7 +3305,7 @@ ${JSON.stringify(apiContracts, null, 2)}`;
           missingInfo: analysis.missingInfo,
         });
       } catch (err) {
-        // 분석 실패 = 기존 동작 (clear 폴백)
+        // analysis failure = fall back to original behaviour (clear fallback)
         return json(res, 200, { ok: true, kind, reason, clarity: 'clear', clarifyingQuestion: '', missingInfo: [] });
       }
     } catch (err) {
@@ -3326,9 +3328,9 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         });
       }
 
-      // Sub-phase B.2 — emitPlan lib 으로 추출. 에러 메시지로 status 분기.
-      // "다시 계획" (2026-05-11): previousPlan + feedback 옵셔널 — emitPlan 이
-      // 이전 plan + 사용자 피드백을 user prompt 끝에 첨부. system 캐시 그대로.
+      // Sub-phase B.2 — extracted into the emitPlan lib. Status branches on error message.
+      // "Re-plan" (2026-05-11): previousPlan + feedback are optional — emitPlan appends
+      // the previous plan + user feedback at the end of the user prompt. System cache unchanged.
       try {
         const { emitPlan } = await import('./lib/molly-plan-emitter.js');
         const plan = await emitPlan(
@@ -3809,10 +3811,10 @@ Generate 2 variations (v2, v3).`;
           //   - LLM-failure recovery: job is `paused` after the
           //     decomposer crashed; flip back to `decomposing` and
           //     re-fire.
-          //   - User-driven "다시 계획 세우기": the plan landed (status
+          //   - User-driven "Re-plan": the plan landed (status
           //     `planning`) but the user wants a fresh breakdown
           //     before approving. Same FSM flip + re-fire.
-          //   - "이 계획에 수정 요청" with `feedback` — same as above
+          //   - "Request changes to this plan" with `feedback` — same as above
           //     but with explicit natural-language steering passed
           //     through to the LLM.
           const body = await parseBody(req);
@@ -3876,7 +3878,7 @@ Generate 2 variations (v2, v3).`;
         else if (action === 'mark-qa-pass') updated = markQaPass(jobId);
         else if (action === 'rerun-qa') {
           // Clear the prior result so the runner doesn't dedupe-skip,
-          // then fire it. UI shows "🧪 자동 QA 실행 중…" while
+          // then fire it. UI shows "🧪 Running auto QA…" while
           // qaAutoResult is null and the job is still in `qa`.
           const job = getJob(jobId);
           if (!job) return json(res, 404, { ok: false, error: 'job not found' });
@@ -4184,7 +4186,7 @@ server.listen(PORT, '0.0.0.0', () => {
     defaultPlaygroundId: process.env.MOLLY_PLAYGROUND_ID?.trim() || null,
     // S2 fix (2026-05-07): Slack-originated processIntake calls were missing
     // designSystemRoot, so emitPlan's first-turn auto-emit threw and the
-    // user fell back to code_change_clear ("plan 곧 emit 됩니다" 거짓 약속).
+    // user fell back to code_change_clear ("plan will be emitted soon" false promise).
     // /api/intake (line 2769) already sets these — propagate to the Slack
     // path too so the three surfaces stay symmetric.
     designSystemRoot: DESIGN_SYSTEM_ROOT,
@@ -4260,9 +4262,9 @@ server.listen(PORT, '0.0.0.0', () => {
       });
     },
     // Create a fresh playground for a Slack thread that has no existing
-    // mapping. molly's per-thread policy: 같은 thread → 같은 playground,
-    // 다른 thread → 다른 playground. apiKey 는 server-level env 에서 가져와
-    // molly 는 ANTHROPIC_API_KEY 에 직접 의존하지 않게.
+    // mapping. molly's per-thread policy: same thread → same playground,
+    // different thread → different playground. apiKey is taken from the server-level
+    // env so molly does not depend directly on ANTHROPIC_API_KEY.
     createPlayground: async ({ title, createdBy, prdUrl, jiraUrl }) => {
       const apiKey = process.env.ANTHROPIC_API_KEY || SANDBOX_API_KEY;
       if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');

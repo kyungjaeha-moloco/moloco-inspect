@@ -119,7 +119,7 @@ describe('buildPrdUserMessage — with history', () => {
 
   test('uses English role label "user" (not Korean)', () => {
     const msg = buildPrdUserMessage('some text', { history });
-    // Roles should be "user:" and "molly:" — no Korean 사용자
+    // Roles should be "user:" and "molly:" — no Korean word for "user" (사용자)
     assert.doesNotMatch(msg, /사용자/);
   });
 

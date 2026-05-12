@@ -58,7 +58,7 @@
 /** @type {Readonly<Record<JobStatus, readonly JobStatus[]>>} */
 export const JOB_TRANSITIONS = Object.freeze({
   decomposing: ['planning', 'paused', 'cancelled'],
-  // planning → decomposing is the user-driven "더 작게 나누기" loop:
+  // planning → decomposing is the user-driven "break into smaller pieces" loop:
   // the LLM returned a plan but the user wants a fresh breakdown
   // before approving. We flip the job back into the decomposing stage
   // and let decomposeJobInBackground re-run the LLM.

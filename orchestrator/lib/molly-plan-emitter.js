@@ -1,26 +1,26 @@
 // orchestrator/lib/molly-plan-emitter.js
 //
-// Plan emission — server.js /api/plan 의 LLM 호출 + DS context loading
-// + JSON parsing 을 lib 으로 추출. Phase 3 Task 3.1 sub-phase B.2.
-// /api/plan 은 thin wrap 으로 backward compat 유지. molly-intake 의
-// handleClarificationAnswer 도 같은 lib 호출 — plan emit ceremony 의
-// single source of truth.
+// Plan emission — extracts the LLM call + DS context loading + JSON parsing
+// from server.js /api/plan into a lib. Phase 3 Task 3.1 sub-phase B.2.
+// /api/plan is kept as a thin wrapper for backward compatibility.
+// molly-intake's handleClarificationAnswer also calls the same lib —
+// single source of truth for the plan emit ceremony.
 //
-// ctx 로 designSystemRoot / requestSchemaPath 받음 — caller 가 server.js
-// 의 module-level 상수 주입. 환경변수 DESIGN_SYSTEM_ROOT 도 fallback.
-// API key 는 process.env 에서 직접 (server.js 와 동일 정책).
+// Receives designSystemRoot / requestSchemaPath via ctx — caller injects the
+// module-level constants from server.js. DESIGN_SYSTEM_ROOT env var is the
+// fallback. API key is read directly from process.env (same policy as server.js).
 
 import path from 'node:path';
 import fs from 'node:fs';
 
-// 모델 + thinking budget 은 molly-settings store 에서 dynamic 로 — Inspect
-// Console UI (Settings) 에서 런타임 변경 가능.
+// Model + thinking budget are loaded dynamically from the molly-settings store —
+// changeable at runtime from the Inspect Console UI (Settings tab).
 import { getMollySettings, buildThinkingConfig } from './molly-settings.js';
 import { recordEvent } from './molly-metrics.js';
 
 export const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal.
 
-**Language rule (critical):** ALL textual output fields (summary, plan_items[*].title, plan_items[*].description, unresolved_components[*].intent, unresolved_components[*].reason) MUST be written in English regardless of the user's input language. The user may write PRDs in any language (e.g. Korean), but you always reply in English so downstream tools render consistently.
+**Language rule (critical):** ALL textual output fields (summary, plan_items[*].title, plan_items[*].description, unresolved_components[*].intent, unresolved_components[*].reason) MUST be written in English regardless of the user's input language. The user may write PRDs in any language (e.g. Korean), but you always reply in English so downstream tools render consistently. Exception: when a plan_item description references actual product UI copy that will end up in the rendered app (Tving is the primary client — its end-users read Korean; msm-portal supports KR + EN via i18n), the verbatim user-facing copy may be quoted in Korean inside the otherwise-English description — e.g. \`Show a button labelled "확인"\`. The surrounding prose stays English; only the verbatim quoted copy may be Korean. Follow any locale or i18n key the PRD specifies.
 
 You have access to a structured design system:
 - patterns.json: composition patterns (app-shell, list-page, detail-page, form-basic, etc.)
@@ -85,17 +85,17 @@ Output MUST be valid JSON only (no markdown, no prose). Schema:
 Generate 3-8 plan items covering the full scope — nav changes, route registration, i18n keys, container/component files, feature flags, etc.`;
 
 /**
- * Plan emit — PRD goal 을 받아 DS 기반 구조화된 plan 반환.
+ * Plan emit — receives a PRD goal and returns a DS-grounded structured plan.
  *
- * @param {string|object} args — string = goal 만, object = { goal, client?, routeOrPage?, jiraUrl?, prdUrl?, previousPlan?, feedback? }
+ * @param {string|object} args — string = goal only, object = { goal, client?, routeOrPage?, jiraUrl?, prdUrl?, previousPlan?, feedback? }
  * @param {object} [ctx] — { designSystemRoot, requestSchemaPath }
  * @returns {Promise<object>} plan — { intent, target_entity, summary, visual_constraints, plan_items }
- * @throws {Error} `emitPlan: <reason>` — caller 는 메시지로 분기 (required / not configured / LLM error / invalid JSON)
+ * @throws {Error} `emitPlan: <reason>` — caller branches on the message (required / not configured / LLM error / invalid JSON)
  *
- * "다시 계획" 호출:
- *   args.previousPlan + args.feedback 같이 넘기면 user prompt 끝에
- *   "이전 계획 + 사용자 피드백" 블록 추가. system / DS context 그대로 →
- *   prompt cache (cacheRead) 그대로 사용 가능.
+ * "Re-plan" call:
+ *   When args.previousPlan + args.feedback are both provided, appends a
+ *   "previous plan + user feedback" block to the user prompt. System / DS
+ *   context is unchanged → prompt cache (cacheRead) still hits.
  */
 export async function emitPlan(args, ctx = {}) {
   const t0 = Date.now();
@@ -148,12 +148,12 @@ export async function emitPlan(args, ctx = {}) {
   // prop-level grounding. mtime-aware cache like components.json.
   const componentProps = readComponentPropsCached(componentPropsPath);
 
-  // Phase: prompt caching (#1) — DS resources 는 호출마다 동일한 큰 정적
-  // 블록. 마지막 블록에 cache_control: ephemeral 두면 누적 prefix 가
-  // 캐시됨. 첫 호출은 cache_creation_input_tokens 발생, 두 번째부터
-  // cache_read_input_tokens 로 latency + 비용 절감. components.json 이
-  // 가장 큰 블록 (~458KB) 이라 cache hit 의 가치가 큼 — 마지막 cache_control
-  // 블록에 components 까지 포함되도록 순서 유지.
+  // Phase: prompt caching (#1) — DS resources are the same large static block
+  // on every call. Placing cache_control: ephemeral on the last block caches
+  // the accumulated prefix. The first call incurs cache_creation_input_tokens;
+  // subsequent calls use cache_read_input_tokens, reducing latency + cost.
+  // components.json is the largest block (~458KB) so cache hits are most
+  // valuable — keep it last so it is covered by the cache_control block.
   const systemBlocks = [
     { type: 'text', text: SYSTEM_PROMPT },
     { type: 'text', text: `pm-sa-request-schema:\n${JSON.stringify(requestSchema, null, 2)}` },
@@ -174,7 +174,7 @@ Target page: ${routeOrPage}
 ${jiraUrl ? `Jira: ${jiraUrl}\n` : ''}${prdUrl ? `PRD: ${prdUrl}\n` : ''}
 위 system 의 DS 리소스 (pm-sa-request-schema / patterns.json / api-ui-contracts.json / components.json) 를 근거로 계획을 JSON으로 출력하세요.`;
 
-  // "다시 계획" 모드 — 이전 plan + 사용자 피드백 첨부.
+  // "Re-plan" mode — append previous plan + user feedback.
   if (previousPlan && feedback) {
     userPrompt += `
 
@@ -218,7 +218,7 @@ ${feedback}
   }
 
   const result = await resp.json();
-  // thinking 켜면 content[0] 가 thinking block — type=text 블록만 추출.
+  // When thinking is on, content[0] is a thinking block — extract only type=text blocks.
   const blocks = Array.isArray(result?.content) ? result.content : [];
   const textBlock = blocks.find((b) => b?.type === 'text');
   const text = (textBlock?.text || '').trim();

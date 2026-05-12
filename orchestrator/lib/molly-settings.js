@@ -1,12 +1,12 @@
 // orchestrator/lib/molly-settings.js
 //
 // Shared runtime settings for molly libs (classifier / chat / status /
-// prd-analyzer / plan-emitter / lifecycle). 환경변수로 부팅 시 default
-// 잡히고, dashboard /api/molly/settings 로 런타임 변경 가능.
-// 변경 즉시 lib 들이 다음 호출 부터 반영 (모듈 재로드 X).
+// prd-analyzer / plan-emitter / lifecycle). Env vars set the boot defaults;
+// runtime changes are available via dashboard /api/molly/settings.
+// Changes take effect on the next lib call (no module reload needed).
 //
-// 영구 저장: orchestrator/state/molly-settings.json
-// 메모리 cache: 모든 lib 이 getMollySettings() 호출
+// Persistent storage: orchestrator/state/molly-settings.json
+// In-memory cache: all libs call getMollySettings()
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,7 +28,7 @@ const DEFAULT_SONNET = 'claude-sonnet-4-20250514';
  * @property {string} planModel
  * @property {number} prdThinkingBudget — 0 = off
  * @property {number} planThinkingBudget — 0 = off
- * @property {number} verifyMaxRetries — D+ 자동 재시도 횟수. 0 = off (D 동작), 기본 2.
+ * @property {number} verifyMaxRetries — D+ automatic retry count. 0 = off (D behaviour), default 2.
  */
 
 // Allowed model IDs. Verified against `GET /v1/models` (Anthropic API
@@ -162,13 +162,13 @@ export function getMollySettings() {
 
 /**
  * @param {Partial<MollySettings>} patch
- * @returns {MollySettings} 업데이트된 전체 settings
+ * @returns {MollySettings} the full updated settings object
  */
 export function setMollySettings(patch) {
   const current = getMollySettings();
   const validated = validate(patch);
   cache = { ...current, ...validated };
-  // 파일 저장 (best-effort, 실패해도 in-memory 는 적용됨)
+  // Persist to file (best-effort — in-memory update is applied even if the write fails)
   try {
     if (!fs.existsSync(STATE_DIR)) fs.mkdirSync(STATE_DIR, { recursive: true });
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(cache, null, 2));
@@ -183,7 +183,7 @@ export function setMollySettings(patch) {
 }
 
 /**
- * 입력 patch 검증. 허용 model 만, thinking budget 은 0~16384.
+ * Validate input patch. Only allowed models; thinking budget must be 0–16384.
  */
 function validate(patch) {
   const out = {};
@@ -193,7 +193,7 @@ function validate(patch) {
       if (typeof patch[k] !== 'string' || !patch[k]) {
         throw new Error(`${k}: model id 가 string 이어야 합니다`);
       }
-      // 알 수 없는 model id 라도 허용 (env 가 자유롭게 설정 가능 — 단 경고)
+      // Unknown model IDs are still allowed (env can set any model freely — but log a warning)
       if (!ALLOWED_MODELS.includes(patch[k])) {
         console.warn(`[molly-settings] ${k}="${patch[k]}" — ALLOWED_MODELS 에 없음, 적용은 함`);
       }
@@ -220,7 +220,7 @@ function validate(patch) {
 }
 
 /**
- * UI 가 "선택지" 보여주려면 알아야 할 정보.
+ * Information the UI needs to render the model selection options.
  * @returns {{models: string[], defaults: MollySettings, current: MollySettings}}
  */
 export function describeMollySettings() {

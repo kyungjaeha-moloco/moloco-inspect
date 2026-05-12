@@ -1,22 +1,23 @@
 // orchestrator/lib/molly-pricing.js
 //
-// Anthropic Claude API 모델별 토큰 단가 테이블.
+// Anthropic Claude API per-model token price table.
 //
 // Source: https://platform.claude.com/docs/en/about-claude/pricing
-// Verified: 2026-05-07 (researcher 에이전트 직접 fetch 확인)
+// Verified: 2026-05-07 (researcher agent fetched directly)
 //
-// 단위: USD per 1M tokens (MTok).
-// cache_create_5m / cache_create_1h 분리 — Anthropic 이 두 TTL 옵션 제공.
+// Unit: USD per 1M tokens (MTok).
+// cache_create_5m / cache_create_1h split — Anthropic offers two TTL options.
 //   5m  = 1.25× input
 //   1h  = 2.0×  input
-//   read = 0.1×  input (모든 TTL 동일)
+//   read = 0.1×  input (same for all TTLs)
 //
-// 사용 모델 추가 시 ALLOWED_MODELS (molly-settings.js) 와 동기화.
-// Pricing 변경 시 이 파일 수동 업데이트 + verified date 갱신.
+// Sync ALLOWED_MODELS (molly-settings.js) when adding a new model.
+// Update this file manually + refresh the verified date when pricing changes.
 //
-// Sonnet 4 (claude-sonnet-4-20250514) 는 2026-06-15 retired 예정 — runtime
-// settings 에서 아직 사용 중이라 단가 포함. 2026-06-15 이후 호출은 API 가
-// 차단할 것이므로 unknown_model 로 빠질 일 없음.
+// Sonnet 4 (claude-sonnet-4-20250514) is scheduled for retirement 2026-06-15 —
+// still in use via runtime settings so the price entry is kept. Calls after
+// 2026-06-15 will be blocked by the API, so it will never fall through to
+// unknown_model.
 
 export const PRICING = {
   'claude-haiku-4-5-20251001': {
@@ -73,7 +74,7 @@ export const PRICING = {
 };
 
 /**
- * 모델 ID 로 단가 조회. 알 수 없는 모델 → null.
+ * Look up the price entry for a model ID. Unknown model → null.
  * @param {string} modelId
  * @returns {object|null}
  */
@@ -82,14 +83,14 @@ export function getPricing(modelId) {
 }
 
 /**
- * 한 lib_call event 의 USD 비용 계산.
+ * Calculate the USD cost for a single lib_call event.
  *
- * Cache create 처리 정책:
- * - event 가 cache_create_5m / cache_create_1h 분리 필드를 가지면 그걸 우선
- * - 분리 필드 없고 cache_create 단일 필드만 있으면, plan-emitter 는 1h 가정
- *   (S0 적용으로 1h cache_control 명시), 그 외 lib 는 5m 가정 (Anthropic 기본)
+ * Cache-create handling policy:
+ * - If the event has separate cache_create_5m / cache_create_1h fields, use those first.
+ * - If only the combined cache_create field is present: plan-emitter assumes 1h
+ *   (1h cache_control is explicit via S0), all other libs assume 5m (Anthropic default).
  *
- * 알 수 없는 모델 → 0 반환 + unknownModel: true 표시.
+ * Unknown model → returns 0 + unknownModel: true.
  *
  * @param {object} evt — lib_call event { lib, model, input_tokens, output_tokens,
  *                       cache_create?, cache_create_5m?, cache_create_1h?, cache_read? }
@@ -106,7 +107,7 @@ export function computeEventUsd(evt) {
   let create5m = evt.cache_create_5m;
   let create1h = evt.cache_create_1h;
   if (create5m === undefined && create1h === undefined) {
-    // 분리 필드 없음 — lib 별 휴리스틱
+    // No separate fields — use per-lib heuristic
     const total = evt.cache_create ?? 0;
     if (evt.lib === 'plan-emitter') {
       create1h = total;

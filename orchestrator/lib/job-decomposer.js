@@ -36,7 +36,7 @@ Rules:
 8. Sub-requirement formatting:
    - When a task has 2+ distinct sub-requirements, structure the description as enumerated bullets using \`(1) ... (2) ... (3) ...\` markers so the UI can render them as a readable list. A single narrative paragraph is fine for simple tasks.
    - Use \`\\n\\n\` between logically separate paragraphs (outcome / requirements / what's not yet working). Avoid wall-of-text runs.
-9. Language: write all task titles and descriptions in English regardless of the PRD's language.
+9. Language: write all task titles and descriptions in English regardless of the PRD's language. Quoted UI copy that ends up in the actual product (Tving is the primary client — its end-users read Korean as their main locale; msm-portal supports KR + EN via i18n) may be Korean inside the English prose — e.g. \`Add a banner that says "환영합니다"\`. The prose around the quoted string stays English; only the verbatim user-facing copy may be Korean. When the PRD specifies the locale or i18n key explicitly, follow that.
 10. No task may touch package.json / lockfiles / CI config — those are out of scope for the sandbox pipeline.
 
 11. **Target route** (optional, top-level): if the PRD explicitly creates or modifies a single user-visible URL path, output a top-level \`targetRoute\` string with that path so the UI can auto-open the result page when the job finishes. Examples: "/post-creative-review", "/dashboard". Skip the field entirely (don't emit \`null\`) when the work spans multiple pages, is purely backend, or doesn't have an obvious single landing URL. The path must start with "/". This is a hint for UX, not a hard route registration — getting it wrong only means the user has to click through the sidebar, no functional damage.
@@ -71,7 +71,7 @@ Schema:
  *   previousTasks?: Array<{ id: string, title: string, description: string, dependsOn?: string[] }>,
  *   userFeedback?: string
  * }} ctx — `previousTasks` is the prior decomposition the user just rejected
- * via "다시 계획 세우기". When present we instruct the LLM to produce a
+ * via "다시 계획 세우기" ("Re-plan"). When present we instruct the LLM to produce a
  * strictly finer-grained breakdown so the second plan is actually
  * different from the first instead of the LLM emitting near-identical
  * tasks at temperature drift. `userFeedback` is the free-form natural-
@@ -107,8 +107,8 @@ export async function decomposePrd(prdText, ctx = {}) {
     ? `Context:\n${contextLines.join('\n')}\n\n`
     : '';
 
-  // Re-plan path: the user already saw a plan and clicked "다시 계획
-  // 세우기". Without this hint the LLM at our default temperature tends
+  // Re-plan path: the user already saw a plan and clicked "다시 계획 세우기"
+  // ("Re-plan"). Without this hint the LLM at our default temperature tends
   // to emit near-identical breakdowns on the second pass. Showing the
   // rejected plan + an explicit "produce a meaningfully different
   // breakdown" instruction is what makes the second plan actually
@@ -128,10 +128,10 @@ export async function decomposePrd(prdText, ctx = {}) {
       `If the prior plan was already minimal, change the boundaries (e.g. swap which task owns which sub-step) so the user gets a real alternative.\n\n`;
   }
 
-  // Free-form user feedback on a prior plan ("3번을 둘로 쪼개고 권한
-  // 가드 task 빼줘" 등). Distinct from `previousTasks` because feedback
-  // can come without a "다시 계획" click — e.g. user types directly into
-  // the "이 계획에 수정 요청" box. Surfaced verbatim with strict honor
+  // Free-form user feedback on a prior plan (e.g. "split task 3 into two and
+  // drop the permission guard task"). Distinct from `previousTasks` because
+  // feedback can come without a "Re-plan" click — e.g. user types directly
+  // into the plan-revision input box. Surfaced verbatim with strict honor
   // language so the LLM treats it as a hard constraint rather than a
   // suggestion.
   const feedbackBlock =

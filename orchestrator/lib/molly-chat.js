@@ -1,7 +1,8 @@
 // orchestrator/lib/molly-chat.js
 //
-// 모델은 molly-settings store 에서 dynamic 로 — Inspect Console UI
-// (Settings 탭) 에서 런타임 변경 가능. env 부팅 default + 파일 영구 저장.
+// Model is loaded dynamically from the molly-settings store — changeable at
+// runtime from the Inspect Console UI (Settings tab). Env var sets the boot
+// default; changes are persisted to file.
 import { getMollySettings } from './molly-settings.js';
 import { recordEvent } from './molly-metrics.js';
 
@@ -75,16 +76,16 @@ Instead:
 Bottom line: chat replies only state **facts that have already happened / things that are possible**. No promises about future actions.`;
 
 /**
- * @param {string} text — 사용자 입력
+ * @param {string} text — user input
  * @param {object} [ctx] — { surface, recentMessages? }
- * @returns {Promise<string>} — 답변 (Slack mrkdwn 호환 일반 텍스트)
+ * @returns {Promise<string>} — reply (plain text compatible with Slack mrkdwn)
  */
 export async function composeChatReply(text, ctx = {}) {
   const t0 = Date.now();
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-  // #8 surface awareness — Slack / Chrome ext / Playground 별 안내 메시지
-  // 정확도. ctx.surface 받으면 prompt 에 주입.
+  // #8 surface awareness — improves guidance accuracy per surface
+  // (Slack / Chrome ext / Playground). Injects ctx.surface into the prompt.
   const surfaceHint = ctx.surface && ctx.surface !== 'unknown'
     ? `(현재 surface: ${ctx.surface} — 안내 시 이 surface 의 입력 방식 우선 언급)\n\n`
     : '';
@@ -101,9 +102,9 @@ export async function composeChatReply(text, ctx = {}) {
     body: JSON.stringify({
       model: getMollySettings().chatModel,
       max_tokens: 600,
-      // Caching (#1): SYSTEM_PROMPT 가 호출마다 동일 → 단일 블록 +
-      // cache_control 로 캐시. min token threshold (Sonnet 1024 / Haiku
-      // 2048) 미달 시 API 가 자동 무시하므로 안전.
+      // Caching (#1): SYSTEM_PROMPT is identical on every call → single block +
+      // cache_control to cache it. API silently ignores if below the minimum
+      // token threshold (Sonnet 1024 / Haiku 2048), so this is safe.
       system: [
         { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
       ],

@@ -326,7 +326,7 @@ export async function createPlayground({
 
   // Kick Vite over supervisor — autostart is disabled in supervisord.conf
   // so the wrapper config lands first. Errors here are warnings only;
-  // the UI already shows "Vite 포트 미할당" until it comes up, and
+  // the UI already shows "Vite port not assigned" until it comes up, and
   // `resume` runs the same start sequence with retry/readiness polling.
   await execAsync(
     `docker exec ${sandbox.containerId} supervisorctl start vite`,

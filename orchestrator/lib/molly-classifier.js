@@ -27,16 +27,17 @@ Rules:
 - If no "plan card pending" marker is present, never classify as plan_feedback.`;
 
 /**
- * @param {string} text — 사용자 입력 (멘션 텍스트 stripped 등 cleanup 된 상태)
+ * @param {string} text — user input (mention text stripped and otherwise cleaned up)
  * @param {object} [ctx] — { surface: 'slack'|'chrome-ext'|'playground',
  *                           recentMessages?: [...],
- *                           hasPendingPlan?: boolean,  // plan 카드 pending 표시 — plan_feedback 분기 활성화
- *                           pendingPlanSummary?: string  // pending plan 의 한 줄 요약 (분류 정확도 ↑)
+ *                           hasPendingPlan?: boolean,  // plan card pending marker — activates plan_feedback branch
+ *                           pendingPlanSummary?: string  // one-line summary of the pending plan (improves classification accuracy)
  *                         }
  * @returns {Promise<{kind: 'code_change'|'lifecycle_action'|'status_query'|'plan_feedback'|'chat', reason: string}>}
  */
-// #5 fast-path heuristic — LLM 호출 우회. conservative (애매하면 안 잡고
-// classifier 호출). 잘못 잡으면 사용자 경험 깨지니 명백한 경우만.
+// #5 fast-path heuristic — bypasses the LLM call. Conservative: ambiguous
+// inputs are passed to the classifier rather than matched here, since a wrong
+// fast-path match breaks the user experience. Only catches unambiguous cases.
 const GREETING_RE = /^(안녕(하세요)?[.!]?|hi|hello|hey|ㅎㅇ|반갑(습니다|네)?[.!]?|좋은\s?(아침|오후|저녁))[\s.!]*$/i;
 const LIFECYCLE_FAST_RE = /^(cancel|취소|캔슬|promote|프로모트|다시\s?시도|재시도|retry|restart|재시작|복구|롤백|rollback)[\s_]*([a-f0-9]{8,})?[\s.!]*$/i;
 
@@ -52,7 +53,7 @@ export function fastPathClassify(text) {
 }
 
 export async function classifyMollyText(text, ctx = {}) {
-  // #5 fast-path — LLM 호출 전 cheap heuristic. 매칭 시 즉시 반환 (latency 0).
+  // #5 fast-path — cheap heuristic before any LLM call. Returns immediately on match (latency 0).
   const fast = fastPathClassify(text);
   if (fast) {
     console.log(`[molly-classifier] fast-path → kind=${fast.kind} reason="${fast.reason}"`);
@@ -82,9 +83,10 @@ export async function classifyMollyText(text, ctx = {}) {
       body: JSON.stringify({
         model: getMollySettings().classifierModel,
         max_tokens: 200,
-        // Caching (#1): 매 호출 거치는 핫패스 — system prompt 가 짧아도
-        // (~500 tokens) cache_control 마커 둠. Haiku threshold (~2048)
-        // 미달이면 API 자동 무시. 향후 prompt 확장 시 자동 캐시.
+        // Caching (#1): hot path hit on every call — place cache_control marker
+        // even though the system prompt is short (~500 tokens). API silently
+        // ignores if below the Haiku threshold (~2048). Will auto-cache when
+        // the prompt grows in the future.
         system: [
           { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
         ],
@@ -100,8 +102,9 @@ export async function classifyMollyText(text, ctx = {}) {
   }
   const data = await resp.json();
   const content = data?.content?.[0]?.text ?? '';
-  // 응답에서 JSON 추출 — brace counting 으로 reason 안의 `}` 가 깨뜨리지
-  // 않게. parse 실패 시 chat 으로 안전하게 폴백 (잡 안 만드는 게 부작용 0).
+  // Extract JSON from the response using brace counting so that `}` inside
+  // the reason field doesn't break parsing. Falls back safely to chat on
+  // parse failure (not creating a job has zero side effects).
   const start = content.indexOf('{');
   if (start === -1) {
     return { kind: 'chat', reason: 'classifier produced no JSON, defaulting to chat' };
@@ -128,17 +131,17 @@ export async function classifyMollyText(text, ctx = {}) {
   if (!['code_change', 'lifecycle_action', 'status_query', 'plan_feedback', 'chat'].includes(parsed?.kind)) {
     return { kind: 'chat', reason: `classifier returned invalid kind="${parsed?.kind}", defaulting to chat` };
   }
-  // plan_feedback 안전망 — hasPendingPlan 이 false 인데 LLM 이 잘못 분류
-  // 한 경우 chat 으로 downgrade (jobs 안 만드는 게 부작용 0).
+  // plan_feedback safety net — downgrade to chat if the LLM misclassifies
+  // when hasPendingPlan is false (not creating a job has zero side effects).
   if (parsed.kind === 'plan_feedback' && !ctx.hasPendingPlan) {
     parsed.kind = 'chat';
     parsed.reason = `plan_feedback without pending plan — downgraded to chat. orig: ${parsed.reason || ''}`;
   }
 
-  // PRD-like nudge — classifier 가 명백한 PRD-like 텍스트를 chat 으로
-  // 잘못 분류한 경우 code_change 로 보정. 5 framework 의 "false-pass
-  // 최소화" 정책. PRD 휴리스틱은 보수적으로 — 길이 > 80 자 + 명령형
-  // 키워드 둘 이상 조건만 충족 시.
+  // PRD-like nudge — corrects to code_change when the classifier mistakenly
+  // labels an obvious PRD-like text as chat. Follows the "minimise false-pass"
+  // policy from the 5-framework. Heuristic is conservative: only fires when
+  // length > 80 chars AND at least 2 imperative keywords match.
   let kind = parsed.kind;
   let reason = parsed.reason || '';
   if (kind === 'chat' && looksLikePrd(text)) {
@@ -177,9 +180,9 @@ export function buildClassifierUserMessage(text, ctx = {}) {
     lines.push(`Recent conversation:\n${ctx.recentMessages.slice(-3).map((m) => `- ${m}`).join('\n')}`);
   }
   if (ctx.hasPendingPlan) {
-    // plan 카드 떠있는 컨텍스트 — plan_feedback 분기 활성화. summary 첨부 시
-    // classifier 가 "사용자 message 가 이 plan 의 항목 조정 같은가?" 판단에
-    // 더 정확.
+    // Plan card is up — activates the plan_feedback branch. Attaching a
+    // summary improves the classifier's ability to judge whether the user
+    // message is adjusting an item in this specific plan.
     const summaryLine = ctx.pendingPlanSummary
       ? ` (summary: ${String(ctx.pendingPlanSummary).slice(0, 200)})`
       : '';
@@ -190,8 +193,8 @@ export function buildClassifierUserMessage(text, ctx = {}) {
 }
 
 /**
- * PRD-like 휴리스틱 — 길이 > 80자 AND 명령형 키워드 2개 이상.
- * 명백한 chat (짧은 인사, 감사) 은 nudge 안 함.
+ * PRD-like heuristic — length > 80 chars AND at least 2 imperative keywords.
+ * Does not nudge obvious chat messages (short greetings, thanks).
  */
 export function looksLikePrd(text) {
   if (!text || text.length < 80) return false;

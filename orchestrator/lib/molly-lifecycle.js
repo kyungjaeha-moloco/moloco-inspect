@@ -1,20 +1,20 @@
 // orchestrator/lib/molly-lifecycle.js
 //
-// #4 (2026-05-06) — lifecycle_action 전용 핸들러. classifier 가 4번째
-// 카테고리로 분리한 lifecycle 명령 (cancel / promote / 재시도 / restart)
-// 을 처리. 책임 분리:
-//   - status lib: 순수 상태 리포팅 (잡 데이터 → 자연어 요약)
-//   - lifecycle lib: lifecycle 명령 → 잡 식별 + surface 별 UI 안내
+// #4 (2026-05-06) — dedicated handler for lifecycle_action. Handles lifecycle
+// commands (cancel / promote / retry / restart) that the classifier separates
+// into the 4th category. Responsibility split:
+//   - status lib: pure state reporting (job data → natural-language summary)
+//   - lifecycle lib: lifecycle command → job identification + surface-specific UI guidance
 //
-// LLM 호출 안 함 (deterministic template). 이유:
-//   - 사용자가 원하는 건 "어떤 버튼을 눌러야 하는지" — 자연어 다양성 X
-//   - latency / 비용 0
-//   - "수행 약속" 거짓말 위험 0 (코드가 절대 못 함)
+// No LLM call (deterministic template). Reasons:
+//   - What the user wants is "which button to press" — no need for natural-language variety
+//   - Latency / cost = 0
+//   - Zero risk of false "I will do X" promises (the code simply cannot)
 //
-// 잡 식별 휴리스틱:
-//   - 메시지에서 hex 8자 이상 — 잡 ID 후보
-//   - listJobs 에서 startsWith match — 식별
-//   - 못 찾으면 활성 잡 1개면 그것, 여럿이면 "어떤 잡?" 되묻기
+// Job identification heuristics:
+//   - 8+ hex chars in the message → job ID candidate
+//   - startsWith match against listJobs → identified
+//   - If not found: 1 active job → use it; multiple → ask "which job?"
 
 import { recordEvent } from './molly-metrics.js';
 
@@ -48,7 +48,7 @@ export const SURFACE_INSTRUCTIONS = {
 /**
  * @param {string} text
  * @param {object} [ctx] — { surface, listJobs, channel?, threadTs? }
- * @returns {Promise<string>} — Slack mrkdwn 호환 응답
+ * @returns {Promise<string>} — Slack mrkdwn-compatible response
  */
 export async function composeLifecycleReply(text, ctx = {}) {
   const t0 = Date.now();
@@ -72,7 +72,7 @@ export async function composeLifecycleReply(text, ctx = {}) {
     candidates: matchedJob ? 1 : ambiguousJobs.length,
   });
 
-  // 1. 잡 식별 못 함 + 후보 여럿 → 되묻기
+  // 1. Job not identified + multiple candidates → ask which one
   if (!matchedJob && ambiguousJobs.length > 1) {
     const list = ambiguousJobs
       .slice(0, 5)
@@ -89,7 +89,7 @@ export async function composeLifecycleReply(text, ctx = {}) {
     ].join('\n');
   }
 
-  // 2. 잡 식별 못 함 + 후보 0 / 1 → 안내만
+  // 2. Job not identified + 0 or 1 candidate → guidance only
   if (!matchedJob) {
     const only = ambiguousJobs[0];
     if (only) {
@@ -103,7 +103,7 @@ export async function composeLifecycleReply(text, ctx = {}) {
     ].join('\n');
   }
 
-  // 3. 잡 매칭 — surface 안내
+  // 3. Job matched — surface guidance
   return composeReplyForJob(matchedJob, action, surface);
 }
 
@@ -153,10 +153,10 @@ function matchJob(text, jobs) {
 }
 
 function findCandidateJobs(action, jobs) {
-  // promote 는 보통 complete 상태 잡, cancel/retry/restart 는 active 또는 paused
+  // promote typically targets complete-status jobs; cancel/retry/restart target active or paused
   const TERMINAL = new Set(['cancelled']);
   const filtered = jobs.filter((j) => !TERMINAL.has(j.status));
-  // 최근 5개 + 활성 우선
+  // Up to 5 most recent, active jobs first
   const active = filtered.filter((j) => !['complete', 'cancelled'].includes(j.status));
   if (active.length > 0) return active.slice(0, 5);
   return filtered.slice(0, 5);

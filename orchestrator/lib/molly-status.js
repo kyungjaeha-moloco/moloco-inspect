@@ -31,20 +31,20 @@ Important:
 (Lifecycle action commands — cancel, retry, promote, etc. — are handled by a separate lifecycle handler. This status reporter handles *pure status queries only*. If a lifecycle command somehow arrives here, safely redirect: "For direct actions, use Inspect Console (http://localhost:4174).")`;
 
 /**
- * @param {string} text — 사용자 질문
+ * @param {string} text — user question
  * @param {object} ctx — { listJobs, getJob, channel?, threadTs? }
  * @returns {Promise<string>}
  */
 export async function composeStatusReply(text, ctx) {
   const t0 = Date.now();
-  // #6 — 활성 작업 (running / queued / processing / paused / preview / pending /
-  // ...) 우선, 그 다음 최근 종료 작업. 사용자가 보통 진행 중 상태 궁금. 토큰
-  // 줄어들고 답변 정확도 ↑. terminal 집합은 jobs 와 change-requests 양쪽
-  // 의 종결 상태를 포괄.
+  // #6 — Active tasks (running / queued / processing / paused / preview / pending /
+  // ...) come first, then recently finished tasks. Users typically care about
+  // in-progress status. Reduces tokens and improves answer accuracy. The
+  // TERMINAL set covers terminal states for both jobs and change-requests.
   const TERMINAL = new Set([
     'cancelled', // job
     'complete',  // job
-    'approved',  // change-request 사용자 승인 후 종결
+    'approved',  // change-request: user approved → terminal
     'rejected',  // change-request
     'error',     // change-request
     'no_change_needed', // change-request
@@ -73,7 +73,7 @@ export async function composeStatusReply(text, ctx) {
     phase: r.phase || null,
     createdAt: parseTimestamp(r.createdAt),
     prdText: ((r.payload?.userPrompt) || '').slice(0, 80),
-    // change-request 는 payload.playgroundId 에 보관 (top-level 아님).
+    // change-request stores playgroundId inside payload, not at top level.
     playgroundId: r.payload?.playgroundId || r.playgroundId || null,
   }));
 
@@ -86,8 +86,8 @@ export async function composeStatusReply(text, ctx) {
   });
   const jobs = sorted.slice(0, 20);
 
-  // 이 thread 에 매핑된 playground (Slack 의 thread → playground 1:1).
-  // null 이면 PRD 가 아직 안 와서 playground 가 안 만들어진 상태.
+  // Playground mapped to this thread (Slack thread → playground 1:1).
+  // null means no PRD has arrived yet so no playground has been created.
   const thisThreadPlayground =
     ctx.channel && ctx.threadTs
       ? getPlaygroundIdForThread(ctx.channel, ctx.threadTs)
@@ -98,8 +98,8 @@ export async function composeStatusReply(text, ctx) {
   }
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-  // #8 surface awareness — Inspect Console / Slack / Chrome ext / Playground
-  // 별 안내 메시지 정확도. ctx.surface 받으면 prompt 에 주입.
+  // #8 surface awareness — improves guidance accuracy across surfaces
+  // (Inspect Console / Slack / Chrome ext / Playground). Injects ctx.surface into the prompt.
   const surfaceHint = ctx.surface && ctx.surface !== 'unknown'
     ? `(current surface: ${ctx.surface} — always include Console link, and also mention the job card / side-panel on the user's surface)\n\n`
     : '';
@@ -115,8 +115,8 @@ export async function composeStatusReply(text, ctx) {
     body: JSON.stringify({
       model: getMollySettings().statusModel,
       max_tokens: 600,
-      // Caching (#1): SYSTEM_PROMPT 캐시. Haiku 4.5 minimum cacheable
-      // ~2048 tokens 추정 — system prompt 가 미달이면 API 가 자동 무시.
+      // Caching (#1): cache SYSTEM_PROMPT. Haiku 4.5 minimum cacheable
+      // threshold is ~2048 tokens — API silently ignores if below.
       system: [
         { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
       ],
@@ -125,7 +125,7 @@ export async function composeStatusReply(text, ctx) {
     signal: AbortSignal.timeout(30000),
   });
   if (!resp.ok) {
-    // status 답변 실패 시 templated 폴백 — 사용자가 빈 화면 보지 않게.
+    // Templated fallback on status reply failure — prevents user from seeing a blank screen.
     const text = await resp.text().catch(() => '');
     console.warn(`[molly-status] http ${resp.status}: ${text.slice(0, 120)} — templated fallback`);
     return templatedFallback(jobs);

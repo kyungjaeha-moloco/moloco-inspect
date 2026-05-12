@@ -1,7 +1,7 @@
 // orchestrator/lib/molly-prd-analyzer.js
 //
-// 모델 + thinking budget 은 molly-settings store 에서 dynamic. UI 변경
-// 즉시 반영 (재시작 X).
+// Model + thinking budget are loaded dynamically from the molly-settings store.
+// UI changes take effect immediately (no restart required).
 import { getMollySettings, buildThinkingConfig } from './molly-settings.js';
 import { recordEvent } from './molly-metrics.js';
 
@@ -55,7 +55,7 @@ export function buildPrdUserMessage(text, ctx = {}) {
 }
 
 /**
- * @param {string} text — 사용자 PRD 본문 (mention strip 등 cleanup 후)
+ * @param {string} text — user PRD body (after mention strip and other cleanup)
  * @param {object} [ctx] — { surface }
  * @returns {Promise<{clarity: 'clear'|'ambiguous', clarifyingQuestion: string, missingInfo: string[]}>}
  */
@@ -63,20 +63,21 @@ export async function analyzePrdClarity(text, ctx = {}) {
   const t0 = Date.now();
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-  // Sub-phase B.1 — history 있으면 cumulative 컨텍스트로 분석. 사용자가
-  // 이전 clarifying Q 의 답을 한 시나리오. 모든 user turn + 이번 답변
-  // 합쳐서 system prompt 의 "누적 컨텍스트 모드" 가 작동.
+  // Sub-phase B.1 — when history is present, analyse with cumulative context.
+  // Covers the scenario where the user has answered a previous clarifying
+  // question. All user turns + the current answer are combined so the system
+  // prompt's "cumulative context mode" activates.
   const userMessage = buildPrdUserMessage(text, ctx);
   const settings = getMollySettings();
   const thinkingBudget = settings.prdThinkingBudget;
   const useThinking = thinkingBudget > 0;
-  // thinking 켜면 max_tokens 가 thinking + 응답 합 — 여유 있게.
+  // When thinking is on, max_tokens covers thinking + response combined — keep generous.
   const maxTokens = useThinking ? thinkingBudget + 600 : 400;
   const reqBody = {
     model: settings.prdModel,
     max_tokens: maxTokens,
     // Caching (#1): SYSTEM_PROMPT (~700 tokens) cache_control. Sonnet
-    // threshold ~1024 — borderline. API 가 자동 결정.
+    // threshold ~1024 — borderline. API decides automatically.
     system: [
       { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
     ],
@@ -93,18 +94,19 @@ export async function analyzePrdClarity(text, ctx = {}) {
       'content-type': 'application/json',
     },
     body: JSON.stringify(reqBody),
-    // thinking 켜면 latency 증가 (~3-10s) — timeout 도 늘림.
+    // When thinking is on, latency increases (~3-10s) — extend timeout accordingly.
     signal: AbortSignal.timeout(useThinking ? 45000 : 15000),
   });
   if (!resp.ok) {
-    // 분석 실패 = clear 폴백 (잡 진행 — molly 의 안전 디폴트와 반대.
-    // 이유: clarify 가 잘못 fail 하면 사용자가 답답한 무한 루프.
-    // 실제 잡 만들고 task review 가 잡아내는 게 차라리 빠름).
+    // Analysis failure → clear fallback (proceed with job — opposite of Molly's
+    // usual safe default). Reason: a spurious clarify failure would trap the
+    // user in a frustrating infinite loop. Creating the actual job and letting
+    // task review catch the issue is faster.
     console.warn(`[prd-analyzer] http ${resp.status} — fallback clear`);
     return { clarity: 'clear', clarifyingQuestion: '', missingInfo: [] };
   }
   const data = await resp.json();
-  // thinking 켜면 content[0] 가 thinking block. 첫 text block 만 골라야 함.
+  // When thinking is on, content[0] is a thinking block. Select only the first text block.
   const blocks = Array.isArray(data?.content) ? data.content : [];
   const textBlock = blocks.find((b) => b?.type === 'text');
   const content = textBlock?.text ?? '';

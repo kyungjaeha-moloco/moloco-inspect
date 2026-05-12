@@ -45,15 +45,29 @@ describe('English-migration invariant — SYSTEM_PROMPT uses English instruction
     );
   });
 
-  test('SYSTEM_PROMPT has no Korean codepoints', () => {
-    // The decomposer operates on a plan emitted in English (or user's PRD
-    // language) and has no user-input matching tokens that require Korean.
-    // All Korean here is instruction prose that must be migrated.
-    const match = SYSTEM_PROMPT.match(HANGUL_RE);
-    assert.equal(
-      match,
-      null,
-      `SYSTEM_PROMPT must have no Korean codepoints. Found: "${match?.[0]}" near index ${match?.index}`,
+  test('SYSTEM_PROMPT Korean appears only inside the Tving locale exception', () => {
+    // The decomposer instruction text is English. The exception is the
+    // Tving-locale rule (rule 9) which legitimately quotes Korean UI copy
+    // (e.g. "환영합니다") as an illustration of how generated product code
+    // should preserve user-locale strings. Other Korean would be a regression.
+    const koreanMatches = [...SYSTEM_PROMPT.matchAll(/[ㄱ-㆏가-힯]+/g)];
+    for (const m of koreanMatches) {
+      const before = SYSTEM_PROMPT.slice(Math.max(0, m.index - 250), m.index);
+      const after = SYSTEM_PROMPT.slice(m.index, m.index + (m[0].length) + 250);
+      const context = before + after;
+      assert.match(
+        context,
+        /(Tving|i18n|locale|user-facing copy|verbatim)/i,
+        `Korean codepoint "${m[0]}" at index ${m.index} appears outside the Tving locale exception block`,
+      );
+    }
+  });
+
+  test('SYSTEM_PROMPT documents the Tving locale exception', () => {
+    assert.match(
+      SYSTEM_PROMPT,
+      /Tving/,
+      'SYSTEM_PROMPT should mention Tving to ground the locale rule',
     );
   });
 
