@@ -25,9 +25,11 @@
 import {
   getJob,
   setJobStatus,
+  setTaskResearch,
   setTaskStatus,
   skipTask,
 } from './job.js';
+import { runResearch as defaultRunResearch } from './job-research.js';
 
 // ── Topo-sort + task selection ──────────────────────────────────────
 
@@ -126,18 +128,33 @@ export function pickNextTask(job, maxAttempts) {
  * Throws only on programmer errors (bad FSM transitions); adapter /
  * reviewer failures are caught and translated to state changes.
  *
+ * `researchFn` controls the Type-1 research step (plan
+ * 2026-05-12-research-parallelism.md). When omitted, the runner uses
+ * the real `runResearch` from `./job-research.js` if env
+ * `RESEARCH_ENABLED=1`, otherwise no-op. Tests inject `researchFn`
+ * to bypass the env switch.
+ *
  * @param {string} jobId
  * @param {{
  *   adapter: TaskAdapter,
  *   reviewer?: TaskReviewer,
  *   maxAttempts?: number,
+ *   researchFn?: ((task: any, ctx: any) => Promise<any>) | null,
  * }} opts
  * @returns {Promise<import('./job.js').Job>}
  */
-export async function runJob(jobId, { adapter, reviewer, maxAttempts = 2 }) {
+export async function runJob(jobId, { adapter, reviewer, maxAttempts = 2, researchFn }) {
   if (typeof adapter !== 'function') throw new Error('adapter is required');
   const defaultReviewer = async () => ({ verdict: /** @type {'pass'} */ ('pass'), notes: 'stub review' });
   const review = reviewer ?? defaultReviewer;
+  // Resolve the research function once per job:
+  //   - explicit `researchFn` (including `null` to disable) overrides
+  //   - else the env switch decides whether real runResearch is in play
+  //   - else no research at all
+  const research =
+    researchFn !== undefined
+      ? researchFn
+      : (process.env.RESEARCH_ENABLED === '1' ? defaultRunResearch : null);
 
   // Outer loop: one iteration per task (or until we bail to pause/qa).
   for (;;) {
@@ -191,6 +208,25 @@ export async function runJob(jobId, { adapter, reviewer, maxAttempts = 2 }) {
     // we bake-in via a separate write:
     job.currentTaskId = next.id;
 
+    // Research step (plan 2026-05-12-research-parallelism.md Slice B).
+    // Re-uses any bundle already stamped on the task (set by a previous
+    // attempt that didn't fail review). On research failure we proceed
+    // with `null` — the task pipeline is never blocked by research.
+    let researchBundle = next.research ?? null;
+    if (research && !researchBundle) {
+      try {
+        researchBundle = await research(
+          { id: next.id, title: next.title, description: next.description ?? '' },
+          { jobId },
+        );
+        const updated = setTaskResearch(jobId, next.id, researchBundle);
+        if (updated) job = updated;
+      } catch (err) {
+        console.warn(`[job-research] task ${next.id} failed: ${err?.message ?? err}`);
+        researchBundle = null;
+      }
+    }
+
     /** @type {{ commitSha: string, baseSha: string, diff?: string } | null} */
     let adapterResult = null;
     /** @type {Error | null} */
@@ -199,6 +235,7 @@ export async function runJob(jobId, { adapter, reviewer, maxAttempts = 2 }) {
       adapterResult = await adapter(
         { ...next, attempt: isRetry ? next.attempt + 1 : next.attempt },
         { jobId, playgroundId: job.playgroundId },
+        researchBundle,
       );
     } catch (err) {
       adapterError = err instanceof Error ? err : new Error(String(err));

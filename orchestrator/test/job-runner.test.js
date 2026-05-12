@@ -204,3 +204,102 @@ describe('runJob (failure path)', () => {
     assert.match(job.pausedReason ?? '', /review-fail/);
   });
 });
+
+// ── runJob — Slice B: research wiring ───────────────────────────────
+
+describe('runJob (research wiring)', () => {
+  test('adapter receives the research bundle as 3rd arg', async () => {
+    const jobId = seedJob([
+      { id: 't1', title: 'A', description: 'do a', dependsOn: [] },
+    ]);
+    const fakeBundle = {
+      queries: [{ question: 'q', scope: 'repo', outcome: 'ok', answer: 'found', ms: 5, logPath: '/tmp/fake.log' }],
+      totalMs: 10,
+      builderQueryCount: 1,
+      parallelism: 2,
+    };
+    /** @type {any[]} */
+    const adapterCalls = [];
+    const adapter = async (task, ctx, research) => {
+      adapterCalls.push({ taskId: task.id, research });
+      return { commitSha: `sha-${task.id}`, baseSha: 'base', diff: 'fake' };
+    };
+    const researchFn = async () => fakeBundle;
+    await runJob(jobId, { adapter, researchFn });
+    assert.equal(adapterCalls.length, 1);
+    assert.deepEqual(adapterCalls[0].research, fakeBundle);
+  });
+
+  test('research bundle is persisted on the task record', async () => {
+    const jobId = seedJob([
+      { id: 't1', title: 'A', description: 'do a', dependsOn: [] },
+    ]);
+    const bundle = { queries: [], totalMs: 1, builderQueryCount: 0, parallelism: 2 };
+    const adapter = async () => ({ commitSha: 'sha', baseSha: 'base', diff: 'd' });
+    const researchFn = async () => bundle;
+    await runJob(jobId, { adapter, researchFn });
+    const fresh = getJob(jobId);
+    const t1 = fresh.tasks.find((t) => t.id === 't1');
+    assert.ok(t1.research, 'task.research should be set');
+    assert.equal(t1.research.builderQueryCount, 0);
+  });
+
+  test('cached research is reused — researchFn called once even after review-fail retry', async () => {
+    const jobId = seedJob([
+      { id: 't1', title: 'A', description: 'do a', dependsOn: [] },
+    ]);
+    let researchCallCount = 0;
+    const researchFn = async () => {
+      researchCallCount += 1;
+      return { queries: [], totalMs: 1, builderQueryCount: 0, parallelism: 2, callId: researchCallCount };
+    };
+    let reviewerCallCount = 0;
+    const reviewer = async () => {
+      reviewerCallCount += 1;
+      // First call: fail (forces retry path). Second: pass.
+      return reviewerCallCount === 1
+        ? { verdict: /** @type {'fail'} */ ('fail'), notes: 'try again' }
+        : { verdict: /** @type {'pass'} */ ('pass'), notes: 'ok' };
+    };
+    const adapter = async () => ({ commitSha: 'sha', baseSha: 'base', diff: 'd' });
+    await runJob(jobId, { adapter, reviewer, researchFn, maxAttempts: 3 });
+    // The retry path runs the same task again; research should be cached
+    // from attempt 1 and not re-spent on attempt 2 (Slice B reads
+    // `task.research` before calling researchFn).
+    assert.equal(researchCallCount, 1, `expected researchFn called once, got ${researchCallCount}`);
+  });
+
+  test('researchFn throwing is swallowed — adapter still runs with null bundle', async () => {
+    const jobId = seedJob([
+      { id: 't1', title: 'A', description: 'do a', dependsOn: [] },
+    ]);
+    const researchFn = async () => { throw new Error('research blew up'); };
+    /** @type {any[]} */
+    const adapterCalls = [];
+    const adapter = async (task, ctx, research) => {
+      adapterCalls.push(research);
+      return { commitSha: 'sha', baseSha: 'base', diff: 'd' };
+    };
+    const job = await runJob(jobId, { adapter, researchFn });
+    assert.equal(job.status, 'qa', 'task should still complete despite research throwing');
+    assert.equal(adapterCalls.length, 1);
+    assert.equal(adapterCalls[0], null, 'adapter should receive null when research throws');
+  });
+
+  test('researchFn=null (explicit disable) skips research; adapter gets undefined as 3rd arg', async () => {
+    const jobId = seedJob([
+      { id: 't1', title: 'A', description: 'do a', dependsOn: [] },
+    ]);
+    /** @type {any[]} */
+    const adapterCalls = [];
+    const adapter = async (task, ctx, research) => {
+      adapterCalls.push(research);
+      return { commitSha: 'sha', baseSha: 'base', diff: 'd' };
+    };
+    await runJob(jobId, { adapter, researchFn: null });
+    assert.equal(adapterCalls.length, 1);
+    // No bundle on the task → adapter sees `null` (the back-compat shape
+    // documented in the plan §Slice C: "default to `null`").
+    assert.equal(adapterCalls[0], null);
+  });
+});

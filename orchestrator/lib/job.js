@@ -513,6 +513,31 @@ export function setQaStrategy(jobId, info) {
 }
 
 /**
+ * Stamp the research bundle on a task. Called by the runner before the
+ * task's adapter fires. Persisted on disk so a retry or pause/resume
+ * can reuse the bundle without re-spending tokens (see Slice E of
+ * docs/superpowers/plans/2026-05-12-research-parallelism.md).
+ *
+ * Accepts `null` / `undefined` as a no-op clear — the runner uses this
+ * shape to wipe a stale bundle after a reviewer-fail before re-running.
+ *
+ * @param {string} jobId
+ * @param {string} taskId
+ * @param {object | null | undefined} bundle
+ * @returns {Job | null}
+ */
+export function setTaskResearch(jobId, taskId, bundle) {
+  const job = getJob(jobId);
+  if (!job) return null;
+  const task = job.tasks.find((t) => t.id === taskId);
+  if (!task) return null;
+  task.research = bundle ?? null;
+  job.updatedAt = nowMs();
+  persist(job);
+  return job;
+}
+
+/**
  * Stamp PRD-specific risk lines emitted by the decomposer.
  * Surfaced in the plan UI alongside the task list so the user signs
  * off on the verification approach + watch-outs together with the
