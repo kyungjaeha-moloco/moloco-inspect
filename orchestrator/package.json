@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node --env-file-if-exists=.env server.js",
-    "dev": "node --env-file-if-exists=.env --watch server.js",
+    "dev": "trap 'kill 0' EXIT INT TERM; lsof -ti :3847 | xargs kill -9 2>/dev/null; node --env-file-if-exists=.env --watch server.js",
     "smoke": "node --env-file-if-exists=.env scripts/smoke-test.mjs"
   },
   "dependencies": {
