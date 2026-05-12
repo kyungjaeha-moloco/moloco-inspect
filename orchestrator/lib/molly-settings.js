@@ -29,6 +29,10 @@ const DEFAULT_SONNET = 'claude-sonnet-4-20250514';
  * @property {number} prdThinkingBudget — 0 = off
  * @property {number} planThinkingBudget — 0 = off
  * @property {number} verifyMaxRetries — D+ automatic retry count. 0 = off (D behaviour), default 2.
+ * @property {boolean} researchEnabled — Type-1 read-only research before each task. Default off.
+ * @property {number} researchParallelism — number of read-only Claude Code subprocesses dispatched concurrently per task. Range 1..5.
+ * @property {number} researchQueryTimeoutMs — per-query subprocess wall-clock budget (SIGTERM after this, SIGKILL 3s later).
+ * @property {number} researchAggregateTimeoutMs — aggregate cap across all queries for a single task.
  */
 
 // Allowed model IDs. Verified against `GET /v1/models` (Anthropic API
@@ -57,7 +61,33 @@ function envDefaults() {
     prdThinkingBudget: parseThinking(process.env.MOLLY_PRD_THINKING, 2048),
     planThinkingBudget: parseThinking(process.env.MOLLY_PLAN_THINKING, 0),
     verifyMaxRetries: parseRetries(process.env.MOLLY_VERIFY_MAX_RETRIES, 2),
+    // Type-1 research parallelism (plan 2026-05-12-research-parallelism.md).
+    // Defaults match Slice F-lite empirical findings: P=5 with 180s/600s
+    // timeouts gave 6.6× speedup at identical cost with no 429s.
+    researchEnabled: parseBool(process.env.RESEARCH_ENABLED, false),
+    researchParallelism: parseInt1to5(process.env.RESEARCH_PARALLELISM, 5),
+    researchQueryTimeoutMs: parseIntPositive(process.env.RESEARCH_QUERY_TIMEOUT_MS, 180_000),
+    researchAggregateTimeoutMs: parseIntPositive(process.env.RESEARCH_AGGREGATE_TIMEOUT_MS, 600_000),
   };
+}
+
+function parseBool(raw, fallback) {
+  if (raw === undefined) return fallback;
+  if (raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on') return true;
+  if (raw === '0' || raw === 'false' || raw === 'no' || raw === 'off') return false;
+  return fallback;
+}
+
+function parseInt1to5(raw, fallback) {
+  const n = Number(raw);
+  if (Number.isFinite(n) && n >= 1 && n <= 5) return Math.floor(n);
+  return fallback;
+}
+
+function parseIntPositive(raw, fallback) {
+  const n = Number(raw);
+  if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  return fallback;
 }
 
 function parseRetries(raw, fallback) {
@@ -215,6 +245,33 @@ function validate(patch) {
       throw new Error('verifyMaxRetries: 0~5 사이 정수 (0 = off)');
     }
     out.verifyMaxRetries = Math.floor(n);
+  }
+  if (patch.researchEnabled !== undefined) {
+    if (typeof patch.researchEnabled !== 'boolean') {
+      throw new Error('researchEnabled: must be boolean');
+    }
+    out.researchEnabled = patch.researchEnabled;
+  }
+  if (patch.researchParallelism !== undefined) {
+    const n = Number(patch.researchParallelism);
+    if (!Number.isFinite(n) || n < 1 || n > 5) {
+      throw new Error('researchParallelism: 1~5 사이 정수');
+    }
+    out.researchParallelism = Math.floor(n);
+  }
+  if (patch.researchQueryTimeoutMs !== undefined) {
+    const n = Number(patch.researchQueryTimeoutMs);
+    if (!Number.isFinite(n) || n < 1_000 || n > 600_000) {
+      throw new Error('researchQueryTimeoutMs: 1000~600000 사이 정수 (ms)');
+    }
+    out.researchQueryTimeoutMs = Math.floor(n);
+  }
+  if (patch.researchAggregateTimeoutMs !== undefined) {
+    const n = Number(patch.researchAggregateTimeoutMs);
+    if (!Number.isFinite(n) || n < 5_000 || n > 3_600_000) {
+      throw new Error('researchAggregateTimeoutMs: 5000~3600000 사이 정수 (ms)');
+    }
+    out.researchAggregateTimeoutMs = Math.floor(n);
   }
   return out;
 }

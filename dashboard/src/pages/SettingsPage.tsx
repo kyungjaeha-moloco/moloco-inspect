@@ -15,6 +15,10 @@ interface MollySettings {
   planModel: string;
   prdThinkingBudget: number;
   planThinkingBudget: number;
+  researchEnabled: boolean;
+  researchParallelism: number;
+  researchQueryTimeoutMs: number;
+  researchAggregateTimeoutMs: number;
 }
 
 interface MollySettingsResponse {
@@ -166,6 +170,58 @@ function MollySettingsPanel() {
         step={512}
       />
 
+      {/* ── Research (Type-1, plan 2026-05-12-research-parallelism.md) ── */}
+      <div
+        style={{
+          marginTop: 16,
+          padding: '10px 12px',
+          background: 'var(--bg-base)',
+          border: '1px solid var(--border)',
+          borderRadius: 6,
+          fontSize: 'var(--text-xs)',
+          color: 'var(--text-secondary)',
+          lineHeight: 1.6,
+        }}
+      >
+        <strong>Research (Type-1)</strong> — read-only research sub-agents that run before each task's
+        coder adapter. They search the codebase / design system / API contracts in parallel and pass
+        the synthesised bundle into the coder's prompt. Slice F-lite found that <span className="mono">researchParallelism=5</span>
+        was 6.6× faster than <span className="mono">1</span> at identical cost.
+      </div>
+      <SettingsToggle
+        label="Research enabled"
+        hint="Master switch for the research step. When off, the runner passes null to the coder adapter (legacy behaviour). When on, each task fires up to `researchParallelism` Claude Code subprocesses before the coder runs."
+        value={draft.researchEnabled}
+        onChange={(v) => setDraft({ ...draft, researchEnabled: v })}
+      />
+      <SettingsSlider
+        label="Research parallelism"
+        hint="How many read-only Claude Code subprocesses dispatch concurrently per task. 5 = fastest (Slice F-lite measured); 2-3 = safer on tight Anthropic ITPM tiers; 1 = sequential. Hard-capped at 5 because the query-builder emits at most 5 questions per task."
+        value={draft.researchParallelism}
+        onChange={(v) => setDraft({ ...draft, researchParallelism: v })}
+        min={1}
+        max={5}
+        step={1}
+      />
+      <SettingsSlider
+        label="Per-query timeout (s)"
+        hint="Wall-clock budget for each research subprocess. After this, SIGTERM is sent; SIGKILL follows 3 s later. Empirical codebase-exploration takes ~100-160 s — keep at 180 unless you measure something faster."
+        value={Math.round(draft.researchQueryTimeoutMs / 1000)}
+        onChange={(v) => setDraft({ ...draft, researchQueryTimeoutMs: v * 1000 })}
+        min={30}
+        max={600}
+        step={30}
+      />
+      <SettingsSlider
+        label="Aggregate timeout (s)"
+        hint="Wall-clock cap across all queries for one task. When it fires, in-flight queries are aborted and surfaced as 'timeout' in the bundle. Sized for parallelism=1 to still finish 5 sequential queries (~800 s worst case)."
+        value={Math.round(draft.researchAggregateTimeoutMs / 1000)}
+        onChange={(v) => setDraft({ ...draft, researchAggregateTimeoutMs: v * 1000 })}
+        min={60}
+        max={3600}
+        step={60}
+      />
+
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
         <button
           className="btn btn-primary"
@@ -239,6 +295,43 @@ function SettingsSelect({
       >
         {options}
       </select>
+    </div>
+  );
+}
+
+function SettingsToggle({
+  label, hint, value, onChange,
+}: {
+  label: string;
+  hint: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="settings-row" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+      <div style={{ minWidth: 180 }}>
+        <div className="settings-row-label">{label}</div>
+        <div style={{ opacity: 0.55, fontSize: 12 }}>{hint}</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 280 }}>
+        <label
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            cursor: 'pointer',
+            userSelect: 'none',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={value}
+            onChange={(e) => onChange(e.target.checked)}
+            style={{ transform: 'scale(1.2)' }}
+          />
+          <span className="mono">{value ? 'on' : 'off'}</span>
+        </label>
+      </div>
     </div>
   );
 }

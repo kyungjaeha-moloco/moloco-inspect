@@ -30,6 +30,7 @@ import {
   skipTask,
 } from './job.js';
 import { runResearch as defaultRunResearch } from './job-research.js';
+import { getMollySettings } from './molly-settings.js';
 
 // ── Topo-sort + task selection ──────────────────────────────────────
 
@@ -149,12 +150,13 @@ export async function runJob(jobId, { adapter, reviewer, maxAttempts = 2, resear
   const review = reviewer ?? defaultReviewer;
   // Resolve the research function once per job:
   //   - explicit `researchFn` (including `null` to disable) overrides
-  //   - else the env switch decides whether real runResearch is in play
+  //   - else molly-settings.researchEnabled decides (dashboard
+  //     SettingsPage toggles this at runtime via /api/molly/settings)
   //   - else no research at all
   const research =
     researchFn !== undefined
       ? researchFn
-      : (process.env.RESEARCH_ENABLED === '1' ? defaultRunResearch : null);
+      : (getMollySettings().researchEnabled ? defaultRunResearch : null);
 
   // Outer loop: one iteration per task (or until we bail to pause/qa).
   for (;;) {

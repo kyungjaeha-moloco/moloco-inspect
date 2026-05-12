@@ -31,6 +31,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { recordEvent } from './molly-metrics.js';
+import { getMollySettings } from './molly-settings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '../..');
@@ -46,11 +47,10 @@ const KILL_GRACE_MS = 3_000;
 const MAX_QUERIES = 5;
 const ALLOWED_TOOLS = 'Glob,Grep,Read,Task';
 
-// Read RESEARCH_* tunables at *call* time (NOT module import time) so a
-// long-running orchestrator process can be reconfigured between
-// experiments without restarting. Slice F's measurement scripts and ops
-// scenarios both rely on this: bumping the budget after a tight first
-// pass shouldn't require an orchestrator bounce.
+// Tunables resolved at *call* time via molly-settings so the dashboard
+// SettingsPage can adjust them without an orchestrator restart.
+// molly-settings reads its own defaults from RESEARCH_* env vars at boot,
+// then layers the persisted state/molly-settings.json on top.
 //
 // Defaults reflect the Slice F-lite measurement results
 // (docs/superpowers/handoffs/2026-05-12-slice-f-lite-results.md):
@@ -62,15 +62,15 @@ const ALLOWED_TOOLS = 'Glob,Grep,Read,Task';
 //     sequentially (sum ~500s) and tight enough to fail fast on stuck
 //     subprocesses.
 // Operators on tighter Anthropic tiers (default-tier ITPM ~50 K) may
-// want to set RESEARCH_PARALLELISM=3 explicitly.
+// want to set researchParallelism=3 explicitly.
 function resolveDefaultParallelism() {
-  return Number(process.env.RESEARCH_PARALLELISM) || 5;
+  return getMollySettings().researchParallelism;
 }
 function resolvePerQueryTimeoutMs() {
-  return Number(process.env.RESEARCH_QUERY_TIMEOUT_MS) || 180_000;
+  return getMollySettings().researchQueryTimeoutMs;
 }
 function resolveAggregateTimeoutMs() {
-  return Number(process.env.RESEARCH_AGGREGATE_TIMEOUT_MS) || 600_000;
+  return getMollySettings().researchAggregateTimeoutMs;
 }
 
 const QUERY_BUILDER_SYSTEM_PROMPT = `You are a research-question planner for an AI coding agent. The coder is about to write code for ONE task; your job is to emit focused retrieval questions the orchestrator will run *before* the coder starts, so the coder begins with context instead of cold.
