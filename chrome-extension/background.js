@@ -405,25 +405,25 @@ void refreshHealthState();
 
 // ─── Side Panel + Tab Group ─────────────────────────────────────────
 //
-// UX contract (revised 2026-04-30 — origin lock, Claude ext 식):
+// UX contract (revised 2026-04-30 — origin lock, Claude ext style):
 //
-//   1. 첫 아이콘 클릭 → 그 탭의 origin (protocol+host+port) 을
-//      `activeOrigin` 으로 저장 (chrome.storage.local). 그 탭에서
-//      panel 열림 + Moloco Inspect tab group 에 추가.
-//   2. 모든 탭의 panel enabled 는 `originMatches(tab.url)` 로 결정.
-//      같은 origin 의 *모든* 탭에서 panel 활성 (수동 그룹 추가 없이도).
-//   3. 다른 origin 으로 navigate → panel 자동으로 collapse.
-//   4. 다른 origin 에서 아이콘 다시 클릭 → activeOrigin *전환*. 이전
-//      origin 의 모든 탭은 panel 비활성. 한 origin 만 lock (multi-origin
-//      안 함 — 단순 single-origin).
+//   1. First icon click → stores that tab's origin (protocol+host+port)
+//      as `activeOrigin` (chrome.storage.local). Panel opens for that tab
+//      + it is added to the Moloco Inspect tab group.
+//   2. Panel enabled state for every tab is determined by `originMatches(tab.url)`.
+//      Panel is active on *all* tabs with the same origin (no manual group add needed).
+//   3. Navigate to a different origin → panel collapses automatically.
+//   4. Click icon again from a different origin → *switches* activeOrigin. All tabs
+//      from the previous origin lose the panel. Only one origin is locked at a time
+//      (no multi-origin — simple single-origin).
 //   5. Manifest's `side_panel.default_path` is global — we use
 //      `sidePanel.setOptions({tabId, enabled})` to override per-tab.
 
 const MOLOCO_GROUP_TITLE = 'Moloco Inspect';
 const MOLOCO_GROUP_COLOR = 'cyan'; // chrome.tabGroups Color enum
 
-// Origin lock — module-level cache, chrome.storage.local 와 sync.
-// 시작 시 loadActiveOrigin() 으로 로드.
+// Origin lock — module-level cache, synced with chrome.storage.local.
+// Loaded on startup via loadActiveOrigin().
 let activeOrigin = null;
 
 async function loadActiveOrigin() {
@@ -448,7 +448,7 @@ function getOrigin(url) {
   if (!url) return null;
   try {
     const u = new URL(url);
-    // chrome:// / file:// / about: 등 web origin 아닌 것 제외 — lock 대상 아님.
+    // Exclude non-web origins like chrome://, file://, about: — not eligible for locking.
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
     return u.origin;
   } catch {
@@ -462,8 +462,8 @@ function originMatches(url) {
   return o === activeOrigin;
 }
 
-// 시작 시 로드 (top-level await 대신 fire-and-forget — onStartup/onInstalled
-// 도 다시 로드).
+// Load on startup (fire-and-forget instead of top-level await — also reloaded
+// on onStartup/onInstalled).
 void loadActiveOrigin();
 
 async function findMolocoGroup(windowId) {
@@ -518,8 +518,8 @@ async function updateSidePanelForTab(tabId) {
   if (tabId == null) return;
   try {
     const tab = await chrome.tabs.get(tabId);
-    // Origin lock — activeOrigin 일치 탭만 enabled. group 멤버십은 시각적
-    // 마커로만 (panel state 결정에는 안 씀).
+    // Origin lock — only tabs matching activeOrigin are enabled. Group membership
+    // is a visual marker only (not used for panel state decisions).
     const ok = originMatches(tab.url);
     await chrome.sidePanel.setOptions({
       tabId,
@@ -554,9 +554,9 @@ chrome.action.onClicked.addListener((tab) => {
   // gesture token expires across awaits. Do NOT await anything before
   // calling open — otherwise the panel fails to open silently.
   //
-  // 1. Origin lock — 다른 origin 이면 전환. 같은 origin 이면 변화 없음
-  //    (storage 저장은 idempotent — 동일 값이면 noop). cache 즉시 갱신
-  //    해서 syncAllTabsSidePanel 이 새 origin 으로 평가하게.
+  // 1. Origin lock — switch if different origin; no change if same origin
+  //    (storage write is idempotent — noop for the same value). Update cache
+  //    immediately so syncAllTabsSidePanel evaluates against the new origin.
   const switched = activeOrigin !== origin;
   activeOrigin = origin;
   void chrome.storage.local.set({ activeOrigin: origin });
@@ -571,27 +571,27 @@ chrome.action.onClicked.addListener((tab) => {
   chrome.sidePanel.open({ tabId: tab.id }).catch((err) => {
     console.warn('[Moloco Inspect] sidePanel.open failed:', err.message);
   });
-  // 4. Group + sync. group 은 visual 마커만, sync 는 다른 탭의 panel
-  //    enable/disable 갱신 (origin 전환 시 이전 origin 탭들 비활성).
+  // 4. Group + sync. Group is a visual marker only; sync updates other tabs'
+  //    panel enable/disable state (deactivates previous origin tabs on switch).
   void addTabToMolocoGroup(tab);
   if (switched) {
     void syncAllTabsSidePanel();
   }
 });
 
-// Tab switched → origin 일치 탭은 enabled, 아니면 disabled.
+// Tab switched → enable tabs matching the origin, disable all others.
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   void updateSidePanelForTab(tabId);
 });
 
-// Tab url 또는 group 변경 시 panel 재평가.
+// Re-evaluate panel state when tab URL or group changes.
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.url || changeInfo.groupId !== undefined) {
     void updateSidePanelForTab(tabId);
   }
 });
 
-// On extension startup / fresh install: activeOrigin 로드 + 모든 탭 sync.
+// On extension startup / fresh install: load activeOrigin + sync all tabs.
 chrome.runtime.onStartup.addListener(() => {
   void loadActiveOrigin().then(() => syncAllTabsSidePanel());
 });
@@ -872,7 +872,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
               playgroundId: realPgId,
             });
             // Step 2: NO auto-approve. The sidepanel shows a plan
-            // card with ✅ 승인 / ✏️ 다시 계획 / ❌ 취소 buttons (same
+            // card with ✅ Approve / ✏️ Replan / ❌ Cancel buttons (same
             // shape as molly Slack), and the user explicitly approves
             // before the runner kicks off.
             return;

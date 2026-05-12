@@ -84,15 +84,16 @@
   // ─── State ──────────────────────────────────────────────────────────
   let currentElement = null;
   let selectedElements = [];
-  // Phase 3 Task 3.1 sub-phase D — molly chat history. submit/performSubmit
-  // 의 /api/intake 호출 시 동봉 → server 의 dispatcher 가 prev kind 보고
-  // multi-turn (clarification + plan) 라우팅.
+  // Phase 3 Task 3.1 sub-phase D — molly chat history. Attached when
+  // submit/performSubmit calls /api/intake → server's dispatcher reads prev kind
+  // for multi-turn (clarification + plan) routing.
   //
-  // 영구 보존 (2026-04-30 피드백): chrome.storage.local 에 origin 별 분리
-  // 저장 (mollyChatHistoryByOrigin: { '<origin>': [...turns] }). 같은
-  // origin 으로 다시 들어오면 이전 대화 컨텍스트 복원. activeOrigin 전환
-  // 시 (background 의 origin lock) 그 origin 의 history 자동 reload.
-  // 단일 origin 의 history 만 메모리에 — last N=10 (토큰/메모리 비용).
+  // Persistent storage (2026-04-30 feedback): stored per-origin in
+  // chrome.storage.local (mollyChatHistoryByOrigin: { '<origin>': [...turns] }).
+  // Re-entering the same origin restores the previous conversation context.
+  // On activeOrigin switch (background's origin lock) the history for that
+  // origin is automatically reloaded.
+  // Only one origin's history is kept in memory — last N=10 (token/memory cost).
   let mollyChatHistory = [];
   let mollyChatHistoryOrigin = null;
   let mollyChatHistorySaveTimer = null;
@@ -135,14 +136,14 @@
   function pushMollyHistory(role, content, kind) {
     mollyChatHistory.push({ role, content: String(content || '').slice(0, 1000), kind: kind || undefined });
     if (mollyChatHistory.length > 10) mollyChatHistory.shift();
-    // 300ms debounce — 빠른 연속 push (user + assistant) 한 번에 save.
+    // 300ms debounce — batches rapid consecutive pushes (user + assistant) into one save.
     if (mollyChatHistorySaveTimer) clearTimeout(mollyChatHistorySaveTimer);
     mollyChatHistorySaveTimer = setTimeout(persistMollyHistory, 300);
   }
 
-  // activeOrigin 변경 감지 (background 의 origin lock 이 origin 전환 시).
-  // 이전 origin 의 history 는 이미 storage 에 있으므로, 그냥 새 origin 의
-  // history 로 in-memory 리로드.
+  // Detect activeOrigin changes (background's origin lock switching origins).
+  // Previous origin's history is already persisted in storage, so just
+  // reload the new origin's history into memory.
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.activeOrigin) {
       const newOrigin = changes.activeOrigin.newValue || null;
@@ -152,8 +153,8 @@
     }
   });
 
-  // Sidepanel 시작 시 즉시 로드 (fire-and-forget — first user message 전엔
-  // history 비어있어도 안전).
+  // Load immediately on sidepanel startup (fire-and-forget — safe if history
+  // is empty before the first user message).
   void initMollyHistory();
   let currentRequestId = null; // HTTP mode: orchestrator request ID
   let currentJobId = null; // Phase 2: job pipeline mode
@@ -1075,12 +1076,12 @@
           );
           return;
         }
-        // plan 카드 표시 — 사용자가 [실행하기] 눌러야 job 생성
+        // Show plan card — user must click [Run] to create the job
         addPlanItemsCard(planBody.plan, prdText, { client: clientId, routeOrPage });
       } catch (err) {
         inputStatus.textContent = '';
         console.warn('[molly] /api/plan fetch failed, falling back to performSubmit:', err.message);
-        // 폴백: 기존 직접 실행 흐름
+        // Fallback: legacy direct-execution flow
         performSubmit(plan);
       }
     });
@@ -1805,7 +1806,7 @@
     );
 
     // Repaint <select>. New default order:
-    //   1) 🆕 새 작업 (auto-create on next send)  ← default when no lastPlaygroundId
+    //   1) 🆕 New task (auto-create on next send)  ← default when no lastPlaygroundId
     //   2) optgroup "Existing playgrounds" — pick to attach to one
     //   3) optgroup "Advanced" — stateless escape hatch
     playgroundSelect.innerHTML = '';
@@ -2144,9 +2145,8 @@
     msg.appendChild(bubble);
     messagesEl.appendChild(msg);
     scrollToBottom();
-    // Sub-phase D — molly intake history 에 user turn 기록. element/
-    // capture 컨텍스트는 텍스트엔 안 합쳐 — 서버 dispatcher 는 텍스트만
-    // 보고 routing.
+    // Sub-phase D — record user turn in molly intake history. Element/capture
+    // context is not merged into the text — server dispatcher routes on text only.
     pushMollyHistory('user', text);
     return msg;
   }
@@ -2172,20 +2172,20 @@
   }
 
   /**
-   * Phase 2 follow-up: molly chat 모드 응답 카드. text 또는 status
-   * templated 응답을 사용자에게 보여줌. progress card 와 다르게
-   * lifecycle 없음 — pure 답변.
+   * Phase 2 follow-up: molly chat mode response card. Shows the user a text
+   * or status-templated response. Unlike a progress card, there is no
+   * lifecycle — it is a pure reply.
    */
   /**
-   * Phase 3 Task 3.2 follow-up — molly 가 처리 중일 때 사용자가 뭘 기다
-   * 리고 있는지 보여주는 thinking indicator. 입력이 PRD/chat/status 무엇
-   * 인지 클라가 모르므로 일반적 wording.
-   *   0s   "🤔 molly 가 살펴보고 있어요"     classifier (모든 입력 거침)
-   *   2s   "📋 맥락 분석 중..."              chat/status/analyzer (~3-10s)
-   *   8s   "🛠️ 응답 정리 중... (10-20초)"   plan emit OR 긴 응답 단계
-   *   20s  "⌛ 조금만 더 기다려 주세요..."   timeout 가까워졌을 때
+   * Phase 3 Task 3.2 follow-up — thinking indicator shown while molly is
+   * processing, so the user knows what to expect. Uses generic wording since
+   * the client doesn't know whether the input is PRD/chat/status.
+   *   0s   "🤔 molly is looking into this"       classifier (all inputs go through this)
+   *   2s   "📋 Analyzing context..."              chat/status/analyzer (~3-10s)
+   *   8s   "🛠️ Preparing response... (10-20s)"   plan emit OR long response stage
+   *   20s  "⌛ Almost there, hang tight..."       near timeout
    *
-   * 반환: { dismiss() } — 응답 도착하면 호출. setTimeout 들 정리 + node 제거.
+   * Returns: { dismiss() } — call when response arrives. Clears setTimeouts + removes node.
    */
   function showMollyThinking(messagesEl) {
     const wrap = document.createElement('div');
@@ -2221,16 +2221,16 @@
     header.textContent = kind === 'status_query' ? '📊 molly status' : '💬 molly';
     const body = document.createElement('div');
     body.className = 'molly-chat-body';
-    // text 는 server 가 신뢰 — 다만 textContent 로 안전하게.
+    // text is trusted from the server — but use textContent to be safe.
     body.textContent = text;
     bubble.appendChild(header);
     bubble.appendChild(body);
     wrap.appendChild(bubble);
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
-    // Sub-phase D — history 에 assistant turn 기록. 'clarify' kind 는
-    // server 의 'code_change_ambiguous' 와 매핑 — dispatcher 가 다음
-    // 사용자 입력을 follow-up answer 로 라우팅.
+    // Sub-phase D — record assistant turn in history. 'clarify' kind maps to
+    // server's 'code_change_ambiguous' — dispatcher routes the next user
+    // input as a follow-up answer.
     const intakeKind = kind === 'clarify' ? 'code_change_ambiguous' : (kind || 'chat');
     pushMollyHistory('assistant', text, intakeKind);
   }
@@ -2326,9 +2326,9 @@
     const startedAt = Date.now();
     const POLL_MS = 3000;
     const TIMEOUT_MS = 30 * 60 * 1000;
-    // 'complete' 는 announce 후 즉시 finishLoop — Promote 클릭은 user
-    // 가 직접 fetch 호출이라 polling 이 더 봐줄 필요 없음. (Slack 의
-    // pollJobUntilDoneInner 와 동일 정책: molly.js:1424 의 return.)
+    // 'complete' → finishLoop immediately after announcing — Promote click is a
+    // direct user fetch call so polling no longer needs to watch it. (Same policy
+    // as Slack's pollJobUntilDoneInner: see molly.js:1424 return.)
     const TERMINAL = new Set(['complete', 'cancelled']);
     let planCardShown = false;
     /** @type {Map<string, string>} taskId → last announced status */
@@ -2336,8 +2336,8 @@
     /** @type {Set<string>} job-level state announcements (qa-landed, completed, paused) */
     const announcedJobStates = new Set();
 
-    // Reload sniff: sidepanel 새로고침 후 같은 jobId 가 다시 폴링될 때
-    // chat 에 이미 들어가 있는 카드를 다시 만들지 않게 dedupe Set 을 prefill.
+    // Reload sniff: when the same jobId is polled again after a sidepanel refresh,
+    // prefill the dedupe Set so we don't re-create cards already in the chat.
     if (messagesEl.querySelector(`.msg-system[data-qa-card-job-id="${CSS.escape(jobId)}"]`)) {
       announcedJobStates.add('qa-landed');
     }
@@ -2403,16 +2403,16 @@
         }
       }
       // Phase 2 Step 2: when the decomposer lands a plan, append a
-      // plan-approval card with [✅ 승인] / [✏️ 다시 계획] / [❌ 취소]
+      // plan-approval card with [✅ Approve] / [✏️ Replan] / [❌ Cancel]
       // buttons. Same shape as molly's Slack plan, scaled to the
       // sidepanel's narrower column.
       if (job && job.status === 'planning' && !planCardShown) {
         planCardShown = true;
         addPlanApprovalCard(job);
       }
-      // Per-task transitions — Slack 의 pollJobUntilDoneInner 미러.
-      // 통과/실패/건너뜀이 발생할 때마다 chat 에 카드를 띄우고, 같은
-      // task의 후속 트랜지션은 in-place 업데이트.
+      // Per-task transitions — mirrors Slack's pollJobUntilDoneInner.
+      // Post a card to chat on every pass/fail/skip, and in-place update
+      // subsequent transitions for the same task.
       const ANNOUNCEABLE = new Set(['running', 'committed', 'reviewed', 'failed', 'skipped']);
       if (job && Array.isArray(job.tasks)) {
         for (let i = 0; i < job.tasks.length; i++) {
@@ -2430,9 +2430,9 @@
         }
       }
 
-      // Paused state — Slack 의 paused 처리 미러 (molly.js:1373-1398).
-      // pausedReason 을 surface 하고 dedupe. 재개되면 set 에서 제거해
-      // 다음에 paused 진입 시 다시 announce.
+      // Paused state — mirrors Slack's paused handling (molly.js:1373-1398).
+      // Surface pausedReason and dedupe. Remove from the set when resumed so
+      // the next paused entry announces again.
       if (job && job.status === 'paused' && !announcedJobStates.has('paused')) {
         announcedJobStates.add('paused');
         addPausedMessage(job);
@@ -2441,7 +2441,7 @@
         announcedJobStates.delete('paused');
       }
 
-      // Task 3: cancelled 카드 — 외부 cancel (Playground UI / curl) 시 사용자에게 명시.
+      // Task 3: cancelled card — surface to the user when cancelled externally (Playground UI / curl).
       if (job && job.status === 'cancelled' && !announcedJobStates.has('cancelled')) {
         announcedJobStates.add('cancelled');
         addCancelledMessage(job);
@@ -2452,8 +2452,8 @@
           announcedJobStates.add('qa-landed');
           addQaCompletionMessage(job);
         } else {
-          // 이미 카드는 떠 있음. rerun 후 qaAutoResult 가 placeholder
-          // ('재실행 중…') → 실 결과로 교체될 때 카드를 in-place update.
+          // Card is already shown. In-place update the card when qaAutoResult
+          // transitions from the placeholder ('Re-running…') to the actual result.
           updateQaCompletionMessage(job);
         }
       }
@@ -2479,12 +2479,13 @@
     setTimeout(poll, 1500);
   }
 
-  // ─── Plan Items Card (PRD → /api/plan 응답) ─────────────────────────
+  // ─── Plan Items Card (PRD → /api/plan response) ─────────────────────────
   /**
    * **Source of truth: orchestrator/lib/plan-intent.js**
-   * 여기는 vanilla JS chrome-ext 라 별도 정의가 필요해 미러링. 5종 intent 는
-   * decomposer 우회 (skipDecomposer:true). 추가/변경 시 반드시 plan-intent.js
-   * (backend) + playground-app/src/editor/AIPanel.tsx 까지 3 곳 모두 함께 갱신.
+   * This vanilla JS chrome-ext requires a local copy — mirrored here. The 5
+   * fast-track intents bypass the decomposer (skipDecomposer:true). Any
+   * additions/changes must be applied in all 3 places: plan-intent.js
+   * (backend) + playground-app/src/editor/AIPanel.tsx + here.
    */
   const FAST_TRACK_INTENTS_CHROME = new Set([
     'copy_update',
@@ -2498,23 +2499,23 @@
     return typeof intent === 'string' && FAST_TRACK_INTENTS_CHROME.has(intent);
   }
 
-  // Active plan_items card 참조 — 채팅으로 plan_feedback 들어왔을 때 어느 카드
-  // 를 redecompose 할지 추적. 동시에 여러 카드 표시 안 함 정책 (Slack 와 다름):
-  // 새 카드 만들어지면 이전 참조 덮어씀.
+  // Reference to the active plan_items card — tracks which card to redecompose
+  // when a plan_feedback arrives via chat. Policy: only one card shown at a time
+  // (unlike Slack): new card overwrites the previous reference.
   let activePlanItemsCard = null;
 
   /**
-   * Plan items 카드 — PRD 제출 직후 /api/plan 응답으로 만들어짐.
-   * 사용자가 plan 확인하고 [실행하기] 누르면 /api/playground/:id/job 호출
-   * (decomposer 우회 옵션 포함).
+   * Plan items card — created immediately after PRD submission from the /api/plan response.
+   * When the user reviews the plan and clicks [Run →], calls /api/playground/:id/job
+   * (with decomposer bypass option).
    *
-   * 버튼: [취소] [✏️ 다시 계획] [실행하기 →]
+   * Buttons: [Cancel] [✏️ Replan] [Run →]
    *
-   * fast-track intent 면 헤더에 ⚡ 배지 + skipDecomposer:true.
+   * If it is a fast-track intent, the header shows a ⚡ badge + skipDecomposer:true.
    *
-   * @param {object} plan        - /api/plan 응답의 plan 객체
-   * @param {string} cumulativePrd - 사용자 최종 PRD 텍스트
-   * @param {object} ctx         - { client, routeOrPage, playgroundId? }
+   * @param {object} plan          - plan object from the /api/plan response
+   * @param {string} cumulativePrd - final PRD text from the user
+   * @param {object} ctx           - { client, routeOrPage, playgroundId? }
    */
   function addPlanItemsCard(plan, cumulativePrd, ctx) {
     const isFastTrack = isFastTrackIntentChrome(plan.intent);
@@ -2571,7 +2572,7 @@
     }
     bubble.appendChild(ol);
 
-    // 버튼 3개
+    // 3 buttons
     const actions = document.createElement('div');
     actions.style.display = 'flex';
     actions.style.gap = '6px';
@@ -2593,7 +2594,7 @@
     approveBtn.textContent = 'Run →';
     approveBtn.className = 'plan-btn plan-btn-primary';
 
-    // closure 변수 — 다시 계획 결과 swap 을 위해
+    // Closure variables — used to swap in replan results
     let currentPlan = plan;
     let currentFastTrack = isFastTrack;
 
@@ -2616,7 +2617,7 @@
       try {
         const baseUrl = await getServerUrl();
 
-        // playground 확보 — ensureEffectivePlayground() 재활용
+        // Acquire playground — reuse ensureEffectivePlayground()
         let playgroundId = ctx?.playgroundId;
         if (!playgroundId) {
           playgroundId = await ensureEffectivePlayground();
@@ -2647,7 +2648,7 @@
         lockPlanButtons('✅ Execution started');
         if (activePlanItemsCard?.wrap === wrap) activePlanItemsCard = null;
 
-        // 기존 폴링 흐름 진입 — addJobProgressMessage + startHttpJobPolling
+        // Enter the existing polling flow — addJobProgressMessage + startHttpJobPolling
         currentJobId = jobId;
         currentJobInProgress = true;
         addJobProgressMessage(jobId, playgroundId, { userPrompt: cumulativePrd });
@@ -2665,8 +2666,8 @@
       if (activePlanItemsCard?.wrap === wrap) activePlanItemsCard = null;
     });
 
-    // 다시 계획 — button 클릭과 chat plan_feedback 둘 다 사용. feedback 텍스트
-    // 받아서 /api/plan 재호출 + 카드 swap. 실패 시 버튼 복구 + error stamp.
+    // Replan — used by both button click and chat plan_feedback. Takes feedback
+    // text, re-calls /api/plan, and swaps the card. On failure, restores buttons + error stamp.
     async function doRedecompose(feedback) {
       const trimmed = (feedback || '').trim();
       if (!trimmed) return;
@@ -2695,7 +2696,7 @@
         if (!r.ok || body.ok === false) {
           throw new Error(body.error || `HTTP ${r.status}`);
         }
-        // 카드 swap — 현재 카드 제거 후 동일 ctx 로 재호출 (새 카드가 활성 참조 등록)
+        // Card swap — remove current card then re-call with same ctx (new card registers as active reference)
         wrap.remove();
         if (activePlanItemsCard?.wrap === wrap) activePlanItemsCard = null;
         addPlanItemsCard(body.plan, cumulativePrd, ctx);
@@ -2727,8 +2728,8 @@
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
-    // 채팅 plan_feedback 진입점 등록 — 새 카드가 만들어지면 이전 참조 덮어씀.
-    // approve / cancel / redecompose 성공 swap 시 모두 해제됨.
+    // Register the chat plan_feedback entry point — overwritten when a new card is created.
+    // Cleared on approve / cancel / successful redecompose swap.
     activePlanItemsCard = {
       wrap,
       doRedecompose,
@@ -2737,7 +2738,7 @@
     };
   }
 
-  // ─── Job Plan Approval Card (job.status=planning 시 read-only progress) ──
+  // ─── Job Plan Approval Card (read-only progress when job.status=planning) ──
   /**
    * Plan card rendered when a job hits status=planning. Mirrors the
    * Slack molly plan blocks: tasks list + risks + qa strategy +
@@ -2899,11 +2900,11 @@
   }
 
   /**
-   * Phase 2 Step 3: per-task transition card. Slack의 taskTransitionPayload
-   * 미러. 같은 task의 후속 트랜지션은 updateTaskTransitionMessage 가
-   * 같은 카드를 in-place 업데이트.
+   * Phase 2 Step 3: per-task transition card. Mirrors Slack's taskTransitionPayload.
+   * Subsequent transitions for the same task are in-place updated by
+   * updateTaskTransitionMessage.
    */
-  // Task 1: dirty-check helper — QA card 의 computeQaCardHash 패턴 mirror.
+  // Task 1: dirty-check helper — mirrors the computeQaCardHash pattern from the QA card.
   function computeTaskTransitionHash(task, idx, total) {
     return JSON.stringify({
       title: task.title ?? null,
@@ -2924,10 +2925,10 @@
     bubble.className = 'msg-bubble task-transition-card';
     bubble.dataset.taskTransitionStatus = task.status;
     renderTaskTransitionBody(bubble, task, idx, total, jobId);
-    // 첫 렌더 후 hash 저장 — 후속 polling 이 즉시 재렌더하지 않게.
+    // Store hash after first render — prevents subsequent polling from re-rendering immediately.
     wrap.dataset.lastHash = computeTaskTransitionHash(task, idx, total);
 
-    // Task 4: reviewed/skipped 카드는 처음부터 collapsed 상태로 추가.
+    // Task 4: reviewed/skipped cards start in collapsed state.
     if (task.status === 'reviewed' || task.status === 'skipped') {
       wrap.dataset.collapsed = 'true';
     }
@@ -2955,7 +2956,7 @@
       addTaskTransitionMessage(task, idx, total, jobId);
       return;
     }
-    // Task 1: dirty-check — 변동 없으면 재렌더 skip (race + closure leak 방지).
+    // Task 1: dirty-check — skip re-render if nothing changed (prevents race + closure leak).
     const hash = computeTaskTransitionHash(task, idx, total);
     if (wrap.dataset.lastHash === hash) return;
     wrap.dataset.lastHash = hash;
@@ -2966,7 +2967,7 @@
       return;
     }
     bubble.dataset.taskTransitionStatus = task.status;
-    // Task 4: reviewed 상태로 전환 시 collapsed 표시 (클릭으로 toggle).
+    // Task 4: collapse when transitioning to reviewed state (click to toggle).
     if (task.status === 'reviewed' || task.status === 'skipped') {
       if (!wrap.dataset.collapsed) {
         wrap.dataset.collapsed = 'true';
@@ -2977,9 +2978,9 @@
   }
 
   /**
-   * Phase 2 Step 3 (paused): job.status=paused 진입 시 1회. Slack 의
-   * paused 처리 미러. 재개되면 announcedJobStates 에서 'paused' 가
-   * 빠지므로 다음에 다시 paused 되면 또 한 번 카드 노출.
+   * Phase 2 Step 3 (paused): shown once when job.status=paused. Mirrors Slack's
+   * paused handling. When the job resumes, 'paused' is removed from
+   * announcedJobStates so the card will show again on the next paused entry.
    */
   function addPausedMessage(job) {
     const wrap = document.createElement('div');
@@ -3001,8 +3002,9 @@
   }
 
   /**
-   * Task 3: job.status=cancelled 진입 시 1회. 외부 cancel (Playground UI /
-   * curl) 시 사이드패널 chat 에 명시. addPausedMessage 와 동일 패턴.
+   * Task 3: shown once when job.status=cancelled. Surfaces the cancellation
+   * in the sidepanel chat when cancelled externally (Playground UI / curl).
+   * Same pattern as addPausedMessage.
    */
   function addCancelledMessage(job) {
     const wrap = document.createElement('div');
@@ -3030,8 +3032,8 @@
   }
 
   /**
-   * Phase 2 Step 4 (1/2): job.status=qa 진입 시 1회. QA 결과 요약 +
-   * [QA 통과] (+ 실패 시 [자동 QA 재실행]) 버튼.
+   * Phase 2 Step 4 (1/2): shown once when job.status=qa. QA result summary +
+   * [QA Pass] button (plus [Re-run Auto QA] if failed).
    */
   function computeQaCardHash(job) {
     const reviewedCount = (job.tasks || []).filter((t) => t.status === 'reviewed').length;
@@ -3054,7 +3056,7 @@
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble qa-card';
     renderQaCompletionBody(bubble, job);
-    // 첫 렌더 후 hash 저장 — 첫 polling 이 즉시 재렌더하지 않게.
+    // Store hash after first render — prevents the first polling tick from re-rendering immediately.
     bubble.dataset.lastHash = computeQaCardHash(job);
     wrap.appendChild(bubble);
     messagesEl.appendChild(wrap);
@@ -3068,9 +3070,9 @@
       addQaCompletionMessage(job);
       return;
     }
-    // Dirty check — 폴링이 매 3초 호출해도 입력이 변하지 않으면 skip.
-    // 매번 무조건 innerHTML='' 하면 사용자 버튼 클릭 race + stale closure
-    // pendingStamp leak 발생.
+    // Dirty check — skip if input is unchanged even though polling calls this every 3s.
+    // Unconditionally clearing innerHTML every time causes user button click races +
+    // stale closure pendingStamp leaks.
     const hash = computeQaCardHash(job);
     if (bubble.dataset.lastHash === hash) return;
     bubble.dataset.lastHash = hash;
@@ -3161,8 +3163,8 @@
           addSystemMessage(`QA pass failed: ${res.status} ${text.slice(0, 120)}`, 'error');
           unlockOnError();
         } else {
-          // status qa→complete 으로 넘어가면 qa-update 분기가 더 안 타서
-          // bubble 이 재렌더 안 됨. 15s 후 fallback unlock.
+          // Once status moves qa→complete the qa-update branch no longer fires,
+          // so the bubble won't be re-rendered. Fallback unlock after 15s.
           setTimeout(() => {
             if (pendingStamp && pendingStamp.parentNode === bubble) unlockOnError();
           }, 15000);
@@ -3187,14 +3189,15 @@
             addSystemMessage(`QA re-run failed: ${res.status} ${text.slice(0, 120)}`, 'error');
             unlockOnError();
           } else {
-            // 서버 idempotent no-op / 폴링 stale 시 placeholder 가 안 찍히면
-            // updateQaCompletionMessage 가 안 불려 영구 잠금. 15s fallback.
+            // If the server gives an idempotent no-op or polling is stale and the
+            // placeholder never appears, updateQaCompletionMessage won't fire → permanent lock.
+            // 15s fallback.
             setTimeout(() => {
               if (pendingStamp && pendingStamp.parentNode === bubble) unlockOnError();
             }, 15000);
           }
-          // 성공 시 폴링이 placeholder 결과를 잡아 updateQaCompletionMessage
-          // 가 실행돼 카드 전체가 갈림.
+          // On success, polling will pick up the placeholder result and call
+          // updateQaCompletionMessage, which replaces the entire card.
         } catch (err) {
           addSystemMessage(`QA re-run failed: ${err.message}`, 'error');
           unlockOnError();
@@ -3208,9 +3211,9 @@
   }
 
   /**
-   * Phase 2 Step 4 (2/2): job.status=complete 진입 시 1회. Promote
-   * 버튼 + Playground 링크. PR 생성 성공 시 같은 카드를 PR URL 로
-   * in-place 업데이트하고 finishLoop() 호출.
+   * Phase 2 Step 4 (2/2): shown once when job.status=complete. Promote
+   * button + Playground link. On successful PR creation, in-place updates
+   * the same card with the PR URL and calls finishLoop().
    */
   function addCompletePromoteMessage(job) {
     const wrap = document.createElement('div');
@@ -3280,15 +3283,15 @@
           unlockOnError();
           return;
         }
-        // server.js:2969-2985 의 promote 핸들러 응답: top-level prUrl
-        // (정확히는 spread of promotePlayground 결과 — {ok, playground,
-        // patches, ..., prUrl, dryRun}). prUrl 평면 위치라 result.prUrl
-        // 분기 불필요.
+        // server.js:2969-2985 promote handler response: top-level prUrl
+        // (specifically the spread of promotePlayground result — {ok, playground,
+        // patches, ..., prUrl, dryRun}). prUrl is at the top level so no
+        // result.prUrl branching needed.
         const data = await res.json().catch(() => ({}));
         const prUrl = data?.prUrl;
-        // pendingStamp 를 결과 메시지로 갈음 — lock 상태 유지 (성공 시
-        // 두 번째 클릭 시도 시 또 PR 생성하면 안 됨). polling 은 이미
-        // finishLoop 됐으므로 카드 in-place update 도 없음.
+        // Replace pendingStamp with the result message — keep locked state
+        // (a second click after success must not create another PR). Polling
+        // has already finishLoop'd so there will be no further in-place card updates.
         if (pendingStamp && pendingStamp.parentNode) {
           pendingStamp.parentNode.removeChild(pendingStamp);
         }
@@ -3305,13 +3308,13 @@
           result.appendChild(a);
           result.appendChild(document.createTextNode(' — merge it on GitHub.'));
           bubble.appendChild(result);
-          // Task 2: PR URL 있음 → 영구 lock (concurrent click = 다중 PR 방지).
+          // Task 2: PR URL received → permanent lock (concurrent click = prevents multiple PRs).
           promoteBtn.disabled = true;
         } else {
           result.textContent = '✅ Promote complete (no PR URL received — check the Playground header).';
           bubble.appendChild(result);
-          // Task 2: PR URL 못 받음 → 30s safety unlock. idempotent 응답
-          // 또는 stale 케이스에서 사용자 복구 경로를 열어 둠.
+          // Task 2: No PR URL received → 30s safety unlock. Keeps a user
+          // recovery path open for idempotent responses or stale cases.
           setTimeout(() => {
             if (promoteBtn.disabled) {
               promoteBtn.disabled = false;
@@ -3377,9 +3380,9 @@
   }
 
   function appendTaskFailActions(bubble, task, jobId) {
-    // Action reason picker — Slice 3 Task 2. 액션 사유를 enum 으로
-    // capture 하기 위해 인라인 select. 강제 X (인지 부담 줄임), 미선택
-    // 시 reason undefined 로 server 가 normalizeReason → null 처리.
+    // Action reason picker — Slice 3 Task 2. Inline select to capture the action
+    // reason as an enum. Not required (reduces cognitive load); when unselected
+    // reason is undefined and the server normalizeReason → null.
     const pickerWrap = document.createElement('div');
     pickerWrap.className = 'task-fail-reason-picker';
     const pickerLabel = document.createElement('span');
@@ -3463,11 +3466,10 @@
           addSystemMessage(`${label} failed: ${res.status} ${text.slice(0, 120)}`, 'error');
           unlockOnError();
         }
-        // 성공 시 폴링이 새 status 를 잡아 카드를 in-place update 하면
-        // bubble.innerHTML = '' 로 stamp/buttons 가 통째로 갈리며 자동
-        // 회수됨. 다만 서버가 idempotent no-op 응답을 주거나 폴링이
-        // stale 한 edge case 에서는 영구 잠금이 될 수 있어 15s safety
-        // timer 로 fallback 복구.
+        // On success, polling picks up the new status and in-place updates the card:
+        // bubble.innerHTML = '' replaces stamp/buttons wholesale, auto-recovering the lock.
+        // However in edge cases where the server gives an idempotent no-op or polling
+        // is stale, permanent lock is possible — use a 15s safety timer as fallback.
         setTimeout(() => {
           if (pendingStamp && pendingStamp.parentNode === bubble) {
             unlockOnError();
@@ -4075,24 +4077,25 @@
       };
     }
 
-    // 분류 게이트 — Job 모드든 stateless 든 사용자 입력이 일반 대화일
-    // 가능성. classifier 가 chat/status_query 로 분류하면 잡/change-request
-    // 안 만들고 답만 surface. classifier 실패 시 안전 폴백 = code_change
-    // (사용자가 PRD 던졌는데 네트워크 에러로 chat 응답 받으면 더 이상함).
+    // Classification gate — whether in Job mode or stateless, user input may be
+    // casual conversation. If the classifier returns chat/status_query, surface
+    // only the answer without creating a job/change-request. On classifier failure
+    // the safe fallback is code_change (getting a chat response for a PRD due to a
+    // network error would be more confusing).
     const userInput = String(payload.userInput || payload.text || '').trim();
     if (userInput) {
-      // Typing indicator — classifier + LLM 1-1.5s 동안 UX 신호.
+      // Typing indicator — UX signal during the ~1-1.5s classifier + LLM call.
       const thinking = showMollyThinking(messagesEl);
 
       try {
         const baseUrl = await getServerUrl();
         // Phase 3 Task 3.2 — /api/molly/respond → /api/intake.
-        // 응답 shape: kind ∈ chat / status_query / code_change_clear /
-        // code_change_ambiguous (4 종). code_change 분기는 _clear / _ambiguous
-        // 로 명시화 — 기존 clarity 필드 검사 불필요.
-        // plan_feedback (2026-05-11) — activePlanItemsCard 있으면 classifier 에
-        // 알려서 채팅 입력을 "현재 plan 수정 요청" 으로 분류 가능. plan summary 도
-        // 첨부 시 정확도 ↑.
+        // Response shape: kind ∈ chat / status_query / code_change_clear /
+        // code_change_ambiguous (4 kinds). code_change branches are explicit
+        // _clear / _ambiguous — no need to check the old clarity field.
+        // plan_feedback (2026-05-11) — if activePlanItemsCard exists, inform the
+        // classifier so chat input can be classified as "current plan revision request".
+        // Attaching plan summary also improves accuracy.
         const hasPendingPlan = !!activePlanItemsCard;
         const pendingPlanSummary = activePlanItemsCard?.getPlan?.()?.summary ?? null;
         const r = await fetch(`${baseUrl}/api/intake`, {
@@ -4112,15 +4115,15 @@
           const kind = data?.kind;
           if (kind === 'chat' || kind === 'status_query') {
             addMollyChatMessage(data.response || '(empty response)', kind);
-            return; // 잡/change-request 안 만듦
+            return; // do not create a job/change-request
           }
-          // code_change_ambiguous → clarifying Q 만 surface, 잡 안 만듦
+          // code_change_ambiguous → surface clarifying question only, no job created
           if (kind === 'code_change_ambiguous' && data?.clarifyingQuestion) {
             addMollyChatMessage(`🤔 ${data.clarifyingQuestion}`, 'clarify');
             return;
           }
-          // plan_feedback (2026-05-11) — active 카드의 doRedecompose 호출.
-          // chat 으로 채팅 입력 → 자동으로 카드 swap.
+          // plan_feedback (2026-05-11) — call doRedecompose on the active card.
+          // Chat input → card swap happens automatically.
           if (kind === 'plan_feedback' && activePlanItemsCard) {
             const feedback = data?.feedback || userInput;
             addMollyChatMessage('✏️ Applying feedback and rebuilding plan...', 'system');
@@ -4129,9 +4132,9 @@
             });
             return;
           }
-          // code_change_clear → 기존 흐름 (job 생성). fall through.
+          // code_change_clear → existing flow (job creation). fall through.
         }
-        // r.ok=false 면 fallback: code_change 진행 (사용자 의도 보호)
+        // r.ok=false → fallback: proceed as code_change (protect user intent)
       } catch (err) {
         thinking.dismiss();
         console.warn('[molly] intake fetch failed, falling back to code_change:', err.message);
@@ -4238,18 +4241,19 @@
       return;
     }
 
-    // Phase 3 Task 3.2 — intake 게이트 (element-selected 모드 포함).
-    // submit() 의 진짜 entry point 에 게이트 — element 선택 상태에서 chat/
-    // status 입력해도 plan 생성 흐름으로 안 빠지게. performSubmit 의
-    // 게이트 (line ~3705) 는 plan 카드 *수락 후* 라 너무 늦음 (사용자가
-    // 인사만 했는데 plan 부터 봐야 했던 버그). pendingClarification 중
-    // 에는 우회 — 진행 중인 clarification 흐름 끊지 않게.
+    // Phase 3 Task 3.2 — intake gate (including element-selected mode).
+    // Gate at submit()'s true entry point — prevents chat/status input from
+    // falling into the plan generation flow when an element is selected.
+    // performSubmit's gate (line ~3705) fires too late — after the plan card is
+    // *accepted* (caused a bug where a greeting forced the user to see a plan).
+    // Bypassed during pendingClarification — avoids interrupting an in-progress
+    // clarification flow.
     //
-    // UX (2026-04-30 피드백): 사용자 버블이 fetch 응답 후에야 그려져
-    // "내 메시지가 전달됐나?" 헷갈림. intake 게이트 진입 즉시 사용자
-    // 버블 + input 비우기 → thinking indicator → fetch 응답. 아래 분기
-    // 와 plan 생성 흐름의 중복 addUserMessage 는 userMessageRendered
-    // 플래그로 skip.
+    // UX (2026-04-30 feedback): user bubble was only drawn after the fetch response,
+    // causing "did my message go through?" confusion. On intake gate entry, render
+    // the user bubble + clear input immediately → thinking indicator → fetch response.
+    // Duplicate addUserMessage calls in branches below and in the plan generation
+    // flow are skipped via the userMessageRendered flag.
     let userMessageRendered = false;
     if (!pendingClarification) {
       addUserMessage(text, currentElement, selectedCapture);
@@ -4260,7 +4264,7 @@
       const thinking = showMollyThinking(messagesEl);
       try {
         const baseUrl = await getServerUrl();
-        // plan_feedback (2026-05-11) — active plan_items 카드 있으면 classifier 에 알림.
+        // plan_feedback (2026-05-11) — notify the classifier if an active plan_items card exists.
         const hasPendingPlan = !!activePlanItemsCard;
         const pendingPlanSummary = activePlanItemsCard?.getPlan?.()?.summary ?? null;
         const r = await fetch(`${baseUrl}/api/intake`, {
@@ -4297,9 +4301,9 @@
             updateSendState();
             return;
           }
-          // code_change_clear → fall through (기존 plan 생성 흐름)
+          // code_change_clear → fall through (existing plan generation flow)
         }
-        // r.ok=false 면 fallback: plan 생성 (사용자 의도 보호)
+        // r.ok=false → fallback: generate plan (protect user intent)
       } catch (err) {
         thinking.dismiss();
         console.warn('[molly] intake gate failed in submit(), falling back to plan generation:', err.message);
