@@ -152,10 +152,11 @@ async function buildSlackHistory(client, channel, threadTs, excludeTs) {
 }
 
 /**
- * Korean labels for the QA strategies the strategist can pick.
- * Mirrors the catalog in `lib/job-qa-strategist.js#QA_STRATEGIES`.
+ * Short English labels for the QA strategies the strategist can pick.
+ * Mirrors the catalog in `lib/job-qa-strategist.js#QA_STRATEGIES` but
+ * with shorter wording suited to Slack message blocks.
  */
-const QA_STRATEGY_LABELS_KO = {
+const QA_STRATEGY_LABELS = {
   agent_review: 'Agent review — screenshot + console + diff',
   inline_per_task: 'Verify after each task',
   final_route_smoke: 'Route smoke only (lightweight)',
@@ -1799,7 +1800,7 @@ function buildPlanBlocks(job) {
   // happen after the agent's tasks finish* so the user signs off on
   // the whole pipeline, not just the code work.
   if (job.qaStrategy) {
-    const label = QA_STRATEGY_LABELS_KO[job.qaStrategy] ?? job.qaStrategy;
+    const label = QA_STRATEGY_LABELS[job.qaStrategy] ?? job.qaStrategy;
     // Back-compat: old state files may have `qaRationaleKo` instead of `qaRationale`
     const qaRationale = job.qaRationale ?? job.qaRationaleKo;
     const rationale = qaRationale

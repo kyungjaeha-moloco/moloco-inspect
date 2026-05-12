@@ -497,14 +497,16 @@ export function setTargetRoute(jobId, route) {
  * survive disk persist + restart.
  *
  * @param {string} jobId
- * @param {{ strategy: string, rationale_ko?: string }} info
+ * @param {{ strategy: string, rationale?: string, rationale_ko?: string }} info
+ *   `rationale` is the current English field; `rationale_ko` is accepted
+ *   for back-compat with older callers and is read but not preferred.
  * @returns {Job}
  */
 export function setQaStrategy(jobId, info) {
   const job = getJob(jobId);
   if (!job) throw new Error(`job not found: ${jobId}`);
   job.qaStrategy = info.strategy;
-  job.qaRationale = info.rationale_ko ?? '';
+  job.qaRationale = info.rationale ?? info.rationale_ko ?? '';
   job.updatedAt = nowMs();
   persist(job);
   return job;

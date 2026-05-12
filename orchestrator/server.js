@@ -662,7 +662,7 @@ function decomposeJobInBackground(jobId, opts = {}) {
           try {
             setQaStrategy(jobId, {
               strategy: 'human_only',
-              rationale_ko: '자동 선택 실패 — 사람이 직접 확인',
+              rationale: 'Auto-selection failed — manual verification',
             });
           } catch (stampErr) {
             console.error(
@@ -727,7 +727,7 @@ function approveAndRunJob(jobId) {
     if (j && !j.qaStrategy) {
       setQaStrategy(jobId, {
         strategy: 'human_only',
-        rationale_ko: '전략 미설정 — 사람이 직접 확인',
+        rationale: 'No strategy set — manual verification',
       });
     }
   } catch (err) {
