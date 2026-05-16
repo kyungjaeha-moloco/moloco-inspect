@@ -590,11 +590,41 @@ button:focus-visible, select:focus-visible {
 }
 
 .capture-preview-image {
-  width: 100%;
+  max-height: 160px;
+  width: auto;
+  max-width: 100%;
   display: block;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-primary);
   background: var(--bg-elevated);
+  cursor: zoom-in;
+}
+
+.img-lightbox-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.82);
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+}
+
+.img-lightbox-overlay.open {
+  display: flex;
+}
+
+.img-lightbox-overlay img {
+  max-width: 92vw;
+  max-height: 92vh;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  cursor: default;
+}
+
+[data-theme="dark"] .img-lightbox-overlay {
+  background: rgba(0, 0, 0, 0.88);
 }
 
 .capture-meta {
@@ -1358,13 +1388,15 @@ button:focus-visible, select:focus-visible {
 }
 
 .msg-attachment-thumb {
-  width: 100%;
-  max-width: 180px;
+  max-height: 100px;
+  width: auto;
+  max-width: 100%;
   display: block;
   margin: 0 0 8px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-primary);
   background: rgba(255, 255, 255, 0.9);
+  cursor: zoom-in;
 }
 
 .msg-status {

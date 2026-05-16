@@ -21,10 +21,14 @@ const healthState = {
 };
 
 function isInspectableUrl(url) {
-  return (
-    typeof url === 'string' &&
-    (url.startsWith('http://localhost:') || url.startsWith('http://127.0.0.1:'))
-  );
+  if (typeof url !== 'string') return false;
+  if (url.startsWith('http://localhost:') || url.startsWith('http://127.0.0.1:')) return true;
+  try {
+    const { protocol, hostname } = new URL(url);
+    return protocol === 'https:' && (hostname === 'moloco.cloud' || hostname.endsWith('.moloco.cloud'));
+  } catch {
+    return false;
+  }
 }
 
 function normalizePreviewLanguage(language) {
@@ -757,7 +761,7 @@ async function getActiveInspectableTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
   if (!tab || !tab.id || !isInspectableUrl(tab.url)) {
-    throw new Error('No active localhost tab found');
+    throw new Error('No active inspectable tab found (localhost or *.moloco.cloud)');
   }
   return tab;
 }
@@ -766,7 +770,7 @@ async function getInspectableTabByUrl(urlIncludes = '') {
   const tabs = await chrome.tabs.query({});
   const inspectableTabs = tabs.filter((tab) => tab.id && isInspectableUrl(tab.url));
   if (!inspectableTabs.length) {
-    throw new Error('No localhost tab found for extension test');
+    throw new Error('No inspectable tab found for extension test (localhost or *.moloco.cloud)');
   }
 
   if (!urlIncludes) {
@@ -775,7 +779,7 @@ async function getInspectableTabByUrl(urlIncludes = '') {
 
   const matched = inspectableTabs.find((tab) => String(tab.url || '').includes(urlIncludes));
   if (!matched) {
-    throw new Error(`No localhost tab matched ${urlIncludes}`);
+    throw new Error(`No inspectable tab matched ${urlIncludes}`);
   }
   return matched;
 }

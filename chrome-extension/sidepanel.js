@@ -2106,6 +2106,36 @@
   if (prdToggleBtn) prdToggleBtn.addEventListener('click', () => togglePrdCard());
   if (prdReadBtn) prdReadBtn.addEventListener('click', ingestPrd);
 
+  // ─── Image lightbox ─────────────────────────────────────────────────
+  const imgLightbox = document.getElementById('imgLightbox');
+  const imgLightboxImg = document.getElementById('imgLightboxImg');
+
+  function openLightbox(src) {
+    imgLightboxImg.src = src;
+    imgLightbox.classList.add('open');
+    imgLightbox.focus();
+  }
+
+  function closeLightbox() {
+    imgLightbox.classList.remove('open');
+    imgLightboxImg.src = '';
+  }
+
+  imgLightbox.addEventListener('click', closeLightbox);
+  imgLightboxImg.addEventListener('click', e => e.stopPropagation());
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && imgLightbox.classList.contains('open')) closeLightbox();
+  });
+
+  document.getElementById('capturePreviewImage').addEventListener('click', function () {
+    if (this.src) openLightbox(this.src);
+  });
+
+  messagesEl.addEventListener('click', e => {
+    const thumb = e.target.closest('.msg-attachment-thumb');
+    if (thumb && thumb.src) openLightbox(thumb.src);
+  });
+
   // ─── Messages ───────────────────────────────────────────────────────
 
   /**
@@ -4482,6 +4512,8 @@
             history: mollyChatHistory.slice(),
             hasPendingPlan,
             pendingPlanSummary,
+            selectionScreenshotDataUrl: selectedCapture ? selectedCapture.imageDataUrl : null,
+            selectionRect: selectedCapture ? selectedCapture.rect : null,
           }),
         });
         thinking.dismiss();

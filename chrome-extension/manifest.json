@@ -6,7 +6,7 @@
   "permissions": ["activeTab", "tabs", "tabGroups", "nativeMessaging", "storage", "sidePanel", "scripting", "alarms"],
   "content_scripts": [
     {
-      "matches": ["http://localhost:*/*", "http://127.0.0.1:*/*"],
+      "matches": ["http://localhost:*/*", "http://127.0.0.1:*/*", "https://*.moloco.cloud/*"],
       "js": ["content-script.js"],
       "css": ["content-style.css"]
     }
