@@ -3239,7 +3239,12 @@ ${JSON.stringify(apiContracts, null, 2)}`;
   if (pathname === '/api/intake' && req.method === 'POST') {
     try {
       const { processIntake } = await import('./lib/molly-intake.js');
-      const payload = await parseBody(req);
+      // maybePersistSelectionScreenshot returns a NEW payload object — must re-assign,
+      // it does not mutate. Persists user-uploaded screenshot (Chrome ext region capture)
+      // to ATTACHMENTS_DIR and replaces selectionScreenshotDataUrl with
+      // { selectionScreenshotPath, selectionScreenshotMimeType }.
+      let payload = await parseBody(req);
+      payload = maybePersistSelectionScreenshot(payload);
       const text = String(payload?.text ?? '').trim();
       if (!text) return json(res, 400, { ok: false, error: 'text required' });
       const ctx = {
@@ -3271,6 +3276,15 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         hasPendingPlan: payload?.hasPendingPlan === true,
         pendingPlanSummary: typeof payload?.pendingPlanSummary === 'string'
           ? payload.pendingPlanSummary
+          : null,
+        // 2026-05-13 — user-uploaded screenshot reaches emitPlan / prd-analyzer
+        // as a vision content block. plan-emitter falls back to ctx.attachment
+        // when args.attachment is absent (see molly-plan-emitter.js).
+        attachment: payload?.selectionScreenshotPath
+          ? {
+            path: payload.selectionScreenshotPath,
+            mediaType: payload.selectionScreenshotMimeType || 'image/png',
+          }
           : null,
       };
       const result = await processIntake(text, ctx);

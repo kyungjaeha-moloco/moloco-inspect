@@ -4,6 +4,7 @@
 // UI changes take effect immediately (no restart required).
 import { getMollySettings, buildThinkingConfig } from './molly-settings.js';
 import { recordEvent } from './molly-metrics.js';
+import { loadImageBlock, describeAttachment } from './image-attachment.js';
 
 export const SYSTEM_PROMPT = `You are Molly's PRD clarity checker. You receive a PRD in which the user requests code work and decide whether it is *clear enough to start right now*.
 
@@ -73,19 +74,32 @@ export async function analyzePrdClarity(text, ctx = {}) {
   const useThinking = thinkingBudget > 0;
   // When thinking is on, max_tokens covers thinking + response combined — keep generous.
   const maxTokens = useThinking ? thinkingBudget + 600 : 400;
+
+  // 2026-05-13 — optional user-uploaded screenshot. Lives in user message
+  // (system cache unaffected). When attached, extend the timeout to absorb
+  // image upload latency (~0.5-2s) so we don't get pushed into the
+  // fallback-clear path on slow connections.
+  const attachment = ctx?.attachment && typeof ctx.attachment === 'object' ? ctx.attachment : null;
+  const imageBlock = loadImageBlock(attachment);
+  const attachmentInfo = describeAttachment(attachment);
+  const userContent = [{ type: 'text', text: userMessage }];
+  if (imageBlock) userContent.push(imageBlock);
+
   const reqBody = {
     model: settings.prdModel,
     max_tokens: maxTokens,
-    // Caching (#1): SYSTEM_PROMPT (~700 tokens) cache_control. Sonnet
-    // threshold ~1024 — borderline. API decides automatically.
+    // Caching (#1): SYSTEM_PROMPT (~700 tokens) cache_control (default 5min TTL).
+    // Sonnet threshold ~1024 — borderline. API decides automatically.
     system: [
       { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
     ],
-    messages: [{ role: 'user', content: userMessage }],
+    messages: [{ role: 'user', content: userContent }],
     // Per-model thinking — adaptive on Opus/Sonnet 4.6+, legacy budget
     // on older models (see molly-settings.js for the mapping).
     ...buildThinkingConfig(settings.prdModel, thinkingBudget),
   };
+  const baseTimeoutMs = useThinking ? 45000 : 15000;
+  const timeoutMs = imageBlock ? baseTimeoutMs + 10000 : baseTimeoutMs;
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -95,14 +109,26 @@ export async function analyzePrdClarity(text, ctx = {}) {
     },
     body: JSON.stringify(reqBody),
     // When thinking is on, latency increases (~3-10s) — extend timeout accordingly.
-    signal: AbortSignal.timeout(useThinking ? 45000 : 15000),
+    // Image attachment adds ~0.5-2s more, so add a 10s buffer when imageBlock is present.
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!resp.ok) {
     // Analysis failure → clear fallback (proceed with job — opposite of Molly's
     // usual safe default). Reason: a spurious clarify failure would trap the
     // user in a frustrating infinite loop. Creating the actual job and letting
     // task review catch the issue is faster.
-    console.warn(`[prd-analyzer] http ${resp.status} — fallback clear`);
+    console.warn(
+      `[prd-analyzer] http ${resp.status} img_attached=${imageBlock ? 1 : 0} — fallback clear`,
+    );
+    recordEvent('lib_call', {
+      lib: 'prd-analyzer',
+      surface: ctx.surface,
+      model: settings.prdModel,
+      latency_ms: Date.now() - t0,
+      clarity: 'fallback_clear',
+      fallback_reason: `http_${resp.status}`,
+      img_attached: imageBlock ? 1 : 0,
+    });
     return { clarity: 'clear', clarifyingQuestion: '', missingInfo: [] };
   }
   const data = await resp.json();
@@ -125,8 +151,12 @@ export async function analyzePrdClarity(text, ctx = {}) {
   const clarifyingQuestion = typeof parsed?.clarifyingQuestion === 'string' ? parsed.clarifyingQuestion.slice(0, 300) : '';
   const missingInfo = Array.isArray(parsed?.missingInfo) ? parsed.missingInfo.slice(0, 5).map(String) : [];
   const u = data?.usage || {};
+  const imgLogPart = imageBlock
+    ? `img_attached=1 size=${attachmentInfo.size ?? '?'}`
+    : `img_attached=0${attachment ? ` skip=${attachmentInfo.reason}` : ''}`;
   console.log(
     `[prd-analyzer] input="${text.slice(0, 80)}" → clarity=${clarity} q="${clarifyingQuestion.slice(0, 60)}" | ` +
+    `${imgLogPart} | ` +
     `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
     `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
   );
@@ -141,6 +171,9 @@ export async function analyzePrdClarity(text, ctx = {}) {
     has_history: Array.isArray(ctx.history) && ctx.history.length > 0,
     input_tokens: u.input_tokens ?? 0,
     output_tokens: u.output_tokens ?? 0,
+    img_attached: imageBlock ? 1 : 0,
+    img_skip_reason: imageBlock ? null : (attachment ? attachmentInfo.reason : null),
+    img_size_bytes: imageBlock ? (attachmentInfo.size ?? 0) : 0,
   });
   return { clarity, clarifyingQuestion, missingInfo };
 }

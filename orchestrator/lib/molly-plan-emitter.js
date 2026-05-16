@@ -17,6 +17,7 @@ import fs from 'node:fs';
 // changeable at runtime from the Inspect Console UI (Settings tab).
 import { getMollySettings, buildThinkingConfig } from './molly-settings.js';
 import { recordEvent } from './molly-metrics.js';
+import { loadImageBlock, describeAttachment } from './image-attachment.js';
 
 export const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal.
 
@@ -24,8 +25,9 @@ export const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM
 
 You have access to a structured design system:
 - patterns.json: composition patterns (app-shell, list-page, detail-page, form-basic, etc.)
-- components.json: full MSM Portal component catalog — name, importStatement, when_to_use, do_not_use, antiPatterns, functional_category, status (~112 components across 16 categories)
-- component-props.json: per-component props extracted via TypeScript Compiler API (ts-morph) — { name, type, required, description }. Authoritative for prop-level decisions. Subset of components.json — some entries may be absent (use the catalog as fallback).
+- DESIGN.md: condensed brief — brand identity, authority hierarchy, design tokens summary, 16-category component index (name only), Do's & Don'ts.
+- components-index.json: lightweight lookup table — { name, importStatement, functional_category, status } for all ~112 components. Authoritative for component name validity + import path. **Does NOT include when_to_use / do_not_use / antiPatterns** — see closest_match / unresolved_components workflow when those rules matter.
+- component-props.json: per-component props extracted via TypeScript Compiler API (ts-morph) — { name, type, required, description }. Authoritative for prop-level decisions.
 - api-ui-contracts.json: entity definitions (Creative, Order, Advertiser, Product, AuctionOrder, PublisherTarget)
 - pm-sa-request-schema.json: structured request contract with a change_intent enum
 
@@ -35,9 +37,9 @@ Your task: given a PM's goal, output a concrete plan as JSON. Ground your plan i
 - ONLY reference pattern_id values that exist in patterns.json. Never invent a pattern name.
 - ONLY reference entity names that exist in api-ui-contracts.json. Use null if unsure.
 - ONLY reference feature flag names, route keys, i18n keys, and component names that appear in the provided JSON. Never invent them.
-- ONLY reference component names that appear in components.json. If a desired functionality has no matching component, say so explicitly in the plan summary rather than guessing a name.
-- When mentioning a component in plan_item descriptions, use its \`importStatement\` verbatim — do not reconstruct import paths from memory. The \`importPath\` / \`importStatement\` fields in components.json are authoritative.
-- Honor each component's \`when_to_use\` / \`do_not_use\` / \`antiPatterns\`: if a component matches the goal but its do_not_use rule applies, pick a different one (or say none fits).
+- ONLY reference component names that appear in components-index.json. If a desired functionality has no matching component, say so explicitly in the plan summary rather than guessing a name.
+- When mentioning a component in plan_item descriptions, use its \`importStatement\` verbatim from components-index.json — do not reconstruct import paths from memory.
+- Component-level \`when_to_use\` / \`do_not_use\` / \`antiPatterns\` are NOT in this system block (kept out for cache efficiency). If your plan_item depends on those rules to choose between two similar components, prefer adding an entry to \`unresolved_components\` with the closest_match — downstream review will resolve via the full \`components.json\`.
 - For prop usage, consult component-props.json first. When a component appears there, mention any \`required: true\` props verbatim in the plan_item description so downstream agents know they must be set. Do NOT invent prop names that are absent from component-props.json. If a component is not in component-props.json, fall back to intent-only language ("text input with placeholder"). Prop-level correctness remains enforced downstream by a typecheck verification step (\`runTypecheck\` in the change-request pipeline) — component-props.json reduces mismatch frequency, the typechecker is the safety net.
 - For target_file, prefer the file paths or location templates that appear in patterns.json (layer_structure.location, file_checklist). When the exact file is unknown, use the pattern's template form (e.g. "src/apps/{client}/container/{entity}/list/MC{Entity}ListContainer.tsx") — do not guess a concrete filename.
 - If the request can't be met with the provided DS, say so in summary and mark affected plan_items with pattern_id: null.
@@ -124,6 +126,11 @@ export async function emitPlan(args, ctx = {}) {
   const previousPlan = (typeof args === 'object' ? args.previousPlan : null) || null;
   const feedback =
     typeof args === 'object' && typeof args.feedback === 'string' ? args.feedback.trim() : '';
+  const attachment =
+    (typeof args === 'object' && args?.attachment && typeof args.attachment === 'object'
+      ? args.attachment
+      : null) ||
+    (ctx?.attachment && typeof ctx.attachment === 'object' ? ctx.attachment : null);
 
   const apiKey = process.env.ANTHROPIC_API_KEY ||
     (process.env.SANDBOX_PROVIDER === 'anthropic'
@@ -142,38 +149,39 @@ export async function emitPlan(args, ctx = {}) {
   const apiContractsPath = path.join(dsRoot, 'src', 'api-ui-contracts.json');
   const componentsPath = path.join(dsRoot, 'src', 'components.json');
   const componentPropsPath = path.join(dsRoot, 'src', 'component-props.json');
+  const designMdPath = path.join(dsRoot, 'src', 'DESIGN.md');
   const patterns = readJsonSafe(patternsPath, {});
   const apiContracts = readJsonSafe(apiContractsPath, {});
   const requestSchema = readJsonSafe(requestSchemaPath, {});
-  // C (2026-05-07): inject the full component catalog. Without this the
-  // emitter only knows pattern names + entity names — it has to guess
-  // which concrete components to compose, which produced hallucinated
-  // imports / wrong prop intent (incident 2026-05-07: TS2769 / TS2741 in
-  // a generated demo section). Plan: docs/superpowers/plans/
-  // 2026-05-07-plan-emitter-design-system-manifest.md
+  // Track 1 (2026-05-17): condensed brief replaces full components.json in the
+  // system block to slash cache_creation cost. DESIGN.md (~12KB) carries brand /
+  // tokens / 16-category index + Do's-Don'ts. components-index.json (~5-10KB)
+  // is built on-the-fly from components.json — name + importStatement +
+  // functional_category + status only (when_to_use / do_not_use / antiPatterns
+  // intentionally excluded — see SYSTEM_PROMPT for fallback workflow).
   //
-  // mtime-aware cache so design-system updates propagate without an
-  // orchestrator restart. components.json is the largest block (~458KB)
-  // and the most likely to drift, so the staleness cost is highest here —
-  // patterns / api-contracts / request-schema are still per-call reads
-  // (cheap relative to the LLM call) which is fine for now.
-  const components = readComponentsCached(componentsPath);
+  // Original 2026-05-07 rationale (full catalog inject): plan-emitter that only
+  // knew pattern names hallucinated imports / wrong prop intent (TS2769 / TS2741).
+  // The components-index keeps name validity guarantee while shrinking the block.
+  const designMd = readDesignMdCached(designMdPath);
+  const componentsIndex = readComponentsIndexCached(componentsPath);
   // S2 (2026-05-07): component-props.json — extracted via ts-morph for
   // prop-level grounding. mtime-aware cache like components.json.
   const componentProps = readComponentPropsCached(componentPropsPath);
 
-  // Phase: prompt caching (#1) — DS resources are the same large static block
-  // on every call. Placing cache_control: ephemeral on the last block caches
-  // the accumulated prefix. The first call incurs cache_creation_input_tokens;
-  // subsequent calls use cache_read_input_tokens, reducing latency + cost.
-  // components.json is the largest block (~458KB) so cache hits are most
-  // valuable — keep it last so it is covered by the cache_control block.
+  // Prompt caching: `cache_control: ephemeral, ttl: 1h` on the last block caches
+  // the accumulated prefix. First call = cache_creation_input_tokens; subsequent
+  // = cache_read_input_tokens. Track 1 v2 (2026-05-17): components.json full
+  // serialization removed (~458KB → ~5-10KB components-index). DESIGN.md added.
+  // Optimal cache_control position is measurement-dependent (T1.3) — defaulting
+  // to component-props.json (the largest remaining block, most beneficial to cache).
   const systemBlocks = [
     { type: 'text', text: SYSTEM_PROMPT },
     { type: 'text', text: `pm-sa-request-schema:\n${JSON.stringify(requestSchema, null, 2)}` },
     { type: 'text', text: `patterns.json:\n${JSON.stringify(patterns, null, 2)}` },
     { type: 'text', text: `api-ui-contracts.json:\n${JSON.stringify(apiContracts, null, 2)}` },
-    { type: 'text', text: `components.json:\n${JSON.stringify(components, null, 2)}` },
+    { type: 'text', text: `DESIGN.md:\n${designMd}` },
+    { type: 'text', text: `components-index.json:\n${JSON.stringify(componentsIndex, null, 2)}` },
     {
       type: 'text',
       text: `component-props.json:\n${JSON.stringify(componentProps, null, 2)}`,
@@ -205,11 +213,23 @@ ${feedback}
   const settings = getMollySettings();
   const thinkingBudget = settings.planThinkingBudget;
   const useThinking = thinkingBudget > 0;
+
+  // User-uploaded screenshot (Chrome ext region capture). Loaded as an
+  // Anthropic image content block when present. System block cache is
+  // unaffected — image lives in the user message, system prefix stays
+  // byte-identical so `cache_read_input_tokens` keeps hitting.
+  const userContent = [{ type: 'text', text: userPrompt }];
+  const imageBlock = loadImageBlock(attachment);
+  if (imageBlock) {
+    userContent.push(imageBlock);
+  }
+  const attachmentInfo = describeAttachment(attachment);
+
   const reqBody = {
     model: settings.planModel,
     max_tokens: useThinking ? thinkingBudget + 4096 : 4096,
     system: systemBlocks,
-    messages: [{ role: 'user', content: userPrompt }],
+    messages: [{ role: 'user', content: userContent }],
     // Per-model thinking control. Adaptive models (Opus/Sonnet 4.6+)
     // get `thinking:{type:'adaptive'}` + `output_config.effort`; older
     // models get the legacy `budget_tokens`. See molly-settings.js.
@@ -256,9 +276,13 @@ ${feedback}
   }
 
   const u = result?.usage || {};
+  const imgLogPart = imageBlock
+    ? `img_attached=1 size=${attachmentInfo.size ?? '?'}`
+    : `img_attached=0${attachment ? ` skip=${attachmentInfo.reason}` : ''}`;
   console.log(
     `[plan-emitter] Generated ${plan.plan_items?.length || 0} items for client=${client} route=${routeOrPage} | ` +
     `refs=${plan.referenced_components?.length ?? 'null'} unresolved=${plan.unresolved_components?.length ?? 'null'} | ` +
+    `${imgLogPart} | ` +
     `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
     `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
   );
@@ -274,6 +298,9 @@ ${feedback}
     output_tokens: u.output_tokens ?? 0,
     cache_create: u.cache_creation_input_tokens ?? 0,
     cache_read: u.cache_read_input_tokens ?? 0,
+    img_attached: imageBlock ? 1 : 0,
+    img_skip_reason: imageBlock ? null : (attachment ? attachmentInfo.reason : null),
+    img_size_bytes: imageBlock ? (attachmentInfo.size ?? 0) : 0,
   });
   return plan;
 }
@@ -286,37 +313,105 @@ function readJsonSafe(filePath, fallback = {}) {
   }
 }
 
-// Module-scoped cache for components.json — the file is ~458KB and dominates
-// system-prompt construction time. Re-parsing on every emitPlan call is
-// wasteful; restarting the orchestrator on every design-system tweak is
-// painful. Compromise: stat once per call, reuse the parsed object while
-// mtime is unchanged. Mirrors the molly-settings.js mtime-cache pattern.
-let _componentsCache = null;
-let _componentsCacheMtimeMs = 0;
+// Module-scoped cache for components-index — built from full components.json by
+// extracting { name, importStatement, functional_category, status } only.
+// Track 1 v2 (2026-05-17): full components.json (~458KB) replaced with slim
+// index (~5-10KB) to slash cache_creation cost. when_to_use / do_not_use /
+// antiPatterns intentionally excluded — see SYSTEM_PROMPT for the
+// closest_match / unresolved_components fallback workflow.
+let _componentsIndexCache = null;
+let _componentsIndexCacheMtimeMs = 0;
 
-function readComponentsCached(filePath) {
+function readComponentsIndexCached(filePath) {
   let currentMtimeMs = 0;
   try {
     currentMtimeMs = fs.statSync(filePath).mtimeMs;
   } catch {
     // file missing — fall through; cache stays as-is or rebuilds empty
   }
-  if (_componentsCache && currentMtimeMs === _componentsCacheMtimeMs) {
-    return _componentsCache;
+  if (_componentsIndexCache && currentMtimeMs === _componentsIndexCacheMtimeMs) {
+    return _componentsIndexCache;
   }
-  const next = readJsonSafe(filePath, {});
-  _componentsCache = next;
-  _componentsCacheMtimeMs = currentMtimeMs;
+  const full = readJsonSafe(filePath, {});
+  const index = buildComponentsIndex(full);
+  _componentsIndexCache = index;
+  _componentsIndexCacheMtimeMs = currentMtimeMs;
   console.log(
-    `[plan-emitter] components.json loaded (mtime=${new Date(currentMtimeMs).toISOString()})`,
+    `[plan-emitter] components-index built (${index.length} entries, mtime=${new Date(currentMtimeMs).toISOString()})`,
   );
-  return _componentsCache;
+  return _componentsIndexCache;
+}
+
+/**
+ * Walk the nested categories tree in components.json and pull out just the
+ * fields needed for plan-time grounding (name validity + import path).
+ * Returns Array<{ name, importStatement, functional_category, status }>.
+ */
+function buildComponentsIndex(full) {
+  const out = [];
+  const cats = full?.categories || {};
+  for (const [catIdx, catNode] of Object.entries(cats)) {
+    const categoryName = catNode?.name || `category_${catIdx}`;
+    const walk = (node) => {
+      if (Array.isArray(node)) {
+        for (const item of node) walk(item);
+      } else if (node && typeof node === 'object') {
+        if (node.name && node.importStatement) {
+          out.push({
+            name: node.name,
+            importStatement: node.importStatement,
+            functional_category: node.functional_category || categoryName,
+            status: node.status || null,
+          });
+          return;
+        }
+        for (const v of Object.values(node)) walk(v);
+      }
+    };
+    walk(catNode);
+  }
+  return out;
+}
+
+// Module-scoped cache for DESIGN.md — the condensed plan-emitter brief
+// (~12KB). mtime-aware so designer edits propagate without restart.
+let _designMdCache = null;
+let _designMdCacheMtimeMs = 0;
+
+function readDesignMdCached(filePath) {
+  let currentMtimeMs = 0;
+  try {
+    currentMtimeMs = fs.statSync(filePath).mtimeMs;
+  } catch {
+    // file missing — return placeholder. Plan emit still works (degraded),
+    // SYSTEM_PROMPT references DESIGN.md so missing file is a config error.
+  }
+  if (_designMdCache !== null && currentMtimeMs === _designMdCacheMtimeMs) {
+    return _designMdCache;
+  }
+  let body = '';
+  try {
+    body = fs.readFileSync(filePath, 'utf8');
+  } catch (err) {
+    console.warn(`[plan-emitter] DESIGN.md read failed: ${err.message} — using placeholder`);
+    body = '(DESIGN.md not available — see design-system/src/DESIGN.md)';
+  }
+  _designMdCache = body;
+  _designMdCacheMtimeMs = currentMtimeMs;
+  console.log(
+    `[plan-emitter] DESIGN.md loaded (${body.length} bytes, mtime=${new Date(currentMtimeMs).toISOString()})`,
+  );
+  return _designMdCache;
 }
 
 // S2 (2026-05-07): same mtime-cache pattern for component-props.json
-// (ts-morph extracted props). component-props.json is regenerated by
-// design-system/scripts/extract-props.mjs — this cache picks up new
-// extractions on the next plan call without an orchestrator restart.
+// (ts-morph extracted props).
+//
+// Track 1.5 (2026-05-17): C-S3 slim — drops per-component meta (path,
+// sourceTypeName, sourceTypeKind, description) and removes ` | undefined`
+// from optional types (the `required: false` flag already encodes it).
+// Shrinks ~197KB → ~100KB. Full prop names + types + required flag
+// preserved — typecheck downstream safety net unaffected.
 let _componentPropsCache = null;
 let _componentPropsCacheMtimeMs = 0;
 
@@ -331,11 +426,35 @@ function readComponentPropsCached(filePath) {
   if (_componentPropsCache && currentMtimeMs === _componentPropsCacheMtimeMs) {
     return _componentPropsCache;
   }
-  const next = readJsonSafe(filePath, {});
-  _componentPropsCache = next;
+  const full = readJsonSafe(filePath, {});
+  const slim = buildComponentPropsSlim(full);
+  _componentPropsCache = slim;
   _componentPropsCacheMtimeMs = currentMtimeMs;
   console.log(
-    `[plan-emitter] component-props.json loaded (mtime=${new Date(currentMtimeMs).toISOString()})`,
+    `[plan-emitter] component-props.json loaded (slim, mtime=${new Date(currentMtimeMs).toISOString()})`,
   );
   return _componentPropsCache;
+}
+
+/**
+ * Build the slim component-props payload. Drops per-component meta and
+ * per-prop description. Strips ` | undefined` from optional type strings
+ * — the `required: false` flag already carries that signal.
+ *
+ * Returns: { [componentName]: Array<{ name, required, type }> }
+ */
+function buildComponentPropsSlim(full) {
+  const comps = full?.components || {};
+  const out = {};
+  for (const [name, entry] of Object.entries(comps)) {
+    const props = Array.isArray(entry?.props) ? entry.props : [];
+    out[name] = props.map((p) => ({
+      name: p.name,
+      required: !!p.required,
+      type: typeof p.type === 'string'
+        ? p.type.replace(/\s*\|\s*undefined/g, '').trim()
+        : p.type,
+    }));
+  }
+  return out;
 }
