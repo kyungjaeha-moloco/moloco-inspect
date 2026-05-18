@@ -23,9 +23,9 @@ export const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM
 
 **Language rule (critical):** ALL textual output fields (summary, plan_items[*].title, plan_items[*].description, unresolved_components[*].intent, unresolved_components[*].reason) MUST be written in English regardless of the user's input language. The user may write PRDs in any language (e.g. Korean), but you always reply in English so downstream tools render consistently. Exception: when a plan_item description references actual product UI copy that will end up in the rendered app (Tving is the primary client — its end-users read Korean; msm-portal supports KR + EN via i18n), the verbatim user-facing copy may be quoted in Korean inside the otherwise-English description — e.g. \`Show a button labelled "확인"\`. The surrounding prose stays English; only the verbatim quoted copy may be Korean. Follow any locale or i18n key the PRD specifies.
 
-You have access to a structured design system:
+You have access to a structured design system. **Read DESIGN.md first** — it is the foundation layer (Layer 0) carrying brand identity, authority hierarchy, and Do's & Don'ts that frame every other contract below. All other contracts operate within the principles DESIGN.md defines.
+- DESIGN.md: **foundation layer** — brand identity, authority hierarchy, design tokens summary, 16-category component index (name only), Do's & Don'ts. Read this before the contracts below.
 - patterns.json: composition patterns (app-shell, list-page, detail-page, form-basic, etc.)
-- DESIGN.md: condensed brief — brand identity, authority hierarchy, design tokens summary, 16-category component index (name only), Do's & Don'ts.
 - components-index.json: lightweight lookup table — { name, importStatement, functional_category, status } for all ~112 components. Authoritative for component name validity + import path. **Does NOT include when_to_use / do_not_use / antiPatterns** — see closest_match / unresolved_components workflow when those rules matter.
 - component-props.json: per-component props extracted via TypeScript Compiler API (ts-morph) — { name, type, required, description }. Authoritative for prop-level decisions.
 - api-ui-contracts.json: entity definitions (Creative, Order, Advertiser, Product, AuctionOrder, PublisherTarget)
@@ -175,12 +175,16 @@ export async function emitPlan(args, ctx = {}) {
   // serialization removed (~458KB → ~5-10KB components-index). DESIGN.md added.
   // Optimal cache_control position is measurement-dependent (T1.3) — defaulting
   // to component-props.json (the largest remaining block, most beneficial to cache).
+  // Foundation order (2026-05-18): DESIGN.md is placed immediately after
+  // SYSTEM_PROMPT so the planner sees brand identity / authority hierarchy /
+  // Do's & Don'ts before the structured contracts below. Aligns with
+  // CLAUDE.md / progressive disclosure best practice (Layer 0 always-on).
   const systemBlocks = [
     { type: 'text', text: SYSTEM_PROMPT },
+    { type: 'text', text: `DESIGN.md:\n${designMd}` },
     { type: 'text', text: `pm-sa-request-schema:\n${JSON.stringify(requestSchema, null, 2)}` },
     { type: 'text', text: `patterns.json:\n${JSON.stringify(patterns, null, 2)}` },
     { type: 'text', text: `api-ui-contracts.json:\n${JSON.stringify(apiContracts, null, 2)}` },
-    { type: 'text', text: `DESIGN.md:\n${designMd}` },
     { type: 'text', text: `components-index.json:\n${JSON.stringify(componentsIndex, null, 2)}` },
     {
       type: 'text',
