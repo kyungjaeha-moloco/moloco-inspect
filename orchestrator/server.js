@@ -3242,6 +3242,93 @@ ${JSON.stringify(apiContracts, null, 2)}`;
     }
   }
 
+  // Plan v3 (DS missing AI judge + governance) — queue endpoints. The DS owner
+  // hits these from design-system-site /governance (dev: via vite proxy).
+  if (pathname === '/api/governance/queue' && req.method === 'GET') {
+    try {
+      const { listGovernanceQueue } = await import('./lib/ds-escalation.js');
+      const statusParam = url.searchParams.get('status');
+      const statuses = statusParam ? statusParam.split(',').map((s) => s.trim()).filter(Boolean) : null;
+      const limitParam = parseInt(url.searchParams.get('limit') || '', 10);
+      const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 200;
+      const items = listGovernanceQueue({ status: statuses || undefined, limit });
+      return json(res, 200, { ok: true, items });
+    } catch (err) {
+      console.error('[/api/governance/queue GET] error:', err);
+      return json(res, 500, { ok: false, error: 'failed to list governance queue' });
+    }
+  }
+  {
+    const m = pathname.match(/^\/api\/governance\/queue\/([^/]+)\/events$/);
+    if (m && req.method === 'GET') {
+      try {
+        const { listGovernanceStatusEvents } = await import('./lib/ds-escalation.js');
+        const refId = decodeURIComponent(m[1]);
+        const events = listGovernanceStatusEvents(refId);
+        return json(res, 200, { ok: true, events });
+      } catch (err) {
+        console.error('[/api/governance/queue/:id/events GET] error:', err);
+        return json(res, 500, { ok: false, error: 'failed to list events' });
+      }
+    }
+  }
+  {
+    const m = pathname.match(/^\/api\/governance\/queue\/([^/]+)\/status$/);
+    if (m && req.method === 'POST') {
+      try {
+        const { updateGovernanceStatus, GOVERNANCE_STATUSES, getGovernanceItem } = await import(
+          './lib/ds-escalation.js'
+        );
+        const refId = decodeURIComponent(m[1]);
+        const payload = await parseBody(req);
+        const status = String(payload?.status ?? '');
+        if (!GOVERNANCE_STATUSES.includes(status)) {
+          return json(res, 400, {
+            ok: false,
+            error: `status must be one of ${GOVERNANCE_STATUSES.join('|')}`,
+          });
+        }
+        const existing = getGovernanceItem(refId);
+        if (!existing) return json(res, 404, { ok: false, error: 'ref_id not found' });
+        // Plan v3 §5 Q5 — awaiting_judge rows are locked until the judge
+        // (or the sweep) promotes them. Block the owner from short-circuiting.
+        if (existing.status === 'awaiting_judge') {
+          return json(res, 409, {
+            ok: false,
+            error: 'judge still pending — try again in a moment',
+          });
+        }
+        const ok = updateGovernanceStatus(refId, status, {
+          actor: payload?.actor ?? 'owner',
+          note: payload?.note ?? null,
+        });
+        const updated = getGovernanceItem(refId);
+        return json(res, 200, { ok, item: updated });
+      } catch (err) {
+        console.error('[/api/governance/queue/:id/status POST] error:', err);
+        return json(res, 500, { ok: false, error: 'failed to update status' });
+      }
+    }
+  }
+  {
+    const m = pathname.match(/^\/api\/governance\/queue\/([^/]+)$/);
+    if (m && req.method === 'GET') {
+      try {
+        const { getGovernanceItem, listGovernanceStatusEvents } = await import(
+          './lib/ds-escalation.js'
+        );
+        const refId = decodeURIComponent(m[1]);
+        const item = getGovernanceItem(refId);
+        if (!item) return json(res, 404, { ok: false, error: 'ref_id not found' });
+        const events = listGovernanceStatusEvents(refId);
+        return json(res, 200, { ok: true, item, events });
+      } catch (err) {
+        console.error('[/api/governance/queue/:id GET] error:', err);
+        return json(res, 500, { ok: false, error: 'failed to read item' });
+      }
+    }
+  }
+
   if (pathname === '/api/intake' && req.method === 'POST') {
     try {
       const { processIntake } = await import('./lib/molly-intake.js');
@@ -4254,6 +4341,19 @@ server.listen(PORT, '0.0.0.0', () => {
   // M1b #5: reconcile playground state with docker after a restart — some
   // containers may have been stopped while the orchestrator was down.
   reattachOnStartup().catch((err) => console.warn('[Orchestrator] reattach failed:', err.message));
+  // Plan v3 §5 Q4 — promote any awaiting_judge rows that were orphaned by a
+  // crash mid-judge. Idempotent. Failure here is non-fatal: governance is an
+  // admin-only surface.
+  import('./lib/ds-escalation.js')
+    .then((m) => {
+      try {
+        const { swept } = m.sweepStaleAwaitingJudge();
+        if (swept > 0) console.log(`[Orchestrator] governance sweep promoted ${swept} stale row(s)`);
+      } catch (err) {
+        console.warn('[Orchestrator] governance sweep error:', err?.message);
+      }
+    })
+    .catch((err) => console.warn('[Orchestrator] governance sweep import failed:', err?.message));
   // Slack bot — auto-disabled when SLACK_* env vars are blank.
   // Hooks injected here so molly stays decoupled from server internals
   // (no circular imports, no reach-around).
