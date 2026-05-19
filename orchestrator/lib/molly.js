@@ -545,6 +545,28 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
   // classification accuracy.
   const pendingPlanForThread = findPendingPlanForThread(event.channel, threadTs);
 
+  // 2026-05-19 — progress message wiring (plan v2:
+  // docs/superpowers/plans/2026-05-19-slack-progress-messages.md).
+  // plan-emitter alone runs 30-90s on Slack with cache hit; without
+  // intermediate updates the user sees "🤔 One moment…" for >1min and
+  // assumes the bot is stuck. Each stage edits the same thinkingTs message
+  // (chat.update) — no thread bloat. Failure is logged but never breaks
+  // the main flow.
+  const stageMessages = {
+    analyzing_prd: '📥 Got it — analyzing your request...',
+    drafting_plan: '📝 Drafting a plan... (this usually takes 30-90s)',
+  };
+  const onProgress = async (stage) => {
+    if (!thinkingTs) return;
+    const text = stageMessages[stage];
+    if (!text) return;
+    try {
+      await client.chat.update({ channel: event.channel, ts: thinkingTs, text });
+    } catch (err) {
+      logger.warn(`[molly] progress update failed: ${err.message}`);
+    }
+  };
+
   let result;
   try {
     const { processIntake } = await import('./molly-intake.js');
@@ -564,6 +586,7 @@ async function handleMention({ event, client, say, logger }, allowedChannel) {
       // plan_feedback activation signal
       hasPendingPlan: !!pendingPlanForThread,
       pendingPlanSummary: pendingPlanForThread?.plan?.summary ?? null,
+      onProgress,
     });
   } catch (err) {
     logger.warn(`[molly] processIntake failed, falling back to chat: ${err.message}`);

@@ -108,6 +108,16 @@ async function handleFirstTurn(text, ctx, history) {
     : history.slice(-3).map((t) => `${t.role === 'user' ? '사용자' : 'molly'}: ${(t.content || '').slice(0, 200)}`);
   const enrichedCtx = { ...ctx, recentMessages };
 
+  // 2026-05-19 — optional progress callback. Surfaces (Slack) wire this to a
+  // single status message and update it as the pipeline advances, so users
+  // don't see 60-90s of silence between the initial "One moment…" and the
+  // plan card. Fire-and-forget — failure must not break the main flow.
+  const fireProgress = async (stage, info = {}) => {
+    const cb = ctx.onProgress;
+    if (typeof cb !== 'function') return;
+    try { await cb(stage, info); } catch { /* swallow */ }
+  };
+
   const cls = await classifyMollyText(text, enrichedCtx);
 
   if (cls.kind === 'chat') {
@@ -142,6 +152,7 @@ async function handleFirstTurn(text, ctx, history) {
   }
 
   // code_change → PRD analyzer
+  await fireProgress('analyzing_prd');
   const analysis = await analyzePrdClarity(text, enrichedCtx);
   if (analysis.clarity === 'ambiguous') {
     return {
@@ -158,6 +169,7 @@ async function handleFirstTurn(text, ctx, history) {
   // call createJob directly). The old behaviour returned only code_change_clear
   // without calling emitPlan — the client would say "plan will be emitted
   // shortly" but the plan never arrived (dead-end).
+  await fireProgress('drafting_plan');
   const cumulativePrd = text;
   let plan;
   try {
