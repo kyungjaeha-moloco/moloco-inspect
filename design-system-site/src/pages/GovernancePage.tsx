@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
   ComponentEntry,
   ComponentsCatalog,
@@ -6,6 +6,13 @@ import type {
   ErrorPatternsJson,
   UxCriteriaJson,
 } from '../types';
+import {
+  listGovernanceQueue,
+  updateGovernanceStatus,
+  type EscalationKind,
+  type GovernanceQueueItem,
+  type GovernanceStatus,
+} from '../services/governance-client';
 
 type Props = {
   data: GovernanceJson;
@@ -436,6 +443,313 @@ function UsageInsightsSection({ catalog }: { catalog: ComponentsCatalog }) {
   );
 }
 
+const ESCALATION_STATUSES: GovernanceStatus[] = [
+  'awaiting_judge',
+  'pending',
+  'in_review',
+  'resolved',
+  'dismissed',
+];
+
+const ESCALATION_STATUS_LABELS: Record<GovernanceStatus, string> = {
+  awaiting_judge: '🤔 Judging…',
+  pending: '⏳ Pending',
+  in_review: '🔍 In review',
+  resolved: '✅ Resolved',
+  dismissed: '🚫 Dismissed',
+};
+
+const ESCALATION_STATUS_BADGE: Record<GovernanceStatus, string> = {
+  awaiting_judge: 'badge-neutral',
+  pending: 'badge-warning',
+  in_review: 'badge-info',
+  resolved: 'badge-success',
+  dismissed: 'badge-neutral',
+};
+
+const ESCALATION_KIND_LABELS: Record<EscalationKind, string> = {
+  propose_new: 'Propose new component',
+  extend_existing: 'Extend existing component',
+  custom_build: 'Custom (outside DS)',
+  unknown: 'Judge pending / unknown',
+};
+
+function EscalationQueueSection() {
+  const [items, setItems] = useState<GovernanceQueueItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | GovernanceStatus>('pending');
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const filter = statusFilter === 'all' ? undefined : statusFilter;
+    listGovernanceQueue({ status: filter, limit: 200 })
+      .then((reply) => {
+        if (cancelled) return;
+        setItems(reply.items ?? []);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [statusFilter, refreshKey]);
+
+  const handleStatusChange = useCallback(
+    async (refId: string, next: GovernanceStatus) => {
+      setUpdatingId(refId);
+      try {
+        await updateGovernanceStatus(refId, next, { actor: 'ds_owner' });
+        setRefreshKey((k) => k + 1);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setUpdatingId(null);
+      }
+    },
+    [],
+  );
+
+  const counts = useMemo(() => {
+    const c: Record<GovernanceStatus | 'all', number> = {
+      all: items?.length ?? 0,
+      awaiting_judge: 0,
+      pending: 0,
+      in_review: 0,
+      resolved: 0,
+      dismissed: 0,
+    };
+    for (const it of items ?? []) {
+      c[it.status] = (c[it.status] ?? 0) + 1;
+    }
+    return c;
+  }, [items]);
+
+  return (
+    <div className="section">
+      <div className="section-header">
+        <h2 className="section-title">DS-Missing Escalation Queue</h2>
+        <span className="badge badge-info">{counts.all}</span>
+      </div>
+      <p className="card-desc" style={{ marginBottom: 16 }}>
+        Plan-emitter routes unresolved components with similarity &lt; 0.5 here.
+        The LLM judge classifies the kind (propose new / extend / custom)
+        asynchronously; you act once the row reaches <em>Pending</em>.
+      </p>
+
+      <div className="tabs" style={{ marginBottom: 16 }}>
+        <button
+          className={`tab${statusFilter === 'all' ? ' active' : ''}`}
+          onClick={() => setStatusFilter('all')}
+        >
+          All <span style={{ opacity: 0.5, marginLeft: 4 }}>{counts.all}</span>
+        </button>
+        {ESCALATION_STATUSES.map((s) => (
+          <button
+            key={s}
+            className={`tab${statusFilter === s ? ' active' : ''}`}
+            onClick={() => setStatusFilter(s)}
+          >
+            {ESCALATION_STATUS_LABELS[s]}
+            <span style={{ opacity: 0.5, marginLeft: 4 }}>{counts[s] ?? 0}</span>
+          </button>
+        ))}
+        <button
+          className="tab"
+          onClick={() => setRefreshKey((k) => k + 1)}
+          title="Refresh"
+          style={{ marginLeft: 'auto' }}
+        >
+          ↻
+        </button>
+      </div>
+
+      {error && (
+        <div className="empty-state" style={{ marginBottom: 12, color: 'var(--danger, #c00)' }}>
+          Could not reach orchestrator: {error}
+        </div>
+      )}
+
+      {items === null && !error && (
+        <div className="empty-state">Loading…</div>
+      )}
+
+      {items !== null && items.length === 0 && !error && (
+        <div className="empty-state">No items in this view.</div>
+      )}
+
+      {items !== null && items.length > 0 && (
+        <div className="pattern-list">
+          {items.map((it) => {
+            const expanded = expandedId === it.id;
+            const sim = it.closestMatch?.similarity;
+            const simLabel = typeof sim === 'number' ? `${Math.round(sim * 100)}%` : null;
+            return (
+              <div key={it.id} className={`pattern-card${expanded ? ' expanded' : ''}`}>
+                <div
+                  className="pattern-card-header"
+                  onClick={() => setExpandedId(expanded ? null : it.id)}
+                >
+                  <div className="pattern-card-main">
+                    <div
+                      className="pattern-card-title"
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)' }}
+                    >
+                      {it.id} — {it.component.intent || '(no intent)'}
+                    </div>
+                    <div className="pattern-card-desc">
+                      {it.closestMatch
+                        ? `Closest: ${it.closestMatch.name}${simLabel ? ` (${simLabel} match)` : ''}`
+                        : 'No close DS match'}
+                    </div>
+                  </div>
+                  <div className="pattern-card-meta">
+                    <span className={`badge ${ESCALATION_STATUS_BADGE[it.status]}`}>
+                      {ESCALATION_STATUS_LABELS[it.status]}
+                    </span>
+                    <span className="badge badge-neutral">
+                      {ESCALATION_KIND_LABELS[it.kind] ?? it.kind}
+                    </span>
+                  </div>
+                  <div className="pattern-card-chevron">{expanded ? '▴' : '▾'}</div>
+                </div>
+
+                {expanded && (
+                  <div className="pattern-card-body">
+                    {it.judgeRationale && (
+                      <div style={{ marginBottom: 12 }}>
+                        <strong style={{ fontSize: 'var(--text-xs)', color: 'var(--text-helper)' }}>
+                          Judge rationale
+                        </strong>
+                        <div className="card-desc" style={{ marginTop: 4 }}>
+                          {it.judgeRationale}
+                        </div>
+                      </div>
+                    )}
+                    {it.judgeErrorReason && (
+                      <div style={{ marginBottom: 12 }}>
+                        <strong style={{ fontSize: 'var(--text-xs)', color: 'var(--text-helper)' }}>
+                          Judge error
+                        </strong>
+                        <div className="card-desc" style={{ marginTop: 4, color: 'var(--danger, #c00)' }}>
+                          {it.judgeErrorReason}
+                        </div>
+                      </div>
+                    )}
+                    {it.component.reason && (
+                      <div style={{ marginBottom: 12 }}>
+                        <strong style={{ fontSize: 'var(--text-xs)', color: 'var(--text-helper)' }}>
+                          Why no DS match
+                        </strong>
+                        <div className="card-desc" style={{ marginTop: 4 }}>
+                          {it.component.reason}
+                        </div>
+                      </div>
+                    )}
+                    {it.closestMatch?.reasoning && (
+                      <div style={{ marginBottom: 12 }}>
+                        <strong style={{ fontSize: 'var(--text-xs)', color: 'var(--text-helper)' }}>
+                          Closest-match reasoning
+                        </strong>
+                        <div className="card-desc" style={{ marginTop: 4 }}>
+                          {it.closestMatch.reasoning}
+                        </div>
+                      </div>
+                    )}
+                    {it.prdSnippet && (
+                      <div style={{ marginBottom: 12 }}>
+                        <strong style={{ fontSize: 'var(--text-xs)', color: 'var(--text-helper)' }}>
+                          PRD excerpt
+                        </strong>
+                        <div
+                          className="card-desc"
+                          style={{
+                            marginTop: 4,
+                            whiteSpace: 'pre-wrap',
+                            maxHeight: 200,
+                            overflow: 'auto',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 'var(--text-xs)',
+                            background: 'var(--bg-subtle, #f6f6f6)',
+                            padding: 8,
+                            borderRadius: 4,
+                          }}
+                        >
+                          {it.prdSnippet}
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ marginBottom: 12 }}>
+                      <strong style={{ fontSize: 'var(--text-xs)', color: 'var(--text-helper)' }}>
+                        Context
+                      </strong>
+                      <div className="card-desc" style={{ marginTop: 4 }}>
+                        client={it.context.client ?? '–'} · route={it.context.route ?? '–'} · surface={it.context.surface ?? '–'}
+                        {it.context.jobId ? ` · job=${it.context.jobId}` : ''}
+                        {it.context.user ? ` · by ${it.context.user}` : ''}
+                      </div>
+                    </div>
+
+                    {it.status !== 'awaiting_judge' ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {it.status !== 'in_review' && (
+                          <button
+                            className="tab"
+                            disabled={updatingId === it.id}
+                            onClick={() => handleStatusChange(it.id, 'in_review')}
+                          >
+                            🔍 Mark in review
+                          </button>
+                        )}
+                        {it.status !== 'resolved' && (
+                          <button
+                            className="tab"
+                            disabled={updatingId === it.id}
+                            onClick={() => handleStatusChange(it.id, 'resolved')}
+                          >
+                            ✅ Resolve
+                          </button>
+                        )}
+                        {it.status !== 'dismissed' && (
+                          <button
+                            className="tab"
+                            disabled={updatingId === it.id}
+                            onClick={() => handleStatusChange(it.id, 'dismissed')}
+                          >
+                            🚫 Dismiss
+                          </button>
+                        )}
+                        {it.status !== 'pending' && (
+                          <button
+                            className="tab"
+                            disabled={updatingId === it.id}
+                            onClick={() => handleStatusChange(it.id, 'pending')}
+                          >
+                            ↩︎ Reopen
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="card-desc" style={{ fontStyle: 'italic' }}>
+                        Judge still running — refresh in a few seconds.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function GovernancePage({ data, errorPatterns, uxCriteria, catalog }: Props) {
   return (
     <>
@@ -443,6 +757,8 @@ export function GovernancePage({ data, errorPatterns, uxCriteria, catalog }: Pro
         <h1 className="page-title">Governance</h1>
         <p className="page-subtitle">Audit cycles, promotion and deprecation queues, error patterns, and UX quality criteria.</p>
       </div>
+
+      <EscalationQueueSection />
 
       {data.audit_cycle && (
         <div className="stat-row">
