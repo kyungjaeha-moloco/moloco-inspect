@@ -1,147 +1,200 @@
 # Moloco Inspect
 
-An AI-powered product editing agent that lets PMs and SAs modify live UI through natural language. Select an element, describe what you want to change, and the agent plans, codes, validates, and previews the result — all from your browser.
+An internal AI agent — codenamed **molly** — that lets Moloco PMs and SAs ship UI changes by describing them in natural language. PM writes a PRD, molly plans it against Moloco's design system, executes inside a sandboxed copy of the product repo, and surfaces a single final-summary card with reviewable warnings, 1-click reverts, and follow-up PRD suggestions. The same agent runs across three surfaces (Playground web app, Chrome extension, Slack).
 
-## How It Works
+This is the entire stack — orchestrator, surfaces, sandbox, design-system tooling, and docs — in one mono-repo.
+
+---
+
+## TL;DR for someone looking around
+
+If you have ~5 minutes, read in this order:
+
+1. This file (you are here).
+2. [`docs/superpowers/handoffs/2026-05-20-plan-v3-shipped-and-phase-3-g6-g7.md`](./docs/superpowers/handoffs/2026-05-20-plan-v3-shipped-and-phase-3-g6-g7.md) — newest handoff, what shipped today.
+3. [`docs/superpowers/plans/2026-05-19-job-pipeline-auto-progress-and-final-summary.md`](./docs/superpowers/plans/2026-05-19-job-pipeline-auto-progress-and-final-summary.md) — the auto-progress paradigm in detail (v3 of the plan).
+4. [`docs/superpowers/plans/2026-05-19-ds-missing-ai-judge-governance.md`](./docs/superpowers/plans/2026-05-19-ds-missing-ai-judge-governance.md) — the DS-missing AI judge + governance queue.
+5. Browse [`docs/superpowers/handoffs/`](./docs/superpowers/handoffs/) — each handoff is a self-contained snapshot of one session's work; the most recent one always names its predecessor so the chain is traversable.
+6. Browse [`docs/superpowers/plans/`](./docs/superpowers/plans/) — every non-trivial change ships with a written plan reviewed by a critic agent before code lands.
+
+If you only want to see it running, skip to [Running locally](#running-locally) below.
+
+---
+
+## What molly does (current capability)
 
 ```
-Select Element ──> Describe Change ──> AI Plans ──> Agent Codes ──> Preview ──> Approve ──> PR
+PM writes a PRD ──► Plan card (3-8 items, badge per item)
+                        │
+                        ▼
+              Approve / Re-plan / Cancel
+                        │
+                        ▼
+         Tasks execute one-by-one in a sandbox
+                        │
+                        ▼
+    Per-task review: pass / fail · severity = warning | critical
+                        │
+            ┌───────────┴───────────┐
+            │                       │
+       severity=warning        severity=critical
+            │                       │
+       auto-continue          pause for user
+       (warning logged)       (security / runtime / a11y-blocking)
+            │
+            ▼
+   Job complete → Final summary card (3 surfaces, same shape)
+   ┌────────────────────────────────────────────────┐
+   │ ✅ 11/11 done · ⚠ 3 warnings · 5 files changed │
+   │   Warning rows with [↶ Revert] (Phase 3 G8)    │
+   │   💡 Follow-up suggestions  [↗ pill buttons]   │
+   └────────────────────────────────────────────────┘
+            │
+            ▼
+   1-click suggestion → new PRD into the same chat
 ```
 
-1. Open a live product page (localhost)
-2. **Inspect** an element or **capture** a screen region (`Cmd+Shift+E`)
-3. Describe the change in natural language, or attach a PRD link
-4. The AI agent analyzes the request and proposes an execution plan
-5. Confirm the plan — the agent modifies code in a sandboxed container
-6. Review the **live preview** and **diff viewer** with syntax-highlighted changes
-7. **Approve** to create a GitHub PR, or **request changes** to iterate
+When a plan references a UI intent that has no DS equivalent, the orchestrator:
+- silently auto-adopts the closest match if similarity ≥ 0.5, or
+- enqueues an escalation row (`ESC-<base36>`) into the governance queue and fires the LLM judge in the background to classify the gap (`propose_new` / `extend_existing` / `custom_build`).
 
-## Architecture
+The DS owner reviews and triages those rows at [`localhost:4176/governance`](#design-system-site-4176), without ever blocking the PM.
 
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│ Chrome Extension │────>│   Orchestrator   │────>│  Docker Sandbox     │
-│  (Side Panel)    │<────│   (Node.js)      │<────│  (Agent + Vite)     │
-└─────────────────┘     └──────────────────┘     └─────────────────────┘
-        │                       │                          │
-   Element select          AI Analysis              Code modification
-   Natural language        Diff extraction          Typecheck + Validate
-   PRD ingest              Screenshot capture       Live preview server
-   Plan review             PR creation              Bootstrap auth
-        │                       │                          │
-        v                       v                          v
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│   Inspect Hub        │     │  Design System   │     │  DS MCP Server      │
-│  (Dashboard)     │     │  Site (Carbon)   │     │  (9 tools)          │
-└─────────────────┘     └──────────────────┘     └─────────────────────┘
-```
+---
 
-## Project Structure
+## Surfaces
+
+| Surface | Port | Audience | Role |
+|---|---|---|---|
+| **Moloco Inspect Playground** | `:4180` | PM / SA | Primary chat surface — pick element, describe change, watch the job run, review the final summary. |
+| **Chrome extension** (side panel) | n/a | PM / SA | Same molly flow attached to whatever product page you're looking at. Click an element to seed context. |
+| **Slack `@molly`** | n/a | PM / SA | Mention molly in any allowlisted channel — same plan ceremony + final summary land in the thread. |
+| **Inspect Console** | `:4174` | Operator / DS | Per-job operations dashboard: requests, sandbox health, agent metrics, jobs. |
+| **Design-system site** | `:4176` | DS owner | Components / patterns / tokens reference **plus** the new `/governance` escalation queue. |
+
+The orchestrator at `:3847` is the single brain — all surfaces talk to it. Sandboxes run as Docker containers with their own isolated vite dev server and git working tree per playground.
+
+---
+
+## Repo layout
 
 ```
 moloco-inspect/
-├── chrome-extension/      # Browser extension (inspector, side panel, background)
-├── orchestrator/          # Node.js server — pipeline, sandbox, AI analysis, PR creation
-├── sandbox/               # Docker image + agent scripts for isolated code editing
-├── dashboard/             # Inspect Hub — request tracking, analytics, settings
-├── design-system/         # JSON source of truth — components, tokens, patterns
-├── design-system-site/    # Design System documentation site (Carbon-style)
-├── design-system-mcp/     # MCP server exposing DS data to AI tools (9 endpoints)
-├── tooling/
-│   ├── sandbox-manager/   # Container lifecycle management
-│   └── preview-kit/       # Shared utilities (language normalization, etc.)
-├── docs/                  # Architecture docs, handoffs, contracts
-└── msm-portal -> ...      # Symlink to product repo
+├── orchestrator/          Node HTTP server (no framework). Anthropic calls,
+│                          sandbox manager, job FSM, plan-emitter,
+│                          reviewer, governance queue, follow-up LLM.
+├── playground-app/        Moloco Inspect Playground (Vite + React + Zustand).
+│                          The main chat surface. Routes: /, /:playgroundId.
+├── chrome-extension/      Vanilla-JS side panel. Same PRD → plan → job flow.
+├── dashboard/             Inspect Console (Vite + React). Operations view.
+├── design-system-site/    Carbon-style DS docs + /governance escalation page.
+├── design-system/         JSON source of truth — components.json (~112),
+│                          tokens.json, patterns.json, etc.
+├── design-system-mcp/     MCP server exposing DS to AI tools (9 tools).
+├── sandbox/               Docker image + supervisord (opencode + vite).
+├── tooling/               sandbox-manager + preview-kit helpers.
+├── scripts/               Smoke + evaluate scripts (paired-smoke, gov e2e).
+├── docs/
+│   └── superpowers/
+│       ├── plans/         Plans (one per non-trivial change). Reviewed by
+│       │                  Momus critic before code lands.
+│       └── handoffs/      Session-end handoffs. Each names its predecessor.
+├── msm-portal -> …        Symlink to the product repo molly edits.
+└── README.md              You are here.
 ```
 
-## Getting Started
+---
+
+## Recent paradigm: AI auto-progress
+
+Older versions paused the job at every review-fail so the user could pick Retry / Accept / Skip. That gave a PM cognitive load they couldn't act on (the warning is about code, but the user reviewing it isn't writing code). The paradigm flipped on 2026-05-19:
+
+- **Review-fail with `severity='warning'`** (DS-equivalence missed, inline style, naming, a11y minor) → auto-continue, log to job summary, surface post-hoc.
+- **Review-fail with `severity='critical'`** (security, runtime regression, data integrity, a11y-blocking) → pause, surface the warning, escalate.
+- **Build error / retry exhaust / unhandled exception** → pause (the code literally doesn't run; the user needs to know).
+- **Final summary card** at job end aggregates every warning + revert button (leaf-only — greyed if a later task already overwrote the same file) + follow-up PRD suggestions generated by LLM.
+- **First-time onboarding notice** explains the paradigm so a clean ✅ run isn't mistaken for "no warnings happened."
+
+Plans of record:
+- [Auto-progress paradigm + final summary](./docs/superpowers/plans/2026-05-19-job-pipeline-auto-progress-and-final-summary.md) (v3, ships in Phases 1+2+G6+G7; G8 revert wire is the remaining slice)
+- [DS-missing AI judge + governance](./docs/superpowers/plans/2026-05-19-ds-missing-ai-judge-governance.md) (v3, all G1-G6 shipped 2026-05-20)
+
+---
+
+## Governance queue (DS-missing escalations)
+
+When plan-emitter encounters an intent without a close DS match (similarity < 0.5), it routes through this flow:
+
+1. Orchestrator enqueues `state/governance-queue.jsonl` with `status=awaiting_judge`, generates a `ref_id` (`ESC-<base36(ms)>`).
+2. Background fire-and-forget call to the Sonnet **judge** LLM classifies the kind: `propose_new` / `extend_existing` / `custom_build`. Promotes the row to `pending` on success or stays `awaiting_judge` until the startup sweep promotes it.
+3. The plan card on every surface shows a quiet one-liner: *"💡 split-button menu — proceeding with MCButton2 (42% match). DS team notified · ESC-MPCUWKLY"*. The PM is never blocked.
+4. DS owner opens [`localhost:4176/governance`](http://localhost:4176/governance) and triages — Resolve (primary) / Mark in review / Dismiss / Reopen.
+
+API: `GET /api/governance/queue?status=…`, `GET /:id`, `GET /:id/events`, `POST /:id/status`. Status changes are append-only to `state/governance-status-events.jsonl` so concurrent owners get last-write-wins for free.
+
+The `awaiting_judge → pending` lock means the owner cannot short-circuit the judge (server returns 409 until the judge resolves). The 5-minute startup sweep covers crash-mid-judge cases.
+
+---
+
+## Running locally
 
 ### Prerequisites
+- **Node.js 22+** (for `--watch`, `--env-file-if-exists`)
+- **pnpm 10+**
+- **Docker Desktop** (sandboxes)
+- **GitHub CLI** `gh` (for PR creation)
+- **`ANTHROPIC_API_KEY`** in `orchestrator/.env`
 
-- **Node.js** 18+
-- **Docker Desktop** (for sandboxed agent execution)
-- **pnpm** (package manager)
-- **GitHub CLI** (`gh`) for PR creation
-
-### Quick Start
+### Start the stack
 
 ```bash
-# 1. Start Docker
-open -a Docker
-
-# 2. Build sandbox image
+# Build the sandbox image once (per machine)
 cp /etc/ssl/cert.pem sandbox/host-ca.pem
 bash sandbox/build-image.sh
 
-# 3. Start the orchestrator
-cd orchestrator
-ANTHROPIC_API_KEY="sk-ant-..." SANDBOX_MODEL=claude-sonnet-4-6 node server.js
-# Runs on http://localhost:3847
+# Then in 4 terminals (or use your favourite multiplexer):
+cd orchestrator        && pnpm start            # :3847
+cd dashboard           && pnpm install && pnpm dev   # :4174 Inspect Console
+cd design-system-site  && pnpm install && pnpm dev   # :4176 DS docs + /governance
+cd playground-app      && pnpm install && pnpm dev   # :4180 Playground
 
-# 4. Start Inspect Hub dashboard
-cd dashboard && pnpm install && pnpm dev
-# Runs on http://localhost:4174
-
-# 5. Start Design System site (optional)
-cd design-system-site && pnpm install && pnpm dev
-# Runs on http://localhost:4176
-
-# 6. Load Chrome Extension
-# Go to chrome://extensions → Enable Developer Mode → Load Unpacked → select chrome-extension/
+# Chrome extension:
+#   chrome://extensions → Developer Mode → Load Unpacked → chrome-extension/
+#   The side panel hooks into whatever product page you're on.
 ```
 
-## Key Features
+### Smoke tests
+- `orchestrator/scripts/governance-e2e-test.mjs` — non-LLM smoke for the governance queue endpoints (19 assertions).
+- `orchestrator/scripts/plan-emitter-paired-smoke.mjs` — 7 PRD fixtures for plan-emitter.
+- `orchestrator/scripts/plan-emitter-paired-evaluate.mjs` — `is_new_build` coverage + post-process safety net audit.
 
-### Chrome Extension
-- **Element Inspector** — click any element to get React component info, file path, styles
-- **Region Capture** — drag to select a screen area for context
-- **AI Analysis** — Claude analyzes your request and proposes a step-by-step plan
-- **Plan Review** — approve, adjust, or provide structured requirements before execution
-- **PRD Ingest** — attach a PRD link for context-aware changes
+---
 
-### Orchestrator
-- **Pipeline Engine** — setup, code, validate, screenshot, preview, review
-- **Sandboxed Execution** — Docker containers with isolated git + vite dev server
-- **AI Analysis** — Claude Sonnet generates execution plans with risk assessment
-- **Diff Viewer** — syntax-highlighted code review with approve/reject flow
-- **Live Preview** — proxied vite server with automatic auth bootstrap
-- **PR Creation** — one-click `gh pr create` from approved changes
-- **Provider Auto-detect** — Anthropic (primary), OpenAI (fallback)
+## Service ports cheat sheet
 
-### Inspect Hub (Dashboard)
-- **Overview** — success rate, daily requests, avg latency, error rate
-- **Request Tracking** — full request lifecycle with AI analysis, diff, screenshots
-- **Agent Performance** — per-agent metrics with stacked bar charts
-- **Settings** — server URL, connection mode, system info
+| Port | Service | Purpose |
+|---|---|---|
+| 3847 | orchestrator | Single brain; all surfaces talk here. |
+| 4174 | dashboard | Inspect Console (operations dashboard). |
+| 4176 | design-system-site | DS docs + `/governance` escalation queue. |
+| 4180 | playground-app | Moloco Inspect Playground (PM-facing chat surface). |
+| 4177 | design-system-site (preview) | `pnpm preview` build output. |
+| 5173 | sandbox vite | Inside each Docker sandbox; proxied to `/preview/:id/*`. |
 
-### Design System
-- **95 Components** — complete JSON contracts with props, tokens, accessibility
-- **Documentation Site** — Carbon-style with interactive previews, prop controls, anatomy diagrams
-- **MCP Server** — 9 tools for AI-assisted component lookup, token resolution, pattern search
-- **`llms.txt`** — AI-readable component index for LLM integrations
-
-## API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/health` | GET | Server health check |
-| `/api/request` | POST | Submit a new change request |
-| `/api/request/:id` | GET | Get request status and details |
-| `/api/requests` | GET | List all requests |
-| `/api/analyze-request` | POST | AI-powered request analysis |
-| `/api/approve/:id` | POST | Approve changes and create PR |
-| `/api/reject/:id` | POST | Reject and iterate with feedback |
-| `/api/diff-view/:id` | GET | HTML diff viewer with approve/reject |
-| `/api/screenshot/:id` | GET | Screenshot image |
-| `/api/sandboxes` | GET | List active sandboxes |
-| `/preview/:id/*` | GET | Live preview proxy with auth bypass |
+---
 
 ## Documentation
 
+Living docs (each session ships a new handoff):
+- [`docs/superpowers/plans/`](./docs/superpowers/plans/) — every non-trivial change has a plan here.
+- [`docs/superpowers/handoffs/`](./docs/superpowers/handoffs/) — most recent is the freshest view of the codebase.
+
+Older one-off references:
 - [Sandbox Architecture](./docs/SANDBOX_ARCHITECTURE.md)
 - [Preview Bootstrap Contract](./docs/PREVIEW_BOOTSTRAP_CONTRACT.md)
 - [Product Adapter Contract](./docs/PRODUCT_ADAPTER_CONTRACT.md)
-- [Bootstrap Plan](./docs/BOOTSTRAP_PLAN.md)
+
+---
 
 ## License
 
