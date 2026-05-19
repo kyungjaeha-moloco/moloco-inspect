@@ -27,6 +27,7 @@
 
 import bolt from '@slack/bolt';
 import { appendChatMessages, generateMessageId } from './chat-store.js';
+import { buildJobSummary } from './job.js';
 import {
   getPlaygroundIdForThread,
   setPlaygroundIdForThread,
@@ -2556,6 +2557,10 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
       if (!announcedJobStates.has('completed')) {
         if (!wasFirstIteration) {
           await postCompletePromoteMessage({ client, channel, threadTs, job });
+          // Plan v3 Phase 2 G5 — post a separate final summary message with
+          // the warning list + revert/followup placeholders. Mirrors the
+          // Playground JobCard footer + Chrome ext final-summary card.
+          await postJobFinalSummary({ client, channel, threadTs, job });
         }
         announcedJobStates.add('completed');
       }
@@ -2599,6 +2604,86 @@ async function pollJobUntilDoneInner({ client, channel, threadTs, jobId }) {
  * confirmation. Includes [✅ QA Pass] (always) + [🔁 Re-run auto QA]
  * (when the auto run failed). Manual cancel button stays as well.
  */
+/**
+ * Plan v3 Phase 2 G5 — Slack final summary thread message.
+ *
+ * Posted once when the job lands at status='complete', AFTER the regular
+ * 🎉 Promote announcement. Mirrors the Playground JobCard footer + Chrome
+ * ext final-summary card so the user sees the same warning list and
+ * (Phase 3) revert / follow-up affordances across all three surfaces.
+ *
+ * Race condition guard (Momus I3): if the job's tasks state was persisted
+ * but the summary hasn't been computed yet (theoretically possible if a
+ * caller skipped buildJobSummary), retry after 200ms. The derived-summary
+ * design means the summary should always be present, but the null-check
+ * defends against future regressions.
+ */
+async function postJobFinalSummary({ client, channel, threadTs, job }) {
+  let summary = job?.summary ?? buildJobSummary(job);
+  if (!summary || typeof summary.total !== 'number') {
+    await new Promise((r) => setTimeout(r, 200));
+    const reread = opts?.getJob ? opts.getJob(job.id) : null;
+    summary = reread?.summary ?? (reread ? buildJobSummary(reread) : null);
+    if (!summary) {
+      console.warn(`[molly] postJobFinalSummary: summary unavailable for job ${job.id}`);
+      return;
+    }
+  }
+
+  const stats = [`✅ ${summary.reviewed}/${summary.total} 완료`];
+  if (summary.skipped > 0) stats.push(`⊘ ${summary.skipped} skipped`);
+  if (summary.blocked > 0) stats.push(`🚫 ${summary.blocked} blocked`);
+  if (summary.failed > 0) stats.push(`❌ ${summary.failed} failed`);
+  if (summary.warningCount > 0) {
+    stats.push(`⚠ ${summary.warningCount} review ${summary.warningCount === 1 ? 'warning' : 'warnings'}`);
+  }
+  if (Array.isArray(summary.changedFiles) && summary.changedFiles.length > 0) {
+    stats.push(`📄 ${summary.changedFiles.length} 파일 변경`);
+  }
+
+  const lines = [];
+  lines.push('*🎯 Job summary*');
+  lines.push(stats.join(' · '));
+
+  if (summary.warningCount > 0 && Array.isArray(summary.warnings)) {
+    lines.push('');
+    lines.push('*Warnings:*');
+    // Slack section blocks cap at ~3000 chars; cap to 5 warnings in the
+    // body and append a "more" hint so the message stays within limits.
+    const WARNING_CAP = 5;
+    const shown = summary.warnings.slice(0, WARNING_CAP);
+    for (const w of shown) {
+      const tag = w.isNewBuild ? ' 🛠 _New build_' : '';
+      const cantRevert = w.canRevert ? '' : ' _(revert 불가 — 후속 task 충돌)_';
+      const safeTitle = toSlackMrkdwn(w.title || '(no title)');
+      const safeNotes = toSlackMrkdwn(trunc(w.notes || '', 200));
+      lines.push(`• *${safeTitle}*${tag}${cantRevert}\n  ${safeNotes}`);
+    }
+    if (summary.warnings.length > WARNING_CAP) {
+      lines.push(`_+ ${summary.warnings.length - WARNING_CAP} more warnings (see Playground)_`);
+    }
+  }
+
+  lines.push('');
+  lines.push('_💡 후속 작업 제안 + Revert 동작은 Phase 3 에서 추가됩니다._');
+
+  try {
+    await client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      text: '🎯 Job summary',
+      blocks: [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: lines.join('\n') },
+        },
+      ],
+    });
+  } catch (err) {
+    console.warn(`[molly] postJobFinalSummary failed: ${err.message?.slice(0, 120)}`);
+  }
+}
+
 async function postCompletionMessage({ client, channel, threadTs, job }) {
   const reviewedCount = job.tasks.filter((t) => t.status === 'reviewed').length;
   const skippedCount = job.tasks.filter((t) => t.status === 'skipped').length;
