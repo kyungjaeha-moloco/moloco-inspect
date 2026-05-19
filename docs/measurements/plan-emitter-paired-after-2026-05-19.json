@@ -1,0 +1,637 @@
+{
+  "label": "after",
+  "ts": 1779182157090,
+  "prds": [
+    {
+      "id": "creative-review-deleted",
+      "goal": "크리에이티브 리뷰 페이지에 삭제된 소재를 보여줄 수 있도록 탭을 만들어줘",
+      "client": "tving",
+      "routeOrPage": "/oms/creative-review",
+      "language": "ko"
+    },
+    {
+      "id": "campaign-list-filter",
+      "goal": "캠페인 리스트 페이지에 상태(running/paused/draft)별 필터를 추가해줘",
+      "client": "tving",
+      "routeOrPage": "/oms/campaign",
+      "language": "ko"
+    },
+    {
+      "id": "creative-detail-status",
+      "goal": "Creative Detail 페이지의 status dropdown에 \"보류\" 상태 옵션 추가",
+      "client": "tving",
+      "routeOrPage": "/oms/creative",
+      "language": "ko"
+    },
+    {
+      "id": "audience-export",
+      "goal": "Audience 페이지에 CSV export 버튼 추가",
+      "client": "tving",
+      "routeOrPage": "/oms/audience",
+      "language": "ko"
+    },
+    {
+      "id": "adgroup-column",
+      "goal": "Ad Group 테이블에 column 보이기/숨기기 토글 기능 추가",
+      "client": "tving",
+      "routeOrPage": "/oms/adgroup",
+      "language": "ko"
+    }
+  ],
+  "results": [
+    {
+      "id": "creative-review-deleted",
+      "goal": "크리에이티브 리뷰 페이지에 삭제된 소재를 보여줄 수 있도록 탭을 만들어줘",
+      "ok": true,
+      "dt_ms": 162858,
+      "plan": {
+        "intent": "new_feature",
+        "target_entity": "Creative",
+        "summary": "Tving MSM Portal의 Creative Review 페이지(/oms/creative-review)에 세 번째 탭 '삭제됨'을 추가합니다. 기존 '주문 포함'·'전체' 탭 옆에 새 탭이 생기고, 선택 시 삭제된 광고 소재 목록 테이블이 검색·필터와 함께 표시됩니다.",
+        "visual_constraints": [
+          "Follow the existing visual vocabulary of the target client (color, typography, spacing, density, shadow, radius).",
+          "Use tokens from design-system/src/tokens.json only. No hardcoded hex/px/font.",
+          "No aggressive gradient backgrounds.",
+          "No emoji unless the brand already uses them.",
+          "No rounded-container-with-left-border-accent tropes.",
+          "Do not draw icons/imagery as freehand SVG. Use icons from components.json icon catalog, or a placeholder box.",
+          "Do not substitute overused fonts (Inter, Roboto, Arial, system). Use the DS typography tokens.",
+          "A correct placeholder is better than a bad attempt at the real component."
+        ],
+        "plan_items": [
+          {
+            "id": "add-deleted-tab",
+            "title": "Creative Review 페이지 상단에 '삭제됨' 탭 추가",
+            "description": "이 작업이 끝나면 Creative Review 페이지 상단 탭 영역에 기존 '주문 포함'·'전체' 탭 옆에 새 '삭제됨' 탭이 나타납니다. (1) '삭제됨' 탭을 클릭하면 삭제된 소재 목록 화면으로 전환되고 (2) 현재 선택된 탭은 URL 주소에 저장되어 새로고침 후에도 그대로 유지되며 (3) 기본 선택 탭은 기존과 동일하게 '주문 포함'입니다.",
+            "pattern_id": "tab-navigation",
+            "target_file": "src/apps/tving/container/creative-review/MCCreativeReviewContainer.tsx",
+            "depends_on": []
+          },
+          {
+            "id": "deleted-creatives-list-screen",
+            "title": "'삭제됨' 탭 — 삭제된 소재 목록 화면 구현",
+            "description": "이 작업이 끝나면 '삭제됨' 탭을 선택했을 때 삭제된 광고 소재 목록이 테이블 형태로 표시됩니다. (1) 테이블에는 소재 아이디, 앱 이름, 광고 계정, 소재 미리보기, 해상도, 최초 노출일, 상태 컬럼이 포함됩니다 (2) 데이터를 불러오는 동안에는 로딩 스피너가 화면 중앙에 표시되며 (3) 삭제된 소재가 없을 경우 빈 상태 안내 메시지가 테이블 영역에 표시됩니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/tving/container/creative-review/MCDeletedCreativeReviewListContainer.tsx",
+            "depends_on": [
+              "add-deleted-tab"
+            ]
+          },
+          {
+            "id": "deleted-tab-filter-search",
+            "title": "'삭제됨' 탭에 검색창 및 필터 바 추가",
+            "description": "이 작업이 끝나면 '삭제됨' 탭의 테이블 위에 검색창과 필터 버튼이 표시됩니다. (1) 검색창에 소재 아이디 또는 소재 제목을 입력하면 목록이 즉시 좁혀지고 (2) 필터 버튼을 눌러 광고 계정·앱 이름 등의 조건으로 목록을 추가 필터링할 수 있습니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/tving/container/creative-review/MCDeletedCreativeReviewListContainer.tsx",
+            "depends_on": [
+              "deleted-creatives-list-screen"
+            ]
+          },
+          {
+            "id": "deleted-creatives-error-handling",
+            "title": "'삭제됨' 탭 데이터 오류 알림 처리",
+            "description": "이 작업이 끝나면 '삭제됨' 탭에서 목록을 불러오는 도중 오류가 발생했을 때 화면 상단에 오류 알림 배너가 펼쳐집니다. 알림에는 요약 메시지와 상세 내용이 함께 표시됩니다.",
+            "pattern_id": "error-handling",
+            "target_file": "src/apps/tving/container/creative-review/MCDeletedCreativeReviewListContainer.tsx",
+            "depends_on": [
+              "deleted-creatives-list-screen"
+            ]
+          },
+          {
+            "id": "i18n-deleted-tab",
+            "title": "'삭제됨' 탭 관련 한국어 텍스트 등록",
+            "description": "이 작업이 끝나면 '삭제됨' 탭 레이블, 빈 상태 안내 문구, 오류 메시지 등 새로 추가되는 모든 화면 텍스트가 한국어로 올바르게 표시됩니다.",
+            "pattern_id": "i18n-usage",
+            "target_file": "src/i18n/assets/ko/sot-resource.json",
+            "depends_on": [
+              "add-deleted-tab"
+            ]
+          }
+        ],
+        "referenced_components": [
+          {
+            "name": "MCBarTabs",
+            "importStatement": "import MCBarTabs from '@msm-portal/common/component/tab/bar-tab/MCBarTabs';",
+            "status": "stable"
+          },
+          {
+            "name": "MCContentLayout",
+            "importStatement": "import MCContentLayout from '@msm-portal/common/component/layout/content/MCContentLayout';",
+            "status": "stable"
+          },
+          {
+            "name": "MCI18nTable",
+            "importStatement": "import MCI18nTable from '@msm-portal/common/component/table/i18n/MCI18nTable';",
+            "status": "stable"
+          },
+          {
+            "name": "MCTableActionBar",
+            "importStatement": "import { MCTableActionBar } from '@msm-portal/common/component/table/action-bar/MCTableActionBar';",
+            "status": "stable"
+          },
+          {
+            "name": "MCCircularLoader",
+            "importStatement": "import { MCCircularLoader } from '@moloco/moloco-cloud-react-ui';",
+            "status": "stable"
+          },
+          {
+            "name": "MCSearchBar",
+            "importStatement": "import { MCSearchBar } from '@moloco/moloco-cloud-react-ui';",
+            "status": "stable"
+          },
+          {
+            "name": "MCStatusBadge",
+            "importStatement": "import MCStatusBadge from '@msm-portal/common/component/status-badge/MCStatusBadge';",
+            "status": "stable"
+          }
+        ],
+        "unresolved_components": [
+          {
+            "intent": "display deleted creatives in a review-style table matching the existing Creative Review table layout",
+            "closest_match": {
+              "name": "MCI18nTable",
+              "importStatement": "import MCI18nTable from '@msm-portal/common/component/table/i18n/MCI18nTable';",
+              "similarity_score": 0.7,
+              "reasoning": "MCI18nTable supports custom column definitions and cell renderers, making it a viable replacement for the domain-specific MCCreativeReviewTable which is referenced in entity contracts but absent from the component catalog"
+            },
+            "kind": "composition_miss",
+            "reason": "MCCreativeReviewTable is listed as a key_component in the CreativeReview entity contract but does not appear in components-index.json; the deleted tab table must be composed from MCI18nTable with creative-specific cell renderers instead"
+          }
+        ]
+      }
+    },
+    {
+      "id": "campaign-list-filter",
+      "goal": "캠페인 리스트 페이지에 상태(running/paused/draft)별 필터를 추가해줘",
+      "ok": true,
+      "dt_ms": 93437,
+      "plan": {
+        "intent": "new_feature",
+        "target_entity": null,
+        "summary": "캠페인 목록 페이지(/oms/campaign) 상단에 '실행 중 / 일시정지 / 초안' 세 가지 상태 탭을 추가합니다. 'Campaign' 엔티티는 현재 api-ui-contracts에 정의되어 있지 않으므로, 탭 전환 로직 및 상태 필터 기준은 실제 캠페인 API 응답 구조 확인 후 downstream에서 보완이 필요합니다.",
+        "visual_constraints": [
+          "Follow the existing visual vocabulary of the target client (color, typography, spacing, density, shadow, radius).",
+          "Use tokens from design-system/src/tokens.json only. No hardcoded hex/px/font.",
+          "No aggressive gradient backgrounds.",
+          "No emoji unless the brand already uses them.",
+          "No rounded-container-with-left-border-accent tropes.",
+          "Do not draw icons/imagery as freehand SVG. Use icons from components.json icon catalog, or a placeholder box.",
+          "Do not substitute overused fonts (Inter, Roboto, Arial, system). Use the DS typography tokens.",
+          "A correct placeholder is better than a bad attempt at the real component."
+        ],
+        "plan_items": [
+          {
+            "id": "add-status-tabs-ui",
+            "title": "캠페인 목록 상단에 상태 탭 추가",
+            "description": "이 작업이 끝나면 캠페인 목록 페이지 상단 탭 영역에 \"실행 중\", \"일시정지\", \"초안\" 세 개의 탭이 나타납니다. (1) 페이지에 처음 진입하면 \"실행 중\" 탭이 기본 선택됩니다. (2) 각 탭을 클릭하면 해당 탭이 시각적으로 활성화되고 아래 테이블 내용이 즉시 전환됩니다. (3) 탭 레이블은 언어 설정에 따라 한국어·영어로 자동 표시됩니다.",
+            "pattern_id": "tab-navigation",
+            "target_file": "src/apps/tving/container/campaign/list/MCCampaignListContainer.tsx",
+            "depends_on": []
+          },
+          {
+            "id": "filter-data-by-tab",
+            "title": "탭 선택에 따른 캠페인 목록 데이터 필터링",
+            "description": "이 작업이 끝나면 각 탭을 선택할 때 해당 상태에 맞는 캠페인만 테이블에 표시됩니다. (1) \"실행 중\" 탭에서는 현재 운영 중인 캠페인만, (2) \"일시정지\" 탭에서는 중단된 캠페인만, (3) \"초안\" 탭에서는 게시 전 캠페인만 목록에 나타납니다. 탭을 전환해도 검색·정렬 상태는 초기화되지 않고 유지됩니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/tving/container/campaign/list/MCCampaignListTableContainer.tsx",
+            "depends_on": [
+              "add-status-tabs-ui"
+            ]
+          },
+          {
+            "id": "sync-tab-state-to-url",
+            "title": "탭 선택 상태 URL 파라미터 저장",
+            "description": "이 작업이 끝나면 탭을 선택할 때마다 브라우저 주소창 URL에 선택된 탭 정보가 자동으로 반영됩니다. (1) 페이지를 새로고침하거나 동료에게 링크를 공유해도 선택된 탭이 그대로 유지됩니다. (2) URL에 탭 파라미터가 없는 경우에는 기본값인 \"실행 중\" 탭이 자동으로 선택됩니다.",
+            "pattern_id": "tab-navigation",
+            "target_file": "src/apps/tving/container/campaign/list/MCCampaignListContainer.tsx",
+            "depends_on": [
+              "add-status-tabs-ui"
+            ]
+          },
+          {
+            "id": "empty-state-per-tab",
+            "title": "탭별 캠페인 없음 안내 화면 처리",
+            "description": "이 작업이 끝나면 선택된 탭의 상태에 해당하는 캠페인이 존재하지 않을 때, 테이블 영역 중앙에 해당 상태의 캠페인이 없다는 안내 화면이 표시됩니다. 세 탭(실행 중 / 일시정지 / 초안) 각각에 대해 독립적인 안내 문구가 노출되며, 다른 탭에 캠페인이 있어도 영향을 받지 않습니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/tving/container/campaign/list/MCCampaignListTableContainer.tsx",
+            "depends_on": [
+              "filter-data-by-tab"
+            ]
+          },
+          {
+            "id": "register-i18n-keys",
+            "title": "상태 탭 레이블 및 안내 문구 텍스트 등록",
+            "description": "이 작업이 끝나면 세 탭의 레이블(\"실행 중\", \"일시정지\", \"초안\")과 각 탭의 빈 목록 안내 문구가 공식 텍스트 파일에 등록됩니다. 이후 해당 문구는 언어 설정에 따라 한국어·영어로 자동 전환됩니다.",
+            "pattern_id": "i18n-usage",
+            "target_file": "src/i18n/assets/ko/sot-resource.json",
+            "depends_on": [
+              "add-status-tabs-ui"
+            ]
+          },
+          {
+            "id": "loading-state-per-tab",
+            "title": "탭 전환 시 데이터 로딩 상태 표시",
+            "description": "이 작업이 끝나면 탭을 전환하거나 처음 진입할 때 데이터를 불러오는 동안 테이블 영역에 로딩 인디케이터가 표시됩니다. 로딩이 완료된 후 캠페인 목록 또는 빈 목록 안내 화면으로 자연스럽게 전환되어, 사용자가 데이터 로드 여부를 명확히 인지할 수 있습니다.",
+            "pattern_id": "loading-state",
+            "target_file": "src/apps/tving/container/campaign/list/MCCampaignListTableContainer.tsx",
+            "depends_on": [
+              "filter-data-by-tab"
+            ]
+          }
+        ],
+        "referenced_components": [
+          {
+            "name": "MCBarTabs",
+            "importStatement": "import MCBarTabs from '@msm-portal/common/component/tab/bar-tab/MCBarTabs';",
+            "status": "stable"
+          },
+          {
+            "name": "MCContentLayout",
+            "importStatement": "import MCContentLayout from '@msm-portal/common/component/layout/content/MCContentLayout';",
+            "status": "stable"
+          },
+          {
+            "name": "MCI18nTable",
+            "importStatement": "import MCI18nTable from '@msm-portal/common/component/table/i18n/MCI18nTable';",
+            "status": "stable"
+          },
+          {
+            "name": "MCTableActionBar",
+            "importStatement": "import { MCTableActionBar } from '@msm-portal/common/component/table/action-bar/MCTableActionBar';",
+            "status": "stable"
+          },
+          {
+            "name": "MCCircularLoader",
+            "importStatement": "import { MCCircularLoader } from '@moloco/moloco-cloud-react-ui';",
+            "status": "stable"
+          },
+          {
+            "name": "MCStack",
+            "importStatement": "import { MCStack } from '@moloco/moloco-cloud-react-ui';",
+            "status": "stable"
+          },
+          {
+            "name": "MCIcon",
+            "importStatement": "import { MCIcon } from '@moloco/moloco-cloud-react-ui';",
+            "status": "stable"
+          }
+        ],
+        "unresolved_components": [
+          {
+            "intent": "Dedicated empty-state display per tab when no campaigns exist for a given status",
+            "closest_match": {
+              "name": "EmptyState",
+              "importStatement": "// Composition pattern: import MCStack, MCIcon, MCButton2 from '@moloco/moloco-cloud-react-ui'; plus styled-components for wrappers",
+              "similarity_score": 0.5,
+              "reasoning": "EmptyState is marked deprecated; recommended replacement is a composition of MCStack + MCIcon + styled-components, but no stable standalone empty-state component exists in the catalog."
+            },
+            "kind": "composition_miss",
+            "reason": "DS에 안정(stable) 상태의 독립 empty-state 컴포넌트가 없음. MCStack + MCIcon + styled-components 조합으로 직접 구성해야 하며, 구현 방식은 downstream 검토 필요."
+          },
+          {
+            "intent": "Campaign entity status enum (running/paused/draft) and API contract for status-based filtering",
+            "closest_match": null,
+            "kind": "new_component",
+            "reason": "'Campaign' 엔티티가 api-ui-contracts.json에 정의되어 있지 않음. 상태 값(running/paused/draft)의 실제 API 필드명·타입·필터 파라미터는 백엔드 스펙 확인 후 별도 엔티티 계약 정의가 필요함."
+          }
+        ]
+      }
+    },
+    {
+      "id": "creative-detail-status",
+      "goal": "Creative Detail 페이지의 status dropdown에 \"보류\" 상태 옵션 추가",
+      "ok": true,
+      "dt_ms": 128759,
+      "plan": {
+        "intent": "new_feature",
+        "target_entity": "Creative",
+        "summary": "Creative 상세 페이지의 상태 선택 영역에 '보류' 옵션을 추가합니다. 운영자는 기존 승인·거절 외에 '보류'를 선택할 수 있고, 목록 테이블 상태 배지·필터에도 해당 상태가 반영됩니다.",
+        "visual_constraints": [
+          "Follow the existing visual vocabulary of the target client (color, typography, spacing, density, shadow, radius).",
+          "Use tokens from design-system/src/tokens.json only. No hardcoded hex/px/font.",
+          "No aggressive gradient backgrounds.",
+          "No emoji unless the brand already uses them.",
+          "No rounded-container-with-left-border-accent tropes.",
+          "Do not draw icons/imagery as freehand SVG. Use icons from components.json icon catalog, or a placeholder box.",
+          "Do not substitute overused fonts (Inter, Roboto, Arial, system). Use the DS typography tokens.",
+          "A correct placeholder is better than a bad attempt at the real component."
+        ],
+        "plan_items": [
+          {
+            "id": "hold-status-proto-model",
+            "title": "'보류' 상태 값 및 변환 규칙 등록",
+            "description": "이 작업이 끝나면 서버가 '보류' 상태를 내려줄 때 화면이 올바르게 인식하고, 사용자가 '보류'를 선택했을 때 서버에 올바른 값으로 전달됩니다. (1) 기존 '승인'·'거절'과 동일한 방식으로 '보류' 값이 처리됩니다. (2) 알 수 없는 상태 값이 '보류'로 잘못 표시되는 일은 없습니다.",
+            "pattern_id": null,
+            "target_file": "src/common/api/msm/proto/creative/index.ts",
+            "depends_on": []
+          },
+          {
+            "id": "hold-status-i18n",
+            "title": "UI 전반에 '보류' 한국어 텍스트 등록",
+            "description": "이 작업이 끝나면 드롭다운 옵션, 상태 배지, 확인 다이얼로그, 필터 항목 등 '보류' 상태와 관련된 모든 문구가 한국어로 올바르게 표시됩니다. 번역 키 원문이 그대로 노출되는 일이 없어집니다.",
+            "pattern_id": "i18n-usage",
+            "target_file": "src/i18n/assets/ko/sot-resource.json",
+            "depends_on": []
+          },
+          {
+            "id": "hold-status-dropdown-option",
+            "title": "Creative 상세 페이지 상태 드롭다운에 '보류' 옵션 표시",
+            "description": "이 작업이 끝나면 Creative 상세 페이지의 상태 선택 영역에 기존 '승인'·'거절' 사이에 '보류'가 새 옵션으로 나타납니다. (1) 옵션에는 상태를 구분하는 아이콘과 텍스트 레이블 \"보류\"가 함께 표시됩니다. (2) 이미 '보류' 상태인 크리에이티브를 열면 해당 옵션이 선택된 상태로 보입니다.",
+            "pattern_id": "detail-page",
+            "target_file": "src/apps/msm-default/container/creative/detail/MCCreativeDetailContainer.tsx",
+            "depends_on": [
+              "hold-status-proto-model",
+              "hold-status-i18n"
+            ]
+          },
+          {
+            "id": "hold-status-confirm-dialog",
+            "title": "상태를 '보류'로 변경할 때 확인 다이얼로그 및 저장 흐름 추가",
+            "description": "이 작업이 끝나면 운영자가 드롭다운에서 '보류'를 선택하면 확인 다이얼로그가 열립니다. (1) 다이얼로그에는 대상 크리에이티브 이름이 표시되고 \"보류로 변경\" 버튼과 \"취소\" 버튼이 제공됩니다. (2) \"보류로 변경\"을 누르면 상태가 저장되고 상세 페이지가 갱신됩니다. (3) 저장 중에는 버튼이 비활성화되어 중복 제출이 방지됩니다. (4) 저장에 실패하면 페이지 상단에 오류 메시지가 표시됩니다.",
+            "pattern_id": "delete-confirm-dialog",
+            "target_file": "src/apps/msm-default/component/creative/dialog/MCCreativeHoldDialog.tsx",
+            "depends_on": [
+              "hold-status-dropdown-option"
+            ]
+          },
+          {
+            "id": "hold-status-badge",
+            "title": "Creative 목록 및 상세 페이지에 '보류' 상태 배지 추가",
+            "description": "이 작업이 끝나면 크리에이티브가 '보류' 상태일 때 목록 테이블의 상태 열과 상세 페이지 헤더 모두에서 '보류' 배지가 표시됩니다. (1) '보류' 배지는 '승인'(녹색 계열)·'거절'(적색 계열)과 시각적으로 구별되는 색상 토큰을 사용합니다. (2) 배지에는 색상과 함께 텍스트 레이블 \"보류\"가 표시되어 색각 이상 사용자도 구분할 수 있습니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/msm-default/component/creative/list/cellRenderers.tsx",
+            "depends_on": [
+              "hold-status-proto-model",
+              "hold-status-i18n"
+            ]
+          },
+          {
+            "id": "hold-status-list-filter",
+            "title": "Creative 목록 상태 필터에 '보류' 항목 추가",
+            "description": "이 작업이 끝나면 Creative 목록 페이지의 상태 필터 체크박스 목록에 '보류' 항목이 표시됩니다. (1) '보류'를 체크하면 현재 상태가 '보류'인 크리에이티브만 테이블에 필터링되어 보입니다. (2) 기존 '승인'·'거절' 필터와 동시에 선택하거나 단독으로 선택할 수 있습니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/msm-default/container/creative/list/MCAvailableCreativeListContainer.tsx",
+            "depends_on": [
+              "hold-status-badge"
+            ]
+          }
+        ],
+        "referenced_components": [
+          {
+            "name": "MCStatusBadge",
+            "importStatement": "import MCStatusBadge from '@msm-portal/common/component/status-badge/MCStatusBadge';",
+            "status": "stable"
+          },
+          {
+            "name": "MCStatus",
+            "importStatement": "import MCStatus from '@msm-portal/common/component/status/MCStatus';",
+            "status": "stable"
+          },
+          {
+            "name": "MCCommonDialog",
+            "importStatement": "import MCCommonDialog from '@msm-portal/common/component/dialog/common-dialog/MCCommonDialog';",
+            "status": "stable"
+          },
+          {
+            "name": "MCButton2",
+            "importStatement": "import { MCButton2 } from '@moloco/moloco-cloud-react-ui';",
+            "status": "stable"
+          },
+          {
+            "name": "MCI18nTable",
+            "importStatement": "import MCI18nTable from '@msm-portal/common/component/table/i18n/MCI18nTable';",
+            "status": "stable"
+          },
+          {
+            "name": "MCContentLayout",
+            "importStatement": "import MCContentLayout from '@msm-portal/common/component/layout/content/MCContentLayout';",
+            "status": "stable"
+          },
+          {
+            "name": "MCTableActionBar",
+            "importStatement": "import { MCTableActionBar } from '@msm-portal/common/component/table/action-bar/MCTableActionBar';",
+            "status": "stable"
+          }
+        ],
+        "unresolved_components": [
+          {
+            "intent": "Status selector dropdown on Creative Detail page that allows changing creative status (enabling state or review status) via a non-Formik action trigger",
+            "closest_match": {
+              "name": "MCFormSingleRichSelect",
+              "importStatement": "import MCFormSingleRichSelect from '@msm-portal/common/component/form/v1/select/MCFormSingleRichSelect';",
+              "similarity_score": 0.5,
+              "reasoning": "MCFormSingleRichSelect covers single-option selection UI but is Formik-bound; the Creative Detail status dropdown is likely an action-trigger pattern outside a form context"
+            },
+            "kind": "composition_miss",
+            "reason": "The exact DS component powering the Creative Detail status dropdown is not identifiable from components-index.json — it may be a custom action menu composed of MCMoreActionsButton or a standalone select primitive; downstream review against the full components.json and existing Creative Detail implementation is required"
+          }
+        ]
+      }
+    },
+    {
+      "id": "audience-export",
+      "goal": "Audience 페이지에 CSV export 버튼 추가",
+      "ok": true,
+      "dt_ms": 87616,
+      "plan": {
+        "intent": "new_feature",
+        "target_entity": "AudienceTarget",
+        "summary": "Audience(잠재고객) 목록 페이지 테이블 상단 액션 바 오른쪽에 'CSV 내보내기' 버튼을 추가합니다. 버튼 클릭 시 현재 테이블에 표시된 목록 데이터 전체가 CSV 파일로 자동 다운로드됩니다.",
+        "visual_constraints": [
+          "Follow the existing visual vocabulary of the target client (color, typography, spacing, density, shadow, radius).",
+          "Use tokens from design-system/src/tokens.json only. No hardcoded hex/px/font.",
+          "No aggressive gradient backgrounds.",
+          "No emoji unless the brand already uses them.",
+          "No rounded-container-with-left-border-accent tropes.",
+          "Do not draw icons/imagery as freehand SVG. Use icons from components.json icon catalog, or a placeholder box.",
+          "Do not substitute overused fonts (Inter, Roboto, Arial, system). Use the DS typography tokens.",
+          "A correct placeholder is better than a bad attempt at the real component."
+        ],
+        "plan_items": [
+          {
+            "id": "i18n-export-key",
+            "title": "'CSV 내보내기' 버튼 텍스트 다국어 키 등록",
+            "description": "이 작업이 끝나면 'CSV 내보내기' 버튼 레이블이 포털의 언어 설정에 따라 올바르게 표시됩니다. (1) 한국어 환경에서는 'CSV 내보내기'로, 영어 환경에서는 'Export CSV'로 보입니다. (2) 추가되는 키는 Audience 목록 화면에서 사용하는 다국어 네임스페이스 안에 포함됩니다.",
+            "pattern_id": "i18n-usage",
+            "target_file": "src/i18n/assets/en/sot-resource.json",
+            "depends_on": []
+          },
+          {
+            "id": "add-csv-export-button",
+            "title": "Audience 목록 상단 액션 바에 'CSV 내보내기' 버튼 표시",
+            "description": "이 작업이 끝나면 Audience 목록 페이지 테이블 상단 오른쪽에 'CSV 내보내기' 버튼이 새로 보입니다. (1) 버튼은 테이블 상단 액션 바의 오른쪽 영역에 배치됩니다. (2) 기존 필터·검색 UI는 왼쪽에 그대로 유지됩니다. (3) 버튼에는 다운로드를 나타내는 아이콘이 함께 표시됩니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/tving/container/targeting/audience-target/list/MCAudienceTargetListTableContainer.tsx",
+            "depends_on": [
+              "i18n-export-key"
+            ]
+          },
+          {
+            "id": "csv-download-on-click",
+            "title": "버튼 클릭 시 Audience 목록 CSV 파일 다운로드",
+            "description": "이 작업이 끝나면 'CSV 내보내기' 버튼을 클릭했을 때 브라우저가 CSV 파일을 즉시 다운로드합니다. (1) 내보내는 컬럼은 제목(ID 포함), 설정(타겟팅 조건), 주문 종류 노출 여부, 마지막 수정일이며 테이블에 표시된 컬럼 순서를 따릅니다. (2) 검색·필터가 적용된 상태라면 필터링된 결과만 포함됩니다. (3) 다운로드 파일명은 'audience-targets.csv' 형식으로 고정됩니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/tving/container/targeting/audience-target/list/MCAudienceTargetListTableContainer.tsx",
+            "depends_on": [
+              "add-csv-export-button"
+            ]
+          },
+          {
+            "id": "button-disabled-states",
+            "title": "로딩 중·빈 목록 시 'CSV 내보내기' 버튼 비활성 처리",
+            "description": "이 작업이 끝나면 두 가지 상황에서 버튼이 자동으로 비활성(클릭 불가) 상태로 보입니다. (1) 데이터를 불러오는 도중에는 버튼이 비활성화되어 중복 클릭을 방지합니다. (2) 필터 결과가 없어 표시할 항목이 0건일 때도 버튼이 비활성 상태로 표시됩니다. (3) 활성·비활성 상태는 디자인 시스템의 버튼 스타일로 시각적으로 구분됩니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/tving/container/targeting/audience-target/list/MCAudienceTargetListTableContainer.tsx",
+            "depends_on": [
+              "add-csv-export-button"
+            ]
+          }
+        ],
+        "referenced_components": [
+          {
+            "name": "MCButton2",
+            "importStatement": "import { MCButton2 } from '@moloco/moloco-cloud-react-ui';",
+            "status": "stable"
+          },
+          {
+            "name": "MCTableActionBar",
+            "importStatement": "import { MCTableActionBar } from '@msm-portal/common/component/table/action-bar/MCTableActionBar';",
+            "status": "stable"
+          },
+          {
+            "name": "MCI18nTable",
+            "importStatement": "import MCI18nTable from '@msm-portal/common/component/table/i18n/MCI18nTable';",
+            "status": "stable"
+          }
+        ],
+        "unresolved_components": []
+      }
+    },
+    {
+      "id": "adgroup-column",
+      "goal": "Ad Group 테이블에 column 보이기/숨기기 토글 기능 추가",
+      "ok": true,
+      "dt_ms": 88133,
+      "plan": {
+        "intent": "new_feature",
+        "target_entity": null,
+        "summary": "Ad Group 목록 테이블 상단에 '열 설정' 버튼을 추가하여 각 열을 켜고 끌 수 있는 패널을 제공합니다. 사용자가 선택한 열 구성은 워크플레이스·사용자 단위로 저장되어 새로고침 후에도 유지됩니다.",
+        "visual_constraints": [
+          "Follow the existing visual vocabulary of the target client (color, typography, spacing, density, shadow, radius).",
+          "Use tokens from design-system/src/tokens.json only. No hardcoded hex/px/font.",
+          "No aggressive gradient backgrounds.",
+          "No emoji unless the brand already uses them.",
+          "No rounded-container-with-left-border-accent tropes.",
+          "Do not draw icons/imagery as freehand SVG. Use icons from components.json icon catalog, or a placeholder box.",
+          "Do not substitute overused fonts (Inter, Roboto, Arial, system). Use the DS typography tokens.",
+          "A correct placeholder is better than a bad attempt at the real component."
+        ],
+        "plan_items": [
+          {
+            "id": "column-toggle-button",
+            "title": "Ad Group 테이블 상단에 '열 설정' 버튼 추가",
+            "description": "이 작업이 끝나면 Ad Group 목록 테이블의 검색·필터 영역 오른쪽 끝에 '열 설정' 버튼이 보입니다. (1) 버튼은 기존 검색 바·필터 버튼과 같은 줄에 나란히 위치합니다. (2) 버튼을 클릭하면 열 선택 패널이 열립니다. (3) 패널이 열려 있는 동안 버튼은 활성 상태로 표시됩니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/tving/container/adgroup/list/MCAdGroupListTableContainer.tsx",
+            "depends_on": []
+          },
+          {
+            "id": "column-visibility-panel",
+            "title": "열 보이기/숨기기 선택 패널 구현",
+            "description": "이 작업이 끝나면 '열 설정' 버튼 바로 아래에 팝오버 패널이 열리며, 테이블에 존재하는 모든 열 이름이 체크박스 목록으로 표시됩니다. (1) 체크박스를 켜면 해당 열이 테이블에 즉시 나타나고, 끄면 즉시 사라집니다. (2) 최소 1개 열은 강제로 활성 상태가 유지되어 모든 열을 동시에 숨기는 것은 불가능합니다. (3) 패널 바깥 영역을 클릭하거나 Esc 키를 누르면 패널이 닫힙니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/tving/component/adgroup/table/MCAdGroupColumnConfigurator.tsx",
+            "depends_on": [
+              "column-toggle-button"
+            ]
+          },
+          {
+            "id": "persist-column-state",
+            "title": "열 표시 설정을 새로고침 후에도 유지",
+            "description": "이 작업이 끝나면 사용자가 열 구성을 변경한 뒤 페이지를 새로고침하거나 다른 페이지에 갔다가 돌아와도 이전에 선택한 열 구성이 그대로 유지됩니다. 저장은 워크플레이스 ID와 사용자 ID를 기준으로 독립적으로 이루어지므로, 동일 워크플레이스 내 다른 사용자의 설정에는 영향을 주지 않습니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/tving/container/adgroup/list/MCAdGroupListTableContainer.tsx",
+            "depends_on": [
+              "column-visibility-panel"
+            ]
+          },
+          {
+            "id": "wire-hidden-columns",
+            "title": "열 표시 상태를 테이블에 반영",
+            "description": "이 작업이 끝나면 패널에서 체크 해제된 열은 테이블 헤더와 데이터 셀 모두에서 사라지고, 체크된 열만 정상 표시됩니다. 열 순서는 기존 테이블 정의 순서를 유지하며, 숨겨진 열의 필터·정렬 상태는 내부적으로 보존되어 열을 다시 표시해도 이전 상태가 복원됩니다.",
+            "pattern_id": "list-page",
+            "target_file": "src/apps/tving/container/adgroup/list/MCAdGroupListTableContainer.tsx",
+            "depends_on": [
+              "persist-column-state"
+            ]
+          },
+          {
+            "id": "i18n-column-labels",
+            "title": "열 이름 및 패널 레이블 한국어 텍스트 등록",
+            "description": "이 작업이 끝나면 열 선택 패널의 제목 '열 설정'과 각 열 이름(예: '이름', '상태', '예산', '기간' 등)이 한국어로 올바르게 표시됩니다. 영문 로케일로 전환 시에도 대응 번역 키가 준비되어 있어 빈 텍스트 없이 표시됩니다.",
+            "pattern_id": "i18n-usage",
+            "target_file": "src/i18n/assets/ko/sot-resource.json",
+            "depends_on": [
+              "column-visibility-panel"
+            ]
+          },
+          {
+            "id": "accessibility-keyboard",
+            "title": "열 설정 패널 키보드 및 접근성 지원",
+            "description": "이 작업이 끝나면 키보드만으로도 열 설정 패널을 완전히 조작할 수 있습니다. (1) Tab 키로 패널 내 모든 체크박스를 순서대로 이동할 수 있습니다. (2) Space 키로 체크박스를 켜고 끌 수 있습니다. (3) Esc 키로 패널을 닫으면 포커스가 '열 설정' 버튼으로 돌아옵니다. (4) 스크린 리더 사용자에게 패널 열림·닫힘 상태가 음성으로 안내됩니다.",
+            "pattern_id": "accessibility",
+            "target_file": "src/apps/tving/component/adgroup/table/MCAdGroupColumnConfigurator.tsx",
+            "depends_on": [
+              "column-visibility-panel"
+            ]
+          }
+        ],
+        "referenced_components": [
+          {
+            "name": "MCTableActionBar",
+            "importStatement": "import { MCTableActionBar } from '@msm-portal/common/component/table/action-bar/MCTableActionBar';",
+            "status": "stable"
+          },
+          {
+            "name": "MCI18nTable",
+            "importStatement": "import MCI18nTable from '@msm-portal/common/component/table/i18n/MCI18nTable';",
+            "status": "stable"
+          },
+          {
+            "name": "MCButton2",
+            "importStatement": "import { MCButton2 } from '@moloco/moloco-cloud-react-ui';",
+            "status": "stable"
+          },
+          {
+            "name": "MCPopover",
+            "importStatement": "import MCPopover from '@msm-portal/common/component/popover/MCPopover';",
+            "status": "stable"
+          },
+          {
+            "name": "MCCheckBoxInput",
+            "importStatement": "import { MCCheckBoxInput } from '@moloco/moloco-cloud-react-ui';",
+            "status": "stable"
+          },
+          {
+            "name": "MCContentLayout",
+            "importStatement": "import MCContentLayout from '@msm-portal/common/component/layout/content/MCContentLayout';",
+            "status": "stable"
+          }
+        ],
+        "unresolved_components": [
+          {
+            "intent": "A column visibility configurator panel that lists all table columns as toggleable checkboxes, triggered by a button in the table action bar — for general-purpose (non-domain) tables",
+            "closest_match": {
+              "name": "MCAdPacingDashboardColumnConfigurator",
+              "importStatement": "import MCAdPacingDashboardColumnConfigurator from '@msm-portal/common/component/ad-pacing-dashboard/MCAdPacingDashboardColumnConfigurator';",
+              "similarity_score": 0.55,
+              "reasoning": "Functionally equivalent (column key list + toggle + onClose callback), but hard-wired to the Ad Pacing domain type MTAdPacingDashboardColumnKey — cannot accept generic string-keyed column definitions for other tables without prop changes"
+            },
+            "kind": "composition_miss",
+            "reason": "No generic column-visibility configurator exists in the catalog; the feature can likely be composed from MCPopover + MCCheckBoxInput, but the exact composition pattern (panel layout, minimum-one-column guard, trigger binding) is not documented in patterns.json and requires downstream design verification"
+          }
+        ]
+      }
+    }
+  ]
+}
