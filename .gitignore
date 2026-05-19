@@ -44,6 +44,11 @@ orchestrator/state/
 # Personal authoring output (kept out of repo)
 output/
 
+# Internal docs (plans, handoffs, contracts, overview) — kept local only
+# while the docs/ structure is being cleaned up. Will be re-introduced
+# selectively once curated.
+docs/
+
 # Editor
 .idea/
 .vscode/
