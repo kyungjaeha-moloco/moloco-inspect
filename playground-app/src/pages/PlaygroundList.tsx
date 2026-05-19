@@ -132,10 +132,10 @@ export function PlaygroundList() {
               href="http://127.0.0.1:4174/"
               target="_blank"
               rel="noreferrer"
-              title="Open Ops Dashboard (port 4174)"
+              title="Open Inspect Console (port 4174)"
               style={ghostLinkStyle}
             >
-              Dashboard ↗
+              Console ↗
             </a>
             <button
               type="button"
