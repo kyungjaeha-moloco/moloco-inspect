@@ -141,6 +141,10 @@ export async function decomposePrd(prdText, ctx = {}) {
 
   const userMessage = `${contextBlock}${previousBlock}${feedbackBlock}PRD:\n${prdText.trim()}`;
 
+  // 2026-05-19 — 90s AbortSignal. Without this, a hung Anthropic connection
+  // leaves the job in 'decomposing' forever (observed 2026-05-19 13:14 stuck
+  // job 1b17e7df). Decomposer max_tokens=8192 + Korean output → typical
+  // latency 15-40s; 90s leaves ample headroom without indefinite hang.
   const resp = await fetch(ANTHROPIC_URL, {
     method: 'POST',
     headers: {
@@ -158,6 +162,7 @@ export async function decomposePrd(prdText, ctx = {}) {
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     }),
+    signal: AbortSignal.timeout(90000),
   });
 
   if (!resp.ok) {
