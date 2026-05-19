@@ -315,6 +315,7 @@ export function PlaygroundDetail() {
             checkedOutSha={current.checkedOutSha}
             onSelectSha={handleCheckoutSha}
             onSelectLatest={handleRestoreHead}
+            onShowVersions={() => setShowHistory(true)}
           />
           <ModeToolbar mode={mode} onChange={setMode} onReload={handleReload} />
           <div style={previewAreaStyle}>
@@ -1056,6 +1057,11 @@ interface CommitTabBarProps {
   checkedOutSha?: string;
   onSelectSha: (sha: string) => void;
   onSelectLatest: () => void;
+  /** Opens the HistoryDialog — Versions list of every commit on this
+   * Playground. Surfaces the intermediate-checkpoint browsing UI from the
+   * tab bar where users intuitively look for "버전 비교" controls instead of
+   * hidden inside the AIPanel header. */
+  onShowVersions?: () => void;
 }
 
 function CommitTabBar({
@@ -1064,6 +1070,7 @@ function CommitTabBar({
   checkedOutSha,
   onSelectSha,
   onSelectLatest,
+  onShowVersions,
 }: CommitTabBarProps) {
   // A checkout whose sha matches HEAD is functionally the working
   // branch — light up "in-progress" instead of the mid-history tab that
@@ -1093,6 +1100,27 @@ function CommitTabBar({
         active={activeIsLatest}
         onClick={onSelectLatest}
       />
+      {onShowVersions && (
+        <button
+          type="button"
+          onClick={onShowVersions}
+          title="모든 변경 시점을 보고 원하는 시점으로 되돌리기"
+          style={{
+            marginLeft: 'auto',
+            padding: '4px 10px',
+            fontSize: 12,
+            border: '1px solid var(--border-primary)',
+            borderRadius: 6,
+            background: 'transparent',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            alignSelf: 'center',
+          }}
+        >
+          📜 Versions
+        </button>
+      )}
     </div>
   );
 }
