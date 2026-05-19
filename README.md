@@ -45,21 +45,21 @@ When a plan references a UI intent that has no DS equivalent, the orchestrator:
 - silently auto-adopts the closest match if similarity ≥ 0.5, or
 - enqueues an escalation row (`ESC-<base36>`) into the governance queue and fires the LLM judge in the background to classify the gap (`propose_new` / `extend_existing` / `custom_build`).
 
-The DS owner reviews and triages those rows on the design-system site's `/governance` page (runs locally on `:4176`), without ever blocking the PM.
+The DS owner reviews and triages those rows on the design-system site's `/governance` page, without ever blocking the PM.
 
 ---
 
 ## Surfaces
 
-| Surface | Port | Audience | Role |
-|---|---|---|---|
-| **Moloco Inspect Playground** | `:4180` | PM / SA | Primary chat surface — pick element, describe change, watch the job run, review the final summary. |
-| **Chrome extension** (side panel) | n/a | PM / SA | Same molly flow attached to whatever product page you're looking at. Click an element to seed context. |
-| **Slack `@molly`** | n/a | PM / SA | Mention molly in any allowlisted channel — same plan ceremony + final summary land in the thread. |
-| **Inspect Console** | `:4174` | Operator / DS | Per-job operations dashboard: requests, sandbox health, agent metrics, jobs. |
-| **Design-system site** | `:4176` | DS owner | Components / patterns / tokens reference **plus** the new `/governance` escalation queue. |
+| Surface | Audience | Role |
+|---|---|---|
+| **Moloco Inspect Playground** | PM / SA | Primary chat surface — pick element, describe change, watch the job run, review the final summary. |
+| **Chrome extension** (side panel) | PM / SA | Same molly flow attached to whatever product page you're looking at. Click an element to seed context. |
+| **Slack `@molly`** | PM / SA | Mention molly in any allowlisted channel — same plan ceremony + final summary land in the thread. |
+| **Inspect Console** | Operator / DS | Per-job operations dashboard: requests, sandbox health, agent metrics, jobs. |
+| **Design-system site** | DS owner | Components / patterns / tokens reference **plus** the new `/governance` escalation queue. |
 
-The orchestrator at `:3847` is the single brain — all surfaces talk to it. Sandboxes run as Docker containers with their own isolated vite dev server and git working tree per playground.
+The orchestrator is the single brain — all surfaces talk to it. Sandboxes run as Docker containers with their own isolated vite dev server and git working tree per playground.
 
 ---
 
@@ -108,7 +108,7 @@ When plan-emitter encounters an intent without a close DS match (similarity < 0.
 1. Orchestrator enqueues `state/governance-queue.jsonl` with `status=awaiting_judge`, generates a `ref_id` (`ESC-<base36(ms)>`).
 2. Background fire-and-forget call to the Sonnet **judge** LLM classifies the kind: `propose_new` / `extend_existing` / `custom_build`. Promotes the row to `pending` on success or stays `awaiting_judge` until the startup sweep promotes it.
 3. The plan card on every surface shows a quiet one-liner: *"💡 split-button menu — proceeding with MCButton2 (42% match). DS team notified · ESC-MPCUWKLY"*. The PM is never blocked.
-4. DS owner opens the `/governance` page on the locally-running design-system site (`:4176/governance`) and triages — Resolve (primary) / Mark in review / Dismiss / Reopen.
+4. DS owner opens the design-system site's `/governance` page and triages — Resolve (primary) / Mark in review / Dismiss / Reopen.
 
 API: `GET /api/governance/queue?status=…`, `GET /:id`, `GET /:id/events`, `POST /:id/status`. Status changes are append-only to `state/governance-status-events.jsonl` so concurrent owners get last-write-wins for free.
 
@@ -147,19 +147,6 @@ cd playground-app      && pnpm install && pnpm dev   # :4180 Playground
 - `orchestrator/scripts/governance-e2e-test.mjs` — non-LLM smoke for the governance queue endpoints (19 assertions).
 - `orchestrator/scripts/plan-emitter-paired-smoke.mjs` — 7 PRD fixtures for plan-emitter.
 - `orchestrator/scripts/plan-emitter-paired-evaluate.mjs` — `is_new_build` coverage + post-process safety net audit.
-
----
-
-## Service ports cheat sheet
-
-| Port | Service | Purpose |
-|---|---|---|
-| 3847 | orchestrator | Single brain; all surfaces talk here. |
-| 4174 | dashboard | Inspect Console (operations dashboard). |
-| 4176 | design-system-site | DS docs + `/governance` escalation queue. |
-| 4180 | playground-app | Moloco Inspect Playground (PM-facing chat surface). |
-| 4177 | design-system-site (preview) | `pnpm preview` build output. |
-| 5173 | sandbox vite | Inside each Docker sandbox; proxied to `/preview/:id/*`. |
 
 ---
 
