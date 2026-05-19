@@ -71,53 +71,8 @@ Full architecture, pipeline, DS structure, risks, and the 8-week plan are in the
 
 Three entry points, one orchestrator, one isolated sandbox per playground.
 
-```mermaid
-flowchart TD
-  subgraph Entry["1 · Entry Surfaces"]
-    direction LR
-    Chrome["Chrome Extension"]:::entryNode
-    Playground["Playground App"]:::entryNode
-    SlackUI["Slack chat"]:::entryNode
-  end
-
-  Molly["Molly Orchestrator<br/>intake → plan → execute → review → QA → promote"]:::core
-
-  subgraph Knowledge["2 · Knowledge & State (Host)"]
-    direction LR
-    DS["DS Knowledge Layer<br/>contracts + MCP"]:::knowledgeNode
-    State["Persistent State<br/>jobs · playgrounds · analytics"]:::knowledgeNode
-  end
-
-  subgraph Sandbox["3 · Execution (Sandbox per playground)"]
-    direction LR
-    Agent["Coding Agent<br/>opencode framework"]:::execNode
-    Code["Product Code<br/>+ DS snapshot"]:::execNode
-    Preview["Vite Preview"]:::execNode
-    Agent --> Code --> Preview
-  end
-
-  GitHub["GitHub PR"]:::external
-  LLM["External LLM APIs<br/>Claude / OpenAI"]:::external
-  Hub["Inspect Hub Dashboard<br/>observability + runtime knobs"]:::external
-
-  Entry --> Molly
-  Molly <--> Knowledge
-  Molly --> Sandbox
-  Sandbox -- promote --> GitHub
-  Molly <-.-> LLM
-  Agent <-.-> LLM
-  Hub -. observes .-> Molly
-
-  classDef entryNode fill:#dbeafe,stroke:#3b82f6,color:#1e40af
-  classDef core fill:#fef3c7,stroke:#f59e0b,color:#78350f,stroke-width:3px
-  classDef knowledgeNode fill:#dcfce7,stroke:#22c55e,color:#14532d
-  classDef execNode fill:#fed7aa,stroke:#f97316,color:#7c2d12
-  classDef external fill:#f3f4f6,stroke:#9ca3af,color:#374151
-
-  style Entry fill:#eff6ff,stroke:#bfdbfe,stroke-dasharray: 5
-  style Knowledge fill:#f0fdf4,stroke:#bbf7d0,stroke-dasharray: 5
-  style Sandbox fill:#fff7ed,stroke:#fed7aa,stroke-dasharray: 5
-```
+> 📷 **[INSERT IMAGE HERE]** — `2026-05-13-inspect-overview-architecture.png`
+> *System Architecture diagram*
 
 **Component roles.**
 
@@ -142,69 +97,13 @@ flowchart TD
 
 **What's in the contract today.**
 
-```
-MCButton2
-├── Category: Action
-├── Variants: primary, secondary, ghost, danger
-├── Props: label, onClick, disabled, loading, icon, size
-├── Token references:
-│   ├── background → semantic.action.primary
-│   ├── text       → semantic.text.inverse
-│   └── radius     → radius.md
-├── States: default, hover, active, disabled, loading
-├── Accessibility: role, aria-disabled, keyboard behavior
-├── Anti-patterns: documented in natural language
-├── Cross-references: usedInPatterns / relatedComponents / requiredProviders
-├── Usage stats: file_count, instance_count, stability tier
-└── Documentation: rendered as the public DS site
-```
+> 📷 **[INSERT IMAGE HERE]** — `2026-05-13-inspect-overview-ds-contract.png`
+> *DS contract example (MCButton2)*
 
 **Scope today.** 112 components, token catalog across 13 top-level categories (color, spacing, typography, elevation, animation, etc.). Cross-references and usage telemetry auto-extracted from a codebase scan over ~3.6K TS/TSX source files; the extraction pipeline went live last week.
 
-```mermaid
-flowchart LR
-  subgraph Inputs["Inputs"]
-    direction TB
-    Manual["DS JSON<br/>components · tokens · patterns"]:::inputNode
-    Scan["Product Code Scan<br/>cross-refs · usage · a11y"]:::inputNode
-    Gaps["AI Gap Signals<br/>missing-component choices"]:::inputNode
-  end
-
-  Knowledge["DS Knowledge Layer<br/>machine-readable contract<br/>112 components + token catalog"]:::core
-
-  Foundation["★ DESIGN.md<br/>Foundation (Layer 0)<br/>brand intent + authority + Do/Don't<br/>read first by planner"]:::foundationNode
-  Slim["Slim Contracts<br/>components-index + slim props<br/>~34KB (98% smaller than full catalog)"]:::briefNode
-
-  subgraph Consumers["Consumers"]
-    direction TB
-    Site["DS Site<br/>human reference"]:::consumerNode
-    Gov["Governance Console<br/>usage + gaps"]:::consumerNode
-    Molly["Molly<br/>planning + prompts"]:::consumerNode
-    MCP["MCP Server<br/>external AI tools"]:::consumerNode
-  end
-
-  Manual --> Knowledge
-  Scan --> Knowledge
-  Gaps -. feedback .-> Gov
-  Gov -. improves .-> Knowledge
-
-  Knowledge --> Site
-  Knowledge --> Gov
-  Knowledge --> Foundation
-  Knowledge --> Slim
-  Foundation -- read first --> Molly
-  Slim -- derived contracts --> Molly
-  Knowledge --> MCP
-
-  classDef inputNode fill:#dbeafe,stroke:#3b82f6,color:#1e40af
-  classDef core fill:#fef3c7,stroke:#f59e0b,color:#78350f,stroke-width:3px
-  classDef consumerNode fill:#dcfce7,stroke:#22c55e,color:#14532d
-  classDef foundationNode fill:#fef08a,stroke:#ca8a04,color:#713f12,stroke-width:3px
-  classDef briefNode fill:#fde68a,stroke:#d97706,color:#78350f
-
-  style Inputs fill:#eff6ff,stroke:#bfdbfe,stroke-dasharray: 5
-  style Consumers fill:#f0fdf4,stroke:#bbf7d0,stroke-dasharray: 5
-```
+> 📷 **[INSERT IMAGE HERE]** — `2026-05-13-inspect-overview-ds-knowledge.png`
+> *DS Knowledge Layer flow*
 
 **Why this matters for AI.** Without the contract the agent invents component names, hardcodes colors, guesses at props. With it the agent uses real names (`MCButton2`), real tokens, real prop APIs, and respects documented anti-patterns. That is the "AI knowledge layer" claim in concrete terms.
 
@@ -235,25 +134,8 @@ Molly is the orchestrator that uses the DS knowledge layer: a single service all
 
 **The pipeline, step by step.**
 
-```mermaid
-flowchart LR
-  Intake["1. Intake<br/>history-aware<br/>multi-turn"]:::stepNode
-  Plan["2. Plan emission"]:::stepNode
-  Gate1["★ Human gate<br/>plan approval"]:::gateNode
-  Decompose["3. Decompose<br/>+ execute<br/>(sandbox)"]:::stepNode
-  Review["4. Review + Auto-QA<br/>per task"]:::stepNode
-  Gate2["★ Human gate<br/>QA confirm"]:::gateNode
-  Promote["5. Promote<br/>→ GitHub PR"]:::promoteNode
-
-  Intake --> Plan --> Gate1 --> Decompose --> Review --> Gate2 --> Promote
-
-  Gate1 -. "reject / edit" .-> Plan
-  Gate2 -. "reject" .-> Decompose
-
-  classDef stepNode fill:#dbeafe,stroke:#3b82f6,color:#1e40af
-  classDef gateNode fill:#fde68a,stroke:#d97706,color:#78350f,stroke-width:3px
-  classDef promoteNode fill:#dcfce7,stroke:#22c55e,color:#14532d
-```
+> 📷 **[INSERT IMAGE HERE]** — `2026-05-13-inspect-overview-molly-pipeline.png`
+> *Molly pipeline flow (5 steps + 2 human gates)*
 
 1. **Intake.** History-aware, multi-turn. Asks clarifying questions, accepts attached context (PRD, screenshot), routes by intent (chat / plan / status / clarify).
 2. **Plan emission + human gate.** Planner reads request + DS context (foundation-first: `DESIGN.md` first, then slim contracts) and emits a structured plan. User must approve, edit, or reject before execution.
@@ -351,5 +233,3 @@ The small-team trial is the gating event. Real usage data tells whether the pipe
 | Engineer review effort per AI-PR | ≤ baseline for human-authored PRs (no fatigue tax) |
 
 They serve as the read-out for whether to move toward broader rollout or iterate further. These are stretch targets, not commitments. A low first read is signal to iterate, not to halt; the rethink trigger is *sustained* underperformance after iteration. The exact iteration cutoff is a judgment to make once real data lands.
-
-

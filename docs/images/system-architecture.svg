@@ -1,0 +1,175 @@
+<svg width="1600" height="1120" viewBox="0 0 1600 1120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="molly" x1="420" y1="325" x2="1180" y2="650" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FBFF"/>
+      <stop offset="1" stop-color="#EFF6FF"/>
+    </linearGradient>
+    <linearGradient id="entryA" x1="110" y1="150" x2="455" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ECFDF5"/>
+      <stop offset="1" stop-color="#F0FDFA"/>
+    </linearGradient>
+    <linearGradient id="entryB" x1="628" y1="150" x2="972" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EEF2FF"/>
+      <stop offset="1" stop-color="#F5F3FF"/>
+    </linearGradient>
+    <linearGradient id="entryC" x1="1145" y1="150" x2="1490" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF7ED"/>
+      <stop offset="1" stop-color="#FFFBEB"/>
+    </linearGradient>
+    <filter id="shadow" x="-8%" y="-8%" width="116%" height="120%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="15" stdDeviation="21" flood-color="#0F172A" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 8 8" refX="6.2" refY="4" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
+      <path d="M2 2L6 4L2 6" stroke="#475569" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .title { font: 700 48px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #0F172A; letter-spacing: 0; }
+      .subtitle { font: 500 24px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #475569; letter-spacing: 0; }
+      .h2 { font: 700 29px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #0F172A; letter-spacing: 0; }
+      .h3 { font: 700 23px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111827; letter-spacing: 0; }
+      .body { font: 500 18px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #475569; letter-spacing: 0; }
+      .small { font: 600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #64748B; letter-spacing: 0; }
+      .chip { font: 700 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #334155; letter-spacing: 0; }
+      .line { stroke: #475569; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+      .softline { stroke: #64748B; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 7 10; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1120" fill="#F8FAFC"/>
+
+  <text class="title" x="800" y="76" text-anchor="middle">System Architecture</text>
+  <text class="subtitle" x="800" y="116" text-anchor="middle">Three entry surfaces, one Molly service, isolated playground sandboxes, persisted state</text>
+
+  <g filter="url(#shadow)">
+    <rect x="110" y="155" width="345" height="132" rx="22" fill="url(#entryA)" stroke="#5EEAD4" stroke-width="2"/>
+  </g>
+  <rect x="144" y="190" width="56" height="56" rx="16" fill="#0F766E"/>
+  <path d="M159 203H185V233H159V203ZM167 240H177" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="h3" x="222" y="210">Chrome Extension</text>
+  <text class="body" x="222" y="240">visual in-flow requests</text>
+
+  <g filter="url(#shadow)">
+    <rect x="628" y="155" width="344" height="132" rx="22" fill="url(#entryB)" stroke="#C4B5FD" stroke-width="2"/>
+  </g>
+  <rect x="662" y="190" width="56" height="56" rx="16" fill="#6D28D9"/>
+  <path d="M676 207H704V229H676V207ZM684 239H696" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="h3" x="740" y="210">Playground App</text>
+  <text class="body" x="740" y="240">chat, preview, job cards</text>
+
+  <g filter="url(#shadow)">
+    <rect x="1145" y="155" width="345" height="132" rx="22" fill="url(#entryC)" stroke="#FDBA74" stroke-width="2"/>
+  </g>
+  <rect x="1179" y="190" width="56" height="56" rx="16" fill="#D97706"/>
+  <path d="M1193 210H1221V230H1209L1202 238V230H1193V210Z" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="h3" x="1257" y="210">Slack Chat</text>
+  <text class="body" x="1257" y="240">thread-based Molly jobs</text>
+
+  <path class="line" d="M283 287V330"/>
+  <path class="line" d="M800 287V330"/>
+  <path class="line" d="M1318 287V330"/>
+  <path class="line" d="M283 330H1318"/>
+  <path class="line" d="M800 330V351" marker-end="url(#arrow)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="420" y="365" width="760" height="300" rx="28" fill="url(#molly)" stroke="#93C5FD" stroke-width="2"/>
+  </g>
+  <g transform="translate(455 382) scale(1.26)">
+    <path d="M48 15V27" stroke="#1D4ED8" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="48" cy="12" r="13" fill="#60A5FA" stroke="#2563EB" stroke-width="2"/>
+    <path d="M13 53C13 29 28 18 48 18C68 18 83 29 83 53V59C83 78 68 88 48 88C28 88 13 78 13 59V53Z" fill="#3B82F6" stroke="#2563EB" stroke-width="2"/>
+    <path d="M22 43C28 31 38 26 48 26C58 26 68 31 74 43" stroke="#93C5FD" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+    <rect x="3" y="50" width="17" height="39" rx="9" fill="#EAF2FF" stroke="#CBD5E1" stroke-width="2"/>
+    <rect x="76" y="50" width="17" height="39" rx="9" fill="#EAF2FF" stroke="#CBD5E1" stroke-width="2"/>
+    <rect x="17" y="42" width="62" height="42" rx="21" fill="#101828" stroke="#F8FAFC" stroke-width="4"/>
+    <text x="48" y="38" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="800" fill="#FFFFFF">molly</text>
+    <rect x="30" y="56" width="9" height="18" rx="5" fill="#BAE6FD"/>
+    <rect x="57" y="56" width="9" height="18" rx="5" fill="#BAE6FD"/>
+    <path d="M42 73C45 78 51 78 54 73" stroke="#BAE6FD" stroke-width="4" stroke-linecap="round"/>
+    <path d="M26 70L22 75M70 70L66 75" stroke="#F0A3C4" stroke-width="3" stroke-linecap="round"/>
+  </g>
+  <text class="h2" x="590" y="430">Molly Orchestrator</text>
+  <text class="body" x="590" y="462">single Node service shared by all entry surfaces</text>
+
+  <rect x="500" y="514" width="280" height="92" rx="18" fill="#FFFFFF" stroke="#BFDBFE"/>
+  <text class="chip" x="526" y="545">Intake classifier</text>
+  <text class="chip" x="526" y="575">Job FSM</text>
+  <text class="chip" x="632" y="575">Plan approval</text>
+
+  <rect x="820" y="514" width="280" height="92" rx="18" fill="#FFFFFF" stroke="#BFDBFE"/>
+  <text class="chip" x="846" y="545">Plan emitter</text>
+  <text class="chip" x="846" y="575">Decomposer</text>
+  <text class="chip" x="970" y="575">Reviewer + QA</text>
+
+  <rect x="662" y="622" width="276" height="34" rx="17" fill="#FFFFFF" stroke="#BFDBFE"/>
+  <text class="chip" x="800" y="644" text-anchor="middle">Task runner + promotion controller</text>
+
+  <g filter="url(#shadow)">
+    <rect x="90" y="430" width="280" height="164" rx="22" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+  </g>
+  <text class="h3" x="125" y="470">Human Gates</text>
+  <text class="body" x="125" y="510">Plan approval</text>
+  <text class="body" x="125" y="540">QA confirmation</text>
+
+  <g filter="url(#shadow)">
+    <rect x="1230" y="430" width="280" height="164" rx="22" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+  </g>
+  <text class="h3" x="1265" y="470">Inspect Hub Console</text>
+  <text class="body" x="1265" y="510">Jobs, metrics, settings</text>
+  <text class="body" x="1265" y="540">Runtime controls</text>
+
+  <path class="softline" d="M370 512H412"/>
+  <path class="softline" d="M1188 512H1230"/>
+
+  <path class="line" d="M800 665V720"/>
+  <path class="line" d="M260 720H1340"/>
+  <path class="line" d="M260 720V753" marker-end="url(#arrow)"/>
+  <path class="line" d="M590 720V753" marker-end="url(#arrow)"/>
+  <path class="line" d="M920 720V753" marker-end="url(#arrow)"/>
+  <path class="line" d="M1300 720V753" marker-end="url(#arrow)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="70" y="766" width="380" height="180" rx="24" fill="#FFFFFF" stroke="#5EEAD4" stroke-width="2"/>
+  </g>
+  <rect x="105" y="800" width="58" height="58" rx="18" fill="#0F766E"/>
+  <path d="M120 815H148M120 829H148M120 843H136" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round"/>
+  <text class="h3" x="185" y="825">Playground Sandbox</text>
+  <text class="body" x="105" y="886">Docker workspace per playground:</text>
+  <text class="body" x="105" y="916">product git tree, Vite, coding agent.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="500" y="766" width="300" height="180" rx="24" fill="#FFFFFF" stroke="#93C5FD" stroke-width="2"/>
+  </g>
+  <rect x="535" y="800" width="58" height="58" rx="18" fill="#2563EB"/>
+  <path d="M551 829C554 816 574 816 577 829C574 842 554 842 551 829Z" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="564" cy="829" r="4" fill="#FFFFFF"/>
+  <text class="h3" x="615" y="825">LLM APIs</text>
+  <text class="body" x="535" y="886">Anthropic / OpenAI providers</text>
+  <text class="body" x="535" y="916">for plan, chat, review, QA.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="850" y="766" width="300" height="180" rx="24" fill="#FFFFFF" stroke="#FDBA74" stroke-width="2"/>
+  </g>
+  <rect x="885" y="800" width="58" height="58" rx="18" fill="#D97706"/>
+  <path d="M899 819H929M899 832H929M899 845H918" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round"/>
+  <text class="h3" x="965" y="825">Persistent State</text>
+  <text class="body" x="885" y="886">Jobs, playgrounds, chat, pins,</text>
+  <text class="body" x="885" y="916">Slack map, analytics JSON.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="1200" y="766" width="330" height="180" rx="24" fill="#FFFFFF" stroke="#C4B5FD" stroke-width="2"/>
+  </g>
+  <rect x="1235" y="800" width="58" height="58" rx="18" fill="#6D28D9"/>
+  <path d="M1248 818H1280M1248 832H1280M1248 846H1268" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round"/>
+  <text class="h3" x="1315" y="825">DS Knowledge</text>
+  <text class="body" x="1235" y="886">JSON contracts, 112 components,</text>
+  <text class="body" x="1235" y="916">tokens, patterns, MCP access.</text>
+
+  <path class="line" d="M260 946V982" marker-end="url(#arrow)"/>
+  <g filter="url(#shadow)">
+    <rect x="70" y="996" width="380" height="80" rx="22" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+  </g>
+  <text class="h3" x="105" y="1030">Promotion Path</text>
+  <text class="body" x="105" y="1058">branch + GitHub PR after approval</text>
+
+  <text class="small" x="800" y="1098" text-anchor="middle">Molly coordinates the workflow; sandbox agents edit product code; state and telemetry survive process restarts.</text>
+</svg>
