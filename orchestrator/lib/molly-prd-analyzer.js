@@ -38,21 +38,46 @@ Cumulative context mode:
 - Once the accumulated context becomes clear, return clarity=clear with an empty clarifyingQuestion.`;
 
 /**
+ * Build a "Context: client=... route=... language=..." prefix from ctx fields.
+ * Returns '' (no prefix) when none of the three pass their truthiness rule.
+ * Cache-safe: only mutates user message, not the system prompt.
+ *
+ * Rules:
+ *   route   : non-empty string AND not '/' (root path is uninformative)
+ *   client  : non-empty string (sidepanel resolver sends null or real value)
+ *   language: non-empty string (BCP-47 code)
+ */
+function buildContextPrefix(ctx = {}) {
+  const tokens = [];
+  if (typeof ctx.client === 'string' && ctx.client.length > 0) {
+    tokens.push(`client=${ctx.client}`);
+  }
+  if (typeof ctx.routeOrPage === 'string' && ctx.routeOrPage.length > 0 && ctx.routeOrPage !== '/') {
+    tokens.push(`route=${ctx.routeOrPage}`);
+  }
+  if (typeof ctx.language === 'string' && ctx.language.length > 0) {
+    tokens.push(`language=${ctx.language}`);
+  }
+  return tokens.length > 0 ? `Context: ${tokens.join(' ')}\n` : '';
+}
+
+/**
  * Build the PRD analyzer's user message — cumulative history + current text.
  * Extracted for testability (label invariants).
  *
  * @param {string} text — PRD body (post mention-strip cleanup)
- * @param {object} [ctx] — { history: Array<{role, content}> }
+ * @param {object} [ctx] — { history, client?, routeOrPage?, language? }
  */
 export function buildPrdUserMessage(text, ctx = {}) {
+  const contextPrefix = buildContextPrefix(ctx);
   const history = Array.isArray(ctx.history) ? ctx.history : [];
   if (history.length > 0) {
     const turns = history
       .map((t) => `${t.role === 'user' ? 'user' : 'molly'}: ${(t.content || '').slice(0, 500)}`)
       .join('\n');
-    return `Previous conversation:\n${turns}\n\nUser's current reply / additional info:\n${text}\n\nUsing the accumulated context above, determine whether the PRD is now clear.`;
+    return `${contextPrefix}Previous conversation:\n${turns}\n\nUser's current reply / additional info:\n${text}\n\nUsing the accumulated context above, determine whether the PRD is now clear.`;
   }
-  return `PRD candidate:\n${text}\n\nPlease analyze.`;
+  return `${contextPrefix}PRD candidate:\n${text}\n\nPlease analyze.`;
 }
 
 /**
@@ -69,6 +94,16 @@ export async function analyzePrdClarity(text, ctx = {}) {
   // question. All user turns + the current answer are combined so the system
   // prompt's "cumulative context mode" activates.
   const userMessage = buildPrdUserMessage(text, ctx);
+  // Flags mirror buildContextPrefix() truthiness rules — used by recordEvent
+  // so paired before/after measurement can group by what the prd-analyzer saw.
+  const contextFlags = {
+    client: typeof ctx.client === 'string' && ctx.client.length > 0,
+    route:
+      typeof ctx.routeOrPage === 'string' &&
+      ctx.routeOrPage.length > 0 &&
+      ctx.routeOrPage !== '/',
+    language: typeof ctx.language === 'string' && ctx.language.length > 0,
+  };
   const settings = getMollySettings();
   const thinkingBudget = settings.prdThinkingBudget;
   const useThinking = thinkingBudget > 0;
@@ -128,6 +163,9 @@ export async function analyzePrdClarity(text, ctx = {}) {
       clarity: 'fallback_clear',
       fallback_reason: `http_${resp.status}`,
       img_attached: imageBlock ? 1 : 0,
+      client_attached: contextFlags.client ? 1 : 0,
+      route_attached: contextFlags.route ? 1 : 0,
+      language_attached: contextFlags.language ? 1 : 0,
     });
     return { clarity: 'clear', clarifyingQuestion: '', missingInfo: [] };
   }
@@ -171,9 +209,19 @@ export async function analyzePrdClarity(text, ctx = {}) {
     has_history: Array.isArray(ctx.history) && ctx.history.length > 0,
     input_tokens: u.input_tokens ?? 0,
     output_tokens: u.output_tokens ?? 0,
+    // 2026-05-19 — F3b prereq (plan v3 §6.3 N2): persist cache metrics so the
+    // F3b gate (cache_read / (cache_read + cache_create) ratio drop ≤ 10pp)
+    // is measurable from molly-metrics ndjson.
+    cache_create: u.cache_creation_input_tokens ?? 0,
+    cache_read: u.cache_read_input_tokens ?? 0,
     img_attached: imageBlock ? 1 : 0,
     img_skip_reason: imageBlock ? null : (attachment ? attachmentInfo.reason : null),
     img_size_bytes: imageBlock ? (attachmentInfo.size ?? 0) : 0,
+    // F3a (plan v3 §6.3): per-token truthiness so paired before/after can
+    // segment by which Context fields the prd-analyzer actually saw.
+    client_attached: contextFlags.client ? 1 : 0,
+    route_attached: contextFlags.route ? 1 : 0,
+    language_attached: contextFlags.language ? 1 : 0,
   });
   return { clarity, clarifyingQuestion, missingInfo };
 }

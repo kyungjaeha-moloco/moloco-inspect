@@ -4343,6 +4343,11 @@
             history: mollyChatHistory.slice(),
             hasPendingPlan,
             pendingPlanSummary,
+            // 2026-05-19 — page context from already-resolved payload (the
+            // plan-gen path built it via resolveCapturePageContext above).
+            client: payload.client ?? null,
+            routeOrPage: payload.pagePath ?? null,
+            language: payload.language ?? null,
           }),
         });
         thinking.dismiss();
@@ -4462,6 +4467,71 @@
     return v !== ''; // '' = stateless; '__auto__' or real id = job mode
   }
 
+  // 3-way precedence (capture > liveContext > currentElement) for the four
+  // page-context fields both intake (/api/intake) and plan generation
+  // (/api/change-request) need. Extracted from the plan-gen path so the two
+  // call sites do not drift. Component-level fields (component/file/line/
+  // testId/styles) remain plan-gen-only and are not returned here.
+  function resolveCapturePageContext({ selectedCapture, currentElement, livePageContext }) {
+    const capturePageUrl = selectedCapture && selectedCapture.rect ? selectedCapture.rect.pageUrl : null;
+    const shouldPreferCaptureContext =
+      !!capturePageUrl &&
+      !!currentElement &&
+      !!currentElement.pageUrl &&
+      capturePageUrl !== currentElement.pageUrl;
+
+    const shouldPreferLivePageContext =
+      !!livePageContext &&
+      !!livePageContext.pagePath &&
+      !shouldPreferCaptureContext &&
+      (
+        !currentElement ||
+        !currentElement.pagePath ||
+        livePageContext.pagePath !== currentElement.pagePath
+      );
+
+    const resolvedPageUrl = shouldPreferCaptureContext
+      ? capturePageUrl
+      : shouldPreferLivePageContext
+        ? livePageContext.pageUrl || null
+      : (currentElement && currentElement.pageUrl) ||
+        (livePageContext && livePageContext.pageUrl) ||
+        capturePageUrl ||
+        null;
+    const resolvedPagePath = shouldPreferCaptureContext
+      ? (selectedCapture && selectedCapture.rect ? selectedCapture.rect.pagePath : null)
+      : shouldPreferLivePageContext
+        ? livePageContext.pagePath || null
+      : (currentElement && currentElement.pagePath) ||
+        (livePageContext && livePageContext.pagePath) ||
+        (selectedCapture && selectedCapture.rect ? selectedCapture.rect.pagePath : null) ||
+        null;
+    const resolvedClient = shouldPreferCaptureContext
+      ? (selectedCapture && selectedCapture.rect ? selectedCapture.rect.client : null)
+      : shouldPreferLivePageContext
+        ? livePageContext.client || null
+      : (currentElement && currentElement.client) ||
+        (livePageContext && livePageContext.client) ||
+        (selectedCapture && selectedCapture.rect ? selectedCapture.rect.client : null) ||
+        null;
+    const resolvedLanguage = shouldPreferCaptureContext
+      ? (selectedCapture && selectedCapture.rect ? selectedCapture.rect.language : null)
+      : shouldPreferLivePageContext
+        ? livePageContext.language || null
+      : (currentElement && currentElement.language) ||
+        (livePageContext && livePageContext.language) ||
+        (selectedCapture && selectedCapture.rect ? selectedCapture.rect.language : null) ||
+        null;
+
+    return {
+      resolvedPageUrl,
+      resolvedPagePath,
+      resolvedClient,
+      resolvedLanguage,
+      shouldPreferCaptureContext,
+    };
+  }
+
   async function submit() {
     const text = promptInput.value.trim();
     if (!text) return;
@@ -4503,6 +4573,16 @@
         // plan_feedback (2026-05-11) — notify the classifier if an active plan_items card exists.
         const hasPendingPlan = !!activePlanItemsCard;
         const pendingPlanSummary = activePlanItemsCard?.getPlan?.()?.summary ?? null;
+        // 2026-05-19 — forward page context so prd-analyzer can disambiguate
+        // "which page contains this UI" when only a screenshot was attached.
+        // Same precedence (capture > liveContext > currentElement) used by the
+        // plan-generation path below so the two surfaces stay in sync.
+        const intakeLivePageContext = await getLivePageContext();
+        const intakeResolved = resolveCapturePageContext({
+          selectedCapture,
+          currentElement,
+          livePageContext: intakeLivePageContext,
+        });
         const r = await fetch(`${baseUrl}/api/intake`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -4514,6 +4594,9 @@
             pendingPlanSummary,
             selectionScreenshotDataUrl: selectedCapture ? selectedCapture.imageDataUrl : null,
             selectionRect: selectedCapture ? selectedCapture.rect : null,
+            client: intakeResolved.resolvedClient,
+            routeOrPage: intakeResolved.resolvedPagePath,
+            language: intakeResolved.resolvedLanguage,
           }),
         });
         thinking.dismiss();
@@ -4613,55 +4696,13 @@
     lastSubmitAt = now;
 
     const livePageContext = await getLivePageContext();
-    const capturePageUrl = selectedCapture && selectedCapture.rect ? selectedCapture.rect.pageUrl : null;
-    const shouldPreferCaptureContext =
-      !!capturePageUrl &&
-      !!currentElement &&
-      !!currentElement.pageUrl &&
-      capturePageUrl !== currentElement.pageUrl;
-
-    const shouldPreferLivePageContext =
-      !!livePageContext &&
-      !!livePageContext.pagePath &&
-      !shouldPreferCaptureContext &&
-      (
-        !currentElement ||
-        !currentElement.pagePath ||
-        livePageContext.pagePath !== currentElement.pagePath
-      );
-
-    const resolvedPageUrl = shouldPreferCaptureContext
-      ? capturePageUrl
-      : shouldPreferLivePageContext
-        ? livePageContext.pageUrl || null
-      : (currentElement && currentElement.pageUrl) ||
-        (livePageContext && livePageContext.pageUrl) ||
-        capturePageUrl ||
-        null;
-    const resolvedPagePath = shouldPreferCaptureContext
-      ? (selectedCapture && selectedCapture.rect ? selectedCapture.rect.pagePath : null)
-      : shouldPreferLivePageContext
-        ? livePageContext.pagePath || null
-      : (currentElement && currentElement.pagePath) ||
-        (livePageContext && livePageContext.pagePath) ||
-        (selectedCapture && selectedCapture.rect ? selectedCapture.rect.pagePath : null) ||
-        null;
-    const resolvedClient = shouldPreferCaptureContext
-      ? (selectedCapture && selectedCapture.rect ? selectedCapture.rect.client : null)
-      : shouldPreferLivePageContext
-        ? livePageContext.client || null
-      : (currentElement && currentElement.client) ||
-        (livePageContext && livePageContext.client) ||
-        (selectedCapture && selectedCapture.rect ? selectedCapture.rect.client : null) ||
-        null;
-    const resolvedLanguage = shouldPreferCaptureContext
-      ? (selectedCapture && selectedCapture.rect ? selectedCapture.rect.language : null)
-      : shouldPreferLivePageContext
-        ? livePageContext.language || null
-      : (currentElement && currentElement.language) ||
-        (livePageContext && livePageContext.language) ||
-        (selectedCapture && selectedCapture.rect ? selectedCapture.rect.language : null) ||
-        null;
+    const {
+      resolvedPageUrl,
+      resolvedPagePath,
+      resolvedClient,
+      resolvedLanguage,
+      shouldPreferCaptureContext,
+    } = resolveCapturePageContext({ selectedCapture, currentElement, livePageContext });
     const resolvedComponent = shouldPreferCaptureContext ? null : (currentElement ? currentElement.component : null);
     const resolvedFile = shouldPreferCaptureContext ? null : (currentElement ? currentElement.file : null);
     const resolvedLine = shouldPreferCaptureContext ? null : (currentElement ? currentElement.line : null);
