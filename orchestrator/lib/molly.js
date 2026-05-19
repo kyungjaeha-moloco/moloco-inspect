@@ -1473,7 +1473,41 @@ function getPlanItemsContext(channel, threadTs, msgTs) {
   return v;
 }
 
+// Slack-side "Original PRD" echo — posted once, right before the plan card.
+// Lets the user re-read the PRD they sent (and any clarification answers they
+// folded in) without scrolling back through the thread. Replan reuses the
+// same plan-card message via chat.update, so this is initial-post-only.
+async function postOriginalPrdMessage({ client, channel, threadTs, cumulativePrd }) {
+  const prdText = String(cumulativePrd ?? '').trim();
+  if (!prdText) return;
+  const truncated = trunc(prdText, 2700);
+  // Escape Slack control chars first so PRD content can't be parsed as
+  // mentions / links / entities. The leading "> " we add ourselves is
+  // line-start so Slack still treats it as a quote marker.
+  const escaped = truncated
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const quoted = escaped.split('\n').map((l) => `> ${l}`).join('\n');
+  try {
+    await client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      text: '📝 Original PRD',
+      blocks: [
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: `*📝 Original PRD*\n${quoted}` },
+        },
+      ],
+    });
+  } catch (err) {
+    console.warn(`[molly] postOriginalPrdMessage failed: ${err.message?.slice(0, 120)}`);
+  }
+}
+
 async function postPlanItemsMessage({ client, channel, threadTs, plan, cumulativePrd, isFastTrack }) {
+  await postOriginalPrdMessage({ client, channel, threadTs, cumulativePrd });
   const blocks = buildPlanItemsBlocks(plan, isFastTrack);
   const result = await client.chat.postMessage({
     channel,

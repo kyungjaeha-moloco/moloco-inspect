@@ -2289,6 +2289,42 @@
   }
 
   /**
+   * Collapsible "Original PRD" block — used by plan card + job progress
+   * card so the user can re-read what they sent at any moment without
+   * scrolling back through chat history.
+   */
+  function buildOriginalPrdDetails(prdText) {
+    if (!prdText) return null;
+    const details = document.createElement('details');
+    details.style.marginBottom = '8px';
+    details.style.padding = '6px 8px';
+    details.style.background = 'var(--bg-secondary, #f5f5f5)';
+    details.style.border = '1px solid var(--border-secondary, #e5e5e5)';
+    details.style.borderRadius = '4px';
+    const summary = document.createElement('summary');
+    summary.textContent = '📝 Original PRD';
+    summary.style.cursor = 'pointer';
+    summary.style.color = 'var(--text-muted, #888)';
+    summary.style.fontSize = '11px';
+    summary.style.userSelect = 'none';
+    details.appendChild(summary);
+    const pre = document.createElement('pre');
+    pre.style.marginTop = '6px';
+    pre.style.marginBottom = '0';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.wordBreak = 'break-word';
+    pre.style.fontFamily = 'inherit';
+    pre.style.fontSize = '12px';
+    pre.style.color = 'var(--text-primary, #222)';
+    pre.style.maxHeight = '240px';
+    pre.style.overflow = 'auto';
+    pre.style.lineHeight = '1.5';
+    pre.textContent = prdText;
+    details.appendChild(pre);
+    return details;
+  }
+
+  /**
    * Phase 2 / B Step 1: progress card for the unified Job pipeline.
    * Less detailed than the request-level card (no per-tool stepper)
    * — the Job pipeline already surfaces task-level progress in
@@ -2338,6 +2374,8 @@
     });
 
     bubble.appendChild(title);
+    const prdBlock = buildOriginalPrdDetails(payload?.userPrompt);
+    if (prdBlock) bubble.appendChild(prdBlock);
     bubble.appendChild(timer);
     bubble.appendChild(body);
     bubble.appendChild(meta);
@@ -2561,6 +2599,9 @@
       ? `📋 Plan (${(plan.plan_items || []).length} items) — ⚡ Fast track`
       : `📋 Plan (${(plan.plan_items || []).length} items)`;
     bubble.appendChild(title);
+
+    const prdBlock = buildOriginalPrdDetails(cumulativePrd);
+    if (prdBlock) bubble.appendChild(prdBlock);
 
     if (plan.summary) {
       const summary = document.createElement('div');

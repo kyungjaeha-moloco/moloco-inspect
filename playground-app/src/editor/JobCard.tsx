@@ -190,6 +190,45 @@ export function JobCard({ jobId }: { jobId: string }) {
         </div>
       </header>
 
+      {job.prdText && (
+        <details
+          style={{
+            marginBottom: 8,
+            padding: '6px 8px',
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-secondary)',
+            borderRadius: 4,
+          }}
+        >
+          <summary
+            style={{
+              cursor: 'pointer',
+              color: 'var(--text-secondary)',
+              fontSize: 11,
+              userSelect: 'none',
+            }}
+          >
+            📝 Original PRD
+          </summary>
+          <pre
+            style={{
+              marginTop: 6,
+              marginBottom: 0,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              fontFamily: 'inherit',
+              fontSize: 12,
+              color: 'var(--text-primary)',
+              maxHeight: 240,
+              overflow: 'auto',
+              lineHeight: 1.5,
+            }}
+          >
+            {job.prdText}
+          </pre>
+        </details>
+      )}
+
       {inTimeTravel && (
         <div
           style={{
