@@ -3160,40 +3160,6 @@ function PlanCard({
                   {item.description}
                 </div>
               )}
-              {item.targetFile && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--text-secondary)',
-                    marginTop: 4,
-                    fontFamily:
-                      'ui-monospace, SFMono-Regular, "Menlo", monospace',
-                    background: 'var(--bg-secondary)',
-                    padding: '3px 6px',
-                    borderRadius: 4,
-                    // File path line-break policy:
-                    // - Break at `/` boundaries whenever possible (insert wbr)
-                    // - Mid-word breaking (overflow-wrap:anywhere) only when a single segment
-                    //   exceeds the container width. Both cases ensure no overflow is clipped.
-                    overflowWrap: 'anywhere',
-                    wordBreak: 'normal',
-                    lineHeight: 1.4,
-                  }}
-                  title={item.targetFile}
-                >
-                  📄{' '}
-                  {item.targetFile.split('/').map((segment, i, arr) => (
-                    <span key={i}>
-                      {segment}
-                      {i < arr.length - 1 && (
-                        <>
-                          /<wbr />
-                        </>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              )}
               {item.patternId && (
                 <div
                   style={{

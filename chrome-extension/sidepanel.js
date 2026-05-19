@@ -2588,16 +2588,6 @@
         desc.textContent = p.description;
         li.appendChild(desc);
       }
-      if (p.target_file) {
-        const fileWrap = document.createElement('div');
-        fileWrap.style.marginTop = '2px';
-        const file = document.createElement('code');
-        file.style.fontSize = '10px';
-        file.style.color = 'var(--text-muted, #888)';
-        file.textContent = p.target_file;
-        fileWrap.appendChild(file);
-        li.appendChild(fileWrap);
-      }
       ol.appendChild(li);
     }
     bubble.appendChild(ol);

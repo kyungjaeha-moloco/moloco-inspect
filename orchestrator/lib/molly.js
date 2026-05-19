@@ -1641,10 +1641,9 @@ function buildPlanItemsBlocks(plan, isFastTrack) {
   items.forEach((p, i) => {
     const descRaw = p.description ? toSlackMrkdwn(trunc(p.description, 1000)) : '';
     const desc = descRaw ? `\n${descRaw}` : '';
-    const file = p.target_file ? `\n\`${p.target_file}\`` : '';
     blocks.push({
       type: 'section',
-      text: { type: 'mrkdwn', text: `*${i + 1}. ${toSlackMrkdwn(p.title || '(no title)')}*${desc}${file}` },
+      text: { type: 'mrkdwn', text: `*${i + 1}. ${toSlackMrkdwn(p.title || '(no title)')}*${desc}` },
     });
   });
   blocks.push({
