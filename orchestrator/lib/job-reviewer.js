@@ -16,6 +16,8 @@ const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
 const SYSTEM_PROMPT = `You are a code reviewer. Given a task description and the diff that landed for that task, decide whether the diff fulfils the task.
 
+**Before applying any rule below, scan the IMPORTANT FLAGS block at the top of the user message.** Rule 7 (design system check) is conditional on the \`is_new_build\` flag — see Rule 7.
+
 Rules:
 1. Output JSON only — one fenced \`\`\`json block, nothing else.
 2. \`verdict\` is exactly "pass" or "fail". No other values. No "needs-work", no "partial".
@@ -23,18 +25,27 @@ Rules:
 4. "fail" means: the diff is empty, touches unrelated files, breaks the stated intent, or is clearly incomplete (e.g. added a button but didn't wire its click handler).
 5. \`notes\` is one short sentence (≤150 chars) explaining the verdict. No verbose rationale.
 6. Do not invent issues. If you'd pass it in a normal PR review, pass it here.
-7. Design system check — fail if the diff introduces *new* hand-rolled UI that this codebase has a canonical equivalent for, e.g. raw \`<button>\` instead of \`MCButton2\` from \`@moloco/moloco-cloud-react-ui\`, raw \`<table><tr><td>\` instead of the table cell-renderer pattern under \`src/common/component/table/\`, hand-colored status pills instead of \`MCStatus\`, or hand-built modals instead of \`src/common/component/dialog/\`. Modifying existing raw markup is fine; *introducing* new raw markup when the codebase clearly already uses a wrapper is the failure mode. Note must explicitly call out which DS component should have been used.
+7. Design system check — **if IMPORTANT FLAGS shows \`is_new_build: true\`, skip this rule entirely** (the codebase has no DS equivalent for what this task introduces; hand-rolled markup is allowed for THIS task). Otherwise: fail if the diff introduces *new* hand-rolled UI that this codebase has a canonical equivalent for, e.g. raw \`<button>\` instead of \`MCButton2\` from \`@moloco/moloco-cloud-react-ui\`, raw \`<table><tr><td>\` instead of the table cell-renderer pattern under \`src/common/component/table/\`, hand-colored status pills instead of \`MCStatus\`, or hand-built modals instead of \`src/common/component/dialog/\`. Modifying existing raw markup is fine; *introducing* new raw markup when the codebase clearly already uses a wrapper is the failure mode. Note must explicitly call out which DS component should have been used.
+
+Severity (only when verdict="fail"):
+- \`severity: "critical"\` — security (auth / login / token / data leak / XSS / injection), runtime regression (build passes but the change breaks user-visible behavior), data integrity (incorrect mutation paths, missing nullability guards on hot paths), accessibility-blocking (focus trap broken on a modal, form input without label, focus management lost during route change).
+- \`severity: "warning"\` — DS-equivalent missed (Rule 7), inline style instead of design tokens, naming convention drift, a11y minor (label tweaks, role hints), pattern non-compliance that doesn't break behavior.
+- Default \`severity: "warning"\` when verdict="fail" and the diff doesn't fit a critical category. Pause-the-job behavior depends on this signal — a misclassified critical pauses the whole pipeline, a misclassified warning ships with a final-summary callout. Err on the side of "warning" unless the failure is plainly security / runtime / data / a11y-blocking.
 
 Schema:
 \`\`\`json
 { "verdict": "pass", "notes": "..." }
+\`\`\`
+or, on fail:
+\`\`\`json
+{ "verdict": "fail", "severity": "critical", "notes": "..." }
 \`\`\``;
 
 /**
- * @param {{ id: string, title: string, description: string }} task
+ * @param {{ id: string, title: string, description: string, isNewBuild?: boolean }} task
  * @param {string} diff
  * @param {{ model?: string, apiKey?: string }} [ctx]
- * @returns {Promise<{ verdict: 'pass' | 'fail', notes: string }>}
+ * @returns {Promise<{ verdict: 'pass' | 'fail', severity?: 'critical' | 'warning', notes: string }>}
  */
 export async function reviewTaskDiff(task, diff, ctx = {}) {
   // Empty-diff fast path: no need to spend an LLM call when there's
@@ -44,6 +55,7 @@ export async function reviewTaskDiff(task, diff, ctx = {}) {
   if (!diff || !diff.trim()) {
     return {
       verdict: 'fail',
+      severity: 'critical',
       notes: 'Empty diff — the task produced no code changes.',
     };
   }
@@ -55,10 +67,12 @@ export async function reviewTaskDiff(task, diff, ctx = {}) {
       ? process.env.SANDBOX_API_KEY
       : null);
   if (!apiKey) {
-    // Surface as a soft fail so the runner pauses — orchestrator op
-    // issue, not the user's task.
+    // Surface as a critical fail so the runner pauses — orchestrator op
+    // issue (no key), not the user's task. Default 'warning' would auto-
+    // progress silently and the user would never know review was skipped.
     return {
       verdict: 'fail',
+      severity: 'critical',
       notes: 'ANTHROPIC_API_KEY not configured on the orchestrator.',
     };
   }
@@ -73,7 +87,13 @@ export async function reviewTaskDiff(task, diff, ctx = {}) {
     ? `${diff.slice(0, DIFF_CAP)}\n\n[...truncated ${diff.length - DIFF_CAP} chars...]`
     : diff;
 
-  const userMessage = `Task: ${task.title}
+  // Plan v3 §4.8 — IMPORTANT FLAGS pinned to the top of the user message so
+  // the model can see them before scanning the diff. is_new_build gates Rule 7
+  // (design system check) per the SYSTEM_PROMPT directive.
+  const userMessage = `IMPORTANT FLAGS:
+- is_new_build: ${task.isNewBuild ? 'true' : 'false'}
+
+Task: ${task.title}
 
 Description:
 ${task.description}
@@ -114,13 +134,25 @@ ${capped}
     }
     const parsed = JSON.parse(rawJson);
     if (parsed.verdict !== 'pass' && parsed.verdict !== 'fail') {
-      return { verdict: 'fail', notes: `LLM returned unknown verdict: ${parsed.verdict}` };
+      return {
+        verdict: 'fail',
+        severity: 'warning',
+        notes: `LLM returned unknown verdict: ${parsed.verdict}`,
+      };
     }
     const notes = typeof parsed.notes === 'string' ? parsed.notes.slice(0, 200) : '';
-    return { verdict: parsed.verdict, notes };
+    if (parsed.verdict === 'pass') {
+      return { verdict: 'pass', notes };
+    }
+    // verdict === 'fail' — extract severity. Default to 'warning' when missing
+    // or unknown so the runner doesn't pause the whole pipeline on a model that
+    // ignored the new field. Plan v3 §4.1 — only 'critical' pauses.
+    const severity = parsed.severity === 'critical' ? 'critical' : 'warning';
+    return { verdict: 'fail', severity, notes };
   } catch (err) {
     return {
       verdict: 'fail',
+      severity: 'warning',
       notes: `reviewer error: ${err instanceof Error ? err.message : String(err)}`,
     };
   }

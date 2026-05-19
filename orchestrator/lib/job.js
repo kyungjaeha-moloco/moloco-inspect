@@ -152,6 +152,7 @@ function planItemsToTasks(planItems) {
       description: p.description ?? '',
       targetFile: p.target_file ?? null,
       patternId: p.pattern_id ?? null,
+      isNewBuild: !!p.is_new_build,
       dependsOn: [],
       status: /** @type {import('./job-state.js').TaskStatus} */ ('pending'),
       attempt: 0,
