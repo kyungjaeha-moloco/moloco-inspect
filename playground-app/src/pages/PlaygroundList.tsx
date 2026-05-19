@@ -112,7 +112,7 @@ export function PlaygroundList() {
       <div style={containerStyle}>
         <header style={headerStyle}>
           <div style={{ minWidth: 0 }}>
-            <h1 style={titleStyle}>Playgrounds</h1>
+            <h1 style={titleStyle}>Moloco Inspect</h1>
             <p style={subtitleStyle}>
               {projects.length > 0 ? (
                 <>
