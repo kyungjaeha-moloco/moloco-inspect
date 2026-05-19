@@ -3955,7 +3955,7 @@ Generate 2 variations (v2, v3).`;
   }
 
   const jobMatch = pathname.match(
-    /^\/api\/job\/([a-zA-Z0-9_-]+)(?:\/(decompose|tasks|approve-plan|retry-task|accept-task|skip-task|unblock-task|cancel|resume|mark-qa-pass|rerun-qa))?$/,
+    /^\/api\/job\/([a-zA-Z0-9_-]+)(?:\/(decompose|tasks|approve-plan|retry-task|accept-task|skip-task|unblock-task|cancel|resume|mark-qa-pass|rerun-qa|followup-suggestions))?$/,
   );
   if (jobMatch) {
     const [, jobId, action] = jobMatch;
@@ -4131,6 +4131,43 @@ Generate 2 variations (v2, v3).`;
           const body = await parseBody(req);
           updated = resumeJob(jobId, body?.target ?? 'delegating');
           runJobInBackground(jobId);
+        }
+        else if (action === 'followup-suggestions') {
+          // Plan v3 §4.4 G6 — lazy follow-up PRD suggestions. Cached on the
+          // job object after the first successful call so all 3 surfaces
+          // (and re-opens of the same surface) get the same text. Empty
+          // suggestions list when warningCount=0 (LLM skipped per §I2).
+          const job = getJob(jobId);
+          if (!job) return json(res, 404, { ok: false, error: 'job not found' });
+          if (Array.isArray(job.followupSuggestions)) {
+            return json(res, 200, {
+              ok: true,
+              suggestions: job.followupSuggestions,
+              cached: true,
+              generatedAt: job.followupSuggestionsGeneratedAt ?? null,
+            });
+          }
+          const summary = buildJobSummary(job);
+          const { generateFollowupSuggestions } = await import('./lib/job-followup.js');
+          const { setJobFollowupSuggestions } = await import('./lib/job.js');
+          let suggestions = [];
+          try {
+            suggestions = await generateFollowupSuggestions(summary);
+          } catch (err) {
+            console.warn('[followup-suggestions] generate error:', err?.message);
+            suggestions = [];
+          }
+          try {
+            setJobFollowupSuggestions(jobId, suggestions);
+          } catch (err) {
+            console.warn('[followup-suggestions] cache write error:', err?.message);
+          }
+          return json(res, 200, {
+            ok: true,
+            suggestions,
+            cached: false,
+            generatedAt: Date.now(),
+          });
         }
         return json(res, 200, { ok: true, job: updated });
       } catch (err) {

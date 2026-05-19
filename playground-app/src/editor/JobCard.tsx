@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type {
+  FollowupSuggestion,
   Job,
   JobTask,
   QaStrategyId,
@@ -34,6 +35,7 @@ import {
   redecomposeJob,
   markQaPass,
   rerunJobQa,
+  postFollowupSuggestions,
 } from '../services/orchestrator-client';
 import {
   subscribeAgentStream,
@@ -67,7 +69,15 @@ function useAgentStream(
   return snap;
 }
 
-export function JobCard({ jobId }: { jobId: string }) {
+export function JobCard({
+  jobId,
+  onSendFollowup,
+}: {
+  jobId: string;
+  /** Plan v3 §4.4 G7 — fires a new PRD into the same chat thread with the
+   * suggestion text. AIPanel passes its `sendPrompt` here. */
+  onSendFollowup?: (text: string) => void;
+}) {
   const navigate = useNavigate();
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -521,7 +531,7 @@ export function JobCard({ jobId }: { jobId: string }) {
         )}
       </footer>
 
-      <FinalSummarySection job={job} />
+      <FinalSummarySection job={job} onSendFollowup={onSendFollowup} />
 
       {error && (
         <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-danger, #d33)' }}>
@@ -541,13 +551,50 @@ export function JobCard({ jobId }: { jobId: string }) {
  * First-time inline notice (G1b) explains the auto-progress paradigm so users
  * who haven't seen it before don't assume a clean ✅ run means problem-free.
  */
-function FinalSummarySection({ job }: { job: Job }) {
+function FinalSummarySection({
+  job,
+  onSendFollowup,
+}: {
+  job: Job;
+  onSendFollowup?: (text: string) => void;
+}) {
   const summary = job.summary;
   // Show when job is complete OR there's at least one warning to surface
   // mid-run. paused (build error) jobs with warnings also benefit.
   const visible =
     !!summary &&
     (job.status === 'complete' || (summary.warningCount ?? 0) > 0);
+
+  // Plan v3 §4.4 G6 — lazy fetch follow-up suggestions on first surface view.
+  // The orchestrator caches per-job so subsequent visits skip the LLM call.
+  const [followups, setFollowups] = useState<FollowupSuggestion[] | null>(
+    job.followupSuggestions ?? null,
+  );
+  const [followupsLoading, setFollowupsLoading] = useState(false);
+  const [followupsError, setFollowupsError] = useState<string | null>(null);
+  const followupKick = visible && summary && summary.warningCount > 0 && followups === null;
+  useEffect(() => {
+    if (!followupKick) return;
+    let cancelled = false;
+    setFollowupsLoading(true);
+    setFollowupsError(null);
+    postFollowupSuggestions(job.id)
+      .then((next) => {
+        if (cancelled) return;
+        setFollowups(next);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setFollowupsError(err instanceof Error ? err.message : String(err));
+        setFollowups([]); // unblock the placeholder
+      })
+      .finally(() => {
+        if (!cancelled) setFollowupsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [followupKick, job.id]);
   // Local-storage based onboarding flag — Plan v3 G1b. localStorage is
   // sufficient for the 시범 단계 (1-2 users); future plan can swap for a
   // server-side per-user flag if multiple devices need to share state.
@@ -707,19 +754,65 @@ function FinalSummarySection({ job }: { job: Job }) {
         </div>
       )}
 
-      <div
-        style={{
-          marginTop: 12,
-          padding: '8px 10px',
-          fontSize: 11,
-          color: 'var(--text-tertiary)',
-          background: 'var(--bg-secondary)',
-          border: '1px dashed var(--border-secondary)',
-          borderRadius: 6,
-        }}
-      >
-        💡 후속 작업 제안은 Phase 3 에서 추가됩니다.
-      </div>
+      {summary.warningCount > 0 && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: '8px 10px',
+            fontSize: 11,
+            color: 'var(--text-tertiary)',
+            background: 'var(--bg-secondary)',
+            border: '1px dashed var(--border-secondary)',
+            borderRadius: 6,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
+          <div>💡 후속 작업 제안</div>
+          {followupsLoading && (
+            <div style={{ fontStyle: 'italic' }}>제안을 정리하는 중…</div>
+          )}
+          {followupsError && (
+            <div style={{ color: 'var(--error)' }}>
+              제안 생성에 실패했습니다 — 새 PRD를 직접 입력해 주세요.
+            </div>
+          )}
+          {!followupsLoading && followups && followups.length === 0 && !followupsError && (
+            <div style={{ fontStyle: 'italic' }}>
+              제안할 후속 작업이 없습니다 — 새 PRD를 직접 입력하세요.
+            </div>
+          )}
+          {!followupsLoading && followups && followups.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {followups.map((s, i) => (
+                <button
+                  key={`${i}-${s.text}`}
+                  type="button"
+                  onClick={() => {
+                    if (!onSendFollowup) return;
+                    onSendFollowup(s.text);
+                  }}
+                  disabled={!onSendFollowup}
+                  title={onSendFollowup ? '클릭 시 새 PRD로 전송됩니다.' : '새 PRD 전송 핸들러 미연결'}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    border: '1px solid var(--border-primary)',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    borderRadius: 999,
+                    cursor: onSendFollowup ? 'pointer' : 'not-allowed',
+                    opacity: onSendFollowup ? 1 : 0.6,
+                  }}
+                >
+                  ↗ {s.text}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }

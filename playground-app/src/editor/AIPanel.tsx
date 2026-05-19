@@ -1292,6 +1292,7 @@ export const AIPanel = React.memo(function AIPanel({
                     onRedecomposePlan={(feedback) => redecomposePlan(m, feedback)}
                     onCheckoutCommit={handleCheckoutCommit}
                     onRestoreToSha={handleRestoreToSha}
+                    onSendFollowup={(text) => { void sendPrompt(text); }}
                   />,
                 );
               });
@@ -2598,6 +2599,7 @@ function MessageRow({
   onRedecomposePlan,
   onCheckoutCommit,
   onRestoreToSha,
+  onSendFollowup,
   // Kept in the prop list for plan v3 (DS missing AI judge governance) to
   // pick back up; the field is no longer consumed inside MessageRow now
   // that the 4-option MissingComponentCard render is gated off.
@@ -2615,6 +2617,8 @@ function MessageRow({
   onRedecomposePlan: (feedback: string) => Promise<void>;
   onCheckoutCommit: (sha: string) => void;
   onRestoreToSha: (sha: string, labelHint?: string) => void;
+  /** Plan v3 §4.4 G7 — fires a clicked follow-up suggestion as a new PRD. */
+  onSendFollowup?: (text: string) => void;
   /** PRD source for the DS-missing card (most recent prior user message). */
   priorUserContent?: string;
 }) {
@@ -2691,7 +2695,9 @@ function MessageRow({
         />
       )}
 
-      {message.jobId && <JobCard jobId={message.jobId} />}
+      {message.jobId && (
+        <JobCard jobId={message.jobId} onSendFollowup={onSendFollowup} />
+      )}
     </div>
   );
 }

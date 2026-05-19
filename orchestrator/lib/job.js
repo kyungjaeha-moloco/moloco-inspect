@@ -369,6 +369,26 @@ export function setJobStatus(id, next, opts = {}) {
 }
 
 /**
+ * Plan v3 §4.4 G6 — cache the LLM-generated follow-up suggestions on the job
+ * object so subsequent surfaces (Slack post-event, Playground refresh, Chrome
+ * ext re-open) skip the LLM call. Stored verbatim including the `generatedAt`
+ * stamp for telemetry.
+ *
+ * @param {string} id
+ * @param {Array<{ text: string, intent_hint: string }>} suggestions
+ * @returns {Job}
+ */
+export function setJobFollowupSuggestions(id, suggestions) {
+  const job = getJob(id);
+  if (!job) throw new Error(`job not found: ${id}`);
+  job.followupSuggestions = Array.isArray(suggestions) ? suggestions : [];
+  job.followupSuggestionsGeneratedAt = nowMs();
+  job.updatedAt = nowMs();
+  persist(job);
+  return job;
+}
+
+/**
  * @param {string} jobId
  * @param {string} taskId
  * @param {TaskStatus} next

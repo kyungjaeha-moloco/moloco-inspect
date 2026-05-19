@@ -849,8 +849,39 @@ export interface Job {
    * Optional — multi-page or backend-only jobs leave this unset.
    */
   targetRoute?: string;
+  /** Plan v3 §4.4 G6 — cached follow-up PRD suggestions (1-3, ≤70 chars each).
+   * Populated by POST /api/job/:id/followup-suggestions; subsequent calls
+   * return the cached list. */
+  followupSuggestions?: FollowupSuggestion[];
+  followupSuggestionsGeneratedAt?: number;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface FollowupSuggestion {
+  text: string;
+  intent_hint: string;
+}
+
+export interface FollowupSuggestionsReply {
+  ok: boolean;
+  suggestions: FollowupSuggestion[];
+  cached?: boolean;
+  generatedAt?: number | null;
+  error?: string;
+}
+
+/**
+ * Plan v3 §4.4 G6 — lazy follow-up suggestions for the job final summary card.
+ * The orchestrator caches the first response per-jobId; subsequent calls are
+ * cheap. Returns empty list when warningCount=0 (LLM call skipped).
+ */
+export async function postFollowupSuggestions(jobId: string): Promise<FollowupSuggestion[]> {
+  const reply = await jobJson<FollowupSuggestionsReply>(
+    `/api/job/${encodeURIComponent(jobId)}/followup-suggestions`,
+    { method: 'POST' },
+  );
+  return reply.suggestions ?? [];
 }
 
 async function jobJson<T extends object>(
