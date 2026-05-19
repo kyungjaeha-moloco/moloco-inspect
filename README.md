@@ -11,11 +11,9 @@ This is the entire stack — orchestrator, surfaces, sandbox, design-system tool
 If you have ~5 minutes, read in this order:
 
 1. This file (you are here).
-2. [`docs/superpowers/handoffs/2026-05-20-plan-v3-shipped-and-phase-3-g6-g7.md`](./docs/superpowers/handoffs/2026-05-20-plan-v3-shipped-and-phase-3-g6-g7.md) — newest handoff, what shipped today.
-3. [`docs/superpowers/plans/2026-05-19-job-pipeline-auto-progress-and-final-summary.md`](./docs/superpowers/plans/2026-05-19-job-pipeline-auto-progress-and-final-summary.md) — the auto-progress paradigm in detail (v3 of the plan).
-4. [`docs/superpowers/plans/2026-05-19-ds-missing-ai-judge-governance.md`](./docs/superpowers/plans/2026-05-19-ds-missing-ai-judge-governance.md) — the DS-missing AI judge + governance queue.
-5. Browse [`docs/superpowers/handoffs/`](./docs/superpowers/handoffs/) — each handoff is a self-contained snapshot of one session's work; the most recent one always names its predecessor so the chain is traversable.
-6. Browse [`docs/superpowers/plans/`](./docs/superpowers/plans/) — every non-trivial change ships with a written plan reviewed by a critic agent before code lands.
+2. [`docs/superpowers/plans/2026-05-19-job-pipeline-auto-progress-and-final-summary.md`](./docs/superpowers/plans/2026-05-19-job-pipeline-auto-progress-and-final-summary.md) — the auto-progress paradigm in detail (v3 of the plan).
+3. [`docs/superpowers/plans/2026-05-19-ds-missing-ai-judge-governance.md`](./docs/superpowers/plans/2026-05-19-ds-missing-ai-judge-governance.md) — the DS-missing AI judge + governance queue.
+4. Browse [`docs/superpowers/plans/`](./docs/superpowers/plans/) — every non-trivial change ships with a written plan reviewed by a critic agent before code lands.
 
 If you only want to see it running, skip to [Running locally](#running-locally) below.
 
@@ -185,9 +183,8 @@ cd playground-app      && pnpm install && pnpm dev   # :4180 Playground
 
 ## Documentation
 
-Living docs (each session ships a new handoff):
+Living docs:
 - [`docs/superpowers/plans/`](./docs/superpowers/plans/) — every non-trivial change has a plan here.
-- [`docs/superpowers/handoffs/`](./docs/superpowers/handoffs/) — most recent is the freshest view of the codebase.
 
 Older one-off references:
 - [Sandbox Architecture](./docs/SANDBOX_ARCHITECTURE.md)
