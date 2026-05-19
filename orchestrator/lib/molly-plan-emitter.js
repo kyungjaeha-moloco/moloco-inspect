@@ -18,6 +18,11 @@ import fs from 'node:fs';
 import { getMollySettings, buildThinkingConfig } from './molly-settings.js';
 import { recordEvent } from './molly-metrics.js';
 import { loadImageBlock, describeAttachment } from './image-attachment.js';
+import {
+  generateRefId,
+  enqueueGovernance,
+  runJudgeAndApply,
+} from './ds-escalation.js';
 
 export const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal.
 
@@ -378,6 +383,73 @@ ${feedback}
     );
   }
 
+  // Plan v3 (DS missing AI judge + governance) §4 — escalation routing.
+  // For every unresolved_components entry:
+  //   - similarity ≥ 0.5 → auto-adopt silently (no notice, AI uses closest_match)
+  //   - similarity < 0.5 → enqueue governance row + spawn judge in background,
+  //     attach an escalation_notice to the plan so the user surface can render
+  //     a 1-line "DS team notified" tag.
+  // The judge resolution happens async — the plan response ships immediately
+  // with the awaiting_judge ref_id so the user is never blocked (Q4=A).
+  const unresolvedList = Array.isArray(plan.unresolved_components) ? plan.unresolved_components : [];
+  const escalationNotices = [];
+  let escalationCount = { auto: 0, escalated: 0 };
+  for (const entry of unresolvedList) {
+    if (!entry || typeof entry !== 'object') continue;
+    const closest = entry.closest_match;
+    const similarity = typeof closest?.similarity_score === 'number' ? closest.similarity_score : 0;
+    const hasUsableClosest = !!closest?.name && similarity >= 0.5;
+    if (hasUsableClosest) {
+      escalationCount.auto += 1;
+      continue;
+    }
+    escalationCount.escalated += 1;
+    const refId = generateRefId();
+    try {
+      enqueueGovernance({
+        refId,
+        intent: entry.intent ?? '',
+        reason: entry.reason ?? null,
+        kind: entry.kind ?? null,
+        closestName: closest?.name ?? null,
+        closestSimilarity: typeof closest?.similarity_score === 'number' ? closest.similarity_score : null,
+        closestReasoning: closest?.reasoning ?? null,
+        prdSnippet: goal,
+        jobId: ctx?.jobId ?? null,
+        client,
+        route: routeOrPage,
+        surface: ctx?.surface ?? null,
+        user: ctx?.user ?? null,
+      });
+    } catch (err) {
+      console.warn(`[plan-emitter] enqueueGovernance failed: ${err?.message}`);
+    }
+    // Fire-and-forget the judge LLM. The promise resolves async; the plan
+    // response below ships without waiting. applyJudgeResult writes back into
+    // the same row when the call returns.
+    runJudgeAndApply(refId, {
+      intent: entry.intent ?? '',
+      reason: entry.reason ?? null,
+      closestName: closest?.name ?? null,
+      closestSimilarity: typeof closest?.similarity_score === 'number' ? closest.similarity_score : null,
+      closestReasoning: closest?.reasoning ?? null,
+      prdSnippet: goal,
+    }).catch((err) => {
+      console.warn(`[plan-emitter] runJudgeAndApply rejected (will sweep): ${err?.message}`);
+    });
+    escalationNotices.push({
+      ref_id: refId,
+      intent: entry.intent ?? '',
+      unresolved_kind: entry.kind ?? 'new_component',
+      closest_match: closest?.name ?? null,
+      closest_similarity: typeof closest?.similarity_score === 'number' ? closest.similarity_score : null,
+      // Initial status; the user surface can decide whether to render a
+      // tentative tag (awaiting_judge) or skip until the judge resolves.
+      status: 'awaiting_judge',
+    });
+  }
+  plan.escalation_notices = escalationNotices;
+
   const u = result?.usage || {};
   const imgLogPart = imageBlock
     ? `img_attached=1 size=${attachmentInfo.size ?? '?'}`
@@ -386,6 +458,7 @@ ${feedback}
     `[plan-emitter] Generated ${plan.plan_items?.length || 0} items for client=${client} route=${routeOrPage} | ` +
     `refs=${plan.referenced_components?.length ?? 'null'} unresolved=${plan.unresolved_components?.length ?? 'null'} | ` +
     `new_build=${newBuildCount}/${planItems.length} (ratio=${newBuildRatio.toFixed(2)}, corrections=${postProcessCorrections}) | ` +
+    `escalation=${escalationCount.escalated}/${unresolvedList.length} auto=${escalationCount.auto} | ` +
     `${imgLogPart} | ` +
     `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
     `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
@@ -408,6 +481,9 @@ ${feedback}
     new_build_count: newBuildCount,
     new_build_ratio: newBuildRatio,
     new_build_post_process_corrections: postProcessCorrections,
+    escalation_auto_adopt: escalationCount.auto,
+    escalation_escalated: escalationCount.escalated,
+    escalation_unresolved_total: unresolvedList.length,
   });
   return plan;
 }
