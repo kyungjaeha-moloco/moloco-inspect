@@ -1691,6 +1691,27 @@ function buildPlanItemsBlocks(plan, isFastTrack) {
       text: { type: 'mrkdwn', text: `*${i + 1}. ${toSlackMrkdwn(p.title || '(no title)')}*${newBuildTag}${desc}` },
     });
   });
+  // Plan v3 (DS missing AI judge + governance) — 1-line context per escalation.
+  // Silent auto-adopt rows are not in escalation_notices; only entries that
+  // crossed the similarity threshold appear here. The user is not blocked.
+  const notices = Array.isArray(plan.escalation_notices) ? plan.escalation_notices : [];
+  if (notices.length > 0) {
+    const noticeText = notices
+      .map((n) => {
+        const pct = typeof n.closest_similarity === 'number'
+          ? `${Math.round(n.closest_similarity * 100)}%`
+          : null;
+        const closestLabel = n.closest_match
+          ? `${n.closest_match}${pct ? ` (${pct} match)` : ''}`
+          : 'no close DS match';
+        return `💡 *${toSlackMrkdwn(n.intent)}* — proceeding with ${toSlackMrkdwn(closestLabel)}. DS team notified · \`${n.ref_id}\``;
+      })
+      .join('\n');
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: noticeText }],
+    });
+  }
   blocks.push({
     type: 'actions',
     elements: [

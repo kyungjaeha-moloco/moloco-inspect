@@ -33,6 +33,23 @@ export interface RawUnresolvedComponent {
   closest_match?: RawClosestMatch | string | null;
 }
 
+/**
+ * Plan v3 (DS missing AI judge + governance) — one-row pointer to a row that
+ * lives in the orchestrator-side governance queue. Sent on the plan response
+ * when an unresolved component fell below similarity threshold and was
+ * escalated to the DS owner. `status='awaiting_judge'` means the judge LLM is
+ * still running in the background; the row promotes to `pending` on success
+ * or stays `awaiting_judge` (eventually swept) on failure.
+ */
+export interface RawEscalationNotice {
+  ref_id: string;
+  intent: string;
+  unresolved_kind: UnresolvedKind | string;
+  closest_match: string | null;
+  closest_similarity: number | null;
+  status: 'awaiting_judge' | 'pending' | 'in_review' | 'resolved' | 'dismissed';
+}
+
 export interface RawPlan {
   intent: string;
   target?: { client?: string; route_or_page?: string };
@@ -41,6 +58,8 @@ export interface RawPlan {
   visual_constraints?: string[];
   plan_items: RawPlanItem[];
   unresolved_components?: RawUnresolvedComponent[];
+  /** Plan v3 — orchestrator-injected. Optional for backward compat. */
+  escalation_notices?: RawEscalationNotice[];
 }
 
 export type MissingChoiceKind = 'closest_match' | 'custom_build' | 'propose_new' | 'extend_existing';

@@ -2830,6 +2830,34 @@
     }
     bubble.appendChild(ol);
 
+    // Plan v3 (DS missing AI judge + governance) — render 1-line notice per
+    // escalated unresolved component. Silent auto-adopt (similarity ≥ 0.5) has
+    // no notice; only escalation rows surface here. The user is not blocked.
+    const notices = Array.isArray(plan.escalation_notices) ? plan.escalation_notices : [];
+    if (notices.length > 0) {
+      const noticeWrap = document.createElement('div');
+      noticeWrap.style.marginTop = '8px';
+      noticeWrap.style.padding = '6px 8px';
+      noticeWrap.style.fontSize = '11px';
+      noticeWrap.style.lineHeight = '1.5';
+      noticeWrap.style.color = 'var(--text-muted, #888)';
+      noticeWrap.style.background = 'var(--bg-subtle, rgba(0,0,0,0.03))';
+      noticeWrap.style.border = '1px dashed var(--border-muted, rgba(0,0,0,0.12))';
+      noticeWrap.style.borderRadius = '4px';
+      for (const n of notices) {
+        const row = document.createElement('div');
+        const pct = typeof n.closest_similarity === 'number'
+          ? `${Math.round(n.closest_similarity * 100)}%`
+          : null;
+        const closestLabel = n.closest_match
+          ? `${n.closest_match}${pct ? ` (${pct} match)` : ''}`
+          : 'no close DS match';
+        row.textContent = `💡 ${n.intent} — proceeding with ${closestLabel}. DS team notified · ${n.ref_id}`;
+        noticeWrap.appendChild(row);
+      }
+      bubble.appendChild(noticeWrap);
+    }
+
     // 3 buttons
     const actions = document.createElement('div');
     actions.style.display = 'flex';

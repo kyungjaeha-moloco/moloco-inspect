@@ -66,6 +66,21 @@ export interface PlanUnresolvedComponent {
   draftPreview?: string;
 }
 
+/**
+ * Plan v3 (DS missing AI judge + governance) — surface-side render hint for an
+ * escalation row that lives in the orchestrator governance queue. Plan card
+ * shows a single subtle line per notice with the ref_id so the user knows the
+ * DS team has been notified but the AI is proceeding anyway.
+ */
+export interface EscalationNotice {
+  refId: string;
+  intent: string;
+  unresolvedKind: 'new_component' | 'extension' | 'composition_miss' | string;
+  closestMatch: string | null;
+  closestSimilarity: number | null;
+  status: 'awaiting_judge' | 'pending' | 'in_review' | 'resolved' | 'dismissed';
+}
+
 export interface ExecutionState {
   requestId: string;
   status: 'processing' | 'preview' | 'approved' | 'error' | string;
@@ -108,6 +123,8 @@ export interface ChatMessage {
     items: PlanItem[];
     /** DS Escalation Slice A — unresolved DS gaps surfaced by the planner. */
     unresolvedComponents?: PlanUnresolvedComponent[];
+    /** Plan v3 — DS owner escalation pointers (governance queue refs). */
+    escalationNotices?: EscalationNotice[];
   };
   /** Plan has been accepted / rejected — dimmed or highlighted in UI. */
   planResolved?: 'accepted' | 'rejected';

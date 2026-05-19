@@ -9,6 +9,7 @@ import { useShallow } from 'zustand/react/shallow';
 import {
   usePlaygroundStore,
   type ChatMessage,
+  type EscalationNotice,
   type ExecutionState,
   type PlanItem,
   type PlanMeta,
@@ -3110,7 +3111,7 @@ function PlanCard({
   onReject,
   onRedecompose,
 }: {
-  plan: { meta: PlanMeta; items: PlanItem[] };
+  plan: { meta: PlanMeta; items: PlanItem[]; escalationNotices?: EscalationNotice[] };
   resolved?: 'accepted' | 'rejected';
   onToggleItem: (id: string) => void;
   onAccept: () => void;
@@ -3265,6 +3266,40 @@ function PlanCard({
           </li>
         ))}
       </ul>
+
+      {(plan.escalationNotices?.length ?? 0) > 0 && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: '8px 10px',
+            background: 'var(--bg-primary)',
+            border: '1px dashed var(--border-primary)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 11,
+            color: 'var(--text-tertiary)',
+            lineHeight: 1.5,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          {plan.escalationNotices!.map((n) => {
+            const pct =
+              typeof n.closestSimilarity === 'number'
+                ? `${Math.round(n.closestSimilarity * 100)}%`
+                : null;
+            const closestLabel = n.closestMatch
+              ? `${n.closestMatch}${pct ? ` (${pct} match)` : ''}`
+              : 'no close DS match';
+            return (
+              <div key={n.refId}>
+                💡 <code>{n.intent}</code> — proceeding with {closestLabel}. DS team
+                notified · <code>{n.refId}</code>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {!resolved ? (
         <>
@@ -4351,6 +4386,7 @@ function rawToPlan(raw: RawPlan): {
   meta: PlanMeta;
   items: PlanItem[];
   unresolvedComponents?: PlanUnresolvedComponent[];
+  escalationNotices?: EscalationNotice[];
 } {
   return {
     meta: {
@@ -4372,6 +4408,14 @@ function rawToPlan(raw: RawPlan): {
       enabled: true,
     })),
     unresolvedComponents: (raw.unresolved_components ?? []).map(normalizeUnresolvedComponent),
+    escalationNotices: (raw.escalation_notices ?? []).map((n) => ({
+      refId: n.ref_id,
+      intent: n.intent,
+      unresolvedKind: n.unresolved_kind,
+      closestMatch: n.closest_match,
+      closestSimilarity: n.closest_similarity,
+      status: n.status,
+    })),
   };
 }
 
