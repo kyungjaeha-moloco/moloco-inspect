@@ -283,10 +283,13 @@ export async function runJob(jobId, { adapter, reviewer, maxAttempts = 2, resear
       continue;
     }
 
-    // Adapter success → committed, stamp commitSha + baseSha.
+    // Adapter success → committed, stamp commitSha + baseSha + changedFiles.
     setTaskStatus(jobId, next.id, 'committed', {
       commitSha: adapterResult.commitSha,
       baseSha: adapterResult.baseSha,
+      changedFiles: Array.isArray(adapterResult.changedFiles)
+        ? adapterResult.changedFiles
+        : [],
     });
 
     // Review phase.

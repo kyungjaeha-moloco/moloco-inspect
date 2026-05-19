@@ -67,7 +67,23 @@ fs.mkdirSync(STATE_DIR, { recursive: true });
  * @property {string} [changeRequestId]
  * @property {string} [commitSha]
  * @property {string} [baseSha]
- * @property {{ verdict: 'pass' | 'fail', notes: string }} [review]
+ * @property {boolean} [isNewBuild]
+ * @property {string[]} [changedFiles]
+ * @property {{ verdict: 'pass' | 'fail', severity?: 'critical' | 'warning', notes: string, acceptedByUser?: boolean }} [review]
+ */
+
+/**
+ * @typedef {Object} JobSummary
+ * @property {number} total
+ * @property {number} reviewed
+ * @property {number} skipped
+ * @property {number} blocked
+ * @property {number} failed
+ * @property {number} pending
+ * @property {number} warningCount
+ * @property {Array<{ taskId: string, title: string, notes: string, commitSha?: string, isNewBuild: boolean, canRevert: boolean }>} warnings
+ * @property {string[]} changedFiles
+ * @property {string} [finalSha]
  */
 
 /**
@@ -222,6 +238,86 @@ export function createJob({ playgroundId, prdText, baselineHeadSha, autoApprove 
  */
 export function getJob(id) {
   return jobs.get(id);
+}
+
+/**
+ * Derive a JobSummary from the persisted job state. Pure function — recomputed
+ * on every API read, so the storage object stays lean and there's no race with
+ * setJobStatus / setTaskStatus persists (Momus I3 fix).
+ *
+ * @param {Job} job
+ * @returns {import('./job.js').JobSummary}
+ */
+export function buildJobSummary(job) {
+  const tasks = Array.isArray(job?.tasks) ? job.tasks : [];
+  const counts = {
+    total: tasks.length,
+    reviewed: 0,
+    skipped: 0,
+    blocked: 0,
+    failed: 0,
+    pending: 0,
+  };
+  for (const t of tasks) {
+    const s = t.status;
+    if (s === 'reviewed') counts.reviewed += 1;
+    else if (s === 'skipped') counts.skipped += 1;
+    else if (s === 'blocked') counts.blocked += 1;
+    else if (s === 'failed') counts.failed += 1;
+    else counts.pending += 1; // pending / running / committed / reviewing
+  }
+
+  // Plan v3 §4.6 — leaf-only canRevert pre-compute. A warning task `t` is
+  // revertable iff no later task in the plan_items order changed any file
+  // that `t` also changed. tasks are stored in plan_items order, which is
+  // a deterministic topological-ish layout from the planner.
+  const warnings = [];
+  for (let i = 0; i < tasks.length; i++) {
+    const t = tasks[i];
+    const isWarning =
+      t.status === 'reviewed' &&
+      t.review?.verdict === 'fail' &&
+      (t.review?.severity ?? 'warning') === 'warning';
+    if (!isWarning) continue;
+    const myFiles = new Set(t.changedFiles ?? []);
+    let conflictingLater = false;
+    for (let j = i + 1; j < tasks.length; j++) {
+      const laterFiles = tasks[j].changedFiles ?? [];
+      if (laterFiles.some((f) => myFiles.has(f))) {
+        conflictingLater = true;
+        break;
+      }
+    }
+    warnings.push({
+      taskId: t.id,
+      title: t.title,
+      notes: t.review?.notes ?? '',
+      commitSha: t.commitSha,
+      isNewBuild: !!t.isNewBuild,
+      canRevert: !conflictingLater && !!t.commitSha,
+    });
+  }
+
+  // Aggregate changedFiles across all tasks (deduped, sorted for stable UI).
+  const fileSet = new Set();
+  for (const t of tasks) {
+    for (const f of t.changedFiles ?? []) fileSet.add(f);
+  }
+
+  // finalSha = last committed task's sha. Iterating in order ensures we end on
+  // the most recent. Falls back to undefined if no tasks committed yet.
+  let finalSha;
+  for (const t of tasks) {
+    if (t.commitSha) finalSha = t.commitSha;
+  }
+
+  return {
+    ...counts,
+    warningCount: warnings.length,
+    warnings,
+    changedFiles: [...fileSet].sort(),
+    finalSha,
+  };
 }
 
 /**

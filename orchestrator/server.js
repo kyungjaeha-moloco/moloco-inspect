@@ -47,6 +47,7 @@ import {
   setJobTasks, approvePlan, retryTask, acceptTask, skipTask, unblockTask,
   cancelJob, resumeJob, setJobStatus, markQaPass, setTaskMeta, setQaStrategy,
   setTargetRoute, setQaAutoResult, setJobSlackContext, setJobRisks,
+  buildJobSummary,
 } from './lib/job.js';
 import { selectQaStrategy } from './lib/job-qa-strategist.js';
 import { formatBundleForPrompt } from './lib/job-research.js';
@@ -558,6 +559,11 @@ async function runChangeRequestForTask(args) {
     commitSha,
     baseSha,
     diff: cumulativeDiff,
+    // Plan v3 Phase 2 — propagate per-task changedFiles to the runner so the
+    // final summary's canRevert can be computed by intersecting per-task
+    // change sets without re-running git diff. Pipeline's `final.changedFiles`
+    // is already populated by collectDiff in the change-request flow.
+    changedFiles: Array.isArray(final.changedFiles) ? final.changedFiles : [],
   };
 }
 
@@ -3869,7 +3875,8 @@ Generate 2 variations (v2, v3).`;
     if (!action && req.method === 'GET') {
       const job = getJob(jobId);
       if (!job) return json(res, 404, { ok: false, error: 'job not found' });
-      return json(res, 200, { ok: true, job });
+      // Plan v3 Phase 2 — derive summary on each read (race-free, lean storage).
+      return json(res, 200, { ok: true, job: { ...job, summary: buildJobSummary(job) } });
     }
     if (action && req.method === 'POST') {
       try {
