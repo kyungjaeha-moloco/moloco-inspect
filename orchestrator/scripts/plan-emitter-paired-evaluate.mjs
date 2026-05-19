@@ -38,6 +38,9 @@ function evaluate(file) {
   let titleViolations = 0;
   let descriptionViolations = 0;
   let devRefsMissing = 0;
+  let totalNewBuild = 0;
+  let totalUnresolvedPrds = 0;
+  let unresolvedWithoutNewBuild = 0;
   const perPrd = [];
 
   for (const result of data.results) {
@@ -48,6 +51,8 @@ function evaluate(file) {
       titleFails: 0,
       descFails: 0,
       refsMissing: 0,
+      newBuildCount: 0,
+      unresolvedCount: 0,
     };
     if (!result.ok) {
       console.log(`[${result.id}] SKIPPED — emitPlan failed: ${result.error}`);
@@ -58,9 +63,23 @@ function evaluate(file) {
     const summary = result.plan?.summary ?? '';
     const refs = result.plan?.referenced_components ?? [];
     const unresolved = result.plan?.unresolved_components ?? [];
+    const newBuildItems = items.filter((it) => it?.is_new_build === true);
+    perPrdSummary.newBuildCount = newBuildItems.length;
+    perPrdSummary.unresolvedCount = unresolved.length;
+    totalNewBuild += newBuildItems.length;
+    if (unresolved.length > 0) {
+      totalUnresolvedPrds++;
+      // Plan v3 §4.7 — post-process must lift is_new_build to true on at least
+      // one item when unresolved_components is non-empty. If every item is
+      // is_new_build=false but unresolved>0, the safety net failed.
+      if (newBuildItems.length === 0) {
+        unresolvedWithoutNewBuild++;
+      }
+    }
     console.log(`[${result.id}] ${items.length} items — dt=${result.dt_ms}ms`);
     console.log(`  summary: ${summary.slice(0, 120)}${summary.length > 120 ? '…' : ''}`);
     console.log(`  schema dev refs: ${refs.length} referenced + ${unresolved.length} unresolved`);
+    console.log(`  is_new_build: ${newBuildItems.length}/${items.length} items flagged`);
     perPrdSummary.items = items.length;
 
     if (refs.length === 0 && unresolved.length === 0) {
@@ -122,8 +141,34 @@ function evaluate(file) {
       cleanPrds === totalOkPrds ? '✓ PASS' : '— partial'
     }`,
   );
+
+  // Plan v3 — is_new_build signal + safety-net audit.
+  const newBuildRatio = totalItems > 0 ? totalNewBuild / totalItems : 0;
+  console.log(
+    `is_new_build coverage: ${totalNewBuild}/${totalItems} items (${(newBuildRatio * 100).toFixed(1)}% ratio) ${
+      newBuildRatio > 0.5 ? '⚠ >50% — heuristic over-flagging' : '✓ within bounds'
+    }`,
+  );
+  console.log(
+    `Post-process safety net: ${
+      unresolvedWithoutNewBuild === 0
+        ? `✓ PASS — every PRD with unresolved>0 had at least one is_new_build:true item (${totalUnresolvedPrds} PRDs)`
+        : `❌ FAIL — ${unresolvedWithoutNewBuild}/${totalUnresolvedPrds} PRDs with unresolved>0 had no is_new_build:true items`
+    }`,
+  );
   console.log('');
-  return { totalItems, titleViolations, descriptionViolations, devRefsMissing, perPrd, cleanPrds, totalOkPrds };
+  return {
+    totalItems,
+    titleViolations,
+    descriptionViolations,
+    devRefsMissing,
+    perPrd,
+    cleanPrds,
+    totalOkPrds,
+    totalNewBuild,
+    newBuildRatio,
+    unresolvedWithoutNewBuild,
+  };
 }
 
 function main() {

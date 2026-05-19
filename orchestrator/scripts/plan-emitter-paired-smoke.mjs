@@ -67,6 +67,28 @@ const PRDS = [
     routeOrPage: '/oms/adgroup',
     language: 'ko',
   },
+  // Plan v3 §6.2 fixture — warning-heavy: brand-new feature page that has no
+  // DS equivalent in the codebase. plan-emitter should set is_new_build:true
+  // on the introduction items (page container, table row, dialog) and the
+  // post-process safety net should backstop any LLM miss when unresolved_components
+  // is populated.
+  {
+    id: 'traffic-control-new-page',
+    goal: 'Moloco Ads 사이드바 아래에 Traffic Control 라는 새 페이지를 통째로 만들어줘. 광고 단위 리스트 + 플랫폼별 슬라이더 위젯 + 제출 다이얼로그까지 처음부터 구현.',
+    client: 'tving',
+    routeOrPage: '/traffic-control',
+    language: 'ko',
+  },
+  // Plan v3 §6.2 fixture — zero-warning expected: small modification of an
+  // existing page using existing DS components. is_new_build should stay false
+  // on all items. Used to verify the followup-LLM-skip path (warningCount === 0).
+  {
+    id: 'campaign-column-reorder',
+    goal: '캠페인 리스트 테이블에서 "상태" 컬럼과 "광고 계정" 컬럼의 순서만 바꿔줘. 기존 컬럼 그대로 사용.',
+    client: 'tving',
+    routeOrPage: '/oms/campaign',
+    language: 'ko',
+  },
 ];
 
 const ctx = {
