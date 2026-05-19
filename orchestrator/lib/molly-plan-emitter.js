@@ -21,7 +21,18 @@ import { loadImageBlock, describeAttachment } from './image-attachment.js';
 
 export const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal.
 
-**Language rule (critical):** ALL textual output fields (summary, plan_items[*].title, plan_items[*].description, unresolved_components[*].intent, unresolved_components[*].reason) MUST be written in English regardless of the user's input language. The user may write PRDs in any language (e.g. Korean), but you always reply in English so downstream tools render consistently. Exception: when a plan_item description references actual product UI copy that will end up in the rendered app (Tving is the primary client — its end-users read Korean; msm-portal supports KR + EN via i18n), the verbatim user-facing copy may be quoted in Korean inside the otherwise-English description — e.g. \`Show a button labelled "확인"\`. The surrounding prose stays English; only the verbatim quoted copy may be Korean. Follow any locale or i18n key the PRD specifies.
+**Language rule (CRITICAL — explicit, non-negotiable):**
+
+**Step 1 — detect the language of the PRD body.** Look at the "Goal:" line in the user message. Whatever language that sentence is written in is your output language. Korean characters → reply in Korean. English-only → reply in English. Mixed → dominant language wins.
+
+**Step 2 — IGNORE the Context prefix language for choosing reply language.** The Context line (e.g. \`Context: client=tving route=/oms language=ko\`) describes the *runtime locale of the target app* — it tells you which language the UI copy *rendered inside the product* should be in. It does NOT decide which language YOU reply in. A user can write an English PRD on a Korean Tving app; you still reply in English.
+
+**Worked examples:**
+- Goal: \`Please swap 'Status' and 'Ad Account' columns.\` · Context: \`client=tving language=ko\` → reply in **English** (PRD body is English). Inside descriptions, only the literal UI copy stays Korean if/when quoted (e.g. \`shows a "상태" badge\`).
+- Goal: \`상태와 광고 계정 열 순서 바꿔줘\` · Context: \`client=tving language=ko\` → reply in **Korean** (PRD body is Korean).
+- Goal: \`Add a "삭제됨" tab to Creative Review\` · Context: \`client=tving language=ko\` → reply in **English** (PRD body is English; the quoted Korean string \`"삭제됨"\` is just inline UI copy).
+
+**Scope of the rule:** summary, plan_items[*].title, plan_items[*].description, unresolved_components[*].intent, unresolved_components[*].reason. Identifier-shaped fields stay literal regardless of language: intent enum, target_entity, pattern_id, target_file, referenced_components[*].name, referenced_components[*].importStatement, unresolved_components[*].kind, closest_match.name, closest_match.importStatement — these are code references, not prose.
 
 You have access to a structured design system. **Read DESIGN.md first** — it is the foundation layer (Layer 0) carrying brand identity, authority hierarchy, and Do's & Don'ts that frame every other contract below. All other contracts operate within the principles DESIGN.md defines.
 - DESIGN.md: **foundation layer** — brand identity, authority hierarchy, design tokens summary, 16-category component index (name only), Do's & Don'ts. Read this before the contracts below.
@@ -98,7 +109,43 @@ Output MUST be valid JSON only (no markdown, no prose). Schema:
   ]
 }
 
-Generate 3-8 plan items covering the full scope — nav changes, route registration, i18n keys, container/component files, feature flags, etc.`;
+Generate 3-8 plan items covering the full scope — nav changes, route registration, i18n keys, container/component files, feature flags, etc.
+
+## Item style rule (USER-FACING — applies to title AND description)
+
+plan_items[*].title and plan_items[*].description are read by a PM / service architect / designer who does NOT read code. Write in plain product language about what the end user sees or does after this item ships. The coding agent translates behavior into code on its own — your job is to describe outcomes, not implementations.
+
+### Title
+Short action description of the user-observable change. Each item must produce a user-observable change. Internal type definitions or schema setup are sub-steps of the parent item, NOT separate items.
+
+### Description
+- Open with the user-visible outcome ("이 작업이 끝나면 ... 보입니다 / 동작합니다" for Korean PRDs, "After this item ships, ... appears / works" for English PRDs).
+- For 2+ sub-requirements, structure as \`(1) ... (2) ... (3) ...\` enumeration markers — the plan card UI renders these as an ordered list. A single narrative paragraph is fine for simple items.
+- Refer to the UI area by its user-facing name ("the deleted tab", "the table top action bar", "the first column"), NOT by component or file name.
+
+### FORBIDDEN tokens in title AND description
+- Code identifiers — PascalCase or camelCase symbols (MC*, use*, get* etc.) like MCCreativeReviewContainer, MCBarTabs, useSearchParams, getCreativeImageRenderer.
+- File paths — anything containing \`src/\`, \`.tsx\`, \`.ts\`, \`.json\`.
+- Import statements (\`import { X } from 'Y'\`).
+- Library / framework keywords — route, scaffold, placeholder, fetching, mock, in-memory, wrapper, embed, MVP, API, hook, state, props, prop, scope, refactor, z-index, focus trap, render, component, DOM, ref, useQuery, useState, useEffect, tRPC, etc.
+- Backticks (\`\`) wrapping any code-shaped token. If you need to quote UI copy verbatim, use plain double quotes — e.g. \`the "삭제됨" tab label\`, \`a button labelled "확인"\`.
+
+### Where developer detail lives instead
+Component / file / hook / import references belong in the structured schema fields, NOT in prose:
+- \`target_file\` — the relative file path or pattern template.
+- \`referenced_components[]\` — every DS component used, with name + importStatement + status verbatim from components-index.json.
+- \`unresolved_components[]\` — DS-missing intent with closest_match.
+
+The plan card UI, decomposer, and downstream code agents read those fields directly. Description prose is for humans who don't read code.
+
+### Example (Creative Review deleted-tab case)
+- BAD title: "Add 'Deleted' tab to MCCreativeReviewContainer"
+- GOOD title (Korean PRD): "Creative Review 페이지에 '삭제됨' 탭 추가"
+- GOOD title (English PRD): "Add a 'Deleted' tab to the Creative Review page"
+
+- BAD description: "Modify src/apps/msm-default/container/creative-review/MCCreativeReviewContainer.tsx to add a third MCBarTabs entry (key: 'deleted'), with tab state synced via useSearchParams."
+- GOOD description (Korean PRD): "이 작업이 끝나면 Creative Review 페이지 상단 탭 영역에 기존 '주문 포함'·'전체' 옆에 새 '삭제됨' 탭이 보입니다. (1) 탭을 클릭하면 삭제된 소재 목록 화면이 열리고 (2) 현재 보이는 탭은 URL에 저장되어 새로고침 후에도 유지되며 (3) 기본 탭은 기존과 동일하게 '주문 포함' 입니다."
+- GOOD description (English PRD): "After this ships, the Creative Review page header gains a third tab labelled \"Deleted\" alongside the existing \"Order\" and \"All\". (1) Selecting the new tab opens the deleted-creatives list view, (2) the active tab is preserved across refresh via the URL, and (3) the default tab stays \"Order\" as before."`;
 
 /**
  * Plan emit — receives a PRD goal and returns a DS-grounded structured plan.
@@ -198,7 +245,10 @@ Goal: ${goal}
 Client: ${client}
 Target page: ${routeOrPage}
 ${jiraUrl ? `Jira: ${jiraUrl}\n` : ''}${prdUrl ? `PRD: ${prdUrl}\n` : ''}
-위 system 의 DS 리소스 (pm-sa-request-schema / patterns.json / api-ui-contracts.json / components.json) 를 근거로 계획을 JSON으로 출력하세요.`;
+위 system 의 DS 리소스 (pm-sa-request-schema / patterns.json / api-ui-contracts.json / components.json) 를 근거로 계획을 JSON으로 출력하세요.
+
+[Style — system 의 USER-FACING 룰 재확인]
+plan_items[*].title 과 description 모두 사용자가 보는 결과로만 작성하세요 — 구현 명칭(component/hook/import/file path)·backtick·코드 식별자는 어디에도 쓰지 마세요. description 은 "이 작업이 끝나면 ... 보입니다/동작합니다" 같은 결과 frame 으로 시작하고, 단계가 여럿이면 (1) (2) (3) 으로 나열하세요. 파일·컴포넌트·import 참조는 target_file / referenced_components / unresolved_components 스키마 필드에만 채우세요. 응답 언어는 위 PRD 본문(Goal)이 쓰여진 언어를 따르세요 — 한국어로 썼으면 한국어, 영어로 썼으면 영어, 혼합이면 더 우세한 언어. Context prefix 의 language 값은 앱 화면이 사용자에게 보일 때의 locale 일 뿐이며, 응답 언어가 아닙니다.`;
 
   // "Re-plan" mode — append previous plan + user feedback.
   if (previousPlan && feedback) {
@@ -231,7 +281,7 @@ ${feedback}
 
   const reqBody = {
     model: settings.planModel,
-    max_tokens: useThinking ? thinkingBudget + 4096 : 4096,
+    max_tokens: useThinking ? thinkingBudget + 14336 : 4096,
     system: systemBlocks,
     messages: [{ role: 'user', content: userContent }],
     // Per-model thinking control. Adaptive models (Opus/Sonnet 4.6+)
@@ -261,6 +311,11 @@ ${feedback}
   const textBlock = blocks.find((b) => b?.type === 'text');
   const text = (textBlock?.text || '').trim();
   if (!text) {
+    console.error(
+      `[plan-emitter] empty response — stop_reason=${result?.stop_reason} ` +
+      `blocks=${JSON.stringify(blocks.map((b) => ({ type: b?.type, len: (b?.text || b?.thinking || '').length })))} ` +
+      `usage=${JSON.stringify(result?.usage)}`,
+    );
     throw new Error('emitPlan: empty LLM response');
   }
 
@@ -275,7 +330,15 @@ ${feedback}
   try {
     plan = JSON.parse(jsonMatch[0]);
   } catch (err) {
+    const m = err.message.match(/position (\d+)/);
+    const pos = m ? parseInt(m[1], 10) : -1;
     console.error('[plan-emitter] JSON parse failed:', err.message);
+    if (pos >= 0) {
+      const start = Math.max(0, pos - 120);
+      const end = Math.min(jsonMatch[0].length, pos + 120);
+      console.error(`[plan-emitter] context around position ${pos}:\n${jsonMatch[0].slice(start, end)}\n${' '.repeat(Math.min(120, pos - start))}^`);
+    }
+    console.error(`[plan-emitter] full raw (${jsonMatch[0].length} chars):\n${jsonMatch[0]}`);
     throw new Error(`emitPlan: invalid JSON — ${err.message}`);
   }
 
