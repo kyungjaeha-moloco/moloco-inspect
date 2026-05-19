@@ -5,11 +5,16 @@
  * quickly. The real 2-pane editor lives at `/p/:id`.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/project-store';
 import type { Playground, PlaygroundStatus } from '../services/orchestrator-client';
-import { listPlaygrounds } from '../services/orchestrator-client';
+import {
+  listPlaygrounds,
+  hibernatePlayground,
+  archivePlayground,
+  resumePlayground,
+} from '../services/orchestrator-client';
 
 const CREATED_BY_STORAGE_KEY = 'playground-app.createdBy';
 import {
@@ -57,6 +62,29 @@ export function PlaygroundList() {
         setError(err?.message ?? String(err));
       });
   }, [refreshProjects]);
+
+  const handleLifecycle = async (
+    id: string,
+    action: 'hibernate' | 'archive' | 'resume',
+  ) => {
+    if (action === 'archive') {
+      const ok = window.confirm(
+        '이 Playground를 영구 보관(Archive) 처리합니다. 다시 사용하려면 처음부터 다시 만들어야 합니다. 계속할까요?',
+      );
+      if (!ok) return;
+    }
+    try {
+      if (action === 'hibernate') await hibernatePlayground(id);
+      else if (action === 'archive') await archivePlayground(id);
+      else await resumePlayground(id);
+      const next = await listPlaygrounds();
+      setPlaygrounds(next);
+    } catch (err) {
+      console.error(`[PlaygroundList] ${action} failed`, err);
+      const message = (err as { message?: string })?.message ?? String(err);
+      setError(`${action} 실패: ${message}`);
+    }
+  };
 
   const handleDownloadLegacy = (projectId: string) => {
     const comments = readLegacyComments(projectId);
@@ -138,22 +166,22 @@ export function PlaygroundList() {
 
         {crashed.length > 0 && (
           <Section label="Error" count={crashed.length} tone="error">
-            <CardGrid items={crashed} />
+            <CardGrid items={crashed} onLifecycle={handleLifecycle} />
           </Section>
         )}
 
         {active.length > 0 ? (
           <Section label="Active" count={active.length} tone="accent">
-            <CardGrid items={active} />
+            <CardGrid items={active} onLifecycle={handleLifecycle} />
           </Section>
         ) : !error && playgrounds.length === 0 ? (
           <EmptyState onCreate={() => setCreateOpen(true)} />
         ) : null}
 
         {hibernated.length > 0 && (
-          <Section label="Idle" count={hibernated.length} tone="muted">
-            <CardGrid items={hibernated} muted />
-          </Section>
+          <CollapsibleSection label="Idle" count={hibernated.length}>
+            <CardGrid items={hibernated} muted onLifecycle={handleLifecycle} />
+          </CollapsibleSection>
         )}
 
         {archived.length > 0 && (
@@ -238,18 +266,22 @@ function CollapsibleSection({
 
 // ── Card Grid (active / hibernated / crashed) ────────────────────────
 
+type LifecycleAction = 'hibernate' | 'archive' | 'resume';
+
 function CardGrid({
   items,
   muted = false,
+  onLifecycle,
 }: {
   items: Playground[];
   muted?: boolean;
+  onLifecycle: (id: string, action: LifecycleAction) => void;
 }) {
   return (
     <ul style={cardGridStyle}>
       {items.map((pg) => (
         <li key={pg.id} style={{ listStyle: 'none' }}>
-          <PlaygroundCard pg={pg} muted={muted} />
+          <PlaygroundCard pg={pg} muted={muted} onLifecycle={onLifecycle} />
         </li>
       ))}
     </ul>
@@ -259,55 +291,228 @@ function CardGrid({
 function PlaygroundCard({
   pg,
   muted = false,
+  onLifecycle,
 }: {
   pg: Playground;
   muted?: boolean;
+  onLifecycle: (id: string, action: LifecycleAction) => void;
 }) {
   return (
-    <Link
-      to={`/p/${pg.id}`}
-      style={{ ...cardStyle, opacity: muted ? 0.75 : 1 }}
-      className="playground-card"
-    >
-      <div style={cardHeaderStyle}>
-        <span
-          aria-hidden
-          style={{
-            ...statusDotStyle,
-            background: STATUS_COLOR[pg.status],
-          }}
-          title={STATUS_LABEL[pg.status]}
-        />
-        <span style={cardTitleStyle}>{pg.title}</span>
-        <span aria-hidden style={openIconStyle}>
-          ↗
-        </span>
-      </div>
-
-      <div style={cardMetaRowStyle}>
-        <Pill>{pg.id}</Pill>
-        <Pill tone="neutral">{pg.projectId}</Pill>
-        {pg.headCommitSha && <Pill tone="mono">{pg.headCommitSha.slice(0, 7)}</Pill>}
-      </div>
-
-      <div style={cardFooterStyle}>
-        {pg.createdBy ? (
-          <span>
-            <span style={{ color: 'var(--text-tertiary)' }}>by </span>
-            <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>
-              {pg.createdBy}
-            </span>
+    <div style={{ position: 'relative', opacity: muted ? 0.75 : 1 }}>
+      <Link to={`/p/${pg.id}`} style={cardStyle} className="playground-card">
+        <div style={cardHeaderStyle}>
+          <span
+            aria-hidden
+            style={{
+              ...statusDotStyle,
+              background: STATUS_COLOR[pg.status],
+            }}
+            title={STATUS_LABEL[pg.status]}
+          />
+          <span style={cardTitleStyle}>{pg.title}</span>
+          <span aria-hidden style={openIconStyle}>
+            ↗
           </span>
-        ) : (
-          <span style={{ color: 'var(--text-tertiary)' }}>No author recorded</span>
-        )}
-        <span style={{ color: 'var(--text-tertiary)' }}>
-          {formatRelativeTime(pg.lastActivityAt ?? pg.createdAt)}
-        </span>
-      </div>
-    </Link>
+        </div>
+
+        <div style={cardMetaRowStyle}>
+          <Pill>{pg.id}</Pill>
+          <Pill tone="neutral">{pg.projectId}</Pill>
+          {pg.headCommitSha && <Pill tone="mono">{pg.headCommitSha.slice(0, 7)}</Pill>}
+        </div>
+
+        <div style={cardFooterStyle}>
+          {pg.createdBy ? (
+            <span>
+              <span style={{ color: 'var(--text-tertiary)' }}>by </span>
+              <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>
+                {pg.createdBy}
+              </span>
+            </span>
+          ) : (
+            <span style={{ color: 'var(--text-tertiary)' }}>No author recorded</span>
+          )}
+          <span style={{ color: 'var(--text-tertiary)' }}>
+            {formatRelativeTime(pg.lastActivityAt ?? pg.createdAt)}
+          </span>
+        </div>
+      </Link>
+      <CardActionMenu pg={pg} onLifecycle={onLifecycle} />
+    </div>
   );
 }
+
+function CardActionMenu({
+  pg,
+  onLifecycle,
+}: {
+  pg: Playground;
+  onLifecycle: (id: string, action: LifecycleAction) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [open]);
+
+  const trigger = (action: LifecycleAction) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpen(false);
+    onLifecycle(pg.id, action);
+  };
+
+  const toggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpen((prev) => !prev);
+  };
+
+  const items: Array<{ label: string; action: LifecycleAction; danger?: boolean; title: string }> = [];
+  if (pg.status === 'active') {
+    items.push({
+      label: '💤 Idle',
+      action: 'hibernate',
+      title: '컨테이너를 종료해 RAM/CPU 를 회수합니다. 디스크와 브랜치는 보존되며 Resume 시 10–20초 만에 복원됩니다.',
+    });
+    items.push({
+      label: '📦 Archive',
+      action: 'archive',
+      danger: true,
+      title: '영구 보관. 다시 사용하려면 새로 만들어야 합니다.',
+    });
+  } else if (pg.status === 'hibernated') {
+    items.push({
+      label: '▶ Resume',
+      action: 'resume',
+      title: '컨테이너를 다시 시작합니다.',
+    });
+    items.push({
+      label: '📦 Archive',
+      action: 'archive',
+      danger: true,
+      title: '영구 보관 처리합니다.',
+    });
+  } else if (pg.status === 'crashed') {
+    items.push({
+      label: '↻ Restart',
+      action: 'resume',
+      title: '컨테이너를 다시 시작합니다.',
+    });
+    items.push({
+      label: '📦 Archive',
+      action: 'archive',
+      danger: true,
+      title: '영구 보관 처리합니다.',
+    });
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div ref={wrapRef} style={menuWrapStyle}>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="더보기"
+        style={menuTriggerStyle}
+      >
+        ⋯
+      </button>
+      {open && (
+        <div role="menu" style={menuPopupStyle}>
+          {items.map((it) => (
+            <button
+              key={it.action}
+              type="button"
+              role="menuitem"
+              onClick={trigger(it.action)}
+              title={it.title}
+              style={it.danger ? menuItemDangerStyle : menuItemStyle}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const menuWrapStyle: CSSProperties = {
+  position: 'absolute',
+  top: 10,
+  right: 10,
+  zIndex: 2,
+};
+
+const menuTriggerStyle: CSSProperties = {
+  width: 28,
+  height: 28,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: '1px solid var(--border-primary)',
+  borderRadius: 6,
+  background: 'var(--bg-elevated)',
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  fontSize: 16,
+  lineHeight: 1,
+  padding: 0,
+};
+
+const menuPopupStyle: CSSProperties = {
+  position: 'absolute',
+  top: 32,
+  right: 0,
+  minWidth: 180,
+  background: 'var(--bg-elevated)',
+  border: '1px solid var(--border-primary)',
+  borderRadius: 8,
+  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+  padding: 4,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  zIndex: 3,
+};
+
+const menuItemStyle: CSSProperties = {
+  textAlign: 'left',
+  padding: '6px 10px',
+  fontSize: 12,
+  border: 'none',
+  borderRadius: 4,
+  background: 'transparent',
+  color: 'var(--text-primary)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  fontWeight: 500,
+};
+
+const menuItemDangerStyle: CSSProperties = {
+  ...menuItemStyle,
+  color: 'var(--error)',
+};
+
 
 function Pill({
   children,

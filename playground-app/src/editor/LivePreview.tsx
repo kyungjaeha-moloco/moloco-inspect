@@ -399,18 +399,43 @@ function LivePreviewInner({ playground, mode, reloadNonce = 0, onResume }: LiveP
   if (!vitePort || !src) {
     return (
       <div style={placeholderStyle}>
-        <div>
-          <strong>Vite port not assigned</strong>
+        <div style={{ textAlign: 'center', maxWidth: 360 }}>
+          <div
+            aria-hidden
+            style={{
+              width: 32,
+              height: 32,
+              margin: '0 auto 16px',
+              borderRadius: '50%',
+              border: '3px solid var(--border-primary)',
+              borderTopColor: 'var(--accent)',
+              animation: 'playground-preview-spin 0.9s linear infinite',
+            }}
+          />
+          <strong style={{ fontSize: 14 }}>Preview 준비 중…</strong>
+          <div
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: 12,
+              marginTop: 8,
+              lineHeight: 1.5,
+            }}
+          >
+            새 Playground 의 개발 서버가 시작되고 있어요. 보통 20–30초 정도 걸립니다.
+            <br />
+            준비가 끝나면 이 자리에 자동으로 미리보기 화면이 나타납니다.
+          </div>
           <div
             style={{
               color: 'var(--text-tertiary)',
-              fontSize: 12,
-              marginTop: 4,
+              fontSize: 11,
+              marginTop: 12,
             }}
           >
-            Resume or restart required.
+            오래 걸리면 우측 상단의 🔄 Reload 를 눌러 다시 시도하세요.
           </div>
         </div>
+        <style>{`@keyframes playground-preview-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }

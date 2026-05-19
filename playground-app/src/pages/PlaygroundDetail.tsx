@@ -23,9 +23,11 @@ const AIPANEL_WIDTH_MIN = 280;
 const AIPANEL_WIDTH_MAX = 720;
 const AIPANEL_WIDTH_DEFAULT = 360;
 import {
+  archivePlayground,
   checkoutPlaygroundCommit,
   getPlayground,
   getPlaygroundLog,
+  hibernatePlayground,
   promotePlayground,
   restorePlaygroundHead,
   resumePlayground,
@@ -246,6 +248,34 @@ export function PlaygroundDetail() {
     }
   };
 
+  const handleHibernate = async () => {
+    if (!id) return;
+    try {
+      const updated = await hibernatePlayground(id);
+      mergeCurrent(updated);
+    } catch (err) {
+      console.error('[PlaygroundDetail] hibernate failed', err);
+      const message = err instanceof Error ? err.message : String(err);
+      window.alert(`Hibernate failed: ${message}`);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!id) return;
+    const ok = window.confirm(
+      '이 Playground를 영구 보관(Archive) 처리합니다. 컨테이너가 종료되고, 다시 쓰려면 새 Playground 를 만들어야 합니다. 계속할까요?',
+    );
+    if (!ok) return;
+    try {
+      const updated = await archivePlayground(id);
+      mergeCurrent(updated);
+    } catch (err) {
+      console.error('[PlaygroundDetail] archive failed', err);
+      const message = err instanceof Error ? err.message : String(err);
+      window.alert(`Archive failed: ${message}`);
+    }
+  };
+
   if (!id) {
     return <div style={{ padding: 24 }}>No playground id provided.</div>;
   }
@@ -262,6 +292,8 @@ export function PlaygroundDetail() {
         promoteDisabled={
           !!current.checkedOutSha || promote.kind === 'running'
         }
+        onHibernate={handleHibernate}
+        onArchive={handleArchive}
       />
       <div style={twoPaneStyle}>
         <aside style={{ ...leftPaneStyle, width: leftPaneWidth }}>
@@ -327,6 +359,8 @@ function Header({
   playground,
   onPromote,
   promoteDisabled,
+  onHibernate,
+  onArchive,
 }: {
   playground: {
     id: string;
@@ -337,6 +371,8 @@ function Header({
     promotedPrUrl?: string;
     promotedBranch?: string;
   };
+  onHibernate: () => void;
+  onArchive: () => void;
   onPromote: () => void;
   promoteDisabled: boolean;
 }) {
@@ -398,6 +434,26 @@ function Header({
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {playground.status === 'active' && (
+          <>
+            <button
+              type="button"
+              onClick={onHibernate}
+              title="Stop the sandbox container to free RAM/CPU. The disk and git branch stay; resume rebuilds the running state in ~10–20s."
+              style={headerSecondaryButtonStyle}
+            >
+              💤 Idle
+            </button>
+            <button
+              type="button"
+              onClick={onArchive}
+              title="Permanently archive. Container removed, patches exported. Resuming later requires re-creating from scratch."
+              style={headerDangerButtonStyle}
+            >
+              📦 Archive
+            </button>
+          </>
+        )}
         {playground.promotedPrUrl ? (
           <a
             href={playground.promotedPrUrl}
@@ -429,6 +485,24 @@ function Header({
     </header>
   );
 }
+
+const headerSecondaryButtonStyle: React.CSSProperties = {
+  padding: '6px 12px',
+  fontSize: 12,
+  fontWeight: 500,
+  border: '1px solid var(--border-primary)',
+  borderRadius: 6,
+  background: 'var(--bg-elevated)',
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+};
+
+const headerDangerButtonStyle: React.CSSProperties = {
+  ...headerSecondaryButtonStyle,
+  color: 'var(--error)',
+  borderColor: 'var(--error)',
+};
 
 interface PromoteDialogProps {
   stage: PromoteStage;
