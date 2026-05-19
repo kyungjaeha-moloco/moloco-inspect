@@ -245,6 +245,75 @@ export const AIPanel = React.memo(function AIPanel({
     return () => observer.disconnect();
   }, [activeTab]);
 
+  // Reconcile in-flight ExecutionCard state after hydrate / page refresh.
+  // The original subscribe-on-submit path in executePlan/handleSend opens
+  // its SSE only at submission time and closes on tab navigation, so any
+  // execution that was mid-flight when the user refreshed gets persisted
+  // in chat at whatever intermediate phase the SSE had last delivered
+  // (typically running_agent or verifying). Without a re-subscribe the
+  // ExecutionCard spinner is stuck forever even though the backend may
+  // have completed long ago (server.js /api/events/:id immediately
+  // replays current state on connect).
+  //
+  // This effect walks the hydrated messages, opens an SSE for every
+  // non-terminal execution it hasn't already subscribed to, and closes
+  // the subscription as soon as a terminal event arrives. Subscriptions
+  // are tracked in a ref so message-list updates don't tear them down.
+  const reconciliationSubsRef = useRef<Map<string, () => void>>(new Map());
+  useEffect(() => {
+    const isTerminal = (e?: ExecutionState | null) =>
+      !e ||
+      e.status === 'preview' ||
+      e.status === 'approved' ||
+      e.status === 'error' ||
+      e.phase === 'preview_ready' ||
+      e.phase === 'error';
+    const subsMap = reconciliationSubsRef.current;
+    for (const m of messages) {
+      const reqId = m.execution?.requestId;
+      if (!reqId || isTerminal(m.execution)) continue;
+      if (subsMap.has(reqId)) continue;
+      const messageId = m.id;
+      const close = subscribeChangeRequest(reqId, (event) => {
+        updateExecution(messageId, {
+          status: event.status,
+          phase: event.phase,
+          latestLog: event.latestLog,
+          diffUrl: event.diff ? changeRequestDiffUrl(reqId) : undefined,
+          changedFiles: event.changedFiles ?? undefined,
+          error: event.error,
+          screenshotUrl:
+            event.status === 'preview' || event.status === 'approved'
+              ? changeRequestScreenshotUrl(reqId)
+              : undefined,
+        });
+        const done =
+          event.phase === 'preview_ready' ||
+          event.status === 'preview' ||
+          event.status === 'approved' ||
+          event.status === 'error';
+        if (done) {
+          const c = subsMap.get(reqId);
+          if (c) {
+            c();
+            subsMap.delete(reqId);
+          }
+        }
+      });
+      subsMap.set(reqId, close);
+    }
+  }, [messages, updateExecution]);
+
+  // Close every reconciliation SSE when the playground unmounts or the
+  // user switches playgrounds — otherwise the orphan EventSources keep
+  // mutating the previous playground's chat state.
+  useEffect(() => {
+    return () => {
+      for (const close of reconciliationSubsRef.current.values()) close();
+      reconciliationSubsRef.current.clear();
+    };
+  }, [playgroundId]);
+
   // Track scroll position so the resize observer knows whether to
   // auto-scroll. "Near bottom" = within 80px (forgiving threshold for
   // long messages with internal scroll quirks).
