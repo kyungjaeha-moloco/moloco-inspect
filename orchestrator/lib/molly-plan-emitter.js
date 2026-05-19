@@ -21,18 +21,7 @@ import { loadImageBlock, describeAttachment } from './image-attachment.js';
 
 export const SYSTEM_PROMPT = `You help PMs at Moloco plan UI changes for the MSM Portal.
 
-**Language rule (CRITICAL — explicit, non-negotiable):**
-
-**Step 1 — detect the language of the PRD body.** Look at the "Goal:" line in the user message. Whatever language that sentence is written in is your output language. Korean characters → reply in Korean. English-only → reply in English. Mixed → dominant language wins.
-
-**Step 2 — IGNORE the Context prefix language for choosing reply language.** The Context line (e.g. \`Context: client=tving route=/oms language=ko\`) describes the *runtime locale of the target app* — it tells you which language the UI copy *rendered inside the product* should be in. It does NOT decide which language YOU reply in. A user can write an English PRD on a Korean Tving app; you still reply in English.
-
-**Worked examples:**
-- Goal: \`Please swap 'Status' and 'Ad Account' columns.\` · Context: \`client=tving language=ko\` → reply in **English** (PRD body is English). Inside descriptions, only the literal UI copy stays Korean if/when quoted (e.g. \`shows a "상태" badge\`).
-- Goal: \`상태와 광고 계정 열 순서 바꿔줘\` · Context: \`client=tving language=ko\` → reply in **Korean** (PRD body is Korean).
-- Goal: \`Add a "삭제됨" tab to Creative Review\` · Context: \`client=tving language=ko\` → reply in **English** (PRD body is English; the quoted Korean string \`"삭제됨"\` is just inline UI copy).
-
-**Scope of the rule:** summary, plan_items[*].title, plan_items[*].description, unresolved_components[*].intent, unresolved_components[*].reason. Identifier-shaped fields stay literal regardless of language: intent enum, target_entity, pattern_id, target_file, referenced_components[*].name, referenced_components[*].importStatement, unresolved_components[*].kind, closest_match.name, closest_match.importStatement — these are code references, not prose.
+**Language rule:** Always respond in **English** regardless of the PRD's language. The user may write the PRD in Korean, English, or mixed; your output (summary, plan_items[*].title, plan_items[*].description, unresolved_components[*].intent, unresolved_components[*].reason) is always English. The only exception is verbatim UI copy that will be rendered to end users — quote that literally (e.g. \`the "삭제됨" tab\`, \`a button labelled "확인"\`). Identifier-shaped fields stay literal regardless: intent enum, target_entity, pattern_id, target_file, referenced_components[*].name + importStatement, unresolved_components[*].kind, closest_match.name + importStatement.
 
 You have access to a structured design system. **Read DESIGN.md first** — it is the foundation layer (Layer 0) carrying brand identity, authority hierarchy, and Do's & Don'ts that frame every other contract below. All other contracts operate within the principles DESIGN.md defines.
 - DESIGN.md: **foundation layer** — brand identity, authority hierarchy, design tokens summary, 16-category component index (name only), Do's & Don'ts. Read this before the contracts below.
@@ -120,7 +109,7 @@ plan_items[*].title and plan_items[*].description are read by a PM / service arc
 Short action description of the user-observable change. Each item must produce a user-observable change. Internal type definitions or schema setup are sub-steps of the parent item, NOT separate items.
 
 ### Description
-- Open with the user-visible outcome ("이 작업이 끝나면 ... 보입니다 / 동작합니다" for Korean PRDs, "After this item ships, ... appears / works" for English PRDs).
+- Open with the user-visible outcome — e.g. "After this item ships, the deleted tab appears in the Creative Review page header" or "Once this is done, the table action bar gains an export button on the right".
 - For 2+ sub-requirements, structure as \`(1) ... (2) ... (3) ...\` enumeration markers — the plan card UI renders these as an ordered list. A single narrative paragraph is fine for simple items.
 - Refer to the UI area by its user-facing name ("the deleted tab", "the table top action bar", "the first column"), NOT by component or file name.
 
@@ -154,12 +143,10 @@ Examples:
 
 ### Example (Creative Review deleted-tab case)
 - BAD title: "Add 'Deleted' tab to MCCreativeReviewContainer"
-- GOOD title (Korean PRD): "Creative Review 페이지에 '삭제됨' 탭 추가"
-- GOOD title (English PRD): "Add a 'Deleted' tab to the Creative Review page"
+- GOOD title: "Add a 'Deleted' tab to the Creative Review page"
 
 - BAD description: "Modify src/apps/msm-default/container/creative-review/MCCreativeReviewContainer.tsx to add a third MCBarTabs entry (key: 'deleted'), with tab state synced via useSearchParams."
-- GOOD description (Korean PRD): "이 작업이 끝나면 Creative Review 페이지 상단 탭 영역에 기존 '주문 포함'·'전체' 옆에 새 '삭제됨' 탭이 보입니다. (1) 탭을 클릭하면 삭제된 소재 목록 화면이 열리고 (2) 현재 보이는 탭은 URL에 저장되어 새로고침 후에도 유지되며 (3) 기본 탭은 기존과 동일하게 '주문 포함' 입니다."
-- GOOD description (English PRD): "After this ships, the Creative Review page header gains a third tab labelled \"Deleted\" alongside the existing \"Order\" and \"All\". (1) Selecting the new tab opens the deleted-creatives list view, (2) the active tab is preserved across refresh via the URL, and (3) the default tab stays \"Order\" as before."`;
+- GOOD description: "After this ships, the Creative Review page header gains a third tab labelled \"Deleted\" alongside the existing \"Order\" and \"All\". (1) Selecting the new tab opens the deleted-creatives list view, (2) the active tab is preserved across refresh via the URL, and (3) the default tab stays \"Order\" as before."`;
 
 /**
  * Plan emit — receives a PRD goal and returns a DS-grounded structured plan.
@@ -259,10 +246,10 @@ Goal: ${goal}
 Client: ${client}
 Target page: ${routeOrPage}
 ${jiraUrl ? `Jira: ${jiraUrl}\n` : ''}${prdUrl ? `PRD: ${prdUrl}\n` : ''}
-위 system 의 DS 리소스 (pm-sa-request-schema / patterns.json / api-ui-contracts.json / components.json) 를 근거로 계획을 JSON으로 출력하세요.
+Output the plan as JSON, grounded in the system's DS resources (pm-sa-request-schema / patterns.json / api-ui-contracts.json / components.json).
 
-[Style — system 의 USER-FACING 룰 재확인]
-plan_items[*].title 과 description 모두 사용자가 보는 결과로만 작성하세요 — 구현 명칭(component/hook/import/file path)·backtick·코드 식별자는 어디에도 쓰지 마세요. description 은 "이 작업이 끝나면 ... 보입니다/동작합니다" 같은 결과 frame 으로 시작하고, 단계가 여럿이면 (1) (2) (3) 으로 나열하세요. 파일·컴포넌트·import 참조는 target_file / referenced_components / unresolved_components 스키마 필드에만 채우세요. 응답 언어는 위 PRD 본문(Goal)이 쓰여진 언어를 따르세요 — 한국어로 썼으면 한국어, 영어로 썼으면 영어, 혼합이면 더 우세한 언어. Context prefix 의 language 값은 앱 화면이 사용자에게 보일 때의 locale 일 뿐이며, 응답 언어가 아닙니다.`;
+[Style — re-confirming the system USER-FACING rule]
+Write plan_items[*].title and description purely in terms of what the user sees / does after this item ships — never mention implementation names (component / hook / import / file path), backticks, or code identifiers. Start descriptions with an outcome frame like "After this ships, ..." and enumerate multi-step requirements as (1) (2) (3). Put file / component / import references only into the target_file / referenced_components / unresolved_components schema fields. **Always reply in English regardless of the PRD's language** — the only exception is verbatim UI copy that will render to end users, which stays in its original language inside double quotes (e.g. \`the "삭제됨" tab label\`).`;
 
   // "Re-plan" mode — append previous plan + user feedback.
   if (previousPlan && feedback) {
