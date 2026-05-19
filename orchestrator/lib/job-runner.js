@@ -291,7 +291,7 @@ export async function runJob(jobId, { adapter, reviewer, maxAttempts = 2, resear
 
     // Review phase.
     setJobStatus(jobId, 'reviewing');
-    /** @type {{ verdict: 'pass' | 'fail', notes: string }} */
+    /** @type {{ verdict: 'pass' | 'fail', severity?: 'critical' | 'warning', notes: string }} */
     let verdict;
     try {
       verdict = await review(
@@ -306,8 +306,11 @@ export async function runJob(jobId, { adapter, reviewer, maxAttempts = 2, resear
         next.description,
       );
     } catch (err) {
+      // Reviewer crash = system fault, not the task's. Treat as critical so
+      // the user notices instead of silently shipping unreviewed code.
       verdict = {
         verdict: 'fail',
+        severity: 'critical',
         notes: `reviewer crashed: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
@@ -315,13 +318,28 @@ export async function runJob(jobId, { adapter, reviewer, maxAttempts = 2, resear
     if (verdict.verdict === 'pass') {
       setTaskStatus(jobId, next.id, 'reviewed', { review: verdict });
       // Loop continues: top of the for(;;) bounces reviewing → delegating.
-    } else {
-      // Review said `fail`. Flip committed → failed and pause for user.
-      setTaskStatus(jobId, next.id, 'failed', { review: verdict });
+      continue;
+    }
+
+    // verdict === 'fail' — Plan v3 §4.1 paradigm: critical → paused (user
+    // intervention), warning → demote to reviewed-with-warning and continue.
+    // The final summary card surfaces all warnings post-hoc with revert
+    // and follow-up-PRD affordances.
+    const severity = verdict.severity === 'critical' ? 'critical' : 'warning';
+    if (severity === 'critical') {
+      setTaskStatus(jobId, next.id, 'failed', {
+        review: { ...verdict, severity: 'critical' },
+      });
       setJobStatus(jobId, 'paused', {
-        pausedReason: `review-fail on task ${next.id}: ${verdict.notes}`,
+        pausedReason: `review-critical on task ${next.id}: ${verdict.notes}`,
       });
       return getJob(jobId);
     }
+    // severity === 'warning' — auto-progress. Task lands as 'reviewed' but the
+    // review object preserves the fail verdict + notes for the final summary.
+    setTaskStatus(jobId, next.id, 'reviewed', {
+      review: { verdict: 'fail', severity: 'warning', notes: verdict.notes },
+    });
+    // Loop continues — pickNextTask resumes the graph.
   }
 }
