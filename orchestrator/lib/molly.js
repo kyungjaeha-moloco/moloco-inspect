@@ -1534,6 +1534,15 @@ async function postPlanItemsMessage({ client, channel, threadTs, plan, cumulativ
 // context (planItemsContexts) holds the full plan so the action handlers can
 // look up the unresolved entry by index without storing it twice.
 async function postMissingComponentCards({ client, channel, threadTs, planMsgTs, plan }) {
+  // DS missing 4-option cards hidden per user direction (2026-05-20).
+  // Backend data (plan.unresolved_components) still flows for the
+  // plan-emitter is_new_build safety net; the 🛠 New build marker on the
+  // plan items already tells the user which items lack DS equivalents.
+  // Plan v3 (`docs/superpowers/plans/2026-05-19-ds-missing-ai-judge-
+  // governance.md`) will re-introduce a quiet auto-adopt + escalation
+  // flow that posts a small plan-level notice instead of per-card UI.
+  return;
+  // eslint-disable-next-line no-unreachable
   const unresolved = Array.isArray(plan?.unresolved_components) ? plan.unresolved_components : [];
   if (unresolved.length === 0) return;
   for (let index = 0; index < unresolved.length; index++) {

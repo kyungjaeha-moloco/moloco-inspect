@@ -3036,6 +3036,14 @@
   }
 
   function renderMissingComponentSections({ container, plan, cumulativePrd, ctx }) {
+    // DS missing 4-option cards hidden per user direction (2026-05-20). The
+    // 🛠 New build marker on plan items already conveys the same signal
+    // ("this introduces UI without a DS equivalent"). Plan v3
+    // (`docs/superpowers/plans/2026-05-19-ds-missing-ai-judge-governance.md`)
+    // will re-introduce a quiet auto-adopt + escalation flow that surfaces
+    // a small plan-level notice instead of per-card UI.
+    return;
+    // eslint-disable-next-line no-unreachable
     const list = Array.isArray(plan?.unresolved_components) ? plan.unresolved_components : [];
     if (!list.length) return;
     list.forEach((rawEntry) => {

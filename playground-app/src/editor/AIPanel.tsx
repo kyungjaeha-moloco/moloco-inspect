@@ -2597,7 +2597,10 @@ function MessageRow({
   onRedecomposePlan,
   onCheckoutCommit,
   onRestoreToSha,
-  priorUserContent,
+  // Kept in the prop list for plan v3 (DS missing AI judge governance) to
+  // pick back up; the field is no longer consumed inside MessageRow now
+  // that the 4-option MissingComponentCard render is gated off.
+  priorUserContent: _priorUserContent,
 }: {
   message: ChatMessage;
   activeSha: string | null;
@@ -2665,15 +2668,17 @@ function MessageRow({
         />
       )}
 
-      {message.plan?.unresolvedComponents?.map((u) => (
-        <MissingComponentCard
-          key={`${message.id}-missing-${u.intent}`}
-          messageId={message.id}
-          unresolved={u}
-          prd={priorUserContent ?? message.plan?.meta.summary ?? ''}
-          playgroundClient={message.plan?.meta.targetClient ?? null}
-        />
-      ))}
+      {/* DS missing 4-option cards hidden per user direction (2026-05-20).
+       * The data (message.plan?.unresolvedComponents) is still emitted by
+       * plan-emitter and still drives the post-process is_new_build safety
+       * net, so the 🛠 New build badge already conveys "these items have
+       * no DS equivalent" to the user. The full governance / AI-judge
+       * workflow lives in plan v3 (`docs/superpowers/plans/2026-05-19-ds-
+       * missing-ai-judge-governance.md`) — re-enable the render when that
+       * lands, alongside the auto-adopt + governance queue.
+       *
+       * Kept as a comment instead of deleting MissingComponentCard so plan v3
+       * can drop the hide with a one-line revert. */}
 
       {message.execution && (
         <ExecutionCard
@@ -4334,6 +4339,11 @@ function MissingComponentCard({
     </Card>
   );
 }
+
+// Preserve MissingComponentCard for plan v3 (DS missing AI judge governance)
+// which will re-wire (or replace) this component. Without this reference,
+// noUnusedLocals would flag the function as dead code.
+void MissingComponentCard;
 
 // ── Helpers ────────────────────────────────────────────
 
