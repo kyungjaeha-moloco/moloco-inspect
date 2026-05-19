@@ -521,12 +521,206 @@ export function JobCard({ jobId }: { jobId: string }) {
         )}
       </footer>
 
+      <FinalSummarySection job={job} />
+
       {error && (
         <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-danger, #d33)' }}>
           {error}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Plan v3 Phase 2 §4.2 — final summary card rendered when the job completes
+ * or carries review warnings. Surfaces auto-progressed warnings, leaf-only
+ * revert affordances (Phase 3 wires the actual revert call), and a follow-up
+ * placeholder (Phase 3 wires the LLM suggestions).
+ *
+ * First-time inline notice (G1b) explains the auto-progress paradigm so users
+ * who haven't seen it before don't assume a clean ✅ run means problem-free.
+ */
+function FinalSummarySection({ job }: { job: Job }) {
+  const summary = job.summary;
+  // Show when job is complete OR there's at least one warning to surface
+  // mid-run. paused (build error) jobs with warnings also benefit.
+  const visible =
+    !!summary &&
+    (job.status === 'complete' || (summary.warningCount ?? 0) > 0);
+  // Local-storage based onboarding flag — Plan v3 G1b. localStorage is
+  // sufficient for the 시범 단계 (1-2 users); future plan can swap for a
+  // server-side per-user flag if multiple devices need to share state.
+  const [noticeShown, setNoticeShown] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('omc.paradigmNoticeShown.v3') === '1';
+    } catch {
+      return true;
+    }
+  });
+  const dismissNotice = useCallback(() => {
+    try {
+      localStorage.setItem('omc.paradigmNoticeShown.v3', '1');
+    } catch {
+      // ignore — quota or private-mode; the notice just shows again next time.
+    }
+    setNoticeShown(true);
+  }, []);
+
+  if (!visible || !summary) return null;
+
+  return (
+    <section
+      style={{
+        marginTop: 12,
+        paddingTop: 10,
+        borderTop: '1px solid var(--border-secondary)',
+      }}
+    >
+      {!noticeShown && (
+        <div
+          style={{
+            marginBottom: 10,
+            padding: '8px 10px',
+            background: 'var(--bg-info-subtle, rgba(20, 83, 182, 0.06))',
+            border: '1px solid var(--border-info, rgba(20, 83, 182, 0.25))',
+            borderRadius: 6,
+            fontSize: 12,
+            color: 'var(--text-primary)',
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>새 동작</strong> — AI 가 task 진행 중 review 경고는 자동으로 넘어가도록 바뀌었어요.
+          모든 결과는 아래에서 한눈에 확인하고, 위험한 변경은 여전히 멈춰서 알려드립니다.
+          <button
+            type="button"
+            onClick={dismissNotice}
+            style={{
+              marginLeft: 8,
+              padding: '2px 8px',
+              fontSize: 11,
+              border: '1px solid var(--border-primary)',
+              borderRadius: 4,
+              background: 'transparent',
+              cursor: 'pointer',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            알겠습니다
+          </button>
+        </div>
+      )}
+
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 12,
+          fontSize: 12,
+          color: 'var(--text-secondary)',
+          marginBottom: 10,
+        }}
+      >
+        <span>
+          <strong style={{ color: 'var(--text-primary)' }}>
+            {summary.reviewed}/{summary.total}
+          </strong>
+          {' '}완료
+        </span>
+        {summary.skipped > 0 && <span>⊘ {summary.skipped} skipped</span>}
+        {summary.blocked > 0 && <span>🚫 {summary.blocked} blocked</span>}
+        {summary.failed > 0 && <span style={{ color: 'var(--error)' }}>❌ {summary.failed} failed</span>}
+        {summary.warningCount > 0 && (
+          <span style={{ color: 'var(--text-warn, #8a5a00)' }}>
+            ⚠ {summary.warningCount} review {summary.warningCount === 1 ? 'warning' : 'warnings'}
+          </span>
+        )}
+        {summary.changedFiles.length > 0 && (
+          <span>📄 {summary.changedFiles.length} 파일 변경</span>
+        )}
+      </div>
+
+      {summary.warningCount > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {summary.warnings.map((w) => (
+            <div
+              key={w.taskId}
+              style={{
+                padding: '8px 10px',
+                background: 'var(--bg-warn, #fff7e6)',
+                border: '1px solid var(--border-warn, #f5c26b)',
+                borderRadius: 6,
+                fontSize: 12,
+                lineHeight: 1.5,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <strong style={{ color: 'var(--text-warn, #8a5a00)' }}>⚠ {w.title}</strong>
+                {w.isNewBuild && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      padding: '1px 6px',
+                      borderRadius: 4,
+                      background: 'var(--chip-bg, rgba(20, 83, 182, 0.12))',
+                      color: 'var(--chip-text, #1453b6)',
+                    }}
+                  >
+                    🛠 New build
+                  </span>
+                )}
+                <span style={{ marginLeft: 'auto' }}>
+                  <button
+                    type="button"
+                    disabled={!w.canRevert}
+                    title={
+                      w.canRevert
+                        ? '이 task의 변경을 되돌립니다 (Phase 3에서 실제 동작 연결).'
+                        : '후속 task가 같은 파일을 수정해 자동 revert 불가 — 새 PRD로 처리하세요.'
+                    }
+                    onClick={() => {
+                      window.alert('Phase 3 에서 revert 동작이 연결됩니다.');
+                    }}
+                    style={{
+                      padding: '3px 10px',
+                      fontSize: 11,
+                      border: `1px solid ${w.canRevert ? 'var(--border-primary)' : 'var(--border-secondary)'}`,
+                      background: 'transparent',
+                      borderRadius: 4,
+                      cursor: w.canRevert ? 'pointer' : 'not-allowed',
+                      color: w.canRevert
+                        ? 'var(--text-primary)'
+                        : 'var(--text-tertiary)',
+                      opacity: w.canRevert ? 1 : 0.5,
+                    }}
+                  >
+                    ↶ Revert
+                  </button>
+                </span>
+              </div>
+              <div style={{ color: 'var(--text-secondary)' }}>{w.notes}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div
+        style={{
+          marginTop: 12,
+          padding: '8px 10px',
+          fontSize: 11,
+          color: 'var(--text-tertiary)',
+          background: 'var(--bg-secondary)',
+          border: '1px dashed var(--border-secondary)',
+          borderRadius: 6,
+        }}
+      >
+        💡 후속 작업 제안은 Phase 3 에서 추가됩니다.
+      </div>
+    </section>
   );
 }
 

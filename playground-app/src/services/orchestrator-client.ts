@@ -741,6 +741,9 @@ export interface JobTask {
   currentPhase?: string;
   /** Plan v3 — propagated from plan_item.is_new_build through planItemsToTasks. */
   isNewBuild?: boolean;
+  /** Plan v3 Phase 2 — per-task file changes captured from the adapter; used
+   * by buildJobSummary to compute leaf-only canRevert without re-running git. */
+  changedFiles?: string[];
   review?: {
     verdict: 'pass' | 'fail';
     /** Plan v3 — 'warning' tasks auto-progress with the review note preserved
@@ -749,6 +752,31 @@ export interface JobTask {
     notes: string;
     acceptedByUser?: boolean;
   };
+}
+
+/** Plan v3 Phase 2 — derived view computed by orchestrator on each /api/job/:id
+ * read. Race-free (pure function from task state), so the chat-history
+ * persistence flow doesn't need a separate atomic-persist pass. */
+export interface JobSummary {
+  total: number;
+  reviewed: number;
+  skipped: number;
+  blocked: number;
+  failed: number;
+  pending: number;
+  warningCount: number;
+  warnings: Array<{
+    taskId: string;
+    title: string;
+    notes: string;
+    commitSha?: string;
+    isNewBuild: boolean;
+    /** Leaf-only revert — true iff no later task changed any file this task
+     * also changed. The Phase 2 UI greys out the revert button when false. */
+    canRevert: boolean;
+  }>;
+  changedFiles: string[];
+  finalSha?: string;
 }
 
 export type QaStrategyId =
@@ -765,6 +793,8 @@ export interface Job {
   prdText: string;
   status: JobStatus;
   tasks: JobTask[];
+  /** Plan v3 Phase 2 — derived view, attached by GET /api/job/:id on each read. */
+  summary?: JobSummary;
   currentTaskId?: string;
   pausedReason?: string;
   qaStrategy?: QaStrategyId;
