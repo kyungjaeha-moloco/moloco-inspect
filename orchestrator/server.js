@@ -3270,6 +3270,7 @@ ${JSON.stringify(apiContracts, null, 2)}`;
         requestSchemaPath: REQUEST_SCHEMA_PATH,
         client: payload?.client,
         routeOrPage: payload?.routeOrPage,
+        language: payload?.language,
         // plan_feedback activated (2026-05-11) — the classifier can classify chat
         // input as "request to modify the current plan". Accuracy improves when the
         // caller (surface) sends whether a pending plan exists + its summary.
