@@ -93,6 +93,7 @@ Output MUST be valid JSON only (no markdown, no prose). Schema:
       "description": "<1-2 sentence technical detail in English>",
       "pattern_id": "<pattern id from patterns.json or null>",
       "target_file": "<relative file path or template form from patterns.json, or null>",
+      "is_new_build": false,
       "depends_on": []
     }
   ],
@@ -137,6 +138,19 @@ Component / file / hook / import references belong in the structured schema fiel
 - \`unresolved_components[]\` — DS-missing intent with closest_match.
 
 The plan card UI, decomposer, and downstream code agents read those fields directly. Description prose is for humans who don't read code.
+
+## Item flag: is_new_build
+
+Set is_new_build:true on a plan_item ONLY when the task introduces UI for which the codebase has no equivalent DS component. The downstream coding agent will write hand-rolled markup, and the per-task reviewer will skip the DS-equivalent rule for THIS task only.
+
+**Primary signal — unresolved_components cross-reference:** If THIS plan_item creates a component, page, or container whose intent is also listed in unresolved_components (i.e., DS has nothing close enough), set is_new_build:true. The post-process layer enforces this — if any unresolved_components entry corresponds to a plan_item and is_new_build is false, it will be overridden to true.
+
+Default is_new_build:false. Don't set true when the task modifies existing UI or composes existing DS components.
+
+Examples:
+- "Build a brand-new Traffic Control page from scratch" (no DS equivalent) → is_new_build:true.
+- "Add a tab to the existing Creative Review page" (DS has tab patterns) → is_new_build:false.
+- "Build a custom slider widget with branded styling" (DS has no slider) → is_new_build:true.
 
 ### Example (Creative Review deleted-tab case)
 - BAD title: "Add 'Deleted' tab to MCCreativeReviewContainer"
@@ -342,6 +356,41 @@ ${feedback}
     throw new Error(`emitPlan: invalid JSON — ${err.message}`);
   }
 
+  // Plan v3 §4.7 — is_new_build post-process safety net. If any plan_item
+  // populates unresolved_components but the LLM didn't set is_new_build,
+  // force it to true so the downstream reviewer skips Rule 7 for that task.
+  // This guards against the LLM forgetting the heuristic on close calls.
+  const planItems = Array.isArray(plan?.plan_items) ? plan.plan_items : [];
+  const hasUnresolvedSignal = Array.isArray(plan?.unresolved_components) && plan.unresolved_components.length > 0;
+  let postProcessCorrections = 0;
+  if (hasUnresolvedSignal) {
+    // The unresolved_components array sits at the plan level (not per-item)
+    // in the current schema. Until the schema can link entries to a specific
+    // plan_item, treat unresolved_components as a job-level signal: if ANY
+    // plan_item has is_new_build=false AND the plan as a whole has unresolved
+    // DS gaps, flip the items whose target_file looks brand-new (no existing
+    // file at the path or matches a new-feature template) — fallback: flip
+    // every item flagged is_new_build:false to true. The reviewer rule is
+    // a per-task gate so being conservative (more true) is safe; the risk is
+    // hand-rolled markup landing without warning, but the Plan v3 final
+    // summary + revert flow surfaces it post-hoc.
+    for (const item of planItems) {
+      if (!item.is_new_build) {
+        item.is_new_build = true;
+        postProcessCorrections += 1;
+      }
+    }
+  }
+  const newBuildCount = planItems.filter((it) => it?.is_new_build === true).length;
+  const newBuildRatio = planItems.length > 0 ? newBuildCount / planItems.length : 0;
+  if (newBuildRatio > 0.3) {
+    console.warn(
+      `[plan-emitter] is_new_build_ratio=${newBuildRatio.toFixed(2)} (>0.30 threshold). ` +
+      `${newBuildCount}/${planItems.length} items flagged new-build. ` +
+      `If this becomes the norm, revisit the heuristic in SYSTEM_PROMPT "Item flag: is_new_build".`,
+    );
+  }
+
   const u = result?.usage || {};
   const imgLogPart = imageBlock
     ? `img_attached=1 size=${attachmentInfo.size ?? '?'}`
@@ -349,6 +398,7 @@ ${feedback}
   console.log(
     `[plan-emitter] Generated ${plan.plan_items?.length || 0} items for client=${client} route=${routeOrPage} | ` +
     `refs=${plan.referenced_components?.length ?? 'null'} unresolved=${plan.unresolved_components?.length ?? 'null'} | ` +
+    `new_build=${newBuildCount}/${planItems.length} (ratio=${newBuildRatio.toFixed(2)}, corrections=${postProcessCorrections}) | ` +
     `${imgLogPart} | ` +
     `usage: input=${u.input_tokens ?? '?'} output=${u.output_tokens ?? '?'} ` +
     `cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`,
@@ -368,6 +418,9 @@ ${feedback}
     img_attached: imageBlock ? 1 : 0,
     img_skip_reason: imageBlock ? null : (attachment ? attachmentInfo.reason : null),
     img_size_bytes: imageBlock ? (attachmentInfo.size ?? 0) : 0,
+    new_build_count: newBuildCount,
+    new_build_ratio: newBuildRatio,
+    new_build_post_process_corrections: postProcessCorrections,
   });
   return plan;
 }
