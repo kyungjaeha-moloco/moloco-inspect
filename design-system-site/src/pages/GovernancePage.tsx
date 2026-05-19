@@ -696,28 +696,31 @@ function EscalationQueueSection() {
                     </div>
 
                     {it.status !== 'awaiting_judge' ? (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {it.status !== 'in_review' && (
-                          <button
-                            className="tab"
-                            disabled={updatingId === it.id}
-                            onClick={() => handleStatusChange(it.id, 'in_review')}
-                          >
-                            🔍 Mark in review
-                          </button>
-                        )}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                         {it.status !== 'resolved' && (
                           <button
-                            className="tab"
+                            type="button"
+                            className="btn btn-primary"
                             disabled={updatingId === it.id}
                             onClick={() => handleStatusChange(it.id, 'resolved')}
                           >
                             ✅ Resolve
                           </button>
                         )}
+                        {it.status !== 'in_review' && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            disabled={updatingId === it.id}
+                            onClick={() => handleStatusChange(it.id, 'in_review')}
+                          >
+                            🔍 Mark in review
+                          </button>
+                        )}
                         {it.status !== 'dismissed' && (
                           <button
-                            className="tab"
+                            type="button"
+                            className="btn btn-ghost"
                             disabled={updatingId === it.id}
                             onClick={() => handleStatusChange(it.id, 'dismissed')}
                           >
@@ -726,7 +729,8 @@ function EscalationQueueSection() {
                         )}
                         {it.status !== 'pending' && (
                           <button
-                            className="tab"
+                            type="button"
+                            className="btn btn-ghost"
                             disabled={updatingId === it.id}
                             onClick={() => handleStatusChange(it.id, 'pending')}
                           >
