@@ -41,6 +41,9 @@ sandbox/host-ca.pem
 # Orchestrator runtime state (per-request JSON snapshots)
 orchestrator/state/
 
+# Personal authoring output (kept out of repo)
+output/
+
 # Editor
 .idea/
 .vscode/
