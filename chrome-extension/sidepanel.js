@@ -2388,6 +2388,178 @@
     return msg;
   }
 
+  /**
+   * Plan v3 Phase 2 G4 — final summary card for the Job pipeline. Surfaces
+   * auto-progressed warnings, leaf-only revert affordances (Phase 3 wires the
+   * actual revert call), and a follow-up placeholder. Re-rendered on each
+   * poll while warnings exist or the job is complete.
+   */
+  function renderOrUpdateFinalSummaryCard(job) {
+    const summary = job?.summary;
+    if (!summary) return;
+    let existing = messagesEl.querySelector(
+      `.msg-system[data-final-summary-job-id="${CSS.escape(job.id)}"]`,
+    );
+    const fresh = buildFinalSummaryCard(job, summary);
+    if (existing) {
+      existing.replaceWith(fresh);
+    } else {
+      messagesEl.appendChild(fresh);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+  }
+
+  function buildFinalSummaryCard(job, summary) {
+    const msg = document.createElement('div');
+    msg.className = 'msg msg-system';
+    msg.dataset.finalSummaryJobId = job.id;
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble final-summary-card';
+
+    // G1b — first-time inline notice (paradigm onboarding). localStorage-gated.
+    let noticeShown = true;
+    try {
+      noticeShown = localStorage.getItem('omc.paradigmNoticeShown.v3') === '1';
+    } catch {
+      /* private mode — notice will appear again next time */
+    }
+    if (!noticeShown) {
+      const notice = document.createElement('div');
+      notice.style.marginBottom = '10px';
+      notice.style.padding = '8px 10px';
+      notice.style.background = 'rgba(20, 83, 182, 0.06)';
+      notice.style.border = '1px solid rgba(20, 83, 182, 0.25)';
+      notice.style.borderRadius = '6px';
+      notice.style.fontSize = '12px';
+      notice.style.lineHeight = '1.5';
+      const text = document.createElement('span');
+      text.innerHTML =
+        '<strong>새 동작</strong> — AI 가 review 경고는 자동으로 넘어가도록 바뀌었어요. 위험한 변경은 여전히 멈춰서 알려드립니다.';
+      notice.appendChild(text);
+      const dismiss = document.createElement('button');
+      dismiss.type = 'button';
+      dismiss.textContent = '알겠습니다';
+      dismiss.style.marginLeft = '8px';
+      dismiss.style.padding = '2px 8px';
+      dismiss.style.fontSize = '11px';
+      dismiss.style.border = '1px solid var(--border-primary, #ccc)';
+      dismiss.style.borderRadius = '4px';
+      dismiss.style.background = 'transparent';
+      dismiss.style.cursor = 'pointer';
+      dismiss.addEventListener('click', () => {
+        try {
+          localStorage.setItem('omc.paradigmNoticeShown.v3', '1');
+        } catch {
+          /* ignore */
+        }
+        notice.remove();
+      });
+      notice.appendChild(dismiss);
+      bubble.appendChild(notice);
+    }
+
+    const stats = document.createElement('div');
+    stats.style.display = 'flex';
+    stats.style.flexWrap = 'wrap';
+    stats.style.gap = '10px';
+    stats.style.fontSize = '12px';
+    stats.style.color = 'var(--text-muted, #888)';
+    stats.style.marginBottom = '10px';
+    const statsParts = [];
+    statsParts.push(
+      `<span><strong style="color:var(--text-primary,#222)">${summary.reviewed}/${summary.total}</strong> 완료</span>`,
+    );
+    if (summary.skipped > 0) statsParts.push(`<span>⊘ ${summary.skipped} skipped</span>`);
+    if (summary.blocked > 0) statsParts.push(`<span>🚫 ${summary.blocked} blocked</span>`);
+    if (summary.failed > 0)
+      statsParts.push(`<span style="color:#d33">❌ ${summary.failed} failed</span>`);
+    if (summary.warningCount > 0) {
+      const w = summary.warningCount;
+      statsParts.push(
+        `<span style="color:#8a5a00">⚠ ${w} review ${w === 1 ? 'warning' : 'warnings'}</span>`,
+      );
+    }
+    if (Array.isArray(summary.changedFiles) && summary.changedFiles.length > 0) {
+      statsParts.push(`<span>📄 ${summary.changedFiles.length} 파일 변경</span>`);
+    }
+    stats.innerHTML = statsParts.join('');
+    bubble.appendChild(stats);
+
+    if (summary.warningCount > 0 && Array.isArray(summary.warnings)) {
+      for (const w of summary.warnings) {
+        const row = document.createElement('div');
+        row.style.padding = '8px 10px';
+        row.style.marginBottom = '6px';
+        row.style.background = '#fff7e6';
+        row.style.border = '1px solid #f5c26b';
+        row.style.borderRadius = '6px';
+        row.style.fontSize = '12px';
+        row.style.lineHeight = '1.5';
+
+        const titleLine = document.createElement('div');
+        titleLine.style.display = 'flex';
+        titleLine.style.alignItems = 'center';
+        titleLine.style.gap = '6px';
+        titleLine.style.flexWrap = 'wrap';
+        const titleStrong = document.createElement('strong');
+        titleStrong.style.color = '#8a5a00';
+        titleStrong.textContent = `⚠ ${w.title}`;
+        titleLine.appendChild(titleStrong);
+        if (w.isNewBuild) {
+          const newBuildBadge = document.createElement('span');
+          newBuildBadge.textContent = '🛠 New build';
+          newBuildBadge.style.fontSize = '10px';
+          newBuildBadge.style.padding = '1px 6px';
+          newBuildBadge.style.borderRadius = '4px';
+          newBuildBadge.style.background = 'rgba(20, 83, 182, 0.12)';
+          newBuildBadge.style.color = '#1453b6';
+          titleLine.appendChild(newBuildBadge);
+        }
+        const revertBtn = document.createElement('button');
+        revertBtn.type = 'button';
+        revertBtn.textContent = '↶ Revert';
+        revertBtn.disabled = !w.canRevert;
+        revertBtn.style.marginLeft = 'auto';
+        revertBtn.style.padding = '3px 10px';
+        revertBtn.style.fontSize = '11px';
+        revertBtn.style.border = '1px solid var(--border-primary, #ccc)';
+        revertBtn.style.borderRadius = '4px';
+        revertBtn.style.background = 'transparent';
+        revertBtn.style.cursor = w.canRevert ? 'pointer' : 'not-allowed';
+        revertBtn.style.opacity = w.canRevert ? '1' : '0.5';
+        revertBtn.title = w.canRevert
+          ? '이 task의 변경을 되돌립니다 (Phase 3에서 실제 동작 연결).'
+          : '후속 task가 같은 파일을 수정해 자동 revert 불가 — 새 PRD로 처리하세요.';
+        revertBtn.addEventListener('click', () => {
+          alert('Phase 3 에서 revert 동작이 연결됩니다.');
+        });
+        titleLine.appendChild(revertBtn);
+        row.appendChild(titleLine);
+
+        const notes = document.createElement('div');
+        notes.style.color = 'var(--text-muted, #888)';
+        notes.style.marginTop = '4px';
+        notes.textContent = w.notes;
+        row.appendChild(notes);
+        bubble.appendChild(row);
+      }
+    }
+
+    const placeholder = document.createElement('div');
+    placeholder.style.marginTop = '8px';
+    placeholder.style.padding = '8px 10px';
+    placeholder.style.fontSize = '11px';
+    placeholder.style.color = 'var(--text-muted, #888)';
+    placeholder.style.background = 'var(--bg-secondary, #f5f5f5)';
+    placeholder.style.border = '1px dashed var(--border-secondary, #ddd)';
+    placeholder.style.borderRadius = '6px';
+    placeholder.textContent = '💡 후속 작업 제안은 Phase 3 에서 추가됩니다.';
+    bubble.appendChild(placeholder);
+
+    msg.appendChild(bubble);
+    return msg;
+  }
+
   function startHttpJobPolling(jobId) {
     // Reset the legacy currentRequestId so older flows don't race.
     currentRequestId = null;
@@ -2524,6 +2696,18 @@
           // transitions from the placeholder ('Re-running…') to the actual result.
           updateQaCompletionMessage(job);
         }
+      }
+
+      // Plan v3 Phase 2 G4 — final summary card. Render on every poll while
+      // the job is complete OR carries review warnings. The card is keyed by
+      // jobId so subsequent polls replace its contents in place (warning
+      // count can change mid-run as more tasks land).
+      if (
+        job &&
+        job.summary &&
+        (job.status === 'complete' || (job.summary.warningCount ?? 0) > 0)
+      ) {
+        renderOrUpdateFinalSummaryCard(job);
       }
 
       if (job && job.status === 'complete' && !announcedJobStates.has('completed')) {
