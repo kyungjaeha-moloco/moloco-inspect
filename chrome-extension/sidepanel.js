@@ -2622,6 +2622,19 @@
       const titleEl = document.createElement('strong');
       titleEl.textContent = p.title || '(no title)';
       li.appendChild(titleEl);
+      if (p.is_new_build === true) {
+        const badge = document.createElement('span');
+        badge.textContent = '🛠 New build';
+        badge.style.marginLeft = '6px';
+        badge.style.padding = '1px 6px';
+        badge.style.fontSize = '10px';
+        badge.style.fontWeight = '500';
+        badge.style.borderRadius = '4px';
+        badge.style.background = 'var(--chip-bg, rgba(20, 83, 182, 0.12))';
+        badge.style.color = 'var(--chip-text, #1453b6)';
+        badge.title = 'This task introduces a new component without a DS equivalent — reviewer skips DS-equivalence check.';
+        li.appendChild(badge);
+      }
       if (p.description) {
         const desc = document.createElement('div');
         desc.style.color = 'var(--text-muted, #888)';

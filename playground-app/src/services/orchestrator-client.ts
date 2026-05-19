@@ -10,6 +10,9 @@ export interface RawPlanItem {
   description?: string;
   pattern_id?: string | null;
   target_file?: string | null;
+  /** Plan v3 — set by plan-emitter when this item introduces UI without a DS
+   * equivalent. Reviewer skips Rule 7 (DS equivalence check) for this task. */
+  is_new_build?: boolean;
   depends_on?: string[];
 }
 
@@ -736,8 +739,13 @@ export interface JobTask {
   commitSha?: string;
   baseSha?: string;
   currentPhase?: string;
+  /** Plan v3 — propagated from plan_item.is_new_build through planItemsToTasks. */
+  isNewBuild?: boolean;
   review?: {
     verdict: 'pass' | 'fail';
+    /** Plan v3 — 'warning' tasks auto-progress with the review note preserved
+     * for the final summary; 'critical' tasks pause the whole job. */
+    severity?: 'critical' | 'warning';
     notes: string;
     acceptedByUser?: boolean;
   };

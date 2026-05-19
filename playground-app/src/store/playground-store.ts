@@ -32,6 +32,9 @@ export interface PlanItem {
   description?: string;
   patternId?: string;
   targetFile?: string;
+  /** Plan v3 — set by plan-emitter when this item introduces UI without a
+   * DS equivalent. Reviewer skips DS-equivalence check (Rule 7) for this task. */
+  isNewBuild?: boolean;
   dependsOn?: string[];
   enabled: boolean;
 }

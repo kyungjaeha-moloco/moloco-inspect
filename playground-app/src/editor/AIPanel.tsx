@@ -537,6 +537,7 @@ export const AIPanel = React.memo(function AIPanel({
         description: it.description ?? undefined,
         patternId: it.pattern_id ?? undefined,
         targetFile: it.target_file ?? undefined,
+        isNewBuild: it.is_new_build === true,
         dependsOn: Array.isArray(it.depends_on) ? it.depends_on : [],
         enabled: true,
       }));
@@ -3212,9 +3213,14 @@ function PlanCard({
                   fontWeight: 500,
                   lineHeight: 1.4,
                   overflowWrap: 'anywhere',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                  alignItems: 'center',
                 }}
               >
-                {item.title}
+                <span>{item.title}</span>
+                {item.isNewBuild && <Chip label="🛠 New build" color="accent" />}
               </div>
               {item.description && (
                 <div
@@ -4351,6 +4357,7 @@ function rawToPlan(raw: RawPlan): {
       description: it.description,
       patternId: it.pattern_id ?? undefined,
       targetFile: it.target_file ?? undefined,
+      isNewBuild: it.is_new_build === true,
       dependsOn: it.depends_on,
       enabled: true,
     })),

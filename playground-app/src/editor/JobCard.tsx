@@ -146,6 +146,15 @@ export function JobCard({ jobId }: { jobId: string }) {
 
   const reviewedCount = job.tasks.filter((t) => t.status === 'reviewed').length;
   const skippedCount = job.tasks.filter((t) => t.status === 'skipped').length;
+  // Plan v3 G1.5 — count review warnings (reviewed status + verdict='fail' +
+  // severity='warning' or unset). Surfaced as a header badge so Phase 1 ships
+  // with at least a coarse signal before the full final summary lands.
+  const warningCount = job.tasks.filter(
+    (t) =>
+      t.status === 'reviewed' &&
+      t.review?.verdict === 'fail' &&
+      (t.review?.severity ?? 'warning') === 'warning',
+  ).length;
   const dimmedIds = computeDimmedTaskIds(
     job.tasks,
     playgroundCheckedOutSha,
@@ -181,6 +190,22 @@ export function JobCard({ jobId }: { jobId: string }) {
             {reviewedCount}/{job.tasks.length - skippedCount} reviewed
             {skippedCount > 0 && ` · ${skippedCount} skipped`}
           </span>
+          {warningCount > 0 && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 500,
+                padding: '1px 6px',
+                borderRadius: 4,
+                background: 'var(--bg-warn, #fff7e6)',
+                color: 'var(--text-warn, #8a5a00)',
+                border: '1px solid var(--border-warn, #f5c26b)',
+              }}
+              title="Review fired warnings on these tasks but the job auto-progressed (Plan v3 paradigm). Each warning task is marked with ⚠ below."
+            >
+              ⚠ {warningCount} review {warningCount === 1 ? 'warning' : 'warnings'}
+            </span>
+          )}
           {job.qaStrategy && (
             <QaStrategyChip
               strategy={job.qaStrategy}
@@ -605,6 +630,38 @@ function TaskRow({
           }}
         >
           {task.title}
+          {task.isNewBuild && (
+            <span
+              style={{
+                marginLeft: 6,
+                padding: '1px 6px',
+                fontSize: 10,
+                fontWeight: 500,
+                borderRadius: 4,
+                background: 'var(--chip-bg, rgba(20, 83, 182, 0.12))',
+                color: 'var(--chip-text, #1453b6)',
+                whiteSpace: 'nowrap',
+                verticalAlign: 'middle',
+              }}
+              title="This task introduces a new component without a DS equivalent — reviewer skips DS-equivalence check."
+            >
+              🛠 New build
+            </span>
+          )}
+          {task.review?.verdict === 'fail' &&
+            (task.review.severity ?? 'warning') === 'warning' && (
+              <span
+                style={{
+                  marginLeft: 6,
+                  fontSize: 11,
+                  color: 'var(--text-warn, #8a5a00)',
+                  verticalAlign: 'middle',
+                }}
+                title={`Review warning: ${task.review.notes}`}
+              >
+                ⚠
+              </span>
+            )}
         </span>
         {dependsOnLabel && (
           <span

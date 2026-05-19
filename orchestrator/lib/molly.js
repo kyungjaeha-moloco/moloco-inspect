@@ -1675,9 +1675,10 @@ function buildPlanItemsBlocks(plan, isFastTrack) {
   items.forEach((p, i) => {
     const descRaw = p.description ? toSlackMrkdwn(trunc(p.description, 1000)) : '';
     const desc = descRaw ? `\n${descRaw}` : '';
+    const newBuildTag = p.is_new_build === true ? '  🛠 _New build_' : '';
     blocks.push({
       type: 'section',
-      text: { type: 'mrkdwn', text: `*${i + 1}. ${toSlackMrkdwn(p.title || '(no title)')}*${desc}` },
+      text: { type: 'mrkdwn', text: `*${i + 1}. ${toSlackMrkdwn(p.title || '(no title)')}*${newBuildTag}${desc}` },
     });
   });
   blocks.push({
