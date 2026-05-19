@@ -1,69 +1,29 @@
-# MSM Portal Design System MCP Server
+# DEPRECATED — see `design-system-mcp/` at repo root
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that exposes the MSM Portal design system to AI coding assistants (Claude Code, Cursor, etc.) without requiring them to read entire JSON files.
+This directory is an **older, unbuilt** copy of the Moloco Design System MCP server. It is no longer the active surface and is kept only until callers are migrated.
 
-## Tools
+## Active server
 
-| Tool | Description |
-|------|-------------|
-| `list_components` | All component names grouped by category |
-| `get_component` | Full component definition — props, states, dos/donts, example |
-| `list_tokens` | All token categories with descriptions |
-| `get_tokens` | Tokens for a specific category (`color.text`, `color.background`, `color.border`, `color.icon`, `spacing`, `typography`) |
-| `list_patterns` | All pattern IDs with descriptions |
-| `get_pattern` | Full pattern with code example and rules |
-| `get_conventions` | Naming prefixes, file structure, import rules, architecture |
-| `get_icon_catalog` | Icon names grouped by category |
+The active MCP server lives at the repo root:
 
-## Setup
-
-### Claude Code (recommended)
-
-```bash
-claude mcp add msm-design-system -- npx ts-node design-system/mcp-server/src/index.ts
+```
+design-system-mcp/
 ```
 
-Or add manually to `.claude/settings.json` or your global MCP config:
+- 9 tools registered (this dormant copy has 8 with an older shape).
+- Builds to `dist/index.js`. Auto-registered via `.mcp.json` at repo root — any Claude Code session opened in the repo picks it up.
 
-```json
-{
-  "mcpServers": {
-    "msm-design-system": {
-      "command": "npx",
-      "args": ["ts-node", "design-system/mcp-server/src/index.ts"]
-    }
-  }
-}
-```
+## Why this directory still exists
 
-### Cursor
+Historical: the MCP work originally started here, then was rebuilt at the repo root with a wider tool surface. The directory was kept while we confirmed no caller still pointed at this path. As of 2026-05-19 no Claude Code or Cursor config references it, and the active server's smoke test (9 tools, `search_components({query:"beta tag"})` returns MCBetaTag with relevance 31) covers all functionality this directory ever provided.
 
-Add to `.cursor/mcp.json` in the repo root:
+## Migration
 
-```json
-{
-  "mcpServers": {
-    "msm-design-system": {
-      "command": "npx",
-      "args": ["ts-node", "design-system/mcp-server/src/index.ts"]
-    }
-  }
-}
-```
+If you previously pointed at this path:
 
-## Development
+- **Claude Code / Cursor `.mcp.json` / `mcp.json`**: change the `args` path from `design-system/mcp-server/...` to `design-system-mcp/dist/index.js`. See `design-system-mcp/README.md` for the canonical setup.
+- **Scripts / docs**: search-and-replace `design-system/mcp-server` → `design-system-mcp`.
 
-```bash
-cd design-system/mcp-server
-npm install
-npm start
-```
+## Removal timing
 
-## JSON Sources
-
-The server reads from `design-system/src/`:
-
-- `tokens.json` — colors, spacing, typography, icon catalog
-- `components.json` — component props, states, examples
-- `patterns.json` — composition patterns with code
-- `conventions.json` — naming, file structure, architecture rules
+This directory will be deleted once we have confirmed (via a clean smoke run plus team-trial usage) that no automation references it. Target: end of trial, late May 2026.

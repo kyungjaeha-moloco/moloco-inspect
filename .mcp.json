@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "moloco-design-system": {
+      "command": "node",
+      "args": ["design-system-mcp/dist/index.js"]
+    }
+  }
+}
