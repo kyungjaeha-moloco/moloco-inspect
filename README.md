@@ -4,8 +4,6 @@ An internal AI agent — codenamed **molly** — that lets Moloco PMs and SAs sh
 
 This is the entire stack — orchestrator, surfaces, sandbox, and design-system tooling — in one mono-repo.
 
-> 📝 Internal design docs (plans, handoffs, contracts) live on local disks while we tidy them up. Pinged on Slack for a walkthrough of a specific area — the README + a live demo are the fastest path in for now.
-
 ---
 
 ## What molly does (current capability)
